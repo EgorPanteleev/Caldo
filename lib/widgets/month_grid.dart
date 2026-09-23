@@ -9,31 +9,53 @@ import '../utils/dates.dart';
 /// The Mon…Sun (or Sun…Sat) column headings that sit above a [MonthGrid].
 class WeekdayRow extends StatelessWidget {
   final bool mondayFirst;
-  const WeekdayRow({super.key, required this.mondayFirst});
+
+  /// How far the grid below is opened; the headings are underlined by the
+  /// same rule that separates the weeks, so the two arrive together.
+  final double expansion;
+
+  const WeekdayRow({
+    super.key,
+    required this.mondayFirst,
+    this.expansion = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final labels = Dates.weekdayLabels(mondayFirst: mondayFirst);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      child: Row(
-        children: [
-          for (final label in labels)
-            Expanded(
-              child: Center(
-                child: Text(
-                  label.toUpperCase(),
-                  style: TextStyle(
-                    color: p.faint,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
+      // Inset to match the grid, so the rule lines up with the week rules.
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: p.border.withValues(alpha: expansion),
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          child: Row(
+            children: [
+              for (final label in labels)
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      label.toUpperCase(),
+                      style: TextStyle(
+                        color: p.faint,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

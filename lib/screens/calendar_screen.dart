@@ -143,7 +143,13 @@ class _CalendarScreenState extends State<CalendarScreen>
             onToday: _jumpToToday,
             onNext: () => _goToPage(page + 1),
           ),
-          WeekdayRow(mondayFirst: mondayFirst),
+          AnimatedBuilder(
+            animation: _expansion,
+            builder: (context, _) => WeekdayRow(
+              mondayFirst: mondayFirst,
+              expansion: _expansion.value,
+            ),
+          ),
           Expanded(
             child: LayoutBuilder(builder: (context, box) {
               // The grid runs from a compact six-row block to the whole area;
