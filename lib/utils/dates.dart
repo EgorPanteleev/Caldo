@@ -44,6 +44,13 @@ class Dates {
 
   static String time(DateTime date) => DateFormat('HH:mm').format(date);
 
+  /// "Sep 23" — compact enough for a hint or a chip.
+  static String shortDay(DateTime date) => DateFormat('MMM d').format(date);
+
+  /// "WED" — the weekday beside a big day number.
+  static String weekdayShort(DateTime date) =>
+      DateFormat('EEE').format(date).toUpperCase();
+
   /// The same 24-hour clock as [time], for a time with no date attached.
   static String formatTimeOfDay(TimeOfDay time) =>
       '${time.hour.toString().padLeft(2, '0')}:'

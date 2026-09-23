@@ -9,7 +9,7 @@ import '../utils/dates.dart';
 import '../widgets/gradient_icon_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
-import '../widgets/task_row.dart';
+import '../widgets/task_card.dart';
 import 'task_edit_screen.dart';
 
 /// A month grid of the user's dated tasks, with the selected day's tasks
@@ -43,6 +43,9 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   DateTime _selected = dayOf(DateTime.now());
 
+  /// The one-line "add a task on this day" field under the list.
+  final _quickAdd = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -62,7 +65,23 @@ class _CalendarScreenState extends State<CalendarScreen>
   void dispose() {
     _controller.dispose();
     _expansion.dispose();
+    _quickAdd.dispose();
     super.dispose();
+  }
+
+  /// Creates an all-day task on the selected day straight from the field.
+  Future<void> _addQuickTask() async {
+    final title = _quickAdd.text.trim();
+    if (title.isEmpty) return;
+    final provider = context.read<TaskProvider>();
+    final lists = provider.lists;
+    _quickAdd.clear();
+    await provider.add(Task(
+      listId: lists.isNotEmpty ? lists.first.id! : 1,
+      title: title,
+      dueAt: _selected.millisecondsSinceEpoch,
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+    ));
   }
 
   void _onDrag(DragUpdateDetails details) {
@@ -155,7 +174,9 @@ class _CalendarScreenState extends State<CalendarScreen>
               // The grid runs from a compact six-row block to the whole area;
               // whatever it leaves goes to the selected day's tasks.
               final available = box.maxHeight;
-              final collapsed = (available * 0.45).clamp(210.0, 310.0);
+              // Enough height that a day can show a couple of lines under its
+              // number, without taking the list's half of the screen.
+              final collapsed = (available * 0.52).clamp(240.0, 340.0);
               final opened = available - _handleHeight;
               _range = (opened - collapsed).clamp(1.0, double.infinity);
               final listHeight = available - collapsed - _handleHeight;
@@ -230,22 +251,19 @@ class _CalendarScreenState extends State<CalendarScreen>
                                       ? EmptyState(
                                           icon: Icons.event_available_outlined,
                                           title: 'Nothing on this day',
-                                          message: 'Tap + to schedule '
-                                              'something for '
-                                              '${Dates.day(_selected).toLowerCase()}.',
+                                          message: 'Add one below, or tap + '
+                                              'for the full form.',
                                         )
                                       : ListView.builder(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 90),
+                                          padding: const EdgeInsets.only(
+                                              top: 4, bottom: 8),
                                           itemCount: dayTasks.length,
                                           itemBuilder: (context, i) {
                                             final task = dayTasks[i];
-                                            return TaskRow(
+                                            return TaskCard(
                                               task: task,
                                               list: provider
                                                   .listById(task.listId),
-                                              showList: true,
-                                              hideDate: !task.hasTime,
                                               onTap: () => _openEditor(task),
                                               onLongPress: () =>
                                                   _openEditor(task),
@@ -265,6 +283,75 @@ class _CalendarScreenState extends State<CalendarScreen>
                 },
               );
             }),
+          ),
+          _QuickAddBar(
+            date: _selected,
+            controller: _quickAdd,
+            onSubmit: _addQuickTask,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The field under the list: type a title, tap +, and it lands on the day in
+/// view without opening the full form.
+class _QuickAddBar extends StatelessWidget {
+  final DateTime date;
+  final TextEditingController controller;
+  final VoidCallback onSubmit;
+
+  const _QuickAddBar({
+    required this.date,
+    required this.controller,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => onSubmit(),
+              style: TextStyle(color: p.text, fontSize: 14.5),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Add task on ${Dates.shortDay(date)}',
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(26),
+                  borderSide: BorderSide(color: p.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(26),
+                  borderSide: BorderSide(color: p.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(26),
+                  borderSide: BorderSide(
+                    color: AppTheme.accentOf(context).color,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          GradientIconButton(
+            icon: Icons.add,
+            size: 48,
+            circle: true,
+            tooltip: 'Add task',
+            onTap: onSubmit,
           ),
         ],
       ),
@@ -433,30 +520,42 @@ class _DayBar extends StatelessWidget {
     final p = AppTheme.of(context);
     return Container(
       color: p.sidebar,
-      padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(
-            child: Text(
-              Dates.longDay(date),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: p.text,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
+          Text(
+            '${date.day}',
+            style: TextStyle(
+              color: p.text,
+              fontSize: 26,
+              height: 1,
+              fontWeight: FontWeight.w700,
             ),
           ),
+          const SizedBox(width: 8),
           Text(
-            count == 0 ? 'Free' : '$count open',
-            style: TextStyle(color: p.muted, fontSize: 12.5),
+            Dates.weekdayShort(date),
+            style: TextStyle(
+              color: p.muted,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
           ),
-          const SizedBox(width: 10),
+          const Spacer(),
+          if (count > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Text(
+                '$count open',
+                style: TextStyle(color: p.muted, fontSize: 12.5),
+              ),
+            ),
           GradientIconButton(
-            icon: Icons.add,
+            icon: Icons.edit_calendar_outlined,
             size: 34,
-            tooltip: 'Add on this day',
+            tooltip: 'Add with a full form',
             onTap: onAdd,
           ),
         ],

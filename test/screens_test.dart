@@ -1,3 +1,4 @@
+import 'package:caldo/models/task.dart';
 import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/tasks_screen.dart';
@@ -297,6 +298,49 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('the quick-add field schedules on the day in view',
+      (tester) async {
+    // A provider that captures instead of writing: a tap inside the widget
+    // tree cannot await real database work, but the task it hands over can
+    // still be checked.
+    late _CapturingProvider provider;
+    await tester.runAsync(() async {
+      provider = _CapturingProvider();
+      await provider.loadLists();
+    });
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<TaskProvider>.value(value: provider),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark(AppAccent.presets.first),
+        home: const CalendarScreen(),
+      ),
+    ));
+    await tester.pump();
+
+    final today = dayOf(DateTime.now());
+    expect(find.text('Add task on ${Dates.shortDay(today)}'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Buy milk');
+    await tester.tap(find.byTooltip('Add task'));
+    await tester.pump();
+
+    final added = provider.added;
+    expect(added, isNotNull);
+    expect(added!.title, 'Buy milk');
+    expect(added.dueAt, today.millisecondsSinceEpoch);
+    expect(added.hasTime, isFalse);
+    expect(added.listId, provider.lists.first.id);
+    // The field empties as soon as the task is handed over.
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller?.text, isEmpty);
+  });
+
   testWidgets('the shell carries Tasks, Calendar and Settings', (tester) async {
     await pumpScreen(tester, const HomeScreen());
 
@@ -319,4 +363,12 @@ void main() {
     expect(find.text('Ship'), findsOneWidget);
     expect(find.text('Water'), findsNothing);
   });
+}
+
+/// Records what the UI asks to create instead of writing it.
+class _CapturingProvider extends TaskProvider {
+  Task? added;
+
+  @override
+  Future<void> add(Task task) async => added = task;
 }

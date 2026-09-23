@@ -125,30 +125,30 @@ class MonthGrid extends StatelessWidget {
                         ),
                 ),
                 child: Row(
-                children: [
-                  for (var col = 0; col < 7; col++)
-                    Expanded(
-                      child: Builder(builder: (context) {
-                        final day = first.add(
-                          Duration(days: row * 7 + col - lead),
-                        );
-                        final enabled =
-                            (firstDate == null || !day.isBefore(firstDate!)) &&
-                                (lastDate == null || !day.isAfter(lastDate!));
-                        return _DayCell(
-                          day: day,
-                          inMonth: day.month == month.month,
-                          isToday: day == today,
-                          isSelected: day == selected,
-                          enabled: enabled,
-                          expansion: expansion,
-                          tasks: tasksByDay[day] ?? const [],
-                          lists: lists,
-                          onTap: enabled ? () => onSelect(day) : null,
-                        );
-                      }),
-                    ),
-                ],
+                  children: [
+                    for (var col = 0; col < 7; col++)
+                      Expanded(
+                        child: Builder(builder: (context) {
+                          final day = first.add(
+                            Duration(days: row * 7 + col - lead),
+                          );
+                          final enabled = (firstDate == null ||
+                                  !day.isBefore(firstDate!)) &&
+                              (lastDate == null || !day.isAfter(lastDate!));
+                          return _DayCell(
+                            day: day,
+                            inMonth: day.month == month.month,
+                            isToday: day == today,
+                            isSelected: day == selected,
+                            enabled: enabled,
+                            expansion: expansion,
+                            tasks: tasksByDay[day] ?? const [],
+                            lists: lists,
+                            onTap: enabled ? () => onSelect(day) : null,
+                          );
+                        }),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -158,9 +158,9 @@ class MonthGrid extends StatelessWidget {
   }
 }
 
-/// A single day: its number, a today ring, a selected fill, and its tasks —
-/// shown as slim bars when the grid is compact and as titles once it is
-/// pulled open.
+/// A single day: its number, a filled badge when it is today, an outline when
+/// it is the selected day, and its tasks — shown as lines under the number
+/// when the grid is compact and as titles once it is pulled open.
 class _DayCell extends StatelessWidget {
   final DateTime day;
   final bool inMonth;
@@ -199,14 +199,12 @@ class _DayCell extends StatelessWidget {
     final allDone = tasks.isNotEmpty && open.isEmpty;
 
     final Color numberColor;
-    if (isSelected) {
+    if (isToday) {
       numberColor = Colors.white;
     } else if (!enabled) {
       numberColor = p.faint.withValues(alpha: 0.4);
     } else if (!inMonth) {
       numberColor = p.faint.withValues(alpha: 0.6);
-    } else if (isToday) {
-      numberColor = accent.color;
     } else {
       numberColor = p.text;
     }
@@ -214,25 +212,21 @@ class _DayCell extends StatelessWidget {
     Color taskColor(Task task) => _colorOf(task, accent.color)
         .withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
 
-    // The selection and the today ring sit on the number itself, so an open
-    // cell still belongs to its tasks rather than to a block of colour.
+    // Today wears a filled badge; the selected day is outlined around its
+    // whole cell, so the number and its tasks are picked out together.
     final number = Container(
-      width: 30,
-      height: 26,
+      width: 28,
+      height: 20,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isSelected ? accent.color : Colors.transparent,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(
-          color: isToday && !isSelected ? accent.color : Colors.transparent,
-          width: 1.4,
-        ),
+        color: isToday ? accent.color : Colors.transparent,
+        borderRadius: BorderRadius.circular(7),
       ),
       child: Text(
         '${day.day}',
         style: TextStyle(
           color: numberColor,
-          fontSize: 14,
+          fontSize: 13.5,
           fontWeight: isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
@@ -242,58 +236,71 @@ class _DayCell extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(2),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
             color: isSelected
-                ? accent.color.withValues(alpha: 0.12)
+                ? accent.color.withValues(alpha: 0.07)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? accent.color : Colors.transparent,
+              width: 1.5,
+            ),
           ),
-          child: Builder(builder: (context) {
-            // The number sits at a fixed offset from the top of its cell, so
-            // growing the grid never moves it within the cell — the first
-            // week stays exactly where it is and the rest opens out below.
-            // Only the markers and titles beneath it change.
-            const gap = 4.0;
+          child: LayoutBuilder(builder: (context, box) {
+            // Everything is positioned from the top of the cell: the number
+            // keeps its place whatever the grid height, so the first week
+            // never moves as the month opens — only what sits under the
+            // number changes. Positioned children are bounded, so a cell too
+            // short for its content drops it rather than overflowing.
+            const numberTop = 2.0;
+            const numberHeight = 20.0;
+            const contentTop = numberTop + numberHeight + 2;
             final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
             final titleOpacity = ((expansion - 0.3) * 2.4).clamp(0.0, 1.0);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            return Stack(
               children: [
-                const SizedBox(height: 4),
-                Center(child: number),
-                const SizedBox(height: gap),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      if (markerOpacity > 0)
-                        Align(
-                          alignment: Alignment.topCenter,
-                          child: Opacity(
-                            opacity: markerOpacity,
-                            child: _MarkerBars(
+                Positioned(
+                  top: numberTop,
+                  left: 0,
+                  right: 0,
+                  child: Center(child: number),
+                ),
+                if (box.maxHeight > contentTop + 2)
+                  Positioned(
+                    top: contentTop,
+                    left: 0,
+                    right: 0,
+                    bottom: 2,
+                    child: Stack(
+                      children: [
+                        if (markerOpacity > 0)
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: Opacity(
+                              opacity: markerOpacity,
+                              child: _MarkerBars(
+                                tasks: tasks,
+                                colorOf: taskColor,
+                              ),
+                            ),
+                          ),
+                        if (titleOpacity > 0)
+                          Opacity(
+                            opacity: titleOpacity,
+                            child: _DayTitles(
                               tasks: tasks,
+                              muted: p.faint,
                               colorOf: taskColor,
                             ),
                           ),
-                        ),
-                      if (titleOpacity > 0)
-                        Opacity(
-                          opacity: titleOpacity,
-                          child: _DayTitles(
-                            tasks: tasks,
-                            muted: p.faint,
-                            onSurface: p.text,
-                            colorOf: taskColor,
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
               ],
             );
           }),
@@ -303,33 +310,45 @@ class _DayCell extends StatelessWidget {
   }
 }
 
-/// The compact marker for a day's tasks: one slim bar each, up to three.
+/// The compact marker for a day's tasks: a line per task, the width of the
+/// day, stacked under its number.
 class _MarkerBars extends StatelessWidget {
   final List<Task> tasks;
   final Color Function(Task) colorOf;
 
   const _MarkerBars({required this.tasks, required this.colorOf});
 
+  static const _barHeight = 2.5;
+  static const _gap = 1.5;
+  static const _max = 4;
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 3,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (final task in tasks.take(3))
-            Container(
-              width: 8,
-              height: 3,
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              decoration: BoxDecoration(
-                color: colorOf(task),
-                borderRadius: BorderRadius.circular(2),
+    return LayoutBuilder(builder: (context, box) {
+      // Only as many lines as the compact cell can hold.
+      final fits = ((box.maxHeight + _gap) / (_barHeight + _gap))
+          .floor()
+          .clamp(0, _max);
+      final shown = tasks.length < fits ? tasks.length : fits;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < shown; i++)
+              Container(
+                height: _barHeight,
+                margin: EdgeInsets.only(bottom: i == shown - 1 ? 0 : _gap),
+                decoration: BoxDecoration(
+                  color: colorOf(tasks[i]),
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
               ),
-            ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -337,13 +356,11 @@ class _MarkerBars extends StatelessWidget {
 class _DayTitles extends StatelessWidget {
   final List<Task> tasks;
   final Color muted;
-  final Color onSurface;
   final Color Function(Task) colorOf;
 
   const _DayTitles({
     required this.tasks,
     required this.muted,
-    required this.onSurface,
     required this.colorOf,
   });
 
@@ -379,11 +396,8 @@ class _DayTitles extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 3),
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-              color: colorOf(task).withValues(alpha: 0.22),
+              color: colorOf(task).withValues(alpha: task.done ? 0.35 : 0.9),
               borderRadius: BorderRadius.circular(3),
-              border: Border(
-                left: BorderSide(color: colorOf(task), width: 2),
-              ),
             ),
             child: Text(
               task.title,
@@ -396,7 +410,7 @@ class _DayTitles extends StatelessWidget {
                 fontSize: 8.5,
                 height: 1.2,
                 fontWeight: FontWeight.w600,
-                color: task.done ? muted : onSurface,
+                color: Colors.white,
                 decoration: task.done ? TextDecoration.lineThrough : null,
               ),
             ),
