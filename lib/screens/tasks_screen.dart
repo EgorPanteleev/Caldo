@@ -77,7 +77,7 @@ class _TasksScreenState extends State<TasksScreen> {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              padding: const EdgeInsets.fromLTRB(20, 2, 20, 18),
               child: _TodayCard(
                 date: today,
                 open: openToday,
@@ -174,64 +174,64 @@ class _TodayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
     final accent = AppTheme.accentOf(context);
     final total = open + done;
     final progress = total == 0 ? 0.0 : done / total;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: BoxDecoration(
-        gradient: accent.gradient,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            Dates.longDay(date),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          Dates.longDay(date),
+          style: TextStyle(
+            color: p.text,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                total == 0
+                    ? 'No tasks due today'
+                    : done == total
+                        ? 'All $total done — nice.'
+                        : '$open left of $total today',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: p.muted, fontSize: 13),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            total == 0
-                ? 'No tasks due today'
-                : done == total
-                    ? 'All $total done — nice.'
-                    : '$open left of $total today',
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          const SizedBox(height: 14),
+            if (overdue > 0) ...[
+              Text(' · ', style: TextStyle(color: p.faint, fontSize: 13)),
+              Text(
+                '$overdue overdue',
+                style: const TextStyle(
+                  color: AppColors.overdue,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (total > 0) ...[
+          const SizedBox(height: 12),
+          // The only colour left up here: a hairline of progress.
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: progress,
-              minHeight: 6,
-              backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              minHeight: 3,
+              backgroundColor: p.panelHi,
+              valueColor: AlwaysStoppedAnimation<Color>(accent.color),
             ),
           ),
-          if (overdue > 0) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  '$overdue overdue ${overdue == 1 ? "task" : "tasks"}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
