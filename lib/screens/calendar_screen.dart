@@ -69,24 +69,29 @@ class _CalendarScreenState extends State<CalendarScreen>
     _expansion.value += details.primaryDelta! / _range;
   }
 
-  /// Snaps open or shut, following the flick when there is one.
+  /// Snaps open or shut, following the flick when there is one. The drag
+  /// itself tracks the finger exactly; only the snap is eased.
   void _onDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() > 240) {
-      velocity > 0 ? _expansion.forward() : _expansion.reverse();
+    final open = velocity.abs() > 240 ? velocity > 0 : _expansion.value > 0.5;
+    _snapTo(open);
+  }
+
+  void _snapTo(bool open) {
+    if (open) {
+      _expansion.animateTo(1, curve: Curves.easeOutCubic);
     } else {
-      _expansion.value > 0.5 ? _expansion.forward() : _expansion.reverse();
+      _expansion.animateBack(0, curve: Curves.easeOutCubic);
     }
   }
 
-  void _toggleExpansion() =>
-      _expansion.value > 0.5 ? _expansion.reverse() : _expansion.forward();
+  void _toggleExpansion() => _snapTo(_expansion.value <= 0.5);
 
   void _selectDay(DateTime day) {
     setState(() => _selected = day);
     // Picking a day when the grid fills the screen means wanting to see that
     // day, so make room for it.
-    if (_expansion.value > 0.5) _expansion.reverse();
+    if (_expansion.value > 0.5) _snapTo(false);
   }
 
   DateTime _monthOfPage(int page) =>

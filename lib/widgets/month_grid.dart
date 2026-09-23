@@ -77,6 +77,7 @@ class MonthGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
     final first = DateTime(month.year, month.month);
     // Sunday is weekday 7 in Dart, so it needs folding back to column 0.
     final lead = mondayFirst ? first.weekday - 1 : first.weekday % 7;
@@ -90,7 +91,18 @@ class MonthGrid extends StatelessWidget {
         children: [
           for (var row = 0; row < rows; row++)
             Expanded(
-              child: Row(
+              // Rules between the weeks, drawn in as the month opens out.
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: row == 0
+                      ? null
+                      : Border(
+                          top: BorderSide(
+                            color: p.border.withValues(alpha: expansion),
+                          ),
+                        ),
+                ),
+                child: Row(
                 children: [
                   for (var col = 0; col < 7; col++)
                     Expanded(
@@ -115,6 +127,7 @@ class MonthGrid extends StatelessWidget {
                       }),
                     ),
                 ],
+                ),
               ),
             ),
         ],
@@ -217,37 +230,38 @@ class _DayCell extends StatelessWidget {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(11),
           ),
-          child: LayoutBuilder(builder: (context, box) {
-            // The two layouts cross-fade as the grid opens, so a drag reads
-            // as one continuous movement rather than a swap.
-            final titles = expansion > 0.02;
-            return Stack(
+          child: Builder(builder: (context) {
+            // The number sits at a fixed offset from the top of its cell, so
+            // growing the grid never moves it within the cell — the first
+            // week stays exactly where it is and the rest opens out below.
+            // Only the markers and titles beneath it change.
+            const gap = 4.0;
+            final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
+            final titleOpacity = ((expansion - 0.3) * 2.4).clamp(0.0, 1.0);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (expansion < 0.98)
-                  Opacity(
-                    opacity: (1 - expansion * 1.6).clamp(0.0, 1.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        number,
-                        const SizedBox(height: 5),
-                        _MarkerBars(
-                          tasks: tasks,
-                          colorOf: taskColor,
+                const SizedBox(height: 4),
+                Center(child: number),
+                const SizedBox(height: gap),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      if (markerOpacity > 0)
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: Opacity(
+                            opacity: markerOpacity,
+                            child: _MarkerBars(
+                              tasks: tasks,
+                              colorOf: taskColor,
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                if (titles)
-                  Opacity(
-                    opacity: ((expansion - 0.35) * 2.2).clamp(0.0, 1.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const SizedBox(height: 2),
-                        Center(child: number),
-                        const SizedBox(height: 3),
-                        Expanded(
+                      if (titleOpacity > 0)
+                        Opacity(
+                          opacity: titleOpacity,
                           child: _DayTitles(
                             tasks: tasks,
                             muted: p.faint,
@@ -255,9 +269,9 @@ class _DayCell extends StatelessWidget {
                             colorOf: taskColor,
                           ),
                         ),
-                      ],
-                    ),
+                    ],
                   ),
+                ),
               ],
             );
           }),
@@ -322,8 +336,12 @@ class _DayTitles extends StatelessWidget {
       final room =
           (box.maxHeight / (_rowHeight + _gap)).floor().clamp(0, 5);
       if (room == 0) return const SizedBox.shrink();
-      final shown = tasks.length <= room ? tasks.length : room - 1;
-      final hidden = tasks.length - shown;
+      // With room for a single row, spend it on a title rather than on a
+      // lone "+2" that names nothing — there is no room for both.
+      final shown = tasks.length <= room
+          ? tasks.length
+          : (room == 1 ? 1 : room - 1);
+      final hidden = room == 1 ? 0 : tasks.length - shown;
       return _titles(shown, hidden);
     });
   }
