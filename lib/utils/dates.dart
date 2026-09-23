@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' show TimeOfDay;
+import 'package:flutter/widgets.dart' show Characters;
 import 'package:intl/intl.dart';
 
 import '../models/task.dart';
@@ -13,16 +14,27 @@ class Dates {
           ? DateFormat('MMM').format(month)
           : DateFormat('MMM yyyy').format(month);
 
-  /// "Mon", "Tue", … starting on Monday or Sunday, for the calendar header.
+  /// "M", "T", "W", … starting on Monday or Sunday, for the calendar header.
   static List<String> weekdayLabels({required bool mondayFirst}) {
     // 2024-01-01 was a Monday, giving a stable base to read names off.
     final monday = DateTime(2024, 1, 1);
     final names = [
-      for (var i = 0; i < 7; i++)
-        DateFormat('EEE').format(monday.add(Duration(days: i))),
+      for (var i = 0; i < 7; i++) _narrowWeekday(monday.add(Duration(days: i))),
     ];
     return mondayFirst ? names : [names.last, ...names.take(6)];
   }
+
+  /// The one-letter form, falling back to the first letter of the short name
+  /// for locales where the narrow pattern gives something longer.
+  static String _narrowWeekday(DateTime day) {
+    final narrow = DateFormat('EEEEE').format(day);
+    if (Characters(narrow).length == 1) return narrow.toUpperCase();
+    return Characters(DateFormat('EEE').format(day)).first.toUpperCase();
+  }
+
+  /// Saturdays and Sundays, which the calendar marks in red.
+  static bool isWeekend(DateTime day) =>
+      day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
 
   /// A day, spoken the way a person would: "Today", "Tomorrow", "Sat, 4 Oct",
   /// and with the year once it is no longer the current one.

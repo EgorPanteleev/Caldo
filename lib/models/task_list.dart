@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'task.dart';
+
 /// A colour + icon identity a list can be tagged with, so lists stay
 /// recognisable at a glance in the calendar and in the lists grid.
 class ListStyle {
@@ -136,4 +138,11 @@ class TaskList {
       openCount: map['open_count'] as int? ?? 0,
     );
   }
+}
+
+/// The colour a task is drawn in: its own when it has been given one, its
+/// list's otherwise, and [fallback] when it has neither.
+Color colorOfTask(Task task, TaskList? list, {required Color fallback}) {
+  if (task.styleId != null) return ListStyle.byId(task.styleId).color;
+  return list?.style.color ?? fallback;
 }

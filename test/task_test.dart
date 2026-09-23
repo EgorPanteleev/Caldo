@@ -82,6 +82,7 @@ void main() {
         done: true,
         priority: Priority.high,
         repeat: Repeat.weekly,
+        styleId: 'teal',
         createdAt: 123,
         completedAt: 456,
       );
@@ -95,7 +96,15 @@ void main() {
       expect(copy.done, isTrue);
       expect(copy.priority, Priority.high);
       expect(copy.repeat, Repeat.weekly);
+      expect(copy.styleId, 'teal');
       expect(copy.completedAt, 456);
+    });
+
+    test('copyWith can clear the colour a task was given', () {
+      final task = const Task(listId: 1, title: 'x', styleId: 'pink',
+          createdAt: 0);
+      expect(task.copyWith(styleId: 'blue').styleId, 'blue');
+      expect(task.copyWith(clearStyleId: true).styleId, isNull);
     });
 
     test('copyWith can clear the due date and the completion', () {

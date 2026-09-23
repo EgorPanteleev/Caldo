@@ -1,0 +1,115 @@
+import 'package:caldo/data/holidays.dart';
+import 'package:caldo/models/task.dart';
+import 'package:caldo/models/task_list.dart';
+import 'package:caldo/theme/app_theme.dart';
+import 'package:caldo/widgets/month_grid.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  // September 2026: the 4th is a Friday, the 5th a Saturday, the 6th a Sunday.
+  final month = DateTime(2026, 9);
+  final work = TaskList(id: 1, name: 'Work', styleId: 'blue', createdAt: 0);
+
+  Future<void> pumpGrid(
+    WidgetTester tester, {
+    Map<DateTime, List<Task>> tasks = const {},
+    Map<DateTime, List<Holiday>> holidays = const {},
+    double expansion = 0,
+  }) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: AppTheme.dark(AppAccent.presets.first),
+      home: Scaffold(
+        body: SizedBox(
+          height: 400,
+          child: MonthGrid(
+            month: month,
+            selected: DateTime(2026, 9, 1),
+            mondayFirst: true,
+            tasksByDay: tasks,
+            holidaysByDay: holidays,
+            lists: [work],
+            expansion: expansion,
+            onSelect: (_) {},
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+  }
+
+  Color colorOfNumber(WidgetTester tester, int day) {
+    final texts = tester
+        .widgetList<Text>(find.text('$day'))
+        .where((t) => t.style?.color != null);
+    return texts.first.style!.color!;
+  }
+
+  testWidgets('weekends are red and weekdays are not', (tester) async {
+    await pumpGrid(tester);
+
+    expect(colorOfNumber(tester, 5), AppColors.weekend, reason: 'Saturday');
+    expect(colorOfNumber(tester, 6), AppColors.weekend, reason: 'Sunday');
+    expect(colorOfNumber(tester, 4), isNot(AppColors.weekend),
+        reason: 'Friday');
+  });
+
+  testWidgets('a holiday turns its weekday red too', (tester) async {
+    await pumpGrid(tester, holidays: {
+      DateTime(2026, 9, 10): [
+        Holiday(DateTime(2026, 9, 10), 'Made-up Day'),
+      ],
+    });
+
+    expect(colorOfNumber(tester, 10), AppColors.weekend);
+    expect(colorOfNumber(tester, 11), isNot(AppColors.weekend));
+  });
+
+  testWidgets('an opened month writes holidays out in green', (tester) async {
+    await pumpGrid(
+      tester,
+      expansion: 1,
+      holidays: {
+        DateTime(2026, 9, 10): [
+          Holiday(DateTime(2026, 9, 10), 'Made-up Day'),
+        ],
+      },
+      tasks: {
+        DateTime(2026, 9, 10): [
+          Task(listId: 1, title: 'Standup', createdAt: 0),
+        ],
+      },
+    );
+
+    expect(find.text('Made-up Day'), findsOneWidget);
+    expect(find.text('Standup'), findsOneWidget);
+    final chip = tester.widget<Container>(
+      find
+          .ancestor(of: find.text('Made-up Day'), matching: find.byType(Container))
+          .first,
+    );
+    final decoration = chip.decoration! as BoxDecoration;
+    expect(decoration.color!.toARGB32(), AppColors.holiday.withValues(alpha: 0.9).toARGB32());
+  });
+
+  testWidgets('a task keeps its own colour over its list', (tester) async {
+    await pumpGrid(
+      tester,
+      expansion: 1,
+      tasks: {
+        DateTime(2026, 9, 10): [
+          Task(listId: 1, title: 'Own colour', styleId: 'pink', createdAt: 0),
+        ],
+      },
+    );
+
+    final chip = tester.widget<Container>(
+      find
+          .ancestor(of: find.text('Own colour'), matching: find.byType(Container))
+          .first,
+    );
+    final decoration = chip.decoration! as BoxDecoration;
+    final pink = ListStyle.byId('pink').color;
+    expect(decoration.color!.toARGB32(), pink.withValues(alpha: 0.9).toARGB32());
+  });
+}

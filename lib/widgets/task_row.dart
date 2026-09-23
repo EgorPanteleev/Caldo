@@ -41,7 +41,7 @@ class TaskRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final accent = AppTheme.accentOf(context);
-    final color = list?.style.color ?? accent.color;
+    final color = colorOfTask(task, list, fallback: accent.color);
     final overdue = task.isOverdue;
     final meta = <Widget>[];
 

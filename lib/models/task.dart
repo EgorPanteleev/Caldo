@@ -75,6 +75,10 @@ class Task {
   final Priority priority;
   final Repeat repeat;
 
+  /// Id of a [ListStyle] overriding the colour this task inherits from its
+  /// list, or null to follow the list.
+  final String? styleId;
+
   /// Epoch millis of creation, used for sorting.
   final int createdAt;
 
@@ -91,6 +95,7 @@ class Task {
     this.done = false,
     this.priority = Priority.none,
     this.repeat = Repeat.none,
+    this.styleId,
     required this.createdAt,
     this.completedAt,
   });
@@ -129,6 +134,8 @@ class Task {
     bool? done,
     Priority? priority,
     Repeat? repeat,
+    String? styleId,
+    bool clearStyleId = false,
     int? createdAt,
     int? completedAt,
     bool clearCompletedAt = false,
@@ -143,6 +150,7 @@ class Task {
       done: done ?? this.done,
       priority: priority ?? this.priority,
       repeat: repeat ?? this.repeat,
+      styleId: clearStyleId ? null : (styleId ?? this.styleId),
       createdAt: createdAt ?? this.createdAt,
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
     );
@@ -159,6 +167,7 @@ class Task {
       'done': done ? 1 : 0,
       'priority': priority.index,
       'repeat_rule': repeat.name,
+      'style_id': styleId,
       'created_at': createdAt,
       'completed_at': completedAt,
     };
@@ -175,6 +184,7 @@ class Task {
       done: (map['done'] as int? ?? 0) == 1,
       priority: Priority.byIndex(map['priority'] as int?),
       repeat: Repeat.byName(map['repeat_rule'] as String?),
+      styleId: map['style_id'] as String?,
       createdAt: map['created_at'] as int? ?? 0,
       completedAt: map['completed_at'] as int?,
     );

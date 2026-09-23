@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 import 'package:caldo/models/task.dart';
 import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/task_provider.dart';
@@ -149,6 +151,26 @@ void main() {
       provider.lists.firstWhere((l) => l.name == 'Personal').taskCount,
       1,
     );
+  });
+
+  test('a task can carry its own colour, overriding its list', () async {
+    final provider = await seedProvider();
+    final work = provider.lists.firstWhere((l) => l.name == 'Work');
+    final task = provider.tasks.firstWhere((t) => t.title == 'Ship');
+
+    await provider.update(task.copyWith(styleId: 'pink'));
+
+    final stored = provider.tasks.firstWhere((t) => t.title == 'Ship');
+    expect(stored.styleId, 'pink');
+    expect(colorOfTask(stored, work, fallback: const Color(0xFF000000)),
+        ListStyle.byId('pink').color);
+
+    // Cleared, it falls back to the colour of its list.
+    await provider.update(stored.copyWith(clearStyleId: true));
+    final plain = provider.tasks.firstWhere((t) => t.title == 'Ship');
+    expect(plain.styleId, isNull);
+    expect(colorOfTask(plain, work, fallback: const Color(0xFF000000)),
+        work.style.color);
   });
 
   test('a new list starts empty and can be opened', () async {

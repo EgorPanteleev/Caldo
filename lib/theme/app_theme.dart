@@ -33,6 +33,10 @@ class AppColors {
   /// Shared semantic colours that do not change with the accent.
   static const danger = Color(0xFFF87171);
   static const overdue = Color(0xFFEF4444);
+
+  /// Saturdays, Sundays and public holidays in the calendar.
+  static const weekend = Color(0xFFE06C75);
+  static const holiday = Color(0xFF22C55E);
 }
 
 /// Extra semantic colors resolved per-brightness, exposed via [AppTheme.of].

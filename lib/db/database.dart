@@ -11,7 +11,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
 
@@ -52,6 +52,7 @@ class AppDatabase {
             done INTEGER NOT NULL DEFAULT 0,
             priority INTEGER NOT NULL DEFAULT 0,
             repeat_rule TEXT NOT NULL DEFAULT 'none',
+            style_id TEXT,
             created_at INTEGER NOT NULL,
             completed_at INTEGER
           )
@@ -60,6 +61,12 @@ class AppDatabase {
             'CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
         await db.execute(
             'CREATE INDEX idx_tasks_list ON $_tasks (list_id)');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // v1 -> a task can override the colour it takes from its list.
+          await db.execute('ALTER TABLE $_tasks ADD COLUMN style_id TEXT');
+        }
       },
     );
   }

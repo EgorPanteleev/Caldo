@@ -41,7 +41,8 @@ class TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final color = list?.style.color ?? AppTheme.accentOf(context).color;
+    final color = colorOfTask(task, list,
+        fallback: AppTheme.accentOf(context).color);
     final faded = task.done;
 
     return Padding(

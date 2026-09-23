@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/holidays.dart';
 import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
@@ -146,7 +147,11 @@ class _CalendarScreenState extends State<CalendarScreen>
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
-    final mondayFirst = context.watch<SettingsProvider>().weekStartsMonday;
+    final settings = context.watch<SettingsProvider>();
+    final mondayFirst = settings.weekStartsMonday;
+    final country = settings.effectiveHolidayCountry;
+    final dayHolidays =
+        Holidays.around(country, _selected)[_selected] ?? const <Holiday>[];
     final page = _controller.hasClients
         ? (_controller.page?.round() ?? _basePage)
         : _basePage;
@@ -214,6 +219,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                               selected: _selected,
                               mondayFirst: mondayFirst,
                               tasksByDay: provider.tasksByDay,
+                              holidaysByDay:
+                                  Holidays.around(country, _monthOfPage(i)),
                               lists: provider.lists,
                               expansion: t,
                               onSelect: _selectDay,
@@ -247,30 +254,33 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   onAdd: () => _openEditor(),
                                 ),
                                 Expanded(
-                                  child: dayTasks.isEmpty
+                                  child: dayTasks.isEmpty &&
+                                          dayHolidays.isEmpty
                                       ? EmptyState(
                                           icon: Icons.event_available_outlined,
                                           title: 'Nothing on this day',
                                           message: 'Add one below, or tap + '
                                               'for the full form.',
                                         )
-                                      : ListView.builder(
+                                      : ListView(
                                           padding: const EdgeInsets.only(
                                               top: 4, bottom: 8),
-                                          itemCount: dayTasks.length,
-                                          itemBuilder: (context, i) {
-                                            final task = dayTasks[i];
-                                            return TaskCard(
-                                              task: task,
-                                              list: provider
-                                                  .listById(task.listId),
-                                              onTap: () => _openEditor(task),
-                                              onLongPress: () =>
-                                                  _openEditor(task),
-                                              onToggle: () =>
-                                                  provider.toggleDone(task),
-                                            );
-                                          },
+                                          children: [
+                                            for (final holiday in dayHolidays)
+                                              _HolidayCard(holiday: holiday),
+                                            for (final task in dayTasks)
+                                              TaskCard(
+                                                task: task,
+                                                list: provider
+                                                    .listById(task.listId),
+                                                onTap: () =>
+                                                    _openEditor(task),
+                                                onLongPress: () =>
+                                                    _openEditor(task),
+                                                onToggle: () => provider
+                                                    .toggleDone(task),
+                                              ),
+                                          ],
                                         ),
                                 ),
                               ],
@@ -290,6 +300,58 @@ class _CalendarScreenState extends State<CalendarScreen>
             onSubmit: _addQuickTask,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A public holiday under the calendar: the same card as a task, in green
+/// and with nothing to tick off.
+class _HolidayCard extends StatelessWidget {
+  final Holiday holiday;
+
+  const _HolidayCard({required this.holiday});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: AppColors.holiday.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+          border:
+              Border.all(color: AppColors.holiday.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.celebration_outlined,
+                color: AppColors.holiday, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    holiday.name,
+                    style: TextStyle(
+                      color: p.text,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Public holiday',
+                    style: TextStyle(color: p.muted, fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

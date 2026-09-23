@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
@@ -91,6 +92,29 @@ class SettingsScreen extends StatelessWidget {
                       .read<SettingsProvider>()
                       .update(weekStartsMonday: v),
                 ),
+                const SizedBox(height: 12),
+                _SwitchTile(
+                  icon: Icons.celebration_outlined,
+                  title: 'Show public holidays',
+                  subtitle: settings.effectiveHolidayCountry == null
+                      ? 'No holidays are marked'
+                      : 'Marked in green on the calendar',
+                  value: settings.showHolidays,
+                  onChanged: (v) =>
+                      context.read<SettingsProvider>().update(showHolidays: v),
+                ),
+                if (settings.showHolidays) ...[
+                  const SizedBox(height: 12),
+                  _CountryField(
+                    value: settings.holidayCountry,
+                    detected: Holidays.detectCountry(),
+                    onChanged: (code) =>
+                        context.read<SettingsProvider>().update(
+                              holidayCountry: code,
+                              clearHolidayCountry: code == null,
+                            ),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 const SectionLabel('TASKS'),
                 _SwitchTile(
@@ -340,6 +364,64 @@ class _ActionTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Chooses whose public holidays to show; "Follow device" reads the country
+/// from the phone's locale.
+class _CountryField extends StatelessWidget {
+  final String? value;
+  final String? detected;
+  final ValueChanged<String?> onChanged;
+
+  const _CountryField({
+    required this.value,
+    required this.detected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final followLabel = detected == null
+        ? 'Follow device (not supported yet)'
+        : 'Follow device (${Holidays.countries[detected]})';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.public, size: 20, color: p.muted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: value ?? '',
+                isExpanded: true,
+                dropdownColor: p.panel,
+                borderRadius: BorderRadius.circular(10),
+                icon: Icon(Icons.expand_more, color: p.muted),
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+                items: [
+                  DropdownMenuItem(value: '', child: Text(followLabel)),
+                  for (final entry in Holidays.countries.entries)
+                    DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                ],
+                onChanged: (v) => onChanged(v == null || v.isEmpty ? null : v),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

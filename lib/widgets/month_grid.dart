@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart' show dayOf;
@@ -36,19 +37,22 @@ class WeekdayRow extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          padding: const EdgeInsets.only(top: 2, bottom: 6),
           child: Row(
             children: [
-              for (final label in labels)
+              for (var i = 0; i < labels.length; i++)
                 Expanded(
                   child: Center(
                     child: Text(
-                      label.toUpperCase(),
+                      labels[i],
                       style: TextStyle(
-                        color: p.faint,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
+                        // The last two columns are the weekend, wherever the
+                        // week starts.
+                        color: i >= labels.length - 2
+                            ? AppColors.weekend.withValues(alpha: 0.75)
+                            : p.faint,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
@@ -71,8 +75,11 @@ class MonthGrid extends StatelessWidget {
   /// Dated tasks keyed by day; each day shows up to three dots for them.
   final Map<DateTime, List<Task>> tasksByDay;
 
-  /// Lists, used to colour a day's dots by the list each task belongs to.
+  /// Lists, used to colour a day's marks by the list each task belongs to.
   final List<TaskList> lists;
+
+  /// Public holidays of the month, keyed by day.
+  final Map<DateTime, List<Holiday>> holidaysByDay;
 
   final ValueChanged<DateTime> onSelect;
 
@@ -92,6 +99,7 @@ class MonthGrid extends StatelessWidget {
     required this.onSelect,
     this.tasksByDay = const {},
     this.lists = const [],
+    this.holidaysByDay = const {},
     this.expansion = 0,
     this.firstDate,
     this.lastDate,
@@ -143,6 +151,7 @@ class MonthGrid extends StatelessWidget {
                             enabled: enabled,
                             expansion: expansion,
                             tasks: tasksByDay[day] ?? const [],
+                            holidays: holidaysByDay[day] ?? const [],
                             lists: lists,
                             onTap: enabled ? () => onSelect(day) : null,
                           );
@@ -169,6 +178,7 @@ class _DayCell extends StatelessWidget {
   final bool enabled;
   final double expansion;
   final List<Task> tasks;
+  final List<Holiday> holidays;
   final List<TaskList> lists;
   final VoidCallback? onTap;
 
@@ -180,15 +190,16 @@ class _DayCell extends StatelessWidget {
     required this.enabled,
     required this.expansion,
     required this.tasks,
+    required this.holidays,
     required this.lists,
     required this.onTap,
   });
 
-  Color _colorOf(Task task, Color fallback) {
+  TaskList? _listOf(Task task) {
     for (final list in lists) {
-      if (list.id == task.listId) return list.style.color;
+      if (list.id == task.listId) return list;
     }
-    return fallback;
+    return null;
   }
 
   @override
@@ -198,6 +209,9 @@ class _DayCell extends StatelessWidget {
     final open = tasks.where((t) => !t.done).toList();
     final allDone = tasks.isNotEmpty && open.isEmpty;
 
+    // Weekends and public holidays read as days off.
+    final isRed = Dates.isWeekend(day) || holidays.isNotEmpty;
+
     final Color numberColor;
     if (isToday) {
       // Dark on the light badge — white in dark mode, near-black in light.
@@ -205,13 +219,17 @@ class _DayCell extends StatelessWidget {
     } else if (!enabled) {
       numberColor = p.faint.withValues(alpha: 0.4);
     } else if (!inMonth) {
-      numberColor = p.faint.withValues(alpha: 0.6);
+      numberColor = (isRed ? AppColors.weekend : p.faint)
+          .withValues(alpha: isRed ? 0.45 : 0.6);
+    } else if (isRed) {
+      numberColor = AppColors.weekend;
     } else {
       numberColor = p.text;
     }
 
-    Color taskColor(Task task) => _colorOf(task, accent.color)
-        .withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
+    Color taskColor(Task task) =>
+        colorOfTask(task, _listOf(task), fallback: accent.color)
+            .withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
 
     // Today wears a plain light badge and the selected day a thin neutral
     // outline: the accent on both was far too loud for a grid of numbers.
@@ -221,7 +239,7 @@ class _DayCell extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: isToday ? p.text : Colors.transparent,
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         '${day.day}',
@@ -242,10 +260,10 @@ class _DayCell extends StatelessWidget {
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(7),
             border: Border.all(
               color: isSelected ? p.muted : Colors.transparent,
-              width: 1.5,
+              width: 1.4,
             ),
           ),
           child: LayoutBuilder(builder: (context, box) {
@@ -282,8 +300,10 @@ class _DayCell extends StatelessWidget {
                             child: Opacity(
                               opacity: markerOpacity,
                               child: _MarkerBars(
-                                tasks: tasks,
-                                colorOf: taskColor,
+                                colors: [
+                                  for (final _ in holidays) AppColors.holiday,
+                                  for (final task in tasks) taskColor(task),
+                                ],
                               ),
                             ),
                           ),
@@ -291,9 +311,21 @@ class _DayCell extends StatelessWidget {
                           Opacity(
                             opacity: titleOpacity,
                             child: _DayTitles(
-                              tasks: tasks,
+                              entries: [
+                                for (final holiday in holidays)
+                                  (
+                                    label: holiday.name,
+                                    color: AppColors.holiday,
+                                    done: false,
+                                  ),
+                                for (final task in tasks)
+                                  (
+                                    label: task.title,
+                                    color: taskColor(task),
+                                    done: task.done,
+                                  ),
+                              ],
                               muted: p.faint,
-                              colorOf: taskColor,
                             ),
                           ),
                       ],
@@ -311,25 +343,27 @@ class _DayCell extends StatelessWidget {
 /// The compact marker for a day's tasks: a line per task, the width of the
 /// day, stacked under its number.
 class _MarkerBars extends StatelessWidget {
-  final List<Task> tasks;
-  final Color Function(Task) colorOf;
+  /// One colour per thing happening that day, holidays first.
+  final List<Color> colors;
 
-  const _MarkerBars({required this.tasks, required this.colorOf});
+  const _MarkerBars({required this.colors});
 
-  static const _barHeight = 2.5;
-  static const _gap = 1.5;
+  static const _barHeight = 3.0;
+  static const _gap = 2.0;
   static const _max = 4;
 
   @override
   Widget build(BuildContext context) {
+    if (colors.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(builder: (context, box) {
       // Only as many lines as the compact cell can hold.
       final fits = ((box.maxHeight + _gap) / (_barHeight + _gap))
           .floor()
           .clamp(0, _max);
-      final shown = tasks.length < fits ? tasks.length : fits;
+      final shown = colors.length < fits ? colors.length : fits;
+      if (shown == 0) return const SizedBox.shrink();
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 5),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -339,8 +373,8 @@ class _MarkerBars extends StatelessWidget {
                 height: _barHeight,
                 margin: EdgeInsets.only(bottom: i == shown - 1 ? 0 : _gap),
                 decoration: BoxDecoration(
-                  color: colorOf(tasks[i]),
-                  borderRadius: BorderRadius.circular(1.5),
+                  color: colors[i],
+                  borderRadius: BorderRadius.circular(_barHeight / 2),
                 ),
               ),
           ],
@@ -350,35 +384,32 @@ class _MarkerBars extends StatelessWidget {
   }
 }
 
-/// A day's tasks written out, as many as the opened cell has room for.
-class _DayTitles extends StatelessWidget {
-  final List<Task> tasks;
-  final Color muted;
-  final Color Function(Task) colorOf;
+/// What an opened day writes out: one line per holiday and task.
+typedef DayEntry = ({String label, Color color, bool done});
 
-  const _DayTitles({
-    required this.tasks,
-    required this.muted,
-    required this.colorOf,
-  });
+/// A day's entries written out, as many as the opened cell has room for.
+class _DayTitles extends StatelessWidget {
+  final List<DayEntry> entries;
+  final Color muted;
+
+  const _DayTitles({required this.entries, required this.muted});
 
   static const _rowHeight = 15.0;
   static const _gap = 2.0;
 
   @override
   Widget build(BuildContext context) {
-    if (tasks.isEmpty) return const SizedBox.shrink();
+    if (entries.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(builder: (context, box) {
       // Whole rows only — a half-clipped title would read as a glitch.
-      final room =
-          (box.maxHeight / (_rowHeight + _gap)).floor().clamp(0, 5);
+      final room = (box.maxHeight / (_rowHeight + _gap)).floor().clamp(0, 5);
       if (room == 0) return const SizedBox.shrink();
       // With room for a single row, spend it on a title rather than on a
       // lone "+2" that names nothing — there is no room for both.
-      final shown = tasks.length <= room
-          ? tasks.length
+      final shown = entries.length <= room
+          ? entries.length
           : (room == 1 ? 1 : room - 1);
-      final hidden = room == 1 ? 0 : tasks.length - shown;
+      final hidden = room == 1 ? 0 : entries.length - shown;
       return _titles(shown, hidden);
     });
   }
@@ -387,18 +418,18 @@ class _DayTitles extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final task in tasks.take(shown))
+        for (final entry in entries.take(shown))
           Container(
             height: _rowHeight,
             margin: const EdgeInsets.only(bottom: _gap),
             padding: const EdgeInsets.symmetric(horizontal: 3),
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-              color: colorOf(task).withValues(alpha: task.done ? 0.35 : 0.9),
+              color: entry.color.withValues(alpha: entry.done ? 0.35 : 0.9),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
-              task.title,
+              entry.label,
               maxLines: 1,
               // Fades out rather than cutting a letter in half or spending
               // two of the few characters on an ellipsis.
@@ -409,7 +440,7 @@ class _DayTitles extends StatelessWidget {
                 height: 1.2,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
-                decoration: task.done ? TextDecoration.lineThrough : null,
+                decoration: entry.done ? TextDecoration.lineThrough : null,
               ),
             ),
           ),

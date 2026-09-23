@@ -114,8 +114,10 @@ void main() {
       (tester) async {
     await pumpScreen(tester, const CalendarScreen());
 
-    expect(find.text('MON'), findsOneWidget);
-    expect(find.text('SUN'), findsOneWidget);
+    // One-letter weekday heads, weekend last.
+    expect(find.text('M'), findsOneWidget);
+    expect(find.text('W'), findsOneWidget);
+    expect(find.text('S'), findsNWidgets(2));
     // Today is selected on open, so its timed task shows under the grid.
     expect(find.text('Ship'), findsOneWidget);
     expect(find.text('1 open'), findsOneWidget);
