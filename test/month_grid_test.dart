@@ -45,24 +45,34 @@ void main() {
     return texts.first.style!.color!;
   }
 
-  testWidgets('weekends are red and weekdays are not', (tester) async {
+  testWidgets('only Sundays are red', (tester) async {
     await pumpGrid(tester);
 
-    expect(colorOfNumber(tester, 5), AppColors.weekend, reason: 'Saturday');
     expect(colorOfNumber(tester, 6), AppColors.weekend, reason: 'Sunday');
+    expect(colorOfNumber(tester, 5), isNot(AppColors.weekend),
+        reason: 'Saturday');
     expect(colorOfNumber(tester, 4), isNot(AppColors.weekend),
         reason: 'Friday');
   });
 
-  testWidgets('a holiday turns its weekday red too', (tester) async {
+  testWidgets('a holiday leaves its number alone and marks it green',
+      (tester) async {
     await pumpGrid(tester, holidays: {
       DateTime(2026, 9, 10): [
         Holiday(DateTime(2026, 9, 10), 'Made-up Day'),
       ],
     });
 
-    expect(colorOfNumber(tester, 10), AppColors.weekend);
-    expect(colorOfNumber(tester, 11), isNot(AppColors.weekend));
+    expect(colorOfNumber(tester, 10), isNot(AppColors.weekend));
+
+    // The day is marked by a green line rather than a red number.
+    final marks = tester
+        .widgetList<Container>(find.byType(Container))
+        .where((c) =>
+            c.decoration is BoxDecoration &&
+            (c.decoration! as BoxDecoration).color?.toARGB32() ==
+                AppColors.holiday.toARGB32());
+    expect(marks, isNotEmpty);
   });
 
   testWidgets('an opened month writes holidays out in green', (tester) async {

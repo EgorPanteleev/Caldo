@@ -174,7 +174,7 @@ class _CheckCircle extends StatelessWidget {
           height: 24,
           decoration: BoxDecoration(
             color: done ? color : Colors.transparent,
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: done ? color : p.faint,
               width: 1.8,

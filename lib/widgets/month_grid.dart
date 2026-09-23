@@ -46,9 +46,9 @@ class WeekdayRow extends StatelessWidget {
                     child: Text(
                       labels[i],
                       style: TextStyle(
-                        // The last two columns are the weekend, wherever the
-                        // week starts.
-                        color: i >= labels.length - 2
+                        // Sunday sits last when the week starts on Monday
+                        // and first when it starts on Sunday.
+                        color: i == (mondayFirst ? 6 : 0)
                             ? AppColors.weekend.withValues(alpha: 0.75)
                             : p.faint,
                         fontSize: 10.5,
@@ -209,8 +209,8 @@ class _DayCell extends StatelessWidget {
     final open = tasks.where((t) => !t.done).toList();
     final allDone = tasks.isNotEmpty && open.isEmpty;
 
-    // Weekends and public holidays read as days off.
-    final isRed = Dates.isWeekend(day) || holidays.isNotEmpty;
+    // Only Sundays are red; a holiday says so with its green mark instead.
+    final isRed = Dates.isSunday(day);
 
     final Color numberColor;
     if (isToday) {

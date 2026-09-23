@@ -32,9 +32,8 @@ class Dates {
     return Characters(DateFormat('EEE').format(day)).first.toUpperCase();
   }
 
-  /// Saturdays and Sundays, which the calendar marks in red.
-  static bool isWeekend(DateTime day) =>
-      day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
+  /// Sundays, which the calendar marks in red.
+  static bool isSunday(DateTime day) => day.weekday == DateTime.sunday;
 
   /// A day, spoken the way a person would: "Today", "Tomorrow", "Sat, 4 Oct",
   /// and with the year once it is no longer the current one.
