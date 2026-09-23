@@ -102,6 +102,15 @@ void main() {
     expect(decoration.color!.toARGB32(), AppColors.holiday.withValues(alpha: 0.9).toARGB32());
   });
 
+  testWidgets('week rules only arrive as the month finishes opening',
+      (tester) async {
+    expect(weekRuleAlpha(0), 0, reason: 'compact month');
+    expect(weekRuleAlpha(0.5), 0, reason: 'halfway open');
+    expect(weekRuleAlpha(0.75), 0, reason: 'three quarters open');
+    expect(weekRuleAlpha(1), 1, reason: 'fully open');
+    expect(weekRuleAlpha(0.875), closeTo(0.5, 0.001));
+  });
+
   testWidgets('a task keeps its own colour over its list', (tester) async {
     await pumpGrid(
       tester,

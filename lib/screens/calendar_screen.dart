@@ -31,7 +31,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   static const _basePage = 6000;
 
   /// Height of the strip carrying the drag handle.
-  static const _handleHeight = 22.0;
+  static const _handleHeight = 16.0;
 
   late final DateTime _baseMonth;
   late final PageController _controller;
@@ -202,7 +202,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                   animation: _expansion,
                   builder: (context, _) => WeekdayRow(
                     mondayFirst: mondayFirst,
-                    expansion: _expansion.value.abs(),
+                    expansion: math.max(0.0, _expansion.value),
                   ),
                 ),
               ],
@@ -500,8 +500,9 @@ class _QuickAddBar extends StatelessWidget {
 /// Identifies the calendar's expand/collapse grip.
 const calendarHandleKey = Key('calendar-handle');
 
-/// The grip between the grid and the day's tasks. Dragging it opens the month
-/// out; a tap snaps it open or shut.
+/// The strip between the grid and the day's tasks. It draws nothing — the
+/// month is dragged by the grid itself — but it keeps a band of its own for
+/// drags and taps, so neither lands on the list by mistake.
 class _DragHandle extends StatelessWidget {
   final double height;
   final double expansion;
@@ -520,7 +521,6 @@ class _DragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
     return GestureDetector(
       onVerticalDragUpdate: onDrag,
       onVerticalDragEnd: onDragEnd,
@@ -529,21 +529,7 @@ class _DragHandle extends StatelessWidget {
       child: Semantics(
         button: true,
         label: expansion > 0.5 ? 'Collapse the month' : 'Expand the month',
-        child: SizedBox(
-          height: height,
-          child: Center(
-            child: Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                // Grey, not accent: beneath the grid a coloured bar reads as
-                // one more task mark.
-                color: Color.lerp(p.border, p.muted, expansion),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
-        ),
+        child: SizedBox(height: height, width: double.infinity),
       ),
     );
   }

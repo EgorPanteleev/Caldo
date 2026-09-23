@@ -7,6 +7,12 @@ import '../providers/task_provider.dart' show dayOf;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 
+/// How visible the rules between the weeks are: nothing until the grid is
+/// nearly all the way open, so they arrive as the month finishes opening and
+/// are gone the moment it starts closing.
+double weekRuleAlpha(double expansion) =>
+    ((expansion - 0.75) / 0.25).clamp(0.0, 1.0);
+
 /// The Mon…Sun (or Sun…Sat) column headings that sit above a [MonthGrid].
 class WeekdayRow extends StatelessWidget {
   final bool mondayFirst;
@@ -15,11 +21,7 @@ class WeekdayRow extends StatelessWidget {
   /// same rule that separates the weeks, so the two arrive together.
   final double expansion;
 
-  const WeekdayRow({
-    super.key,
-    required this.mondayFirst,
-    this.expansion = 0,
-  });
+  const WeekdayRow({super.key, required this.mondayFirst, this.expansion = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,7 @@ class WeekdayRow extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: p.border.withValues(alpha: expansion),
+              color: p.border.withValues(alpha: weekRuleAlpha(expansion)),
             ),
           ),
         ),
@@ -123,79 +125,87 @@ class MonthGrid extends StatelessWidget {
     // Which row holds the selected day — the one that stays when the grid is
     // squeezed down to a single week.
     final gridStart = first.subtract(Duration(days: lead));
-    final selectedIndex =
-        selected == null ? -1 : selected!.difference(gridStart).inDays;
+    final selectedIndex = selected == null
+        ? -1
+        : selected!.difference(gridStart).inDays;
     final selectedRow = (selectedIndex >= 0 && selectedIndex < rows * 7)
         ? selectedIndex ~/ 7
         : 0;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: LayoutBuilder(builder: (context, box) {
-        // The rows the week view drops shrink to nothing and fade as they go,
-        // while the selected week takes up the slack.
-        final full = box.maxHeight / rows;
-        final otherHeight = full * (1 - weekCollapse);
-        final selectedHeight =
-            box.maxHeight - otherHeight * (rows - 1);
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // The rows the week view drops shrink to nothing and fade as they go,
+          // while the selected week takes up the slack.
+          final full = box.maxHeight / rows;
+          final otherHeight = full * (1 - weekCollapse);
+          final selectedHeight = box.maxHeight - otherHeight * (rows - 1);
 
-        return Column(
-          children: [
-            for (var row = 0; row < rows; row++)
-              SizedBox(
-                height: row == selectedRow ? selectedHeight : otherHeight,
-                child: ClipRect(
-                  child: Opacity(
-                    opacity: row == selectedRow
-                        ? 1
-                        : (1 - weekCollapse).clamp(0.0, 1.0),
-                    // Rules between the weeks, drawn in as the month opens.
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: row == 0
-                            ? null
-                            : Border(
-                                top: BorderSide(
-                                  color:
-                                      p.border.withValues(alpha: expansion),
+          return Column(
+            children: [
+              for (var row = 0; row < rows; row++)
+                SizedBox(
+                  height: row == selectedRow ? selectedHeight : otherHeight,
+                  child: ClipRect(
+                    child: Opacity(
+                      opacity: row == selectedRow
+                          ? 1
+                          : (1 - weekCollapse).clamp(0.0, 1.0),
+                      // Rules between the weeks, drawn in as the month opens.
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: row == 0
+                              ? null
+                              : Border(
+                                  top: BorderSide(
+                                    color: p.border.withValues(
+                                      alpha: weekRuleAlpha(expansion),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        child: Row(
+                          children: [
+                            for (var col = 0; col < 7; col++)
+                              Expanded(
+                                child: Builder(
+                                  builder: (context) {
+                                    final day = first.add(
+                                      Duration(days: row * 7 + col - lead),
+                                    );
+                                    final enabled =
+                                        (firstDate == null ||
+                                            !day.isBefore(firstDate!)) &&
+                                        (lastDate == null ||
+                                            !day.isAfter(lastDate!));
+                                    return _DayCell(
+                                      day: day,
+                                      inMonth: day.month == month.month,
+                                      isToday: day == today,
+                                      isSelected: day == selected,
+                                      enabled: enabled,
+                                      expansion: expansion,
+                                      tasks: tasksByDay[day] ?? const [],
+                                      holidays: holidaysByDay[day] ?? const [],
+                                      lists: lists,
+                                      onTap: enabled
+                                          ? () => onSelect(day)
+                                          : null,
+                                    );
+                                  },
                                 ),
                               ),
-                      ),
-                      child: Row(
-                        children: [
-                          for (var col = 0; col < 7; col++)
-                            Expanded(
-                              child: Builder(builder: (context) {
-                                final day = first.add(
-                                  Duration(days: row * 7 + col - lead),
-                                );
-                                final enabled = (firstDate == null ||
-                                        !day.isBefore(firstDate!)) &&
-                                    (lastDate == null ||
-                                        !day.isAfter(lastDate!));
-                                return _DayCell(
-                                  day: day,
-                                  inMonth: day.month == month.month,
-                                  isToday: day == today,
-                                  isSelected: day == selected,
-                                  enabled: enabled,
-                                  expansion: expansion,
-                                  tasks: tasksByDay[day] ?? const [],
-                                  holidays: holidaysByDay[day] ?? const [],
-                                  lists: lists,
-                                  onTap: enabled ? () => onSelect(day) : null,
-                                );
-                              }),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
-        );
-      }),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -252,17 +262,20 @@ class _DayCell extends StatelessWidget {
     } else if (!enabled) {
       numberColor = p.faint.withValues(alpha: 0.4);
     } else if (!inMonth) {
-      numberColor = (isRed ? AppColors.weekend : p.faint)
-          .withValues(alpha: isRed ? 0.45 : 0.6);
+      numberColor = (isRed ? AppColors.weekend : p.faint).withValues(
+        alpha: isRed ? 0.45 : 0.6,
+      );
     } else if (isRed) {
       numberColor = AppColors.weekend;
     } else {
       numberColor = p.text;
     }
 
-    Color taskColor(Task task) =>
-        colorOfTask(task, _listOf(task), fallback: accent.color)
-            .withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
+    Color taskColor(Task task) => colorOfTask(
+      task,
+      _listOf(task),
+      fallback: accent.color,
+    ).withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
 
     // Today wears a plain light badge and the selected day a thin neutral
     // outline: the accent on both was far too loud for a grid of numbers.
@@ -299,74 +312,76 @@ class _DayCell extends StatelessWidget {
               width: 1.4,
             ),
           ),
-          child: LayoutBuilder(builder: (context, box) {
-            // Everything is positioned from the top of the cell: the number
-            // keeps its place whatever the grid height, so the first week
-            // never moves as the month opens — only what sits under the
-            // number changes. Positioned children are bounded, so a cell too
-            // short for its content drops it rather than overflowing.
-            const numberTop = 2.0;
-            const numberHeight = 20.0;
-            const contentTop = numberTop + numberHeight + 2;
-            final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
-            final titleOpacity = ((expansion - 0.3) * 2.4).clamp(0.0, 1.0);
+          child: LayoutBuilder(
+            builder: (context, box) {
+              // Everything is positioned from the top of the cell: the number
+              // keeps its place whatever the grid height, so the first week
+              // never moves as the month opens — only what sits under the
+              // number changes. Positioned children are bounded, so a cell too
+              // short for its content drops it rather than overflowing.
+              const numberTop = 2.0;
+              const numberHeight = 20.0;
+              const contentTop = numberTop + numberHeight + 2;
+              final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
+              final titleOpacity = ((expansion - 0.3) * 2.4).clamp(0.0, 1.0);
 
-            return Stack(
-              children: [
-                Positioned(
-                  top: numberTop,
-                  left: 0,
-                  right: 0,
-                  child: Center(child: number),
-                ),
-                if (box.maxHeight > contentTop + 2)
+              return Stack(
+                children: [
                   Positioned(
-                    top: contentTop,
+                    top: numberTop,
                     left: 0,
                     right: 0,
-                    bottom: 2,
-                    child: Stack(
-                      children: [
-                        if (markerOpacity > 0)
-                          Align(
-                            alignment: Alignment.topCenter,
-                            child: Opacity(
-                              opacity: markerOpacity,
-                              child: _MarkerBars(
-                                colors: [
-                                  for (final _ in holidays) AppColors.holiday,
-                                  for (final task in tasks) taskColor(task),
-                                ],
+                    child: Center(child: number),
+                  ),
+                  if (box.maxHeight > contentTop + 2)
+                    Positioned(
+                      top: contentTop,
+                      left: 0,
+                      right: 0,
+                      bottom: 2,
+                      child: Stack(
+                        children: [
+                          if (markerOpacity > 0)
+                            Align(
+                              alignment: Alignment.topCenter,
+                              child: Opacity(
+                                opacity: markerOpacity,
+                                child: _MarkerBars(
+                                  colors: [
+                                    for (final _ in holidays) AppColors.holiday,
+                                    for (final task in tasks) taskColor(task),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        if (titleOpacity > 0)
-                          Opacity(
-                            opacity: titleOpacity,
-                            child: _DayTitles(
-                              entries: [
-                                for (final holiday in holidays)
-                                  (
-                                    label: holiday.name,
-                                    color: AppColors.holiday,
-                                    done: false,
-                                  ),
-                                for (final task in tasks)
-                                  (
-                                    label: task.title,
-                                    color: taskColor(task),
-                                    done: task.done,
-                                  ),
-                              ],
-                              muted: p.faint,
+                          if (titleOpacity > 0)
+                            Opacity(
+                              opacity: titleOpacity,
+                              child: _DayTitles(
+                                entries: [
+                                  for (final holiday in holidays)
+                                    (
+                                      label: holiday.name,
+                                      color: AppColors.holiday,
+                                      done: false,
+                                    ),
+                                  for (final task in tasks)
+                                    (
+                                      label: task.title,
+                                      color: taskColor(task),
+                                      done: task.done,
+                                    ),
+                                ],
+                                muted: p.faint,
+                              ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-              ],
-            );
-          }),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -388,32 +403,34 @@ class _MarkerBars extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (colors.isEmpty) return const SizedBox.shrink();
-    return LayoutBuilder(builder: (context, box) {
-      // Only as many lines as the compact cell can hold.
-      final fits = ((box.maxHeight + _gap) / (_barHeight + _gap))
-          .floor()
-          .clamp(0, _max);
-      final shown = colors.length < fits ? colors.length : fits;
-      if (shown == 0) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < shown; i++)
-              Container(
-                height: _barHeight,
-                margin: EdgeInsets.only(bottom: i == shown - 1 ? 0 : _gap),
-                decoration: BoxDecoration(
-                  color: colors[i],
-                  borderRadius: BorderRadius.circular(_barHeight / 2),
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Only as many lines as the compact cell can hold.
+        final fits = ((box.maxHeight + _gap) / (_barHeight + _gap))
+            .floor()
+            .clamp(0, _max);
+        final shown = colors.length < fits ? colors.length : fits;
+        if (shown == 0) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < shown; i++)
+                Container(
+                  height: _barHeight,
+                  margin: EdgeInsets.only(bottom: i == shown - 1 ? 0 : _gap),
+                  decoration: BoxDecoration(
+                    color: colors[i],
+                    borderRadius: BorderRadius.circular(_barHeight / 2),
+                  ),
                 ),
-              ),
-          ],
-        ),
-      );
-    });
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -433,18 +450,20 @@ class _DayTitles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) return const SizedBox.shrink();
-    return LayoutBuilder(builder: (context, box) {
-      // Whole rows only — a half-clipped title would read as a glitch.
-      final room = (box.maxHeight / (_rowHeight + _gap)).floor().clamp(0, 5);
-      if (room == 0) return const SizedBox.shrink();
-      // With room for a single row, spend it on a title rather than on a
-      // lone "+2" that names nothing — there is no room for both.
-      final shown = entries.length <= room
-          ? entries.length
-          : (room == 1 ? 1 : room - 1);
-      final hidden = room == 1 ? 0 : entries.length - shown;
-      return _titles(shown, hidden);
-    });
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Whole rows only — a half-clipped title would read as a glitch.
+        final room = (box.maxHeight / (_rowHeight + _gap)).floor().clamp(0, 5);
+        if (room == 0) return const SizedBox.shrink();
+        // With room for a single row, spend it on a title rather than on a
+        // lone "+2" that names nothing — there is no room for both.
+        final shown = entries.length <= room
+            ? entries.length
+            : (room == 1 ? 1 : room - 1);
+        final hidden = room == 1 ? 0 : entries.length - shown;
+        return _titles(shown, hidden);
+      },
+    );
   }
 
   Widget _titles(int shown, int hidden) {
