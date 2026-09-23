@@ -7,6 +7,9 @@ import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
 import 'package:caldo/screens/task_list_screen.dart';
 import 'package:caldo/theme/app_theme.dart';
+import 'package:caldo/utils/dates.dart';
+import 'package:caldo/widgets/month_grid.dart';
+import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -57,6 +60,33 @@ void main() {
   /// A small phone — the width where rows and headers are most likely to
   /// overflow.
   const narrow = Size(960, 1920);
+
+  /// Opens the task editor on a small phone, either empty or on the seeded
+  /// "Ship" task.
+  Future<void> pumpEditor(WidgetTester tester, {bool existing = false}) async {
+    late TaskProvider provider;
+    await tester.runAsync(() async => provider = await seedProvider());
+
+    tester.view.physicalSize = narrow;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<TaskProvider>.value(value: provider),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark(AppAccent.presets.first),
+        home: TaskEditScreen(
+          task: existing
+              ? provider.tasks.firstWhere((t) => t.title == 'Ship')
+              : null,
+          listId: provider.currentListId,
+        ),
+      ),
+    ));
+    await tester.pump();
+  }
 
   testWidgets('the agenda separates overdue from what is due today',
       (tester) async {
@@ -124,24 +154,7 @@ void main() {
   });
 
   testWidgets('the editor pre-fills an existing task', (tester) async {
-    late TaskProvider provider;
-    await tester.runAsync(() async => provider = await seedProvider());
-    final task = provider.tasks.firstWhere((t) => t.title == 'Ship');
-
-    tester.view.physicalSize = narrow;
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(MultiProvider(
-      providers: [
-        ChangeNotifierProvider<TaskProvider>.value(value: provider),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
-      ],
-      child: MaterialApp(
-        theme: AppTheme.dark(AppAccent.presets.first),
-        home: TaskEditScreen(task: task),
-      ),
-    ));
-    await tester.pump();
+    await pumpEditor(tester, existing: true);
 
     expect(find.text('Edit task'), findsOneWidget);
     expect(find.text('Ship'), findsOneWidget);
@@ -151,6 +164,101 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pump();
     expect(find.text('Save changes'), findsOneWidget);
+  });
+
+  /// Asserts a header title is either drawn in full or given every pixel the
+  /// controls beside it leave — never squeezed into a share of the free width,
+  /// which is what truncates long names. Glyph widths are not compared
+  /// directly: the test font draws every character as a full em square.
+  void expectTitleGetsTheRoom(
+    WidgetTester tester,
+    Finder title, {
+    required double controlsWidth,
+  }) {
+    final text = tester.widget<Text>(title);
+    final painter = TextPainter(
+      text: TextSpan(text: text.data, style: text.style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final screen = tester.getSize(find.byType(MaterialApp)).width;
+    final deserved = painter.width < screen - controlsWidth
+        ? painter.width
+        : screen - controlsWidth;
+    expect(
+      tester.getSize(title).width,
+      greaterThanOrEqualTo(deserved - 1),
+      reason: '"${text.data}" is squeezed by the controls beside it',
+    );
+  }
+
+  /// Lets the database reads a screen started (a month change, say) finish
+  /// before the test ends and the next case closes the database.
+  Future<void> drainDatabase(WidgetTester tester) =>
+      tester.runAsync(() => Future<void>.delayed(
+            const Duration(milliseconds: 80),
+          ));
+
+  testWidgets('the month name gets the whole calendar header', (tester) async {
+    await pumpScreen(tester, const CalendarScreen(), size: narrow);
+
+    // A year's worth, so the long names (September, November, December) are
+    // covered whatever today's date is.
+    for (var i = 0; i < 12; i++) {
+      expectTitleGetsTheRoom(
+        tester,
+        find.byKey(monthTitleKey),
+        // 20 + 10 padding, three 36pt step buttons.
+        controlsWidth: 138,
+      );
+      await tester.tap(find.byTooltip('Next month'));
+      await tester.pumpAndSettle();
+    }
+    await drainDatabase(tester);
+  });
+
+  testWidgets('a long list name gets the whole screen header', (tester) async {
+    await pumpScreen(tester, const TaskListScreen(), size: narrow);
+
+    expectTitleGetsTheRoom(
+      tester,
+      find.byKey(screenTitleKey),
+      // A back arrow and the add button, plus the count pill beside the name.
+      controlsWidth: 160,
+    );
+  });
+
+  testWidgets('the due date comes from the app calendar sheet', (tester) async {
+    await pumpEditor(tester);
+
+    await tester.tap(find.text('Due date'));
+    await tester.pumpAndSettle();
+    // The app's own calendar, not the Material dialog.
+    expect(find.byType(MonthGrid), findsWidgets);
+    expect(find.text('Next week'), findsOneWidget);
+
+    await tester.tap(find.text('Tomorrow'));
+    await tester.pumpAndSettle();
+
+    final tomorrow = dayOf(DateTime.now()).add(const Duration(days: 1));
+    expect(find.text(Dates.longDay(tomorrow)), findsOneWidget);
+  });
+
+  testWidgets('the time comes from the wheel sheet', (tester) async {
+    await pumpEditor(tester);
+    expect(find.text('All day'), findsOneWidget);
+
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    expect(find.text('Set time'), findsOneWidget);
+
+    await tester.tap(find.text('18:00').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Set time'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All day'), findsNothing);
+    expect(find.text('18:00'), findsOneWidget);
   });
 
   testWidgets('searching a list narrows it down', (tester) async {

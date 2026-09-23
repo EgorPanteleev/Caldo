@@ -5,6 +5,7 @@ import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/date_time_pickers.dart';
 import '../widgets/task_row.dart' show PriorityFlag;
 
 /// Add a new task or edit an existing one. When [task] is null this is a
@@ -82,20 +83,17 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   }
 
   Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
+    final picked = await showAppDatePicker(
       context: context,
-      initialDate: _date ?? dayOf(now),
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 10),
+      initial: _date ?? dayOf(DateTime.now()),
     );
     if (picked != null) setState(() => _date = dayOf(picked));
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(
+    final picked = await showAppTimePicker(
       context: context,
-      initialTime: _time ?? const TimeOfDay(hour: 9, minute: 0),
+      initial: _time,
     );
     if (picked != null) {
       setState(() {
@@ -228,7 +226,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             _FieldTile(
               icon: Icons.schedule,
               label: 'Time',
-              value: _time == null ? 'All day' : _time!.format(context),
+              value: _time == null
+                  ? 'All day'
+                  : Dates.formatTimeOfDay(_time!),
               onTap: _pickTime,
               onClear: _time == null ? null : () => setState(() => _time = null),
             ),

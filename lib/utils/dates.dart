@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:intl/intl.dart';
 
 import '../models/task.dart';
@@ -42,6 +43,11 @@ class Dates {
   }
 
   static String time(DateTime date) => DateFormat('HH:mm').format(date);
+
+  /// The same 24-hour clock as [time], for a time with no date attached.
+  static String formatTimeOfDay(TimeOfDay time) =>
+      '${time.hour.toString().padLeft(2, '0')}:'
+      '${time.minute.toString().padLeft(2, '0')}';
 
   /// How a task's due date reads on its row: "Today 18:30", "Yesterday", "".
   static String due(Task task) {

@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/task.dart';
-import '../models/task_list.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/gradient_icon_button.dart';
+import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_row.dart';
 import 'task_edit_screen.dart';
@@ -87,33 +87,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
         : _basePage;
     final shownMonth = _monthOfPage(page);
     final dayTasks = provider.tasksForDay(_selected);
+    // Give the grid a share of the screen rather than a fixed height, so the
+    // day's tasks keep room on a short phone.
+    final gridHeight =
+        (MediaQuery.of(context).size.height * 0.36).clamp(230.0, 310.0);
 
     return Scaffold(
       body: Column(
         children: [
-          ScreenHeader(
+          _MonthBar(
             title: Dates.monthTitle(shownMonth),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.chevron_left, color: p.muted),
-                tooltip: 'Previous month',
-                onPressed: () => _goToPage(page - 1),
-              ),
-              IconButton(
-                icon: Icon(Icons.today_outlined, color: p.muted),
-                tooltip: 'Today',
-                onPressed: _jumpToToday,
-              ),
-              IconButton(
-                icon: Icon(Icons.chevron_right, color: p.muted),
-                tooltip: 'Next month',
-                onPressed: () => _goToPage(page + 1),
-              ),
-            ],
+            onPrevious: () => _goToPage(page - 1),
+            onToday: _jumpToToday,
+            onNext: () => _goToPage(page + 1),
           ),
-          _WeekdayRow(mondayFirst: mondayFirst),
+          WeekdayRow(mondayFirst: mondayFirst),
           SizedBox(
-            height: 300,
+            height: gridHeight,
             child: PageView.builder(
               controller: _controller,
               onPageChanged: (i) {
@@ -128,7 +118,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       : month;
                 });
               },
-              itemBuilder: (context, i) => _MonthGrid(
+              itemBuilder: (context, i) => MonthGrid(
                 month: _monthOfPage(i),
                 selected: _selected,
                 mondayFirst: mondayFirst,
@@ -175,198 +165,92 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 }
 
-/// The Mon…Sun (or Sun…Sat) column headings above the grid.
-class _WeekdayRow extends StatelessWidget {
-  final bool mondayFirst;
-  const _WeekdayRow({required this.mondayFirst});
+/// Identifies the month name in the calendar header.
+const monthTitleKey = Key('month-title');
 
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    final labels = Dates.weekdayLabels(mondayFirst: mondayFirst);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      child: Row(
-        children: [
-          for (final label in labels)
-            Expanded(
-              child: Center(
-                child: Text(
-                  label.toUpperCase(),
-                  style: TextStyle(
-                    color: p.faint,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+/// The calendar's own header. The month name is laid out first and the three
+/// controls are kept narrow, so a long name like "September" is never clipped.
+class _MonthBar extends StatelessWidget {
+  final String title;
+  final VoidCallback onPrevious;
+  final VoidCallback onToday;
+  final VoidCallback onNext;
 
-/// One month of day cells.
-class _MonthGrid extends StatelessWidget {
-  final DateTime month;
-  final DateTime selected;
-  final bool mondayFirst;
-  final Map<DateTime, List<Task>> tasksByDay;
-  final List<TaskList> lists;
-  final ValueChanged<DateTime> onSelect;
-
-  const _MonthGrid({
-    required this.month,
-    required this.selected,
-    required this.mondayFirst,
-    required this.tasksByDay,
-    required this.lists,
-    required this.onSelect,
+  const _MonthBar({
+    required this.title,
+    required this.onPrevious,
+    required this.onToday,
+    required this.onNext,
   });
 
   @override
   Widget build(BuildContext context) {
-    final first = DateTime(month.year, month.month);
-    // Sunday is weekday 7 in Dart, so it needs folding back to column 0.
-    final lead = mondayFirst ? first.weekday - 1 : first.weekday % 7;
-    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final rows = ((lead + daysInMonth) / 7).ceil();
-    final today = dayOf(DateTime.now());
-
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(20, 12, 10, 8),
+      child: Row(
         children: [
-          for (var row = 0; row < rows; row++)
-            Expanded(
-              child: Row(
-                children: [
-                  for (var col = 0; col < 7; col++)
-                    Expanded(
-                      child: Builder(builder: (context) {
-                        final day = first.add(
-                          Duration(days: row * 7 + col - lead),
-                        );
-                        return _DayCell(
-                          day: day,
-                          inMonth: day.month == month.month,
-                          isToday: day == today,
-                          isSelected: day == selected,
-                          tasks: tasksByDay[day] ?? const [],
-                          lists: lists,
-                          onTap: () => onSelect(day),
-                        );
-                      }),
-                    ),
-                ],
-              ),
+          // Expanded, not Flexible beside a Spacer: a Spacer would claim an
+          // equal share of the leftover width and clip the month name.
+          Expanded(
+            child: Text(
+              title,
+              key: monthTitleKey,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
+          ),
+          _StepButton(
+            icon: Icons.chevron_left,
+            tooltip: 'Previous month',
+            onTap: onPrevious,
+          ),
+          _StepButton(
+            icon: Icons.today_outlined,
+            tooltip: 'Today',
+            onTap: onToday,
+          ),
+          _StepButton(
+            icon: Icons.chevron_right,
+            tooltip: 'Next month',
+            onTap: onNext,
+          ),
         ],
       ),
     );
   }
 }
 
-/// A single day: its number, a today ring, a selected fill, and up to three
-/// dots coloured by the lists the day's tasks belong to.
-class _DayCell extends StatelessWidget {
-  final DateTime day;
-  final bool inMonth;
-  final bool isToday;
-  final bool isSelected;
-  final List<Task> tasks;
-  final List<TaskList> lists;
+/// A compact icon button — narrower than Material's 48dp default, to leave
+/// the month name all the room it needs.
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
   final VoidCallback onTap;
 
-  const _DayCell({
-    required this.day,
-    required this.inMonth,
-    required this.isToday,
-    required this.isSelected,
-    required this.tasks,
-    required this.lists,
+  const _StepButton({
+    required this.icon,
+    required this.tooltip,
     required this.onTap,
   });
 
-  Color _colorOf(Task task, Color fallback) {
-    for (final list in lists) {
-      if (list.id == task.listId) return list.style.color;
-    }
-    return fallback;
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context);
-    final open = tasks.where((t) => !t.done).toList();
-    final allDone = tasks.isNotEmpty && open.isEmpty;
-
-    final Color numberColor;
-    if (isSelected) {
-      numberColor = Colors.white;
-    } else if (!inMonth) {
-      numberColor = p.faint.withValues(alpha: 0.6);
-    } else if (isToday) {
-      numberColor = accent.color;
-    } else {
-      numberColor = p.text;
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          decoration: BoxDecoration(
-            color: isSelected ? accent.color : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(
-              color: isToday && !isSelected ? accent.color : Colors.transparent,
-              width: 1.4,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '${day.day}',
-                style: TextStyle(
-                  color: numberColor,
-                  fontSize: 14,
-                  fontWeight:
-                      isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              SizedBox(
-                height: 5,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (final task in tasks.take(3))
-                      Container(
-                        width: 5,
-                        height: 5,
-                        margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected
-                              ? Colors.white.withValues(
-                                  alpha: task.done ? 0.45 : 1)
-                              : _colorOf(task, accent.color).withValues(
-                                  alpha: task.done ? 0.3 : (allDone ? 0.5 : 1)),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(9),
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(icon, size: 21, color: p.muted),
           ),
         ),
       ),
