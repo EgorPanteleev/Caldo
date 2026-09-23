@@ -6,9 +6,12 @@ import '../providers/task_provider.dart' show dayOf;
 
 /// Date/time formatting shared by the calendar, the agenda and task rows.
 class Dates {
-  /// "October 2026" — the calendar's month header.
+  /// The calendar's month header: "Oct" while browsing the current year,
+  /// "Oct 2027" once the year is no longer this one.
   static String monthTitle(DateTime month) =>
-      DateFormat('MMMM yyyy').format(month);
+      month.year == DateTime.now().year
+          ? DateFormat('MMM').format(month)
+          : DateFormat('MMM yyyy').format(month);
 
   /// "Mon", "Tue", … starting on Monday or Sunday, for the calendar header.
   static List<String> weekdayLabels({required bool mondayFirst}) {

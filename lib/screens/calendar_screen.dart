@@ -413,8 +413,9 @@ class _DragHandle extends StatelessWidget {
 /// Identifies the month name in the calendar header.
 const monthTitleKey = Key('month-title');
 
-/// The calendar's own header. The month name is laid out first and the three
-/// controls are kept narrow, so a long name like "September" is never clipped.
+/// The calendar's own header: the month centred on the screen with its
+/// controls floating at the right, so the name sits in the middle however
+/// many buttons sit beside it.
 class _MonthBar extends StatelessWidget {
   final String title;
   final VoidCallback onPrevious;
@@ -431,39 +432,58 @@ class _MonthBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 10, 8),
-      child: Row(
-        children: [
-          // Expanded, not Flexible beside a Spacer: a Spacer would claim an
-          // equal share of the leftover width and clip the month name.
-          Expanded(
-            child: Text(
-              title,
-              key: monthTitleKey,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700),
+      // Symmetric, so the centred month name lands on the screen's midline.
+      padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+      child: SizedBox(
+        height: 36,
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.center,
+              // Kept clear of the controls on both sides so the name stays
+              // centred on the screen, shrinking a hair rather than running
+              // under a button on a narrow phone.
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 118),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    title,
+                    key: monthTitleKey,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                  ),
+                ),
+              ),
             ),
-          ),
-          _StepButton(
-            icon: Icons.chevron_left,
-            tooltip: 'Previous month',
-            onTap: onPrevious,
-          ),
-          _StepButton(
-            icon: Icons.today_outlined,
-            tooltip: 'Today',
-            onTap: onToday,
-          ),
-          _StepButton(
-            icon: Icons.chevron_right,
-            tooltip: 'Next month',
-            onTap: onNext,
-          ),
-        ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _StepButton(
+                    icon: Icons.chevron_left,
+                    tooltip: 'Previous month',
+                    onTap: onPrevious,
+                  ),
+                  _StepButton(
+                    icon: Icons.today_outlined,
+                    tooltip: 'Today',
+                    onTap: onToday,
+                  ),
+                  _StepButton(
+                    icon: Icons.chevron_right,
+                    tooltip: 'Next month',
+                    onTap: onNext,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

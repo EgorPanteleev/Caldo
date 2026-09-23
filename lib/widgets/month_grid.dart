@@ -200,7 +200,8 @@ class _DayCell extends StatelessWidget {
 
     final Color numberColor;
     if (isToday) {
-      numberColor = Colors.white;
+      // Dark on the light badge — white in dark mode, near-black in light.
+      numberColor = p.bg;
     } else if (!enabled) {
       numberColor = p.faint.withValues(alpha: 0.4);
     } else if (!inMonth) {
@@ -212,14 +213,14 @@ class _DayCell extends StatelessWidget {
     Color taskColor(Task task) => _colorOf(task, accent.color)
         .withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
 
-    // Today wears a filled badge; the selected day is outlined around its
-    // whole cell, so the number and its tasks are picked out together.
+    // Today wears a plain light badge and the selected day a thin neutral
+    // outline: the accent on both was far too loud for a grid of numbers.
     final number = Container(
       width: 28,
       height: 20,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isToday ? accent.color : Colors.transparent,
+        color: isToday ? p.text : Colors.transparent,
         borderRadius: BorderRadius.circular(7),
       ),
       child: Text(
@@ -241,12 +242,9 @@ class _DayCell extends StatelessWidget {
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
-            color: isSelected
-                ? accent.color.withValues(alpha: 0.07)
-                : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isSelected ? accent.color : Colors.transparent,
+              color: isSelected ? p.muted : Colors.transparent,
               width: 1.5,
             ),
           ),

@@ -202,22 +202,42 @@ void main() {
     );
   }
 
-  testWidgets('the month name gets the whole calendar header', (tester) async {
+  testWidgets('the month name is centred and never clipped', (tester) async {
     await pumpScreen(tester, const CalendarScreen(), size: narrow);
 
-    // A year's worth, so the long names (September, November, December) are
-    // covered whatever today's date is.
+    // A year's worth, so both the bare month and the form carrying a year
+    // are covered whatever today's date is.
     for (var i = 0; i < 12; i++) {
-      expectTitleGetsTheRoom(
-        tester,
-        find.byKey(monthTitleKey),
-        // 20 + 10 padding, three 36pt step buttons.
-        controlsWidth: 138,
+      final finder = find.byKey(monthTitleKey);
+      final text = tester.widget<Text>(finder);
+      final painter = TextPainter(
+        text: TextSpan(text: text.data, style: text.style),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      expect(
+        tester.getSize(finder).width,
+        greaterThanOrEqualTo(painter.width - 0.5),
+        reason: '"${text.data}" is clipped',
+      );
+      final screen = tester.getSize(find.byType(MaterialApp)).width;
+      expect(
+        (tester.getCenter(finder).dx - screen / 2).abs(),
+        lessThan(2),
+        reason: '"${text.data}" should sit in the middle of the header',
       );
       await tester.tap(find.byTooltip('Next month'));
       await tester.pumpAndSettle();
     }
     await drainDatabase(tester);
+  });
+
+  testWidgets('the month name carries the year only when it is not this one',
+      (tester) async {
+    final thisYear = DateTime(DateTime.now().year, 6);
+    final nextYear = DateTime(DateTime.now().year + 1, 6);
+    expect(Dates.monthTitle(thisYear), 'Jun');
+    expect(Dates.monthTitle(nextYear), 'Jun ${nextYear.year}');
   });
 
   testWidgets('a long list name gets the whole screen header', (tester) async {
