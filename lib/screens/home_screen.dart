@@ -4,10 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
-import 'agenda_screen.dart';
 import 'calendar_screen.dart';
-import 'lists_screen.dart';
 import 'settings_screen.dart';
+import 'tasks_screen.dart';
 
 /// Top-level shell with a Telegram-style bottom tab bar.
 class HomeScreen extends StatefulWidget {
@@ -21,9 +20,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
   static const _pages = [
-    AgendaScreen(),
+    TasksScreen(),
     CalendarScreen(),
-    ListsScreen(),
     SettingsScreen(),
   ];
 
@@ -33,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (i == _index) return;
     setState(() => _index = i);
     final provider = context.read<TaskProvider>();
-    if (i == 0) provider.loadAgenda();
+    if (i == 0) provider.loadTasks();
     if (i == 1) provider.loadMonth(provider.month);
   }
 
@@ -63,9 +61,8 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({required this.index, required this.onSelected});
 
   static const _items = [
-    _TabItem(Icons.check_circle_outline, Icons.check_circle, 'Today'),
+    _TabItem(Icons.check_circle_outline, Icons.check_circle, 'Tasks'),
     _TabItem(Icons.calendar_month_outlined, Icons.calendar_month, 'Calendar'),
-    _TabItem(Icons.list_alt_outlined, Icons.list_alt, 'Lists'),
     _TabItem(Icons.settings_outlined, Icons.settings, 'Settings'),
   ];
 
@@ -101,10 +98,14 @@ class _BottomBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               for (var i = 0; i < _items.length; i++)
-                _TabButton(
-                  item: _items[i],
-                  selected: index == i,
-                  onTap: () => onSelected(i),
+                // Flexible so a wide label or a large font scale shrinks the
+                // buttons instead of overflowing the bar.
+                Flexible(
+                  child: _TabButton(
+                    item: _items[i],
+                    selected: index == i,
+                    onTap: () => onSelected(i),
+                  ),
                 ),
             ],
           ),
@@ -189,7 +190,7 @@ class _TabButtonState extends State<_TabButton>
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
         decoration: BoxDecoration(
           color: widget.selected
               ? AppTheme.accentOf(context).color.withValues(alpha: 0.16)
@@ -211,6 +212,8 @@ class _TabButtonState extends State<_TabButton>
             const SizedBox(height: 3),
             Text(
               widget.item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: color,
                 fontSize: 11,

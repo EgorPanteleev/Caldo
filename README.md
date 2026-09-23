@@ -6,15 +6,21 @@ the device.
 
 ## Features
 
-- **Today** — the overdue backlog, what is due today, and the next 30 days,
-  every list mixed together and soonest first.
-- **Calendar** — a swipeable month grid with a dot per task, coloured by the
-  list it belongs to; tap a day to see and add its tasks.
+Three tabs: **Tasks**, **Calendar**, **Settings**.
+
+- **Tasks** — every task day by day: the overdue backlog, today, tomorrow, the
+  next 30 days, and finally everything with no date on it.
+- **Calendar** — a swipeable month grid marking each day's tasks with a slim
+  bar per task, coloured by the list it belongs to. Drag the grid down (or tap
+  its handle) to open the month out until every day spells its tasks out in
+  words; the selected day's tasks are listed underneath.
 - **Lists** — group tasks into lists, each with its own colour and icon and a
-  progress bar of what is done.
-- **Tasks** — notes, an optional due date with or without a time, a priority
-  flag, and a repeat rule. Completing a repeating task rolls it forward to its
-  next occurrence instead of closing it.
+  progress bar of what is done. Reached from the folder button on Tasks.
+- **A task** carries notes, an optional due date with or without a time, a
+  priority flag, and a repeat rule. Completing a repeating task rolls it
+  forward to its next occurrence instead of closing it.
+- **Pickers** in the app's own style rather than Material's: a date sheet
+  built on the same month grid, and a time sheet on scroll wheels.
 - **Appearance** — dark/light/system themes with a smooth cross-fade, six
   accent colours, and a Monday- or Sunday-first week.
 
@@ -50,8 +56,8 @@ lib/
   db/database.dart        sqflite schema and queries
   models/                 Task, TaskList and their enums
   providers/              TaskProvider (lists, calendar, agenda), SettingsProvider
-  screens/                agenda, calendar, lists, task list, editors, settings
-  widgets/                task row, headers, theme cross-fade, selection bar
+  screens/                tasks, calendar, lists, task list, editors, settings
+  widgets/                month grid, pickers, task row, headers, selection bar
   theme/app_theme.dart    palette, accents, ThemeData
   utils/dates.dart        date formatting
 ```

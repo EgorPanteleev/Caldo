@@ -54,6 +54,10 @@ class MonthGrid extends StatelessWidget {
 
   final ValueChanged<DateTime> onSelect;
 
+  /// How far the grid is pulled open, 0 (compact: a marker per task) to 1
+  /// (full height: each task's title spelled out in its day).
+  final double expansion;
+
   /// Days outside this range are shown but cannot be picked.
   final DateTime? firstDate;
   final DateTime? lastDate;
@@ -66,6 +70,7 @@ class MonthGrid extends StatelessWidget {
     required this.onSelect,
     this.tasksByDay = const {},
     this.lists = const [],
+    this.expansion = 0,
     this.firstDate,
     this.lastDate,
   });
@@ -102,6 +107,7 @@ class MonthGrid extends StatelessWidget {
                           isToday: day == today,
                           isSelected: day == selected,
                           enabled: enabled,
+                          expansion: expansion,
                           tasks: tasksByDay[day] ?? const [],
                           lists: lists,
                           onTap: enabled ? () => onSelect(day) : null,
@@ -117,14 +123,16 @@ class MonthGrid extends StatelessWidget {
   }
 }
 
-/// A single day: its number, a today ring, a selected fill, and up to three
-/// dots coloured by the lists the day's tasks belong to.
+/// A single day: its number, a today ring, a selected fill, and its tasks —
+/// shown as slim bars when the grid is compact and as titles once it is
+/// pulled open.
 class _DayCell extends StatelessWidget {
   final DateTime day;
   final bool inMonth;
   final bool isToday;
   final bool isSelected;
   final bool enabled;
+  final double expansion;
   final List<Task> tasks;
   final List<TaskList> lists;
   final VoidCallback? onTap;
@@ -135,6 +143,7 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.enabled,
+    required this.expansion,
     required this.tasks,
     required this.lists,
     required this.onTap,
@@ -167,6 +176,33 @@ class _DayCell extends StatelessWidget {
       numberColor = p.text;
     }
 
+    Color taskColor(Task task) => _colorOf(task, accent.color)
+        .withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
+
+    // The selection and the today ring sit on the number itself, so an open
+    // cell still belongs to its tasks rather than to a block of colour.
+    final number = Container(
+      width: 30,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isSelected ? accent.color : Colors.transparent,
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: isToday && !isSelected ? accent.color : Colors.transparent,
+          width: 1.4,
+        ),
+      ),
+      child: Text(
+        '${day.day}',
+        style: TextStyle(
+          color: numberColor,
+          fontSize: 14,
+          fontWeight: isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+    );
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -176,52 +212,169 @@ class _DayCell extends StatelessWidget {
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
           decoration: BoxDecoration(
-            color: isSelected ? accent.color : Colors.transparent,
+            color: isSelected
+                ? accent.color.withValues(alpha: 0.12)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(11),
-            border: Border.all(
-              color: isToday && !isSelected ? accent.color : Colors.transparent,
-              width: 1.4,
-            ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '${day.day}',
-                style: TextStyle(
-                  color: numberColor,
-                  fontSize: 14,
-                  fontWeight:
-                      isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              SizedBox(
-                height: 5,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (final task in tasks.take(3))
-                      Container(
-                        width: 5,
-                        height: 5,
-                        margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected
-                              ? Colors.white.withValues(
-                                  alpha: task.done ? 0.45 : 1)
-                              : _colorOf(task, accent.color).withValues(
-                                  alpha: task.done ? 0.3 : (allDone ? 0.5 : 1)),
+          child: LayoutBuilder(builder: (context, box) {
+            // The two layouts cross-fade as the grid opens, so a drag reads
+            // as one continuous movement rather than a swap.
+            final titles = expansion > 0.02;
+            return Stack(
+              children: [
+                if (expansion < 0.98)
+                  Opacity(
+                    opacity: (1 - expansion * 1.6).clamp(0.0, 1.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        number,
+                        const SizedBox(height: 5),
+                        _MarkerBars(
+                          tasks: tasks,
+                          colorOf: taskColor,
                         ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+                      ],
+                    ),
+                  ),
+                if (titles)
+                  Opacity(
+                    opacity: ((expansion - 0.35) * 2.2).clamp(0.0, 1.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 2),
+                        Center(child: number),
+                        const SizedBox(height: 3),
+                        Expanded(
+                          child: _DayTitles(
+                            tasks: tasks,
+                            muted: p.faint,
+                            onSurface: p.text,
+                            colorOf: taskColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            );
+          }),
         ),
       ),
+    );
+  }
+}
+
+/// The compact marker for a day's tasks: one slim bar each, up to three.
+class _MarkerBars extends StatelessWidget {
+  final List<Task> tasks;
+  final Color Function(Task) colorOf;
+
+  const _MarkerBars({required this.tasks, required this.colorOf});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 3,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (final task in tasks.take(3))
+            Container(
+              width: 8,
+              height: 3,
+              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+              decoration: BoxDecoration(
+                color: colorOf(task),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A day's tasks written out, as many as the opened cell has room for.
+class _DayTitles extends StatelessWidget {
+  final List<Task> tasks;
+  final Color muted;
+  final Color onSurface;
+  final Color Function(Task) colorOf;
+
+  const _DayTitles({
+    required this.tasks,
+    required this.muted,
+    required this.onSurface,
+    required this.colorOf,
+  });
+
+  static const _rowHeight = 15.0;
+  static const _gap = 2.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (tasks.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(builder: (context, box) {
+      // Whole rows only — a half-clipped title would read as a glitch.
+      final room =
+          (box.maxHeight / (_rowHeight + _gap)).floor().clamp(0, 5);
+      if (room == 0) return const SizedBox.shrink();
+      final shown = tasks.length <= room ? tasks.length : room - 1;
+      final hidden = tasks.length - shown;
+      return _titles(shown, hidden);
+    });
+  }
+
+  Widget _titles(int shown, int hidden) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final task in tasks.take(shown))
+          Container(
+            height: _rowHeight,
+            margin: const EdgeInsets.only(bottom: _gap),
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            alignment: Alignment.centerLeft,
+            decoration: BoxDecoration(
+              color: colorOf(task).withValues(alpha: 0.22),
+              borderRadius: BorderRadius.circular(3),
+              border: Border(
+                left: BorderSide(color: colorOf(task), width: 2),
+              ),
+            ),
+            child: Text(
+              task.title,
+              maxLines: 1,
+              // Fades out rather than cutting a letter in half or spending
+              // two of the few characters on an ellipsis.
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              style: TextStyle(
+                fontSize: 8.5,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+                color: task.done ? muted : onSurface,
+                decoration: task.done ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+        if (hidden > 0)
+          SizedBox(
+            height: _rowHeight,
+            child: Text(
+              '+$hidden',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                color: muted,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

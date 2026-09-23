@@ -31,8 +31,11 @@ class TaskProvider extends ChangeNotifier {
   List<Task> _overdue = [];
 
   /// Dated tasks from today onwards (done ones included, so a day's progress
-  /// is visible), backing the agenda.
+  /// is visible), backing the Tasks screen and the calendar.
   List<Task> _upcoming = [];
+
+  /// Tasks with no due date, listed after the dated ones.
+  List<Task> _undated = [];
 
   List<TaskList> get lists => _lists;
   bool get listsLoading => _listsLoading;
@@ -44,6 +47,7 @@ class TaskProvider extends ChangeNotifier {
   Map<DateTime, List<Task>> get tasksByDay => _byDay;
   List<Task> get overdue => _overdue;
   List<Task> get upcoming => _upcoming;
+  List<Task> get undated => _undated;
 
   TaskList? get currentList {
     for (final l in _lists) {
@@ -59,7 +63,7 @@ class TaskProvider extends ChangeNotifier {
     return null;
   }
 
-  /// How many days ahead the agenda looks.
+  /// How many days ahead the Tasks screen looks.
   static const agendaDays = 30;
 
   // ---- Lists --------------------------------------------------------------
@@ -98,22 +102,23 @@ class TaskProvider extends ChangeNotifier {
   Future<void> openList(int id) async {
     _currentListId = id;
     _query = '';
-    await _loadTasks();
+    await _loadListTasks();
   }
 
   Future<void> search(String query) async {
     _query = query;
-    await _loadTasks();
+    await _loadListTasks();
   }
 
   /// Mirrors the "show completed" setting into the list query.
   Future<void> setShowCompleted(bool value) async {
     if (_showCompleted == value) return;
     _showCompleted = value;
-    await _loadTasks();
+    await _loadListTasks();
   }
 
-  Future<void> _loadTasks() async {
+  /// Reloads the open list's tasks for the current query.
+  Future<void> _loadListTasks() async {
     final id = _currentListId;
     if (id == null) {
       _tasks = [];
@@ -152,8 +157,9 @@ class TaskProvider extends ChangeNotifier {
   /// Tasks due on [day], open ones first.
   List<Task> tasksForDay(DateTime day) => _byDay[dayOf(day)] ?? const [];
 
-  /// Loads the overdue backlog and the next [agendaDays] days of dated tasks.
-  Future<void> loadAgenda() async {
+  /// Loads what the Tasks screen shows: the overdue backlog, the next
+  /// [agendaDays] days of dated tasks, and everything with no date.
+  Future<void> loadTasks() async {
     final today = dayOf(DateTime.now());
     final to = today.add(const Duration(days: agendaDays));
     _overdue = await _db.getOverdue(today.millisecondsSinceEpoch);
@@ -161,10 +167,11 @@ class TaskProvider extends ChangeNotifier {
       today.millisecondsSinceEpoch,
       to.millisecondsSinceEpoch,
     );
+    _undated = await _db.getUndated();
     notifyListeners();
   }
 
-  /// The agenda grouped into days, ordered soonest first.
+  /// The dated tasks grouped into days, ordered soonest first.
   Map<DateTime, List<Task>> get upcomingByDay => _groupByDay(_upcoming);
 
   Map<DateTime, List<Task>> _groupByDay(List<Task> tasks) {
@@ -244,6 +251,6 @@ class TaskProvider extends ChangeNotifier {
       );
     }
     await loadMonth(_month);
-    await loadAgenda();
+    await loadTasks();
   }
 }

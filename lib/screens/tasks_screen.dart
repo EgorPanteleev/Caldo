@@ -8,23 +8,24 @@ import '../utils/dates.dart';
 import '../widgets/gradient_icon_button.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_row.dart';
+import 'lists_screen.dart';
 import 'task_edit_screen.dart';
 
-/// The landing screen: what is overdue, what is due today, and what is coming
-/// up over the next few weeks — every list mixed together, soonest first.
-class AgendaScreen extends StatefulWidget {
-  const AgendaScreen({super.key});
+/// The landing screen: every task, day by day — what is overdue, what is due
+/// today, what is coming up, and finally everything with no date on it.
+class TasksScreen extends StatefulWidget {
+  const TasksScreen({super.key});
 
   @override
-  State<AgendaScreen> createState() => _AgendaScreenState();
+  State<TasksScreen> createState() => _TasksScreenState();
 }
 
-class _AgendaScreenState extends State<AgendaScreen> {
+class _TasksScreenState extends State<TasksScreen> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<TaskProvider>().loadAgenda();
+      if (mounted) context.read<TaskProvider>().loadTasks();
     });
   }
 
@@ -44,21 +45,30 @@ class _AgendaScreenState extends State<AgendaScreen> {
     final overdue = provider.overdue;
     final byDay = provider.upcomingByDay;
     final days = byDay.keys.toList()..sort();
+    final undated = provider.undated;
 
     final todays = byDay[today] ?? const <Task>[];
     final doneToday = todays.where((t) => t.done).length;
     final openToday = todays.length - doneToday;
-    final hasAnything = overdue.isNotEmpty || days.isNotEmpty;
+    final hasAnything =
+        overdue.isNotEmpty || days.isNotEmpty || undated.isNotEmpty;
 
     return Scaffold(
       body: RefreshIndicator(
-        onRefresh: provider.loadAgenda,
+        onRefresh: provider.loadTasks,
         child: ListView(
           padding: const EdgeInsets.only(bottom: 90),
           children: [
             ScreenHeader(
-              title: 'Today',
+              title: 'Tasks',
               actions: [
+                IconButton(
+                  icon: Icon(Icons.folder_outlined, color: p.muted),
+                  tooltip: 'Lists',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ListsScreen()),
+                  ),
+                ),
                 GradientIconButton(
                   icon: Icons.add,
                   tooltip: 'New task',
@@ -80,9 +90,9 @@ class _AgendaScreenState extends State<AgendaScreen> {
                 padding: const EdgeInsets.only(top: 40),
                 child: EmptyState(
                   icon: Icons.beach_access_outlined,
-                  title: 'Nothing scheduled',
-                  message: 'Tasks with a due date show up here, '
-                      'soonest first.',
+                  title: 'No tasks yet',
+                  message: 'Tap + to add one. Anything with a due date is '
+                      'listed here day by day.',
                 ),
               ),
             if (overdue.isNotEmpty) ...[
@@ -115,11 +125,28 @@ class _AgendaScreenState extends State<AgendaScreen> {
                   onToggle: () => provider.toggleDone(task),
                 ),
             ],
+            if (undated.isNotEmpty) ...[
+              _DayHeader(
+                label: 'No date',
+                trailing: '${undated.where((t) => !t.done).length} open',
+                onAdd: () => _openEditor(),
+              ),
+              for (final task in undated)
+                TaskRow(
+                  task: task,
+                  list: provider.listById(task.listId),
+                  showList: true,
+                  onTap: () => _openEditor(task),
+                  onLongPress: () => _openEditor(task),
+                  onToggle: () => provider.toggleDone(task),
+                ),
+            ],
             if (days.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Text(
-                  'Showing the next ${TaskProvider.agendaDays} days.',
+                  'Dated tasks are shown for the next '
+                  '${TaskProvider.agendaDays} days.',
                   style: TextStyle(color: p.faint, fontSize: 12),
                 ),
               ),
@@ -130,7 +157,8 @@ class _AgendaScreenState extends State<AgendaScreen> {
   }
 }
 
-/// The hero card at the top of the agenda: today's date and how it is going.
+/// The hero card at the top of the Tasks screen: today's date and how it is
+/// going.
 class _TodayCard extends StatelessWidget {
   final DateTime date;
   final int open;
@@ -208,7 +236,7 @@ class _TodayCard extends StatelessWidget {
   }
 }
 
-/// A day separator in the agenda, optionally with a count and an add button.
+/// A day separator, optionally with a count and an add button.
 class _DayHeader extends StatelessWidget {
   final String label;
   final Color? color;

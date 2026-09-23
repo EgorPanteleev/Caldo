@@ -58,7 +58,7 @@ Future<TaskProvider> seedProvider() async {
     title: 'Someday idea',
     createdAt: now.millisecondsSinceEpoch,
   ));
-  await provider.loadAgenda();
+  await provider.loadTasks();
   await provider.loadMonth(today);
   return provider;
 }

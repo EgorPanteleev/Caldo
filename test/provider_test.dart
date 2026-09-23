@@ -62,14 +62,15 @@ void main() {
     expect(reopened.completedAt, isNull);
   });
 
-  test('the agenda holds dated tasks and the overdue backlog', () async {
+  test('the overview holds dated, overdue and undated tasks', () async {
     final provider = await seedProvider();
-    await provider.loadAgenda();
+    await provider.loadTasks();
 
     expect(provider.overdue.map((t) => t.title), ['Water']);
     expect(provider.upcoming.map((t) => t.title), ['Ship']);
-    // Undated tasks live in their list only.
+    // Undated tasks are kept apart from the dated ones.
     expect(provider.upcoming.any((t) => t.title == 'Someday idea'), isFalse);
+    expect(provider.undated.map((t) => t.title), ['Someday idea']);
   });
 
   test('the calendar groups a month by day', () async {
@@ -119,7 +120,7 @@ void main() {
     expect(provider.lists.map((l) => l.name), ['Personal']);
     expect(provider.currentListId, isNull);
     expect(provider.tasks, isEmpty);
-    await provider.loadAgenda();
+    await provider.loadTasks();
     expect(provider.overdue, isEmpty);
     expect(provider.upcoming, isEmpty);
   });

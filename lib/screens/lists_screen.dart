@@ -129,6 +129,7 @@ class _ListsScreenState extends State<ListsScreen> {
                 : ScreenHeader(
                     title: 'Lists',
                     count: all.length,
+                    showBack: Navigator.of(context).canPop(),
                     actions: [
                       GradientIconButton(
                         icon: Icons.add,

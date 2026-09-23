@@ -1,7 +1,8 @@
 import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
-import 'package:caldo/screens/agenda_screen.dart';
+import 'package:caldo/screens/tasks_screen.dart';
 import 'package:caldo/screens/calendar_screen.dart';
+import 'package:caldo/screens/home_screen.dart';
 import 'package:caldo/screens/lists_screen.dart';
 import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
@@ -88,16 +89,24 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('the agenda separates overdue from what is due today',
+  /// Lets the database reads a screen started (a month change, say) finish
+  /// before the test ends and the next case closes the database.
+  Future<void> drainDatabase(WidgetTester tester) =>
+      tester.runAsync(() => Future<void>.delayed(
+            const Duration(milliseconds: 80),
+          ));
+
+  testWidgets('the tasks screen separates overdue from what is due today',
       (tester) async {
-    await pumpScreen(tester, const AgendaScreen());
+    await pumpScreen(tester, const TasksScreen());
 
     expect(find.text('OVERDUE'), findsOneWidget);
     expect(find.text('Water'), findsOneWidget);
     expect(find.text('Ship'), findsOneWidget);
     expect(find.text('1 left of 1 today'), findsOneWidget);
-    // Undated tasks belong to their list, not to the agenda.
-    expect(find.text('Someday idea'), findsNothing);
+    // Undated tasks come last, under their own heading.
+    expect(find.text('NO DATE'), findsOneWidget);
+    expect(find.text('Someday idea'), findsOneWidget);
   });
 
   testWidgets('the calendar lists the selected day below the month grid',
@@ -140,7 +149,7 @@ void main() {
         size: narrow, theme: light);
     expect(find.text('Someday idea'), findsOneWidget);
 
-    await pumpScreen(tester, const AgendaScreen(), size: narrow, theme: light);
+    await pumpScreen(tester, const TasksScreen(), size: narrow, theme: light);
     expect(find.text('OVERDUE'), findsOneWidget);
   });
 
@@ -191,13 +200,6 @@ void main() {
       reason: '"${text.data}" is squeezed by the controls beside it',
     );
   }
-
-  /// Lets the database reads a screen started (a month change, say) finish
-  /// before the test ends and the next case closes the database.
-  Future<void> drainDatabase(WidgetTester tester) =>
-      tester.runAsync(() => Future<void>.delayed(
-            const Duration(milliseconds: 80),
-          ));
 
   testWidgets('the month name gets the whole calendar header', (tester) async {
     await pumpScreen(tester, const CalendarScreen(), size: narrow);
@@ -259,6 +261,52 @@ void main() {
 
     expect(find.text('All day'), findsNothing);
     expect(find.text('18:00'), findsOneWidget);
+  });
+
+  testWidgets('the calendar opens up to spell out each day', (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+
+    // Compact: the day's tasks are listed below the grid, and the grid marks
+    // them with bars rather than words.
+    expect(find.text('Ship'), findsOneWidget);
+
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, 320));
+    await tester.pumpAndSettle();
+
+    // Opened: the title is now written inside its day as well.
+    expect(find.text('Ship'), findsNWidgets(2));
+
+    await tester.tap(find.byKey(calendarHandleKey));
+    await tester.pumpAndSettle();
+    expect(find.text('Ship'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('picking a day in the opened month closes it again',
+      (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    await tester.tap(find.byKey(calendarHandleKey));
+    await tester.pumpAndSettle();
+    expect(find.text('Ship'), findsNWidgets(2));
+
+    final today = dayOf(DateTime.now());
+    await tester.tap(find.text('${today.day}').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ship'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('the shell carries Tasks, Calendar and Settings', (tester) async {
+    await pumpScreen(tester, const HomeScreen());
+
+    expect(find.text('Tasks'), findsWidgets);
+    expect(find.text('Calendar'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
+    // Lists moved out of the tab bar, onto the Tasks screen's header.
+    expect(find.text('Lists'), findsNothing);
+    expect(find.byTooltip('Lists'), findsOneWidget);
+    await drainDatabase(tester);
   });
 
   testWidgets('searching a list narrows it down', (tester) async {

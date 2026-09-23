@@ -136,6 +136,14 @@ class AppDatabase {
     return rows.map(Task.fromMap).toList();
   }
 
+  /// Tasks with no due date at all — they belong to their list only.
+  Future<List<Task>> getUndated() async {
+    final db = await database;
+    final rows = await db.query(_tasks, where: 'due_at IS NULL',
+        orderBy: _order);
+    return rows.map(Task.fromMap).toList();
+  }
+
   /// Open tasks that were due before [beforeMs] — the overdue backlog.
   Future<List<Task>> getOverdue(int beforeMs) async {
     final db = await database;

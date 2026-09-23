@@ -77,7 +77,13 @@ class _Sheet extends StatelessWidget {
                 ),
               ),
             ),
-            Flexible(child: child),
+            // Scrollable, so a small screen or a large font scale can never
+            // overflow the sheet — it just scrolls.
+            Flexible(
+              child: SingleChildScrollView(
+                child: child,
+              ),
+            ),
           ],
         ),
       ),
@@ -211,14 +217,12 @@ class _TimeSheetState extends State<_TimeSheet> {
   late final FixedExtentScrollController _minutes =
       FixedExtentScrollController(initialItem: _minute);
 
-  /// The times people actually pick, one tap away.
+  /// Four points through the day, one tap away and a single row wide.
   static const _presets = [
-    TimeOfDay(hour: 7, minute: 0),
     TimeOfDay(hour: 9, minute: 0),
     TimeOfDay(hour: 12, minute: 0),
     TimeOfDay(hour: 15, minute: 0),
     TimeOfDay(hour: 18, minute: 0),
-    TimeOfDay(hour: 21, minute: 0),
   ];
 
   @override
@@ -249,7 +253,7 @@ class _TimeSheetState extends State<_TimeSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+          padding: const EdgeInsets.fromLTRB(20, 6, 14, 2),
           child: Row(
             children: [
               Text('Time',
@@ -258,68 +262,105 @@ class _TimeSheetState extends State<_TimeSheet> {
                       .titleLarge
                       ?.copyWith(fontWeight: FontWeight.w700)),
               const Spacer(),
-              Text(
-                Dates.formatTimeOfDay(current),
-                style: TextStyle(
-                  color: accent.color,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              // The running value, so the chosen time is readable without
+              // deciphering the wheels.
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: accent.color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: accent.color.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  Dates.formatTimeOfDay(current),
+                  style: TextStyle(
+                    color: accent.color,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _WheelCaption('HOUR', color: p.faint),
+            const SizedBox(width: 18),
+            _WheelCaption('MINUTE', color: p.faint),
+          ],
+        ),
         SizedBox(
-          height: 186,
+          height: 180,
           child: Stack(
             alignment: Alignment.center,
             children: [
               // The band marking the values the wheels are parked on.
               Container(
-                height: 46,
-                margin: const EdgeInsets.symmetric(horizontal: 44),
+                height: 48,
+                margin: const EdgeInsets.symmetric(horizontal: 40),
                 decoration: BoxDecoration(
                   color: accent.color.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: accent.color.withValues(alpha: 0.35),
                   ),
                 ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _Wheel(
-                    controller: _hours,
-                    count: 24,
-                    selected: _hour,
-                    onChanged: (v) => setState(() => _hour = v),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      ':',
-                      style: TextStyle(
-                        color: p.muted,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
+              // Numbers dissolve towards the edges instead of being cut off.
+              ShaderMask(
+                shaderCallback: (rect) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black,
+                    Colors.black,
+                    Colors.transparent,
+                  ],
+                  stops: [0.0, 0.26, 0.74, 1.0],
+                ).createShader(rect),
+                blendMode: BlendMode.dstIn,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _Wheel(
+                      controller: _hours,
+                      count: 24,
+                      selected: _hour,
+                      onChanged: (v) => setState(() => _hour = v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        ':',
+                        style: TextStyle(
+                          color: accent.color,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                  _Wheel(
-                    controller: _minutes,
-                    count: 60,
-                    selected: _minute,
-                    onChanged: (v) => setState(() => _minute = v),
-                  ),
-                ],
+                    _Wheel(
+                      controller: _minutes,
+                      count: 60,
+                      selected: _minute,
+                      onChanged: (v) => setState(() => _minute = v),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
           child: Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -335,7 +376,7 @@ class _TimeSheetState extends State<_TimeSheet> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
           child: Row(
             children: [
               Expanded(
@@ -355,6 +396,31 @@ class _TimeSheetState extends State<_TimeSheet> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The small caption naming a wheel.
+class _WheelCaption extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _WheelCaption(this.text, {required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 74,
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+        ),
+      ),
     );
   }
 }
@@ -389,6 +455,7 @@ class _Wheel extends StatelessWidget {
           HapticFeedback.selectionClick();
           onChanged(i % count);
         },
+        overAndUnderCenterOpacity: 0.55,
         childDelegate: ListWheelChildLoopingListDelegate(
           children: [
             for (var i = 0; i < count; i++)
@@ -396,8 +463,8 @@ class _Wheel extends StatelessWidget {
                 child: Text(
                   i.toString().padLeft(2, '0'),
                   style: TextStyle(
-                    color: i == selected ? accent.color : p.muted,
-                    fontSize: i == selected ? 26 : 22,
+                    color: i == selected ? accent.color : p.text,
+                    fontSize: i == selected ? 27 : 22,
                     fontWeight:
                         i == selected ? FontWeight.w700 : FontWeight.w500,
                     fontFeatures: const [FontFeature.tabularFigures()],
