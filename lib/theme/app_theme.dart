@@ -51,6 +51,9 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color muted;
   final Color faint;
 
+  /// The calendar's own ground, set apart from the rest of the app.
+  final Color calendar;
+
   const AppPalette({
     required this.bg,
     required this.sidebar,
@@ -60,6 +63,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.text,
     required this.muted,
     required this.faint,
+    required this.calendar,
   });
 
   static const dark = AppPalette(
@@ -71,6 +75,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     text: AppColors.darkText,
     muted: AppColors.darkMuted,
     faint: AppColors.darkFaint,
+    calendar: Color(0xFF000000),
   );
 
   static const light = AppPalette(
@@ -82,6 +87,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     text: AppColors.lightText,
     muted: Color(0xFF5C5D6B),
     faint: Color(0xFF9394A1),
+    calendar: Color(0xFFFFFFFF),
   );
 
   @override
@@ -94,6 +100,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? text,
     Color? muted,
     Color? faint,
+    Color? calendar,
   }) =>
       AppPalette(
         bg: bg ?? this.bg,
@@ -104,6 +111,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
         text: text ?? this.text,
         muted: muted ?? this.muted,
         faint: faint ?? this.faint,
+        calendar: calendar ?? this.calendar,
       );
 
   @override
@@ -118,6 +126,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
       text: Color.lerp(text, other.text, t)!,
       muted: Color.lerp(muted, other.muted, t)!,
       faint: Color.lerp(faint, other.faint, t)!,
+      calendar: Color.lerp(calendar, other.calendar, t)!,
     );
   }
 }

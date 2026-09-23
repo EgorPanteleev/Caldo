@@ -305,6 +305,27 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('the calendar squeezes down to a single week', (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    final month = tester.getSize(find.byType(MonthGrid).first).height;
+
+    // Pushing the grip up collapses the month to the selected day's week.
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    final week = tester.getSize(find.byType(MonthGrid).first).height;
+    expect(week, lessThan(month / 3),
+        reason: 'a week should be a fraction of the month');
+    // The day's tasks keep their place, with more room than before.
+    expect(find.text('Ship'), findsOneWidget);
+
+    // And a tap brings the month back.
+    await tester.tap(find.byKey(calendarHandleKey));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(MonthGrid).first).height,
+        closeTo(month, 1));
+    await drainDatabase(tester);
+  });
+
   testWidgets('picking a day in the opened month closes it again',
       (tester) async {
     await pumpScreen(tester, const CalendarScreen());
