@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
-import 'gradient_icon_button.dart';
 
 /// The field under a day's tasks: type a title, confirm, and it lands on the
 /// day in view without opening the full form. Used by the calendar and by the
 /// day card that opens over it.
-class QuickAddBar extends StatelessWidget {
+class QuickAddBar extends StatefulWidget {
   final DateTime date;
   final TextEditingController controller;
   final VoidCallback onSubmit;
@@ -25,59 +24,102 @@ class QuickAddBar extends StatelessWidget {
   });
 
   @override
+  State<QuickAddBar> createState() => _QuickAddBarState();
+}
+
+class _QuickAddBarState extends State<QuickAddBar> {
+  late final FocusNode _focus = FocusNode()
+    ..addListener(() {
+      if (mounted) setState(() {});
+    });
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    // Opening the field is the moment the button's job changes: from here on
+    // it finishes the task being typed, so it says so. Waiting for the first
+    // character left it a plus over an active field.
+    final writing = _focus.hasFocus;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(26),
+      borderSide: BorderSide(color: p.border),
+    );
+
     return Padding(
-      padding: padding,
+      padding: widget.padding,
       child: Row(
         children: [
           Expanded(
             child: TextField(
-              controller: controller,
+              controller: widget.controller,
+              focusNode: _focus,
               textCapitalization: TextCapitalization.sentences,
               textInputAction: TextInputAction.done,
-              onSubmitted: (_) => onSubmit(),
+              onSubmitted: (_) => widget.onSubmit(),
               style: TextStyle(color: p.text, fontSize: 14.5),
               decoration: InputDecoration(
                 isDense: true,
-                hintText: 'Add task on ${Dates.shortDay(date)}',
+                hintText: 'Add task on ${Dates.shortDay(widget.date)}',
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 14,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide(color: p.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide(color: p.border),
-                ),
+                border: border,
+                enabledBorder: border,
+                // A neutral outline on focus rather than the accent: the
+                // cursor already says where the typing goes, and a coloured
+                // ring around half the screen was the loudest thing on it.
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide(
-                    color: AppTheme.accentOf(context).color,
-                    width: 1.5,
-                  ),
+                  borderSide: BorderSide(color: p.muted),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 10),
-          // A plus while the field is empty — there is nothing to confirm yet,
-          // and the button reads as "add something". It turns into a tick the
-          // moment there is a title waiting to be taken.
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
-            builder: (context, value, _) => GradientIconButton(
-              icon: value.text.trim().isEmpty ? Icons.add : Icons.check_rounded,
-              size: 48,
-              circle: true,
-              tooltip: 'Add task',
-              onTap: onSubmit,
-            ),
+          _ConfirmButton(
+            icon: writing ? Icons.check_rounded : Icons.add,
+            onTap: widget.onSubmit,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The round button beside the field. Plain rather than the accent gradient
+/// the screen headers wear: it sits next to the field the eye is already on,
+/// and a bright disc there pulled attention off what was being typed.
+class _ConfirmButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ConfirmButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Tooltip(
+      message: 'Add task',
+      child: Material(
+        color: p.panelHi,
+        shape: CircleBorder(side: BorderSide(color: p.border)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Icon(icon, color: p.text, size: 26),
+          ),
+        ),
       ),
     );
   }

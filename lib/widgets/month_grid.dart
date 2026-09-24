@@ -457,12 +457,15 @@ class _DayTitles extends StatelessWidget {
 
   const _DayTitles({required this.entries, required this.muted});
 
-  static const _fontSize = 8.5;
+  static const _fontSize = 7.5;
   static const _lineSpacing = 1.15;
 
-  /// Room above and below the text inside a chip, and between two chips.
-  static const _inset = 2.0;
-  static const _gap = 2.0;
+  /// Room above and below the text inside a chip, and between two chips, and
+  /// at either end of the title. All kept tight: the chip is the width of a
+  /// day, so every point spent on padding is a character lost off the title.
+  static const _inset = 1.5;
+  static const _gap = 1.5;
+  static const _sideInset = 2.5;
 
   /// A title may wrap onto a second line — a day is a few characters wide —
   /// but no further.
@@ -516,7 +519,7 @@ class _DayTitles extends StatelessWidget {
         final style = DefaultTextStyle.of(context).style.merge(_style);
         final scaler = MediaQuery.textScalerOf(context);
         final direction = Directionality.of(context);
-        final width = box.maxWidth - 6;
+        final width = box.maxWidth - _sideInset * 2;
         final heights = [
           for (final entry in entries)
             _heightOf(entry.label, width, style, scaler, direction),
@@ -563,7 +566,7 @@ class _DayTitles extends StatelessWidget {
               bottom: i == shown - 1 && hidden == 0 ? 0 : _gap,
             ),
             padding: const EdgeInsets.symmetric(
-              horizontal: 3,
+              horizontal: _sideInset,
               vertical: _inset,
             ),
             alignment: Alignment.centerLeft,

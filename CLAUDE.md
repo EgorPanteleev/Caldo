@@ -92,8 +92,11 @@ Changing them back will be noticed.
 - **The time wheels follow One UI**: one plain raised strip marking where they
   are parked, numbers all one size picked out by weight alone, a shallow drum,
   and no accent anywhere in the sheet.
-- **The quick-add button is a plus until something is typed, then a tick.**
-  Empty, it reads as "add something"; with a title waiting, it confirms it.
+- **The quick-add button is a plus until the field is opened, then a tick**,
+  and it is plain rather than the accent gradient the headers wear — it sits
+  beside the field the eye is already on. The focused field's outline is
+  neutral too; an accent ring around half the screen was the loudest thing on
+  it.
 - **The day bar names its day and nothing else.** The open-count and the
   full-form button beside it were noise on a bar whose whole job is to say
   which day is below it; the full form is still reached from the day card's
