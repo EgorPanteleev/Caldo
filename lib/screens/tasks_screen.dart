@@ -14,7 +14,10 @@ import 'task_edit_screen.dart';
 /// The landing screen: every task, day by day — what is overdue, what is due
 /// today, what is coming up, and finally everything with no date on it.
 class TasksScreen extends StatefulWidget {
-  const TasksScreen({super.key});
+  /// Opens the shell's menu; null when the screen is shown on its own.
+  final VoidCallback? onMenu;
+
+  const TasksScreen({super.key, this.onMenu});
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -64,6 +67,7 @@ class _TasksScreenState extends State<TasksScreen> {
           children: [
             ScreenHeader(
               title: 'Tasks',
+              onMenu: widget.onMenu,
               actions: [
                 IconButton(
                   icon: Icon(Icons.folder_outlined, color: p.muted),

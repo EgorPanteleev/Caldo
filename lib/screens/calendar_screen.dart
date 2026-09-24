@@ -12,6 +12,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/day_sheet.dart';
+import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/quick_add_bar.dart';
@@ -22,7 +23,10 @@ import 'task_edit_screen.dart';
 /// listed underneath. Swipe or use the arrows to move between months, and
 /// drag the grid down to open it up until every day spells out its tasks.
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key});
+  /// Opens the shell's menu; null when the screen is shown on its own.
+  final VoidCallback? onMenu;
+
+  const CalendarScreen({super.key, this.onMenu});
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -321,6 +325,7 @@ class _CalendarScreenState extends State<CalendarScreen>
               children: [
                 _MonthBar(
                   title: Dates.monthTitle(shownMonth),
+                  onMenu: widget.onMenu,
                   onPrevious: () => _goToPage(page - 1),
                   onToday: _jumpToToday,
                   onNext: () => _goToPage(page + 1),
@@ -518,12 +523,14 @@ const monthTitleKey = Key('month-title');
 /// many buttons sit beside it.
 class _MonthBar extends StatelessWidget {
   final String title;
+  final VoidCallback? onMenu;
   final VoidCallback onPrevious;
   final VoidCallback onToday;
   final VoidCallback onNext;
 
   const _MonthBar({
     required this.title,
+    required this.onMenu,
     required this.onPrevious,
     required this.onToday,
     required this.onNext,
@@ -559,6 +566,11 @@ class _MonthBar extends StatelessWidget {
                 ),
               ),
             ),
+            if (onMenu != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: MenuButton(onTap: onMenu!),
+              ),
             Align(
               alignment: Alignment.centerRight,
               child: Row(

@@ -2,8 +2,8 @@
 
 A calendar + to-do app for Android, Flutter, local-only storage. Private repo:
 `github.com/EgorPanteleev/Caldo`. It is modelled on its sibling app **Dicty**
-(`/home/igor/dev/src/Dicty`) — same stack, same theme, same Telegram-style tab
-bar. When a question about style or structure comes up, look there first.
+(`/home/igor/dev/src/Dicty`) — same stack, same theme. When a question about
+style or structure comes up, look there first.
 
 ## Stack
 
@@ -20,18 +20,19 @@ lib/
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
-  screens/               home (tab shell), tasks, calendar, lists,
+  screens/               home (shell + menu), tasks, calendar, lists,
                          task_list, task_edit, list_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
-                         date_time_pickers, day_sheet, quick_add_bar,
-                         screen_header, selection_bar, theme_switcher,
-                         gradient_icon_button
+                         date_time_pickers, day_sheet, menu_button,
+                         quick_add_bar, screen_header, selection_bar,
+                         theme_switcher, gradient_icon_button
 ```
 
-Three tabs: **Tasks**, **Calendar**, **Settings**. Lists are not a tab — they
-are reached from the folder button in the Tasks header.
+Three destinations — **Tasks**, **Calendar**, **Settings** — in a drawer
+behind the menu button at the top left of each. Lists is not one of them; it is
+reached from the folder button in the Tasks header.
 
 ## Decisions worth keeping
 
@@ -76,9 +77,15 @@ Changing them back will be noticed.
   swipe across a month boundary from bouncing.
 - **Week rules only arrive at the end of the opening** (`weekRuleAlpha`, last
   quarter) and never while the month is shrinking.
+- **The three screens live behind a menu button, not a bottom bar.** The
+  hamburger sits at the top left of each of them and carries a dot when
+  something is overdue — the one thing worth pulling the user back to a screen
+  they are not on. The drawer opens on the button alone
+  (`drawerEnableOpenDragGesture: false`): the calendar and its day list both
+  page sideways, and an edge-drag would take those swipes off them.
 - **Today is a plain light badge; the selected day is a thin neutral outline.**
   Accent on either was "too much". The accent survives on the add buttons, the
-  TODAY label and the tab bar.
+  TODAY label and the menu's current entry.
 - **Only Sundays are red.** A holiday does not recolour the number — its green
   mark says it already.
 - **Holidays are not tasks.** They are computed read-only entries; nothing is
@@ -127,7 +134,8 @@ Things that will bite you:
   widths; assert layout invariants instead (e.g. "the title is given all the
   width the controls leave").
 - Widget keys are exported for tests: `monthTitleKey`, `calendarHandleKey`,
-  `daySheetKey`, `screenTitleKey`, `checkKey`, `taskCardTickKey`.
+  `daySheetKey`, `menuButtonKey`, `screenTitleKey`, `checkKey`,
+  `taskCardTickKey`.
 
 ## Building
 

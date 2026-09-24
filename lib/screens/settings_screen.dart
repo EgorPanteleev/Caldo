@@ -11,7 +11,10 @@ import '../widgets/theme_switcher.dart';
 /// Appearance, calendar and task preferences. Everything here applies
 /// immediately — there is nothing to save.
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  /// Opens the shell's menu; null when the screen is shown on its own.
+  final VoidCallback? onMenu;
+
+  const SettingsScreen({super.key, this.onMenu});
 
   /// Apply a theme change with a smooth cross-fade.
   void _setThemeMode(BuildContext context, ThemeMode mode) {
@@ -61,7 +64,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 90),
         children: [
-          const ScreenHeader(title: 'Settings'),
+          ScreenHeader(title: 'Settings', onMenu: onMenu),
           Divider(height: 1, color: p.border),
           Padding(
             padding: const EdgeInsets.all(20),

@@ -11,6 +11,7 @@ import 'package:caldo/screens/task_list_screen.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
+import 'package:caldo/widgets/menu_button.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/material.dart';
@@ -470,15 +471,30 @@ void main() {
     expect(field.controller?.text, isEmpty);
   });
 
-  testWidgets('the shell carries Tasks, Calendar and Settings', (tester) async {
+  testWidgets('the shell keeps its three screens behind the menu button',
+      (tester) async {
     await pumpScreen(tester, const HomeScreen());
 
+    // Nothing but the screen itself until the menu is opened — there is no
+    // bar along the bottom naming the other two.
     expect(find.text('Tasks'), findsWidgets);
+    expect(find.text('Calendar'), findsNothing);
+    expect(find.text('Settings'), findsNothing);
+
+    await tester.tap(find.byKey(menuButtonKey));
+    await tester.pumpAndSettle();
+
     expect(find.text('Calendar'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
-    // Lists moved out of the tab bar, onto the Tasks screen's header.
+    // Lists is still reached from the Tasks header, not from the menu.
     expect(find.text('Lists'), findsNothing);
     expect(find.byTooltip('Lists'), findsOneWidget);
+
+    // Picking one closes the menu and swaps the screen under it.
+    await tester.tap(find.text('Calendar'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(monthTitleKey), findsOneWidget);
+    expect(find.text('Settings'), findsNothing);
     await drainDatabase(tester);
   });
 

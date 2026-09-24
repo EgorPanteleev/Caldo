@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/dates.dart';
 import 'calendar_screen.dart';
 import 'settings_screen.dart';
 import 'tasks_screen.dart';
 
-/// Top-level shell with a Telegram-style bottom tab bar.
+/// Top-level shell. The three destinations live in a drawer behind the menu
+/// button at the top left of each of them, not in a bar along the bottom.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -17,17 +19,21 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final _shell = GlobalKey<ScaffoldState>();
   int _index = 0;
 
-  static const _pages = [
-    TasksScreen(),
-    CalendarScreen(),
-    SettingsScreen(),
+  late final List<Widget> _pages = [
+    TasksScreen(onMenu: _openMenu),
+    CalendarScreen(onMenu: _openMenu),
+    SettingsScreen(onMenu: _openMenu),
   ];
 
-  /// Switch tabs, refreshing the dated views so they stay correct across a
-  /// midnight rollover or edits made from another tab.
+  void _openMenu() => _shell.currentState?.openDrawer();
+
+  /// Switch screens, refreshing the dated views so they stay correct across a
+  /// midnight rollover or edits made from another one.
   void _select(int i) {
+    Navigator.of(context).pop();
     if (i == _index) return;
     setState(() => _index = i);
     final provider = context.read<TaskProvider>();
@@ -38,27 +44,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: IndexedStack(index: _index, children: _pages),
-      ),
-      bottomNavigationBar: _BottomBar(index: _index, onSelected: _select),
+      key: _shell,
+      drawer: _Menu(index: _index, onSelected: _select),
+      // Opened by the button alone. The calendar and its day list both page
+      // sideways, and an edge-drag would take those swipes off them.
+      drawerEnableOpenDragGesture: false,
+      body: SafeArea(child: IndexedStack(index: _index, children: _pages)),
     );
   }
 }
 
-class _TabItem {
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  const _TabItem(this.icon, this.activeIcon, this.label);
-}
-
-class _BottomBar extends StatelessWidget {
+/// The drawer behind the menu button: the three screens, the current one
+/// picked out.
+class _Menu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelected;
 
-  const _BottomBar({required this.index, required this.onSelected});
+  const _Menu({required this.index, required this.onSelected});
 
   static const _items = [
     _TabItem(Icons.check_circle_outline, Icons.check_circle, 'Tasks'),
@@ -68,161 +70,141 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Elevated capsule surface, lighter than the app background. Uses the
-    // lerped palette so it cross-fades smoothly on theme change.
-    final capsule = AppTheme.of(context).panelHi;
-    // Softer shadow in light mode; lerp via background luminance so it
-    // fades rather than snapping at the transition midpoint.
-    final t = AppTheme.of(context).bg.computeLuminance().clamp(0.0, 1.0);
-    final shadowAlpha = 0.4 - 0.28 * t;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-        child: Container(
-          height: 66,
-          decoration: BoxDecoration(
-            color: capsule,
-            borderRadius: BorderRadius.circular(33),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: shadowAlpha),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              for (var i = 0; i < _items.length; i++)
-                // Flexible so a wide label or a large font scale shrinks the
-                // buttons instead of overflowing the bar.
-                Flexible(
-                  child: _TabButton(
-                    item: _items[i],
-                    selected: index == i,
-                    onTap: () => onSelected(i),
-                  ),
-                ),
-            ],
-          ),
-        ),
+    final p = AppTheme.of(context);
+    final accent = AppTheme.accentOf(context);
+    final overdue = context.watch<TaskProvider>().overdue.length;
+
+    return Drawer(
+      backgroundColor: p.sidebar,
+      width: 264,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
       ),
-    );
-  }
-}
-
-class _TabButton extends StatefulWidget {
-  final _TabItem item;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _TabButton({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  State<_TabButton> createState() => _TabButtonState();
-}
-
-class _TabButtonState extends State<_TabButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 450),
-      vsync: this,
-    );
-    // Telegram-style pop: scale up past 1.0 then settle back elastically.
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.28), weight: 35),
-      TweenSequenceItem(
-        tween: Tween(begin: 1.28, end: 1.0)
-            .chain(CurveTween(curve: Curves.elasticOut)),
-        weight: 65,
-      ),
-    ]).animate(_controller);
-  }
-
-  @override
-  void didUpdateWidget(_TabButton old) {
-    super.didUpdateWidget(old);
-    // Bounce whenever this tab becomes the selected one.
-    if (widget.selected && !old.selected) {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _handleTap() {
-    HapticFeedback.selectionClick();
-    if (widget.selected) _controller.forward(from: 0); // re-tap re-bounces
-    widget.onTap();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Inactive icons are bright in dark, muted in light (Telegram style);
-    // lerp via the (animated) background luminance so they cross-fade on a
-    // theme change instead of snapping. Active uses the accent.
-    final t = AppTheme.of(context).bg.computeLuminance().clamp(0.0, 1.0);
-    final inactive =
-        Color.lerp(const Color(0xFFE6E6EC), const Color(0xFF5C5D6B), t)!;
-    final color = widget.selected ? AppTheme.accentOf(context).color : inactive;
-    return GestureDetector(
-      onTap: _handleTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        decoration: BoxDecoration(
-          color: widget.selected
-              ? AppTheme.accentOf(context).color.withValues(alpha: 0.16)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
+      child: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ScaleTransition(
-              scale: _scale,
-              child: Icon(
-                widget.selected ? widget.item.activeIcon : widget.item.icon,
-                color: color,
-                size: 25,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Caldo',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    Dates.longDay(DateTime.now()),
+                    style: TextStyle(color: p.faint, fontSize: 12.5),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 3),
-            Text(
-              widget.item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: widget.selected ? FontWeight.w700 : FontWeight.w500,
+            Divider(height: 1, color: p.border),
+            const SizedBox(height: 8),
+            for (var i = 0; i < _items.length; i++)
+              _MenuItem(
+                item: _items[i],
+                selected: index == i,
+                // The overdue backlog is what the dot on the button stands
+                // for, so the menu says how much of it there is.
+                badge: i == 0 && overdue > 0 ? overdue : null,
+                accent: accent.color,
+                onTap: () => onSelected(i),
               ),
-            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _MenuItem extends StatelessWidget {
+  final _TabItem item;
+  final bool selected;
+  final int? badge;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _MenuItem({
+    required this.item,
+    required this.selected,
+    required this.badge,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final color = selected ? accent : p.muted;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      child: Material(
+        color: selected ? accent.withValues(alpha: 0.14) : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                Icon(
+                  selected ? item.activeIcon : item.icon,
+                  color: color,
+                  size: 22,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? p.text : p.muted,
+                      fontSize: 15,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (badge != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.overdue.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$badge',
+                      style: const TextStyle(
+                        color: AppColors.overdue,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TabItem {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  const _TabItem(this.icon, this.activeIcon, this.label);
 }
