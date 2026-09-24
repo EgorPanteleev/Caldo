@@ -32,8 +32,14 @@ lib/
 ```
 
 Three destinations — **Schedule**, **Calendar**, **Settings** — in a drawer
-behind the menu button at the top left of each. **Lists** sits under a rule
-below them: it opens over whatever is showing rather than replacing it.
+behind the menu button at the top left of each, and nothing else in it.
+
+`lists_screen.dart` and `list_edit_screen.dart` are **unreachable**: the folder
+button that opened them went with the Schedule header, and Lists was taken back
+out of the menu. The lists themselves are still real — every task carries a
+`list_id`, and a list's colour is what tints its tasks — so the screens are left
+in place rather than deleted. Delete them, or give them a way in again, but do
+not leave it undecided for long.
 
 ## Decisions worth keeping
 
@@ -121,6 +127,10 @@ Changing them back will be noticed.
   own ground once the month is opened out, the app background while the day's
   tasks are still on screen — and whatever is above fades into it over the last
   22 points rather than being sliced off square by it.
+- **The dark ground is true black.** The calendar's already was, so an app
+  background a shade lighter put a seam down the screen — and on the OLED panels
+  this is built for, black is black rather than a very dark grey. Everything
+  above it is a raised grey instead.
 - **The greys are neutral.** Every surface used to carry a few points of extra
   blue, which over a whole screen read as a violet wash instead of as grey. The
   accent and the list swatches came off the bright web palette they were taken
@@ -132,13 +142,13 @@ Changing them back will be noticed.
   off the controller, so `_onMonthPageChanged` owes it a `setState` even when
   the change was driven rather than swiped.
 - **The Schedule screen's header is its name and nothing else** — deliberately
-  plain text, and with no buttons beside it since the tab bar went. Lists moved
-  into the menu, and a task is added from the `+` on the section it belongs
-  under, which files it on that day rather than asking for the date twice.
+  plain text, and with no buttons beside it since the tab bar went. A task is
+  added from the `+` on the section it belongs under, which files it on that
+  day rather than asking for the date twice.
 
 ## Tests
 
-`flutter test` — 72 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 71 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

@@ -13,12 +13,14 @@ class AppColors {
   static const accent2 = Color(0xFF5B4BC4);
   static const accentSoft = Color(0xFF9C87F0);
 
-  // Dark surfaces (Obsidian-like)
-  static const darkBg = Color(0xFF111112); // app background / content
-  static const darkSidebar = Color(0xFF0A0A0B); // deeper rail
-  static const darkPanel = Color(0xFF1A1A1C); // cards / fields
-  static const darkPanelHi = Color(0xFF242427); // hovered / elevated
-  static const darkBorder = Color(0xFF2C2C30); // hairline borders
+  // Dark surfaces. The ground is true black — the calendar's already was, and
+  // the app around it reading a shade lighter put a seam down the screen on
+  // every OLED panel. Everything above it is a raised grey instead.
+  static const darkBg = Color(0xFF000000); // app background / content
+  static const darkSidebar = Color(0xFF0C0C0D); // the menu, lifted off black
+  static const darkPanel = Color(0xFF161618); // cards / fields
+  static const darkPanelHi = Color(0xFF212124); // hovered / elevated
+  static const darkBorder = Color(0xFF2A2A2E); // hairline borders
 
   // Dark text
   static const darkText = Color(0xFFE9E9EB);
