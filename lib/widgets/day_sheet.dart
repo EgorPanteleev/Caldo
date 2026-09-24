@@ -141,12 +141,18 @@ class _DaySheetState extends State<_DaySheet> {
                       ),
                       Flexible(
                         child: tasks.isEmpty && holidays.isEmpty
-                            ? const EmptyState(
-                                icon: Icons.event_available_outlined,
-                                title: 'Nothing on this day',
-                                message:
-                                    'Add one below, or tap the icon '
-                                    'above for the full form.',
+                            // Held to a height of its own: the card sizes to
+                            // what is on the day, and a day with nothing on it
+                            // should not open the largest card of all.
+                            ? const SizedBox(
+                                height: 200,
+                                child: EmptyState(
+                                  icon: Icons.event_available_outlined,
+                                  title: 'Nothing on this day',
+                                  message:
+                                      'Add one below, or tap the icon '
+                                      'above for the full form.',
+                                ),
                               )
                             : ListView(
                                 shrinkWrap: true,

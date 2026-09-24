@@ -24,7 +24,8 @@ lib/
                          task_list, task_edit, list_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
-  widgets/               month_grid, task_card, task_row, date_time_pickers,
+  widgets/               month_grid, task_card (+ HolidayCard), task_row,
+                         date_time_pickers, day_sheet, quick_add_bar,
                          screen_header, selection_bar, theme_switcher,
                          gradient_icon_button
 ```
@@ -40,13 +41,34 @@ Changing them back will be noticed.
 - **The calendar has three states**, driven by one `AnimationController` with
   bounds `[-1, 1]`: `-1` the selected day's week alone, `0` the compact month,
   `+1` the month opened out with each day's tasks written out. Drag anywhere on
-  the grid; the invisible strip under it takes drags and taps too.
+  the grid; the invisible strip under it and the day bar below take drags too.
+- **A tap on the strip steps one state along and turns around at either end**
+  — month, opened, month, week. It used to toggle between two of the three, so
+  the week could only be reached by dragging.
+- **A drag a fifth of the way towards the next state commits to it**, and the
+  snap runs on a critically damped spring carrying the drag's own speed, not a
+  fixed ease from a standstill. Pulling the whole way was never the point.
 - **Day numbers sit at a fixed offset from the top of their cell.** This is
   why the first week never moves as the grid grows. An earlier version
   cross-faded a centred layout with a top-aligned one and the numbers visibly
   teleported mid-drag.
 - **A day's tasks are marked with a line each**, the width of the day, stacked
   under the number — not dots. Holidays come first, in green.
+- **An opened day's task titles get two lines each.** A day cell is about seven
+  characters wide, so one line showed a colour swatch with no name on it.
+- **Collapsing to the week slides the grid past a shrinking window**; every
+  week keeps its full-month height and the selected one is where the window is
+  left sitting. Shrinking the rows themselves made the numbers close in on each
+  other and read as a glitch.
+- **Picking a day in the opened month opens it as a card on top** (`day_sheet`)
+  rather than collapsing the calendar to make room — the tap was made from that
+  view, so it should still be there underneath.
+- **The days below the grid are a pager, one page per day.** Picking a day
+  slides it in from the edge it lies on and the days can be swiped through
+  directly, carrying the month round with them. A day more than ten away is
+  jumped to; watching a month of days fly past says nothing. The two pagers
+  each ignore the change the other has already made, which is what keeps a
+  swipe across a month boundary from bouncing.
 - **Week rules only arrive at the end of the opening** (`weekRuleAlpha`, last
   quarter) and never while the month is shrinking.
 - **Today is a plain light badge; the selected day is a thin neutral outline.**
@@ -62,6 +84,12 @@ Changing them back will be noticed.
   `colorOfTask`.
 - **The date and time pickers are our own sheets** — a month grid and scroll
   wheels. Material's dialog and clock dial were rejected by name.
+- **The time wheels follow One UI**: one plain raised strip marking where they
+  are parked, numbers all one size picked out by weight alone, a shallow drum,
+  and no accent anywhere in the sheet.
+- **The quick-add button is a tick, not a plus.** The plus belongs on the
+  buttons that open the full form; this one confirms what is already typed, and
+  sits at less than full strength until there is something to confirm.
 - **The month header shows `Sep`, centred**, gaining the year only when it is
   not the current one.
 - The Tasks screen header is deliberately plain text — it used to be a gradient
@@ -69,7 +97,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 64 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 68 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -88,7 +116,7 @@ Things that will bite you:
   widths; assert layout invariants instead (e.g. "the title is given all the
   width the controls leave").
 - Widget keys are exported for tests: `monthTitleKey`, `calendarHandleKey`,
-  `screenTitleKey`, `checkKey`, `taskCardTickKey`.
+  `daySheetKey`, `screenTitleKey`, `checkKey`, `taskCardTickKey`.
 
 ## Building
 
