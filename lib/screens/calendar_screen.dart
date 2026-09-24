@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
 
 import '../data/holidays.dart';
@@ -96,6 +97,27 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
   }
 
+  /// Where the grid stood when the current drag began; a drag is measured
+  /// against it rather than against the nearest state, so a short pull still
+  /// commits to the next one.
+  double _dragFrom = 0;
+
+  /// Which way a tap steps through the states. It turns around at either end,
+  /// so tapping repeatedly walks the grid open and back down again.
+  int _tapDirection = 1;
+
+  /// Snapping between states runs on a critically damped spring rather than a
+  /// fixed curve: it carries the speed the finger left behind and settles
+  /// without the small stop a timed ease ends on.
+  static final _snapSpring = SpringDescription.withDampingRatio(
+    mass: 1,
+    stiffness: 340,
+  );
+
+  void _onDragStart(DragStartDetails details) {
+    _dragFrom = _expansion.value.roundToDouble();
+  }
+
   void _onDrag(DragUpdateDetails details) {
     // Pulling down opens the month out, pushing up squeezes it to a week;
     // the two directions cover different distances. Exactly at the compact
@@ -104,32 +126,56 @@ class _CalendarScreenState extends State<CalendarScreen>
     // month's range and jump.
     final value = _expansion.value;
     final delta = details.primaryDelta!;
-    final range = value > 0 || (value == 0 && delta > 0) ? _rangeUp : _rangeDown;
+    final range = value > 0 || (value == 0 && delta > 0)
+        ? _rangeUp
+        : _rangeDown;
     _expansion.value += delta / range;
   }
 
-  /// Snaps to the nearest of the three states, following the flick when there
-  /// is one. The drag itself tracks the finger exactly; only the snap is eased.
+  /// How far into the next state a drag has to reach before it counts as
+  /// meaning it — a fifth of the way. Dragging the grid the whole distance
+  /// was never the point; a nudge in the right direction is.
+  static const _commit = 0.2;
+
+  /// Settles on a state when the finger leaves: the one the flick points at,
+  /// the one the drag has reached, or the next one along when the drag was
+  /// short but deliberate.
   void _onDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    final value = _expansion.value;
-    final double target;
-    if (velocity > 240) {
-      target = value >= 0 ? 1 : 0; // flicked down: one state more open
-    } else if (velocity < -240) {
-      target = value <= 0 ? -1 : 0; // flicked up: one state tighter
-    } else {
-      target = value.roundToDouble();
+    // The two directions cover different distances, so pixels a second only
+    // become states a second once divided by the one in play.
+    final range = _expansion.value >= 0 ? _rangeUp : _rangeDown;
+    final velocity = (details.primaryVelocity ?? 0) / range;
+    final moved = _expansion.value - _dragFrom;
+
+    var target = _expansion.value.roundToDouble();
+    if (velocity > 0.7) {
+      target = math.max(target, _dragFrom + 1);
+    } else if (velocity < -0.7) {
+      target = math.min(target, _dragFrom - 1);
+    } else if (target == _dragFrom && moved.abs() > _commit) {
+      target = _dragFrom + (moved > 0 ? 1 : -1);
     }
-    _snapTo(target);
+    _settleTo(target, velocity: velocity);
   }
 
-  void _snapTo(double target) =>
-      _expansion.animateTo(target, curve: Curves.easeOutCubic);
+  /// Runs the grid to [target] on the snap spring, keeping whatever speed the
+  /// gesture ended with so the hand-off is invisible.
+  void _settleTo(double target, {double velocity = 0}) {
+    final to = target.clamp(-1.0, 1.0);
+    if (_expansion.value == to && velocity == 0) return;
+    _expansion.animateWith(
+      SpringSimulation(_snapSpring, _expansion.value, to, velocity),
+    );
+  }
 
-  /// A tap always lands on a sensible next state: the month from either end,
-  /// the opened month from the month itself.
-  void _toggleExpansion() => _snapTo(_expansion.value.abs() >= 0.5 ? 0 : 1);
+  /// A tap steps one state along instead of asking for the whole pull: from
+  /// the month to the opened month, back to the month, on down to the week.
+  void _toggleExpansion() {
+    final state = _expansion.value.round();
+    if (state >= 1) _tapDirection = -1;
+    if (state <= -1) _tapDirection = 1;
+    _settleTo((state + _tapDirection).toDouble());
+  }
 
   /// How many week rows the grid of [month] needs.
   int _rowsOf(DateTime month, bool mondayFirst) {
@@ -143,7 +189,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     setState(() => _selected = day);
     // Picking a day when the grid fills the screen means wanting to see that
     // day, so make room for it.
-    if (_expansion.value > 0.5) _snapTo(0);
+    if (_expansion.value > 0.5) _settleTo(0);
   }
 
   DateTime _monthOfPage(int page) =>
@@ -263,6 +309,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   // so a drag that starts on the padding around a day
                                   // cell is caught too rather than falling through.
                                   behavior: HitTestBehavior.opaque,
+                                  onVerticalDragStart: _onDragStart,
                                   onVerticalDragUpdate: _onDrag,
                                   onVerticalDragEnd: _onDragEnd,
                                   child: PageView.builder(
@@ -303,6 +350,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 key: calendarHandleKey,
                                 height: _handleHeight,
                                 expansion: t.abs(),
+                                onDragStart: _onDragStart,
                                 onDrag: _onDrag,
                                 onDragEnd: _onDragEnd,
                                 onTap: _toggleExpansion,
@@ -327,6 +375,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   // is the obvious thing to pull on.
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
+                                    onVerticalDragStart: _onDragStart,
                                     onVerticalDragUpdate: _onDrag,
                                     onVerticalDragEnd: _onDragEnd,
                                     child: _DayBar(
@@ -524,6 +573,7 @@ const calendarHandleKey = Key('calendar-handle');
 class _DragHandle extends StatelessWidget {
   final double height;
   final double expansion;
+  final ValueChanged<DragStartDetails> onDragStart;
   final ValueChanged<DragUpdateDetails> onDrag;
   final ValueChanged<DragEndDetails> onDragEnd;
   final VoidCallback onTap;
@@ -532,6 +582,7 @@ class _DragHandle extends StatelessWidget {
     super.key,
     required this.height,
     required this.expansion,
+    required this.onDragStart,
     required this.onDrag,
     required this.onDragEnd,
     required this.onTap,
@@ -540,6 +591,7 @@ class _DragHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onVerticalDragStart: onDragStart,
       onVerticalDragUpdate: onDrag,
       onVerticalDragEnd: onDragEnd,
       onTap: onTap,

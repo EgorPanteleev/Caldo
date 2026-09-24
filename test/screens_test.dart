@@ -326,6 +326,40 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('tapping the grip walks through the three states',
+      (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    double height() => tester.getSize(find.byType(MonthGrid).first).height;
+    final month = height();
+
+    // Open, back to the month, on down to the week: a tap is a step, not a
+    // toggle between two states.
+    await tester.tap(find.byKey(calendarHandleKey));
+    await tester.pumpAndSettle();
+    expect(height(), greaterThan(month));
+
+    await tester.tap(find.byKey(calendarHandleKey));
+    await tester.pumpAndSettle();
+    expect(height(), closeTo(month, 1));
+
+    await tester.tap(find.byKey(calendarHandleKey));
+    await tester.pumpAndSettle();
+    expect(height(), lessThan(month / 3));
+    await drainDatabase(tester);
+  });
+
+  testWidgets('a short drag is enough to change state', (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    final month = tester.getSize(find.byType(MonthGrid).first).height;
+
+    // Well short of the distance between the two states, but clearly meant.
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(MonthGrid).first).height,
+        greaterThan(month * 1.3));
+    await drainDatabase(tester);
+  });
+
   testWidgets('picking a day in the opened month closes it again',
       (tester) async {
     await pumpScreen(tester, const CalendarScreen());
