@@ -444,7 +444,9 @@ class _DayTitles extends StatelessWidget {
 
   const _DayTitles({required this.entries, required this.muted});
 
-  static const _rowHeight = 15.0;
+  /// Two lines of the title, so a name that does not fit in the width of a
+  /// day wraps instead of being cut off after three or four characters.
+  static const _rowHeight = 23.0;
   static const _gap = 2.0;
 
   @override
@@ -474,7 +476,7 @@ class _DayTitles extends StatelessWidget {
           Container(
             height: _rowHeight,
             margin: const EdgeInsets.only(bottom: _gap),
-            padding: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1.5),
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
               color: entry.color.withValues(alpha: entry.done ? 0.35 : 0.9),
@@ -482,14 +484,13 @@ class _DayTitles extends StatelessWidget {
             ),
             child: Text(
               entry.label,
-              maxLines: 1,
+              maxLines: 2,
               // Fades out rather than cutting a letter in half or spending
               // two of the few characters on an ellipsis.
               overflow: TextOverflow.fade,
-              softWrap: false,
               style: TextStyle(
                 fontSize: 8.5,
-                height: 1.2,
+                height: 1.15,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
                 decoration: entry.done ? TextDecoration.lineThrough : null,

@@ -21,7 +21,10 @@ void main() {
       theme: AppTheme.dark(AppAccent.presets.first),
       home: Scaffold(
         body: SizedBox(
-          height: 400,
+          // Five week rows at roughly the height the opened calendar gives
+          // them on a phone, so a day has room for the two lines a title is
+          // allowed to wrap over.
+          height: 520,
           child: MonthGrid(
             month: month,
             selected: DateTime(2026, 9, 1),
