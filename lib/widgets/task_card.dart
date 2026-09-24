@@ -25,7 +25,10 @@ class TaskCard extends StatelessWidget {
     required this.onToggle,
   });
 
-  /// "All day", or the time it is due, followed by the list it belongs to.
+  /// "All day", or the time it is due, and the repeat rule if it has one. Not
+  /// the list it belongs to: the card is already tinted with that list's
+  /// colour, and under the calendar a day's tasks are usually all from the
+  /// same one, so the name was the same word under every card.
   String _subtitle() {
     final due = task.due;
     final when = due == null
@@ -34,7 +37,6 @@ class TaskCard extends StatelessWidget {
     final parts = [
       when,
       if (task.repeat != Repeat.none) task.repeat.label,
-      if (list != null) list!.name,
     ];
     return parts.join(' · ');
   }

@@ -43,6 +43,9 @@ class _TasksScreenState extends State<TasksScreen> {
     final provider = context.watch<TaskProvider>();
     final today = dayOf(DateTime.now());
     final overdue = provider.overdue;
+    // The list a task belongs to is only worth naming when there is more than
+    // one to tell apart; with a single list every row repeated the same word.
+    final showList = provider.lists.length > 1;
     final byDay = provider.upcomingByDay;
     final days = byDay.keys.toList()..sort();
     final undated = provider.undated;
@@ -101,7 +104,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 TaskRow(
                   task: task,
                   list: provider.listById(task.listId),
-                  showList: true,
+                  showList: showList,
                   onTap: () => _openEditor(task),
                   onLongPress: () => _openEditor(task),
                   onToggle: () => provider.toggleDone(task),
@@ -118,7 +121,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 TaskRow(
                   task: task,
                   list: provider.listById(task.listId),
-                  showList: true,
+                  showList: showList,
                   hideDate: !task.hasTime,
                   onTap: () => _openEditor(task),
                   onLongPress: () => _openEditor(task),
@@ -135,7 +138,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 TaskRow(
                   task: task,
                   list: provider.listById(task.listId),
-                  showList: true,
+                  showList: showList,
                   onTap: () => _openEditor(task),
                   onLongPress: () => _openEditor(task),
                   onToggle: () => provider.toggleDone(task),
