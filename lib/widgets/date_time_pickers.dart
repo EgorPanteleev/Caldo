@@ -200,6 +200,10 @@ class _DateSheetState extends State<_DateSheet> {
 
 // ---- Time -----------------------------------------------------------------
 
+/// The height of one row of a wheel, and so of the band marking the values
+/// the wheels are parked on.
+const _itemExtent = 54.0;
+
 class _TimeSheet extends StatefulWidget {
   final TimeOfDay initial;
   const _TimeSheet({required this.initial});
@@ -246,71 +250,35 @@ class _TimeSheetState extends State<_TimeSheet> {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context);
     final current = TimeOfDay(hour: _hour, minute: _minute);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 6, 14, 2),
-          child: Row(
-            children: [
-              Text('Time',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700)),
-              const Spacer(),
-              // The running value, so the chosen time is readable without
-              // deciphering the wheels.
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: accent.color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: accent.color.withValues(alpha: 0.4)),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+          child: Text(
+            'Select time',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.1,
                 ),
-                child: Text(
-                  Dates.formatTimeOfDay(current),
-                  style: TextStyle(
-                    color: accent.color,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ],
           ),
         ),
-        const SizedBox(height: 6),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _WheelCaption('HOUR', color: p.faint),
-            const SizedBox(width: 18),
-            _WheelCaption('MINUTE', color: p.faint),
-          ],
-        ),
         SizedBox(
-          height: 180,
+          height: 216,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // The band marking the values the wheels are parked on.
+              // The band marking the values the wheels are parked on: a plain
+              // raised strip, not a tinted one. The accent on it fought with
+              // the numbers sitting inside it.
               Container(
-                height: 48,
-                margin: const EdgeInsets.symmetric(horizontal: 40),
+                height: _itemExtent,
+                margin: const EdgeInsets.symmetric(horizontal: 28),
                 decoration: BoxDecoration(
-                  color: accent.color.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: accent.color.withValues(alpha: 0.35),
-                  ),
+                  color: p.panelHi,
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
               // Numbers dissolve towards the edges instead of being cut off.
@@ -324,7 +292,7 @@ class _TimeSheetState extends State<_TimeSheet> {
                     Colors.black,
                     Colors.transparent,
                   ],
-                  stops: [0.0, 0.26, 0.74, 1.0],
+                  stops: [0.0, 0.3, 0.7, 1.0],
                 ).createShader(rect),
                 blendMode: BlendMode.dstIn,
                 child: Row(
@@ -337,13 +305,13 @@ class _TimeSheetState extends State<_TimeSheet> {
                       onChanged: (v) => setState(() => _hour = v),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
                       child: Text(
                         ':',
                         style: TextStyle(
-                          color: accent.color,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
+                          color: p.muted,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -400,32 +368,9 @@ class _TimeSheetState extends State<_TimeSheet> {
   }
 }
 
-/// The small caption naming a wheel.
-class _WheelCaption extends StatelessWidget {
-  final String text;
-  final Color color;
-
-  const _WheelCaption(this.text, {required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 74,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: color,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-/// One looping number wheel (hours or minutes).
+/// One looping number wheel (hours or minutes), styled after One UI's: every
+/// number the same size on a plain strip, the one in the band picked out by
+/// weight and colour rather than by the accent.
 class _Wheel extends StatelessWidget {
   final FixedExtentScrollController controller;
   final int count;
@@ -442,20 +387,21 @@ class _Wheel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context);
     return SizedBox(
-      width: 74,
+      width: 78,
       child: ListWheelScrollView.useDelegate(
         controller: controller,
-        itemExtent: 46,
-        diameterRatio: 1.5,
-        perspective: 0.004,
+        itemExtent: _itemExtent,
+        // A shallow drum: a strong curve throws the numbers off the sides of
+        // the band they are supposed to be sitting in.
+        diameterRatio: 2.4,
+        perspective: 0.002,
         physics: const FixedExtentScrollPhysics(),
         onSelectedItemChanged: (i) {
           HapticFeedback.selectionClick();
           onChanged(i % count);
         },
-        overAndUnderCenterOpacity: 0.55,
+        overAndUnderCenterOpacity: 0.5,
         childDelegate: ListWheelChildLoopingListDelegate(
           children: [
             for (var i = 0; i < count; i++)
@@ -463,10 +409,15 @@ class _Wheel extends StatelessWidget {
                 child: Text(
                   i.toString().padLeft(2, '0'),
                   style: TextStyle(
-                    color: i == selected ? accent.color : p.text,
-                    fontSize: i == selected ? 27 : 22,
-                    fontWeight:
-                        i == selected ? FontWeight.w700 : FontWeight.w500,
+                    color: p.text,
+                    // One size throughout: growing the centre number made it
+                    // jump as each one passed through the band.
+                    fontSize: 25,
+                    height: 1,
+                    fontWeight: i == selected
+                        ? FontWeight.w700
+                        : FontWeight.w400,
+                    letterSpacing: 0.5,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -541,7 +492,6 @@ class _QuickChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -550,18 +500,14 @@ class _QuickChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            color: selected
-                ? accent.color.withValues(alpha: 0.18)
-                : p.panel,
+            color: selected ? p.panelHi : p.panel,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected ? accent.color : p.border,
-            ),
+            border: Border.all(color: selected ? p.muted : p.border),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? accent.color : p.text,
+              color: p.text,
               fontSize: 13,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
             ),
