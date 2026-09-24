@@ -460,15 +460,17 @@ class _DayTitles extends StatelessWidget {
   static const _fontSize = 8.5;
   static const _lineSpacing = 1.15;
 
-  /// Room above and below the text inside a chip, and between two chips. The
-  /// inset is a hair more than the line box needs, so a descender never sits
-  /// right on the chip's edge.
+  /// Room above and below the text inside a chip, and between two chips.
   static const _inset = 2.0;
   static const _gap = 2.0;
 
   /// A title may wrap onto a second line — a day is a few characters wide —
-  /// but no further; past that it fades off the end.
+  /// but no further.
   static const _maxLines = 2;
+
+  /// Corners barely off square: at this size a rounder chip loses more of the
+  /// title's first letter than the softening is worth.
+  static const _radius = 1.5;
 
   static const _style = TextStyle(
     fontSize: _fontSize,
@@ -477,28 +479,32 @@ class _DayTitles extends StatelessWidget {
     color: Colors.white,
   );
 
-  /// The height of a chip holding [lines] lines of title.
-  static double _heightOf(int lines) =>
-      lines * _fontSize * _lineSpacing + _inset * 2;
-
-  /// How many lines [label] needs at [width]. Measured rather than assumed, so
-  /// a one-word task takes one line and only a long name earns a second.
-  static int _linesOf(
+  /// The height a chip needs for [label] at [width] — the height the engine
+  /// actually lays the title out at, rounded up, rather than one worked out
+  /// from the font size. A box computed to the pixel is a box the text can
+  /// overflow by a fraction of one, and an overflowing [TextOverflow.fade]
+  /// fades away the bottom half of every letter.
+  static double _heightOf(
     String label,
     double width,
     TextStyle style,
     TextScaler scaler,
     TextDirection direction,
   ) {
-    if (width <= 0) return 1;
+    if (width <= 0) return _lineHeight + _inset * 2;
     final painter = TextPainter(
       text: TextSpan(text: label, style: style),
       textDirection: direction,
       textScaler: scaler,
       maxLines: _maxLines,
     )..layout(maxWidth: width);
-    return painter.computeLineMetrics().length.clamp(1, _maxLines);
+    final height = painter.height;
+    painter.dispose();
+    return height.ceilToDouble() + _inset * 2;
   }
+
+  /// One line's worth, for the "+N" that stands for what did not fit.
+  static double get _lineHeight => (_fontSize * _lineSpacing).ceilToDouble();
 
   @override
   Widget build(BuildContext context) {
@@ -513,7 +519,7 @@ class _DayTitles extends StatelessWidget {
         final width = box.maxWidth - 6;
         final heights = [
           for (final entry in entries)
-            _heightOf(_linesOf(entry.label, width, style, scaler, direction)),
+            _heightOf(entry.label, width, style, scaler, direction),
         ];
 
         // Whole chips only — a half-clipped title would read as a glitch.
@@ -531,7 +537,7 @@ class _DayTitles extends StatelessWidget {
         // The rest are counted in a "+N", which needs room of its own, taken
         // from the last titles that fit. With space for only one thing, spend
         // it on a title: a lone "+3" names nothing.
-        final plus = _heightOf(1);
+        final plus = _lineHeight + _inset * 2;
         var shown = fits;
         while (shown > 1 && used + _gap + plus > box.maxHeight) {
           used -= heights[--shown] + _gap;
@@ -565,7 +571,7 @@ class _DayTitles extends StatelessWidget {
               color: entries[i].color.withValues(
                 alpha: entries[i].done ? 0.35 : 0.9,
               ),
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(_radius),
             ),
             child: Text(
               entries[i].label,
@@ -580,7 +586,7 @@ class _DayTitles extends StatelessWidget {
           ),
         if (hidden > 0)
           SizedBox(
-            height: _heightOf(1),
+            height: _lineHeight + _inset * 2,
             child: Text(
               '+$hidden',
               textAlign: TextAlign.center,

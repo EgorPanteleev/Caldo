@@ -57,7 +57,10 @@ Changing them back will be noticed.
 - **An opened day's task titles take the lines they need, up to two.** A day
   cell is about seven characters wide, so one line cut most names off — but a
   chip is measured (`TextPainter`, in the chip's own font and width) and a
-  short title still gets a single-line chip.
+  short title still gets a single-line chip. Take the height from the painter
+  and round it up: a box worked out from the font size instead is a box the
+  text can overflow by a fraction of a pixel, and an overflowing
+  `TextOverflow.fade` fades away the bottom half of every letter.
 - **Collapsing to the week slides the grid past a shrinking window**; every
   week keeps its full-month height and the selected one is where the window is
   left sitting. Shrinking the rows themselves made the numbers close in on each
