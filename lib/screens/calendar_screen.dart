@@ -12,7 +12,6 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/day_sheet.dart';
-import '../widgets/gradient_icon_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/quick_add_bar.dart';
@@ -444,7 +443,6 @@ class _CalendarScreenState extends State<CalendarScreen>
                                     onDragStart: _onDragStart,
                                     onDrag: _onDrag,
                                     onDragEnd: _onDragEnd,
-                                    onAdd: () => _openEditor(),
                                     onOpen: _openEditor,
                                     onToggle: provider.toggleDone,
                                   );
@@ -637,7 +635,6 @@ class _DayPanel extends StatelessWidget {
   final ValueChanged<DragStartDetails> onDragStart;
   final ValueChanged<DragUpdateDetails> onDrag;
   final ValueChanged<DragEndDetails> onDragEnd;
-  final VoidCallback onAdd;
   final ValueChanged<Task> onOpen;
   final ValueChanged<Task> onToggle;
 
@@ -649,7 +646,6 @@ class _DayPanel extends StatelessWidget {
     required this.onDragStart,
     required this.onDrag,
     required this.onDragEnd,
-    required this.onAdd,
     required this.onOpen,
     required this.onToggle,
   });
@@ -673,18 +669,14 @@ class _DayPanel extends StatelessWidget {
           onVerticalDragStart: onDragStart,
           onVerticalDragUpdate: onDrag,
           onVerticalDragEnd: onDragEnd,
-          child: _DayBar(
-            date: date,
-            count: tasks.where((t) => !t.done).length,
-            onAdd: onAdd,
-          ),
+          child: _DayBar(date: date),
         ),
         Expanded(
           child: tasks.isEmpty && holidays.isEmpty
               ? const EmptyState(
                   icon: Icons.event_available_outlined,
                   title: 'Nothing on this day',
-                  message: 'Add one below, or tap + for the full form.',
+                  message: 'Add one in the field below.',
                 )
               : ListView(
                   padding: const EdgeInsets.only(top: 4, bottom: 8),
@@ -707,13 +699,13 @@ class _DayPanel extends StatelessWidget {
   }
 }
 
-/// The bar between the grid and the day's task list.
+/// The bar between the grid and the day's task list: the day it is showing,
+/// and nothing else. The count and the button beside it were noise on a bar
+/// whose whole job is to say which day is below it.
 class _DayBar extends StatelessWidget {
   final DateTime date;
-  final int count;
-  final VoidCallback onAdd;
 
-  const _DayBar({required this.date, required this.count, required this.onAdd});
+  const _DayBar({required this.date});
 
   @override
   Widget build(BuildContext context) {
@@ -742,21 +734,6 @@ class _DayBar extends StatelessWidget {
               fontWeight: FontWeight.w700,
               letterSpacing: 1,
             ),
-          ),
-          const Spacer(),
-          if (count > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: Text(
-                '$count open',
-                style: TextStyle(color: p.muted, fontSize: 12.5),
-              ),
-            ),
-          GradientIconButton(
-            icon: Icons.edit_calendar_outlined,
-            size: 34,
-            tooltip: 'Add with a full form',
-            onTap: onAdd,
           ),
         ],
       ),

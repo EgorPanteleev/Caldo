@@ -64,18 +64,13 @@ class QuickAddBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          // A tick, not a plus: the plus belongs on the buttons that open a
-          // form, and this one confirms what has already been typed. It only
-          // comes up to full strength once there is something to confirm.
+          // A plus while the field is empty — there is nothing to confirm yet,
+          // and the button reads as "add something". It turns into a tick the
+          // moment there is a title waiting to be taken.
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
-            builder: (context, value, child) => AnimatedOpacity(
-              duration: const Duration(milliseconds: 160),
-              opacity: value.text.trim().isEmpty ? 0.45 : 1,
-              child: child,
-            ),
-            child: GradientIconButton(
-              icon: Icons.check_rounded,
+            builder: (context, value, _) => GradientIconButton(
+              icon: value.text.trim().isEmpty ? Icons.add : Icons.check_rounded,
               size: 48,
               circle: true,
               tooltip: 'Add task',

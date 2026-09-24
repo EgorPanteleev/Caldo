@@ -119,9 +119,12 @@ void main() {
     expect(find.text('M'), findsOneWidget);
     expect(find.text('W'), findsOneWidget);
     expect(find.text('S'), findsNWidgets(2));
-    // Today is selected on open, so its timed task shows under the grid.
+    // Today is selected on open, so its timed task shows under the grid,
+    // under a bar naming the day and nothing else.
     expect(find.text('Ship'), findsOneWidget);
-    expect(find.text('1 open'), findsOneWidget);
+    final today = dayOf(DateTime.now());
+    expect(find.text(Dates.weekdayShort(today)), findsOneWidget);
+    expect(find.textContaining('open'), findsNothing);
   });
 
   testWidgets('a list screen shows its tasks and its name', (tester) async {

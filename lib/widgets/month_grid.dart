@@ -457,67 +457,135 @@ class _DayTitles extends StatelessWidget {
 
   const _DayTitles({required this.entries, required this.muted});
 
-  /// Two lines of the title, so a name that does not fit in the width of a
-  /// day wraps instead of being cut off after three or four characters.
-  static const _rowHeight = 23.0;
+  static const _fontSize = 8.5;
+  static const _lineSpacing = 1.15;
+
+  /// Room above and below the text inside a chip, and between two chips. The
+  /// inset is a hair more than the line box needs, so a descender never sits
+  /// right on the chip's edge.
+  static const _inset = 2.0;
   static const _gap = 2.0;
+
+  /// A title may wrap onto a second line — a day is a few characters wide —
+  /// but no further; past that it fades off the end.
+  static const _maxLines = 2;
+
+  static const _style = TextStyle(
+    fontSize: _fontSize,
+    height: _lineSpacing,
+    fontWeight: FontWeight.w600,
+    color: Colors.white,
+  );
+
+  /// The height of a chip holding [lines] lines of title.
+  static double _heightOf(int lines) =>
+      lines * _fontSize * _lineSpacing + _inset * 2;
+
+  /// How many lines [label] needs at [width]. Measured rather than assumed, so
+  /// a one-word task takes one line and only a long name earns a second.
+  static int _linesOf(
+    String label,
+    double width,
+    TextStyle style,
+    TextScaler scaler,
+    TextDirection direction,
+  ) {
+    if (width <= 0) return 1;
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: style),
+      textDirection: direction,
+      textScaler: scaler,
+      maxLines: _maxLines,
+    )..layout(maxWidth: width);
+    return painter.computeLineMetrics().length.clamp(1, _maxLines);
+  }
 
   @override
   Widget build(BuildContext context) {
     if (entries.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, box) {
-        // Whole rows only — a half-clipped title would read as a glitch.
-        final room = (box.maxHeight / (_rowHeight + _gap)).floor().clamp(0, 5);
-        if (room == 0) return const SizedBox.shrink();
-        // With room for a single row, spend it on a title rather than on a
-        // lone "+2" that names nothing — there is no room for both.
-        final shown = entries.length <= room
-            ? entries.length
-            : (room == 1 ? 1 : room - 1);
-        final hidden = room == 1 ? 0 : entries.length - shown;
-        return _titles(shown, hidden);
+        // Merged with the ambient style, so the measurement is made in the
+        // font the chip will actually be drawn in.
+        final style = DefaultTextStyle.of(context).style.merge(_style);
+        final scaler = MediaQuery.textScalerOf(context);
+        final direction = Directionality.of(context);
+        final width = box.maxWidth - 6;
+        final heights = [
+          for (final entry in entries)
+            _heightOf(_linesOf(entry.label, width, style, scaler, direction)),
+        ];
+
+        // Whole chips only — a half-clipped title would read as a glitch.
+        var used = 0.0;
+        var fits = 0;
+        for (var i = 0; i < entries.length; i++) {
+          final step = (fits == 0 ? 0.0 : _gap) + heights[i];
+          if (used + step > box.maxHeight) break;
+          used += step;
+          fits++;
+        }
+        if (fits == 0) return const SizedBox.shrink();
+        if (fits == entries.length) return _titles(fits, 0, heights);
+
+        // The rest are counted in a "+N", which needs room of its own, taken
+        // from the last titles that fit. With space for only one thing, spend
+        // it on a title: a lone "+3" names nothing.
+        final plus = _heightOf(1);
+        var shown = fits;
+        while (shown > 1 && used + _gap + plus > box.maxHeight) {
+          used -= heights[--shown] + _gap;
+        }
+        if (used + _gap + plus > box.maxHeight) {
+          return _titles(shown, 0, heights);
+        }
+        return _titles(shown, entries.length - shown, heights);
       },
     );
   }
 
-  Widget _titles(int shown, int hidden) {
+  Widget _titles(int shown, int hidden, List<double> heights) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final entry in entries.take(shown))
+        for (var i = 0; i < shown; i++)
           Container(
-            height: _rowHeight,
-            margin: const EdgeInsets.only(bottom: _gap),
-            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1.5),
+            height: heights[i],
+            // A gap only where something follows, so the column never runs
+            // two pixels past the height it was measured against.
+            margin: EdgeInsets.only(
+              bottom: i == shown - 1 && hidden == 0 ? 0 : _gap,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 3,
+              vertical: _inset,
+            ),
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-              color: entry.color.withValues(alpha: entry.done ? 0.35 : 0.9),
+              color: entries[i].color.withValues(
+                alpha: entries[i].done ? 0.35 : 0.9,
+              ),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
-              entry.label,
-              maxLines: 2,
+              entries[i].label,
+              maxLines: _maxLines,
               // Fades out rather than cutting a letter in half or spending
               // two of the few characters on an ellipsis.
               overflow: TextOverflow.fade,
-              style: TextStyle(
-                fontSize: 8.5,
-                height: 1.15,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                decoration: entry.done ? TextDecoration.lineThrough : null,
+              style: _style.copyWith(
+                decoration: entries[i].done ? TextDecoration.lineThrough : null,
               ),
             ),
           ),
         if (hidden > 0)
           SizedBox(
-            height: _rowHeight,
+            height: _heightOf(1),
             child: Text(
               '+$hidden',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 8.5,
+                fontSize: _fontSize,
                 fontWeight: FontWeight.w700,
                 color: muted,
               ),

@@ -54,8 +54,10 @@ Changing them back will be noticed.
   teleported mid-drag.
 - **A day's tasks are marked with a line each**, the width of the day, stacked
   under the number — not dots. Holidays come first, in green.
-- **An opened day's task titles get two lines each.** A day cell is about seven
-  characters wide, so one line showed a colour swatch with no name on it.
+- **An opened day's task titles take the lines they need, up to two.** A day
+  cell is about seven characters wide, so one line cut most names off — but a
+  chip is measured (`TextPainter`, in the chip's own font and width) and a
+  short title still gets a single-line chip.
 - **Collapsing to the week slides the grid past a shrinking window**; every
   week keeps its full-month height and the selected one is where the window is
   left sitting. Shrinking the rows themselves made the numbers close in on each
@@ -87,9 +89,12 @@ Changing them back will be noticed.
 - **The time wheels follow One UI**: one plain raised strip marking where they
   are parked, numbers all one size picked out by weight alone, a shallow drum,
   and no accent anywhere in the sheet.
-- **The quick-add button is a tick, not a plus.** The plus belongs on the
-  buttons that open the full form; this one confirms what is already typed, and
-  sits at less than full strength until there is something to confirm.
+- **The quick-add button is a plus until something is typed, then a tick.**
+  Empty, it reads as "add something"; with a title waiting, it confirms it.
+- **The day bar names its day and nothing else.** The open-count and the
+  full-form button beside it were noise on a bar whose whole job is to say
+  which day is below it; the full form is still reached from the day card's
+  header, or by tapping a task.
 - **The month header shows `Sep`, centred**, gaining the year only when it is
   not the current one.
 - The Tasks screen header is deliberately plain text — it used to be a gradient
