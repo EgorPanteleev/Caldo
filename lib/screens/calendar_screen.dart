@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../data/holidays.dart';
 import '../models/task.dart';
+import '../models/task_list.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
@@ -41,6 +42,12 @@ class _CalendarScreenState extends State<CalendarScreen>
   late final DateTime _baseMonth;
   late final PageController _controller;
 
+  /// The day page range works the same way: page [_baseDayPage] is [_baseDay].
+  static const _baseDayPage = 6000;
+
+  late final DateTime _baseDay;
+  late final PageController _dayController;
+
   /// Where the grid sits between its three states: -1 is the selected day's
   /// week alone, 0 the compact month with the day's tasks below it, and 1 the
   /// month opened to the full screen with each day's tasks written out.
@@ -62,6 +69,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     final now = DateTime.now();
     _baseMonth = DateTime(now.year, now.month);
     _controller = PageController(initialPage: _basePage);
+    _baseDay = dayOf(now);
+    _dayController = PageController(initialPage: _baseDayPage);
     _expansion = AnimationController(
       vsync: this,
       lowerBound: -1,
@@ -77,6 +86,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   @override
   void dispose() {
     _controller.dispose();
+    _dayController.dispose();
     _expansion.dispose();
     _quickAdd.dispose();
     super.dispose();
@@ -187,17 +197,36 @@ class _CalendarScreenState extends State<CalendarScreen>
     return ((lead + days) / 7).ceil();
   }
 
-  void _selectDay(DateTime day) {
-    setState(() => _selected = day);
+  /// Moves to [day], sliding the day below the grid across to it and taking
+  /// the month with it when the day is in another one.
+  void _selectDay(DateTime day, {bool openSheet = true}) {
+    if (day != _selected) {
+      setState(() => _selected = day);
+      _goToDayPage(day);
+      _goToMonthOf(day);
+    }
     // Picking a day when the grid fills the screen means wanting to see that
     // day. There is nowhere left on the screen to list it out, so it opens on
     // top of the month instead — and the month is still there underneath when
     // the card is dismissed.
-    if (_expansion.value > 0.5) showDaySheet(context, day);
+    if (openSheet && _expansion.value > 0.5) showDaySheet(context, day);
   }
 
   DateTime _monthOfPage(int page) =>
       DateTime(_baseMonth.year, _baseMonth.month + (page - _basePage));
+
+  DateTime _dayOfPage(int page) => DateTime(
+    _baseDay.year,
+    _baseDay.month,
+    _baseDay.day + (page - _baseDayPage),
+  );
+
+  /// Whole days between two dates. Counted in UTC, so the hour a daylight
+  /// saving change adds or drops cannot round a day away.
+  static int _daysBetween(DateTime from, DateTime to) =>
+      DateTime.utc(to.year, to.month, to.day)
+          .difference(DateTime.utc(from.year, from.month, from.day))
+          .inDays;
 
   void _goToPage(int page) => _controller.animateToPage(
     page,
@@ -205,18 +234,63 @@ class _CalendarScreenState extends State<CalendarScreen>
     curve: Curves.easeOutCubic,
   );
 
-  void _jumpToToday() {
-    final today = dayOf(DateTime.now());
-    setState(() => _selected = today);
+  /// Slides the day panel to [day]. A neighbouring day slides across; a day
+  /// weeks away is not worth watching every day in between scroll past, so it
+  /// is cut to straight away.
+  void _goToDayPage(DateTime day) {
+    if (!_dayController.hasClients) return;
+    final page = _baseDayPage + _daysBetween(_baseDay, day);
+    final current = _dayController.page?.round() ?? page;
+    if (current == page) return;
+    if ((current - page).abs() <= 10) {
+      _dayController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _dayController.jumpToPage(page);
+    }
+  }
+
+  /// Brings the grid round to the month [day] falls in, if it is not there.
+  void _goToMonthOf(DateTime day) {
     final page =
         _basePage +
-        (today.year - _baseMonth.year) * 12 +
-        (today.month - _baseMonth.month);
-    if (_controller.page?.round() == page) {
+        (day.year - _baseMonth.year) * 12 +
+        (day.month - _baseMonth.month);
+    if (!_controller.hasClients || _controller.page?.round() == page) return;
+    _goToPage(page);
+  }
+
+  /// A month arrives under the grid: load it, and move the selection into it
+  /// unless it is already there — swiping the days across a month boundary
+  /// brings the month with it, and must not have the month answer back.
+  void _onMonthPageChanged(int i) {
+    final month = _monthOfPage(i);
+    context.read<TaskProvider>().loadMonth(month);
+    if (_selected.year == month.year && _selected.month == month.month) return;
+    final today = dayOf(DateTime.now());
+    final day = (today.year == month.year && today.month == month.month)
+        ? today
+        : month;
+    _selectDay(day, openSheet: false);
+  }
+
+  void _onDayPageChanged(int i) {
+    final day = _dayOfPage(i);
+    // Fired by our own animation towards the day already chosen.
+    if (day == _selected) return;
+    _selectDay(day, openSheet: false);
+  }
+
+  void _jumpToToday() {
+    final today = dayOf(DateTime.now());
+    if (today == _selected) {
       context.read<TaskProvider>().loadMonth(DateTime(today.year, today.month));
-    } else {
-      _goToPage(page);
+      return;
     }
+    _selectDay(today, openSheet: false);
   }
 
   Future<void> _openEditor([Task? task]) async {
@@ -234,13 +308,10 @@ class _CalendarScreenState extends State<CalendarScreen>
     final settings = context.watch<SettingsProvider>();
     final mondayFirst = settings.weekStartsMonday;
     final country = settings.effectiveHolidayCountry;
-    final dayHolidays =
-        Holidays.around(country, _selected)[_selected] ?? const <Holiday>[];
     final page = _controller.hasClients
         ? (_controller.page?.round() ?? _basePage)
         : _basePage;
     final shownMonth = _monthOfPage(page);
-    final dayTasks = provider.tasksForDay(_selected);
 
     return Scaffold(
       body: Column(
@@ -318,21 +389,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   onVerticalDragEnd: _onDragEnd,
                                   child: PageView.builder(
                                     controller: _controller,
-                                    onPageChanged: (i) {
-                                      final month = _monthOfPage(i);
-                                      context.read<TaskProvider>().loadMonth(
-                                        month,
-                                      );
-                                      // Keep the selection inside the month in view.
-                                      setState(() {
-                                        final today = dayOf(DateTime.now());
-                                        _selected =
-                                            (today.year == month.year &&
-                                                today.month == month.month)
-                                            ? today
-                                            : month;
-                                      });
-                                    },
+                                    onPageChanged: _onMonthPageChanged,
                                     itemBuilder: (context, i) => MonthGrid(
                                       month: _monthOfPage(i),
                                       selected: _selected,
@@ -372,60 +429,26 @@ class _CalendarScreenState extends State<CalendarScreen>
                               alignment: Alignment.topCenter,
                               minHeight: panelLayout,
                               maxHeight: panelLayout,
-                              child: Column(
-                                children: [
-                                  // The bar takes drags too: from the week
-                                  // view the grid is a thin strip, and this
-                                  // is the obvious thing to pull on.
-                                  GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onVerticalDragStart: _onDragStart,
-                                    onVerticalDragUpdate: _onDrag,
-                                    onVerticalDragEnd: _onDragEnd,
-                                    child: _DayBar(
-                                      date: _selected,
-                                      count: dayTasks
-                                          .where((t) => !t.done)
-                                          .length,
-                                      onAdd: () => _openEditor(),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child:
-                                        dayTasks.isEmpty && dayHolidays.isEmpty
-                                        ? EmptyState(
-                                            icon:
-                                                Icons.event_available_outlined,
-                                            title: 'Nothing on this day',
-                                            message:
-                                                'Add one below, or tap + '
-                                                'for the full form.',
-                                          )
-                                        : ListView(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
-                                              bottom: 8,
-                                            ),
-                                            children: [
-                                              for (final holiday in dayHolidays)
-                                                HolidayCard(holiday: holiday),
-                                              for (final task in dayTasks)
-                                                TaskCard(
-                                                  task: task,
-                                                  list: provider.listById(
-                                                    task.listId,
-                                                  ),
-                                                  onTap: () =>
-                                                      _openEditor(task),
-                                                  onLongPress: () =>
-                                                      _openEditor(task),
-                                                  onToggle: () =>
-                                                      provider.toggleDone(task),
-                                                ),
-                                            ],
-                                          ),
-                                  ),
-                                ],
+                              child: PageView.builder(
+                                controller: _dayController,
+                                onPageChanged: _onDayPageChanged,
+                                itemBuilder: (context, i) {
+                                  final day = _dayOfPage(i);
+                                  return _DayPanel(
+                                    date: day,
+                                    tasks: provider.tasksForDay(day),
+                                    holidays:
+                                        Holidays.around(country, day)[day] ??
+                                        const <Holiday>[],
+                                    lists: provider.lists,
+                                    onDragStart: _onDragStart,
+                                    onDrag: _onDrag,
+                                    onDragEnd: _onDragEnd,
+                                    onAdd: () => _openEditor(),
+                                    onOpen: _openEditor,
+                                    onToggle: provider.toggleDone,
+                                  );
+                                },
                               ),
                             ),
                           ),
@@ -598,6 +621,88 @@ class _StepButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// One day under the grid: its bar and its tasks. The days sit side by side
+/// in a pager, so changing the day slides the next one in from the edge
+/// rather than swapping the list out where it stands — and the days can be
+/// swiped through directly.
+class _DayPanel extends StatelessWidget {
+  final DateTime date;
+  final List<Task> tasks;
+  final List<Holiday> holidays;
+  final List<TaskList> lists;
+  final ValueChanged<DragStartDetails> onDragStart;
+  final ValueChanged<DragUpdateDetails> onDrag;
+  final ValueChanged<DragEndDetails> onDragEnd;
+  final VoidCallback onAdd;
+  final ValueChanged<Task> onOpen;
+  final ValueChanged<Task> onToggle;
+
+  const _DayPanel({
+    required this.date,
+    required this.tasks,
+    required this.holidays,
+    required this.lists,
+    required this.onDragStart,
+    required this.onDrag,
+    required this.onDragEnd,
+    required this.onAdd,
+    required this.onOpen,
+    required this.onToggle,
+  });
+
+  TaskList? _listOf(Task task) {
+    for (final list in lists) {
+      if (list.id == task.listId) return list;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // The bar takes vertical drags too: from the week view the grid is a
+        // thin strip, and this is the obvious thing to pull on. The pager
+        // around it keeps the horizontal ones for changing day.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onVerticalDragStart: onDragStart,
+          onVerticalDragUpdate: onDrag,
+          onVerticalDragEnd: onDragEnd,
+          child: _DayBar(
+            date: date,
+            count: tasks.where((t) => !t.done).length,
+            onAdd: onAdd,
+          ),
+        ),
+        Expanded(
+          child: tasks.isEmpty && holidays.isEmpty
+              ? const EmptyState(
+                  icon: Icons.event_available_outlined,
+                  title: 'Nothing on this day',
+                  message: 'Add one below, or tap + for the full form.',
+                )
+              : ListView(
+                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  children: [
+                    for (final holiday in holidays)
+                      HolidayCard(holiday: holiday),
+                    for (final task in tasks)
+                      TaskCard(
+                        task: task,
+                        list: _listOf(task),
+                        onTap: () => onOpen(task),
+                        onLongPress: () => onOpen(task),
+                        onToggle: () => onToggle(task),
+                      ),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 }

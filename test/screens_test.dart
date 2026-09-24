@@ -361,6 +361,44 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('the days below the grid are a row that can be swiped',
+      (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    final tomorrow = today.add(const Duration(days: 1));
+    expect(find.text(Dates.weekdayShort(today)), findsOneWidget);
+
+    // Swiping the day sideways brings the next one in from the edge.
+    await tester.drag(
+      find.text(Dates.weekdayShort(today)),
+      const Offset(-400, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(Dates.weekdayShort(tomorrow)), findsOneWidget);
+    expect(find.text(Dates.weekdayShort(today)), findsNothing);
+    // And the rest of the screen follows the day that is now in view.
+    expect(find.text('Add task on ${Dates.shortDay(tomorrow)}'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('picking a day in the grid slides the day across',
+      (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    // A day in the same week, so the grid has it whichever day today is.
+    final other = today.day > 15
+        ? today.subtract(const Duration(days: 2))
+        : today.add(const Duration(days: 2));
+
+    await tester.tap(find.text('${other.day}').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text(Dates.weekdayShort(other)), findsOneWidget);
+    expect(find.text('Add task on ${Dates.shortDay(other)}'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
   testWidgets('picking a day in the opened month opens it on top',
       (tester) async {
     await pumpScreen(tester, const CalendarScreen());
