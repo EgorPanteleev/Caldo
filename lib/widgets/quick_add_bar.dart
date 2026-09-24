@@ -64,12 +64,23 @@ class QuickAddBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          GradientIconButton(
-            icon: Icons.add,
-            size: 48,
-            circle: true,
-            tooltip: 'Add task',
-            onTap: onSubmit,
+          // A tick, not a plus: the plus belongs on the buttons that open a
+          // form, and this one confirms what has already been typed. It only
+          // comes up to full strength once there is something to confirm.
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, child) => AnimatedOpacity(
+              duration: const Duration(milliseconds: 160),
+              opacity: value.text.trim().isEmpty ? 0.45 : 1,
+              child: child,
+            ),
+            child: GradientIconButton(
+              icon: Icons.check_rounded,
+              size: 48,
+              circle: true,
+              tooltip: 'Add task',
+              onTap: onSubmit,
+            ),
           ),
         ],
       ),
