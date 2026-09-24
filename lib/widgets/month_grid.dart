@@ -136,73 +136,86 @@ class MonthGrid extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: LayoutBuilder(
         builder: (context, box) {
-          // The rows the week view drops shrink to nothing and fade as they go,
-          // while the selected week takes up the slack.
-          final full = box.maxHeight / rows;
-          final otherHeight = full * (1 - weekCollapse);
-          final selectedHeight = box.maxHeight - otherHeight * (rows - 1);
+          // Squeezing the month down to a week slides the whole grid past a
+          // shrinking window instead of squashing the rows: every week keeps
+          // the height it has in the full month, so the numbers travel
+          // together the way a list does, and the selected week is the one
+          // the window is left sitting on. Shrinking the rows themselves made
+          // the numbers close in on each other and read as a glitch.
+          //
+          // Only the window's height is known here, so the row height is read
+          // back out of it: at rest that is a rows-th of it, and at the end of
+          // the collapse the whole of it.
+          final rowHeight = box.maxHeight / (rows - weekCollapse * (rows - 1));
+          final travel = selectedRow * rowHeight * weekCollapse;
 
-          return Column(
-            children: [
-              for (var row = 0; row < rows; row++)
-                SizedBox(
-                  height: row == selectedRow ? selectedHeight : otherHeight,
-                  child: ClipRect(
-                    child: Opacity(
-                      opacity: row == selectedRow
-                          ? 1
-                          : (1 - weekCollapse).clamp(0.0, 1.0),
-                      // Rules between the weeks, drawn in as the month opens.
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          border: row == 0
-                              ? null
-                              : Border(
-                                  top: BorderSide(
-                                    color: p.border.withValues(
-                                      alpha: weekRuleAlpha(expansion),
+          return ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topCenter,
+              minHeight: rowHeight * rows,
+              maxHeight: rowHeight * rows,
+              child: Transform.translate(
+                offset: Offset(0, -travel),
+                child: Column(
+                  children: [
+                    for (var row = 0; row < rows; row++)
+                      SizedBox(
+                        height: rowHeight,
+                        child: ClipRect(
+                          // Rules between the weeks, drawn in as the month opens.
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: row == 0
+                                  ? null
+                                  : Border(
+                                      top: BorderSide(
+                                        color: p.border.withValues(
+                                          alpha: weekRuleAlpha(expansion),
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                            child: Row(
+                              children: [
+                                for (var col = 0; col < 7; col++)
+                                  Expanded(
+                                    child: Builder(
+                                      builder: (context) {
+                                        final day = first.add(
+                                          Duration(days: row * 7 + col - lead),
+                                        );
+                                        final enabled =
+                                            (firstDate == null ||
+                                                !day.isBefore(firstDate!)) &&
+                                            (lastDate == null ||
+                                                !day.isAfter(lastDate!));
+                                        return _DayCell(
+                                          day: day,
+                                          inMonth: day.month == month.month,
+                                          isToday: day == today,
+                                          isSelected: day == selected,
+                                          enabled: enabled,
+                                          expansion: expansion,
+                                          tasks: tasksByDay[day] ?? const [],
+                                          holidays:
+                                              holidaysByDay[day] ?? const [],
+                                          lists: lists,
+                                          onTap: enabled
+                                              ? () => onSelect(day)
+                                              : null,
+                                        );
+                                      },
                                     ),
                                   ),
-                                ),
-                        ),
-                        child: Row(
-                          children: [
-                            for (var col = 0; col < 7; col++)
-                              Expanded(
-                                child: Builder(
-                                  builder: (context) {
-                                    final day = first.add(
-                                      Duration(days: row * 7 + col - lead),
-                                    );
-                                    final enabled =
-                                        (firstDate == null ||
-                                            !day.isBefore(firstDate!)) &&
-                                        (lastDate == null ||
-                                            !day.isAfter(lastDate!));
-                                    return _DayCell(
-                                      day: day,
-                                      inMonth: day.month == month.month,
-                                      isToday: day == today,
-                                      isSelected: day == selected,
-                                      enabled: enabled,
-                                      expansion: expansion,
-                                      tasks: tasksByDay[day] ?? const [],
-                                      holidays: holidaysByDay[day] ?? const [],
-                                      lists: lists,
-                                      onTap: enabled
-                                          ? () => onSelect(day)
-                                          : null,
-                                    );
-                                  },
-                                ),
-                              ),
-                          ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
                 ),
-            ],
+              ),
+            ),
           );
         },
       ),
