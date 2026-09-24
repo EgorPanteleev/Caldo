@@ -17,6 +17,7 @@ import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/task_card.dart';
+import 'search_screen.dart';
 import 'task_edit_screen.dart';
 
 /// A month grid of the user's dated tasks, with the selected day's tasks
@@ -117,6 +118,10 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// commits to the next one.
   double _dragFrom = 0;
 
+  /// Set while a pick is being carried to the two pagers, so the pages their
+  /// animations pass through are not mistaken for picks of their own.
+  bool _driving = false;
+
   /// Which way a tap steps through the states. It turns around at either end,
   /// so tapping repeatedly walks the grid open and back down again.
   int _tapDirection = 1;
@@ -205,8 +210,14 @@ class _CalendarScreenState extends State<CalendarScreen>
   void _selectDay(DateTime day, {bool openSheet = true}) {
     if (day != _selected) {
       setState(() => _selected = day);
-      _goToDayPage(day);
-      _goToMonthOf(day);
+      // Both pagers report every page their animation passes through, and a
+      // jump of a week reports six days nobody chose. Each of those was taken
+      // for a new pick and sent the other pager off after it, which is how
+      // tapping Today moved the selection back but left the grid a month away.
+      _driving = true;
+      Future.wait([_goToDayPage(day), _goToMonthOf(day)]).whenComplete(() {
+        if (mounted) _driving = false;
+      });
     }
     // Picking a day when the grid fills the screen means wanting to see that
     // day. There is nowhere left on the screen to list it out, so it opens on
@@ -231,7 +242,7 @@ class _CalendarScreenState extends State<CalendarScreen>
           .difference(DateTime.utc(from.year, from.month, from.day))
           .inDays;
 
-  void _goToPage(int page) => _controller.animateToPage(
+  Future<void> _goToPage(int page) => _controller.animateToPage(
     page,
     duration: const Duration(milliseconds: 260),
     curve: Curves.easeOutCubic,
@@ -240,13 +251,13 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// Slides the day panel to [day]. A neighbouring day slides across; a day
   /// weeks away is not worth watching every day in between scroll past, so it
   /// is cut to straight away.
-  void _goToDayPage(DateTime day) {
+  Future<void> _goToDayPage(DateTime day) async {
     if (!_dayController.hasClients) return;
     final page = _baseDayPage + _daysBetween(_baseDay, day);
     final current = _dayController.page?.round() ?? page;
     if (current == page) return;
     if ((current - page).abs() <= 10) {
-      _dayController.animateToPage(
+      await _dayController.animateToPage(
         page,
         duration: const Duration(milliseconds: 280),
         curve: Curves.easeOutCubic,
@@ -257,13 +268,20 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   /// Brings the grid round to the month [day] falls in, if it is not there.
-  void _goToMonthOf(DateTime day) {
+  /// A couple of months slide past; a year is cut to, for the same reason.
+  Future<void> _goToMonthOf(DateTime day) async {
     final page =
         _basePage +
         (day.year - _baseMonth.year) * 12 +
         (day.month - _baseMonth.month);
-    if (!_controller.hasClients || _controller.page?.round() == page) return;
-    _goToPage(page);
+    if (!_controller.hasClients) return;
+    final current = _controller.page?.round() ?? page;
+    if (current == page) return;
+    if ((current - page).abs() <= 3) {
+      await _goToPage(page);
+    } else {
+      _controller.jumpToPage(page);
+    }
   }
 
   /// A month arrives under the grid: load it, and move the selection into it
@@ -272,6 +290,11 @@ class _CalendarScreenState extends State<CalendarScreen>
   void _onMonthPageChanged(int i) {
     final month = _monthOfPage(i);
     context.read<TaskProvider>().loadMonth(month);
+    // The header reads its month off the controller, so every page change
+    // owes it a frame — including the ones we drove ourselves, which take no
+    // other path back into build.
+    setState(() {});
+    if (_driving) return;
     if (_selected.year == month.year && _selected.month == month.month) return;
     final today = dayOf(DateTime.now());
     final day = (today.year == month.year && today.month == month.month)
@@ -281,6 +304,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   void _onDayPageChanged(int i) {
+    if (_driving) return;
     final day = _dayOfPage(i);
     // Fired by our own animation towards the day already chosen.
     if (day == _selected) return;
@@ -326,9 +350,10 @@ class _CalendarScreenState extends State<CalendarScreen>
                 _MonthBar(
                   title: Dates.monthTitle(shownMonth),
                   onMenu: widget.onMenu,
-                  onPrevious: () => _goToPage(page - 1),
                   onToday: _jumpToToday,
-                  onNext: () => _goToPage(page + 1),
+                  onSearch: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SearchScreen()),
+                  ),
                 ),
                 AnimatedBuilder(
                   animation: _expansion,
@@ -463,10 +488,24 @@ class _CalendarScreenState extends State<CalendarScreen>
               },
             ),
           ),
-          QuickAddBar(
-            date: _selected,
-            controller: _quickAdd,
-            onSubmit: _addQuickTask,
+          // The strip the field sits on belongs to whatever is above it: the
+          // calendar's own ground once the month is opened out, the list's
+          // background while the day's tasks are still on screen.
+          AnimatedBuilder(
+            animation: _expansion,
+            builder: (context, child) => ColoredBox(
+              color: Color.lerp(
+                p.bg,
+                p.calendar,
+                math.max(0.0, _expansion.value),
+              )!,
+              child: child,
+            ),
+            child: QuickAddBar(
+              date: _selected,
+              controller: _quickAdd,
+              onSubmit: _addQuickTask,
+            ),
           ),
         ],
       ),
@@ -518,116 +557,101 @@ class _DragHandle extends StatelessWidget {
 /// Identifies the month name in the calendar header.
 const monthTitleKey = Key('month-title');
 
-/// The calendar's own header: the month centred on the screen with its
-/// controls floating at the right, so the name sits in the middle however
-/// many buttons sit beside it.
+/// The calendar's own header, in two rows: the controls across the top, and
+/// the month name alone on the row under them. Sharing one row meant the name
+/// had to be kept clear of whatever sat beside it, and it lost width on a
+/// narrow phone to buttons it was nowhere near.
 class _MonthBar extends StatelessWidget {
   final String title;
   final VoidCallback? onMenu;
-  final VoidCallback onPrevious;
   final VoidCallback onToday;
-  final VoidCallback onNext;
+  final VoidCallback onSearch;
 
   const _MonthBar({
     required this.title,
     required this.onMenu,
-    required this.onPrevious,
     required this.onToday,
-    required this.onNext,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      // Symmetric, so the centred month name lands on the screen's midline.
-      padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-      child: SizedBox(
-        height: 36,
-        child: Stack(
-          children: [
-            Align(
-              alignment: Alignment.center,
-              // Kept clear of the controls on both sides so the name stays
-              // centred on the screen, shrinking a hair rather than running
-              // under a button on a narrow phone.
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 118),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    title,
-                    key: monthTitleKey,
-                    maxLines: 1,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (onMenu != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: MenuButton(onTap: onMenu!),
-              ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _StepButton(
-                    icon: Icons.chevron_left,
-                    tooltip: 'Previous month',
-                    onTap: onPrevious,
-                  ),
-                  _StepButton(
-                    icon: Icons.today_outlined,
-                    tooltip: 'Today',
-                    onTap: onToday,
-                  ),
-                  _StepButton(
-                    icon: Icons.chevron_right,
-                    tooltip: 'Next month',
-                    onTap: onNext,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A compact icon button — narrower than Material's 48dp default, to leave
-/// the month name all the room it needs.
-class _StepButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _StepButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
+    required this.onSearch,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    return Column(
+      children: [
+        SizedBox(
+          height: 48,
+          child: Row(
+            children: [
+              if (onMenu != null)
+                MenuButton(onTap: onMenu!)
+              else
+                const SizedBox(width: 12),
+              const Spacer(),
+              IconButton(
+                icon: Icon(Icons.search, color: p.muted),
+                tooltip: 'Search',
+                onPressed: onSearch,
+              ),
+              _TodayButton(onTap: onToday),
+              const SizedBox(width: 6),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+          child: Text(
+            title,
+            key: monthTitleKey,
+            maxLines: 1,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Back to today, drawn as today's date on a page — the same thing a desk
+/// calendar's torn-off sheet says, and it names the day it will take you to.
+class _TodayButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _TodayButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
     return Tooltip(
-      message: tooltip,
+      message: 'Today',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(9),
-          child: SizedBox(
-            width: 36,
-            height: 36,
-            child: Icon(icon, size: 21, color: p.muted),
+          child: Padding(
+            padding: const EdgeInsets.all(7),
+            child: Container(
+              width: 27,
+              height: 27,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: p.muted, width: 1.6),
+              ),
+              child: Text(
+                '${DateTime.now().day}',
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 13,
+                  height: 1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
         ),
       ),

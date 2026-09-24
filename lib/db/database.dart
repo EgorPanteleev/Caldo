@@ -107,16 +107,17 @@ class AppDatabase {
 
   // ---- Tasks --------------------------------------------------------------
 
-  /// Tasks of one list. [query] matches the title or notes; when [includeDone]
-  /// is false only open tasks come back.
+  /// Tasks of one list, or of every list when [listId] is null — which is what
+  /// the search screen asks for. [query] matches the title or notes; when
+  /// [includeDone] is false only open tasks come back.
   Future<List<Task>> getTasks({
-    required int listId,
+    int? listId,
     String query = '',
     bool includeDone = true,
   }) async {
     final db = await database;
-    final where = StringBuffer('list_id = ?');
-    final args = <Object?>[listId];
+    final where = StringBuffer(listId == null ? '1 = 1' : 'list_id = ?');
+    final args = <Object?>[?listId];
     if (!includeDone) where.write(' AND done = 0');
     if (query.isNotEmpty) {
       where.write(' AND (title LIKE ? OR notes LIKE ?)');

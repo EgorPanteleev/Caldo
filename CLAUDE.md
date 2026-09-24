@@ -20,8 +20,8 @@ lib/
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
-  screens/               home (shell + menu), tasks, calendar, lists,
-                         task_list, task_edit, list_edit, settings
+  screens/               home (shell + menu), tasks, calendar, search,
+                         lists, task_list, task_edit, list_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
@@ -108,8 +108,22 @@ Changing them back will be noticed.
   full-form button beside it were noise on a bar whose whole job is to say
   which day is below it; the full form is still reached from the day card's
   header, or by tapping a task.
+- **The calendar's header is two rows**: the controls across the top — the
+  menu button on the left, Search and Today on the right — and the month name
+  alone on the row beneath. Sharing one row meant the name had to be kept clear
+  of whatever sat beside it. The month chevrons are gone; the grid is swiped.
+- **Today is drawn as today's date on a page**, so the button names the day it
+  will take you to.
 - **The month header shows `Sep`, centred**, gaining the year only when it is
   not the current one.
+- **The strip the add field sits on follows what is above it** — the calendar's
+  own ground once the month is opened out, the app background while the day's
+  tasks are still on screen.
+- **Both pagers ignore the pages an animation passes through** (`_driving`).
+  A jump of a week reports six days nobody chose, and each was taken for a new
+  pick and sent the other pager off after it. The month header reads its page
+  off the controller, so `_onMonthPageChanged` owes it a `setState` even when
+  the change was driven rather than swiped.
 - The Tasks screen header is deliberately plain text — it used to be a gradient
   card and was called too loud.
 

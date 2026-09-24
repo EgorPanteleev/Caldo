@@ -5,6 +5,7 @@ import 'package:caldo/screens/tasks_screen.dart';
 import 'package:caldo/screens/calendar_screen.dart';
 import 'package:caldo/screens/home_screen.dart';
 import 'package:caldo/screens/lists_screen.dart';
+import 'package:caldo/screens/search_screen.dart';
 import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
 import 'package:caldo/screens/task_list_screen.dart';
@@ -12,6 +13,7 @@ import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/menu_button.dart';
+import 'package:caldo/widgets/task_row.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/material.dart';
@@ -60,6 +62,12 @@ void main() {
     await tester.pump();
     return provider;
   }
+
+  /// A day number inside the month grid. The Today button carries today's
+  /// number too, so a bare text finder can land on the wrong one.
+  Finder dayInGrid(int day) => find
+      .descendant(of: find.byType(MonthGrid), matching: find.text('$day'))
+      .first;
 
   /// A small phone — the width where rows and headers are most likely to
   /// overflow.
@@ -233,7 +241,8 @@ void main() {
         lessThan(2),
         reason: '"${text.data}" should sit in the middle of the header',
       );
-      await tester.tap(find.byTooltip('Next month'));
+      // The chevrons are gone; the month is changed by swiping the grid.
+      await tester.drag(find.byType(MonthGrid).first, const Offset(-400, 0));
       await tester.pumpAndSettle();
     }
     await drainDatabase(tester);
@@ -395,7 +404,7 @@ void main() {
         ? today.subtract(const Duration(days: 2))
         : today.add(const Duration(days: 2));
 
-    await tester.tap(find.text('${other.day}').first);
+    await tester.tap(dayInGrid(other.day));
     await tester.pumpAndSettle();
 
     expect(find.text(Dates.weekdayShort(other)), findsOneWidget);
@@ -412,7 +421,7 @@ void main() {
     expect(find.text('Ship'), findsNWidgets(2));
 
     final today = dayOf(DateTime.now());
-    await tester.tap(find.text('${today.day}').first);
+    await tester.tap(dayInGrid(today.day));
     await tester.pumpAndSettle();
 
     // The day comes forward as a card, with the month still behind it.
@@ -469,6 +478,68 @@ void main() {
     // The field empties as soon as the task is handed over.
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.controller?.text, isEmpty);
+  });
+
+  testWidgets('search finds a task in any list by title or notes',
+      (tester) async {
+    await pumpScreen(tester, const SearchScreen());
+
+    // Nothing is claimed until something has been typed.
+    expect(find.text('Search your tasks'), findsOneWidget);
+
+    await tester.enterText(find.byKey(searchFieldKey), 'Ship');
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    // Scoped to a result row: the field itself now reads "Ship" too.
+    expect(
+      find.descendant(of: find.byType(TaskRow), matching: find.text('Ship')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(find.byKey(searchFieldKey), 'nothing matches this');
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing found'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('the calendar offers a way back to today and a way to search',
+      (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+
+    expect(find.byTooltip('Today'), findsOneWidget);
+    expect(find.byTooltip('Search'), findsOneWidget);
+    // The month chevrons are gone; swiping the grid moves the month now.
+    expect(find.byTooltip('Next month'), findsNothing);
+    expect(find.byTooltip('Previous month'), findsNothing);
+
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(searchFieldKey), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('Today brings the grid back with the selection', (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    final thisMonth = Dates.monthTitle(DateTime(today.year, today.month));
+    final next = Dates.monthTitle(DateTime(today.year, today.month + 1));
+
+    await tester.drag(find.byType(MonthGrid).first, const Offset(-400, 0));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Text>(find.byKey(monthTitleKey)).data, next);
+
+    await tester.tap(find.byTooltip('Today'));
+    await tester.pumpAndSettle();
+
+    // Both have to come back: the pagers report the pages their animations
+    // pass through, and those used to be taken for picks and send the grid
+    // straight back to the month it had just left.
+    expect(tester.widget<Text>(find.byKey(monthTitleKey)).data, thisMonth);
+    expect(find.text('Add task on ${Dates.shortDay(today)}'), findsOneWidget);
+    await drainDatabase(tester);
   });
 
   testWidgets('the shell keeps its three screens behind the menu button',

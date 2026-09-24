@@ -136,6 +136,11 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Every task whose title or notes match [query], across all lists. Returned
+  /// rather than held, since the search screen is the only thing that wants it.
+  Future<List<Task>> searchAll(String query) =>
+      _db.getTasks(query: query, includeDone: _showCompleted);
+
   // ---- Calendar and agenda ------------------------------------------------
 
   /// Loads the dated tasks of the month containing [date] (plus a little
