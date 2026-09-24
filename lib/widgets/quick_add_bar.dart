@@ -39,6 +39,14 @@ class _QuickAddBarState extends State<QuickAddBar> {
     super.dispose();
   }
 
+  /// Hands the title over and closes the field. The task is filed at that
+  /// point, so leaving the keyboard up over a day whose list has just changed
+  /// hides the very thing the tap was meant to produce.
+  void _submit() {
+    widget.onSubmit();
+    _focus.unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
@@ -61,7 +69,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
               focusNode: _focus,
               textCapitalization: TextCapitalization.sentences,
               textInputAction: TextInputAction.done,
-              onSubmitted: (_) => widget.onSubmit(),
+              onSubmitted: (_) => _submit(),
               style: TextStyle(color: p.text, fontSize: 14.5),
               decoration: InputDecoration(
                 isDense: true,
@@ -85,7 +93,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
           const SizedBox(width: 10),
           _ConfirmButton(
             icon: writing ? Icons.check_rounded : Icons.add,
-            onTap: widget.onSubmit,
+            onTap: _submit,
           ),
         ],
       ),
