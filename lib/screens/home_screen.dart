@@ -6,6 +6,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import 'calendar_screen.dart';
+import 'lists_screen.dart';
 import 'settings_screen.dart';
 import 'tasks_screen.dart';
 
@@ -30,6 +31,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openMenu() => _shell.currentState?.openDrawer();
 
+  /// Lists opens over whatever is showing rather than replacing it, so the
+  /// menu closes first and the screen behind is left as it was.
+  void _openLists() {
+    Navigator.of(context)
+      ..pop()
+      ..push(MaterialPageRoute(builder: (_) => const ListsScreen()));
+  }
+
   /// Switch screens, refreshing the dated views so they stay correct across a
   /// midnight rollover or edits made from another one.
   void _select(int i) {
@@ -45,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _shell,
-      drawer: _Menu(index: _index, onSelected: _select),
+      drawer: _Menu(index: _index, onSelected: _select, onLists: _openLists),
       // Opened by the button alone. The calendar and its day list both page
       // sideways, and an edge-drag would take those swipes off them.
       drawerEnableOpenDragGesture: false,
@@ -59,11 +68,16 @@ class _HomeScreenState extends State<HomeScreen> {
 class _Menu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelected;
+  final VoidCallback onLists;
 
-  const _Menu({required this.index, required this.onSelected});
+  const _Menu({
+    required this.index,
+    required this.onSelected,
+    required this.onLists,
+  });
 
   static const _items = [
-    _TabItem(Icons.check_circle_outline, Icons.check_circle, 'Tasks'),
+    _TabItem(Icons.check_circle_outline, Icons.check_circle, 'Schedule'),
     _TabItem(Icons.calendar_month_outlined, Icons.calendar_month, 'Calendar'),
     _TabItem(Icons.settings_outlined, Icons.settings, 'Settings'),
   ];
@@ -115,6 +129,23 @@ class _Menu extends StatelessWidget {
                 accent: accent.color,
                 onTap: () => onSelected(i),
               ),
+            const SizedBox(height: 8),
+            Divider(height: 1, indent: 24, endIndent: 24, color: p.border),
+            const SizedBox(height: 8),
+            // Not a destination of its own — it opens on top of whichever
+            // screen is showing — so it sits under a rule, away from the
+            // three that swap the screen underneath.
+            _MenuItem(
+              item: const _TabItem(
+                Icons.folder_outlined,
+                Icons.folder,
+                'Lists',
+              ),
+              selected: false,
+              badge: null,
+              accent: accent.color,
+              onTap: onLists,
+            ),
           ],
         ),
       ),

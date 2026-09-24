@@ -5,10 +5,8 @@ import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
-import '../widgets/gradient_icon_button.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_row.dart';
-import 'lists_screen.dart';
 import 'task_edit_screen.dart';
 
 /// The landing screen: every task, day by day — what is overdue, what is due
@@ -65,24 +63,10 @@ class _TasksScreenState extends State<TasksScreen> {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 90),
           children: [
-            ScreenHeader(
-              title: 'Tasks',
-              onMenu: widget.onMenu,
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.folder_outlined, color: p.muted),
-                  tooltip: 'Lists',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const ListsScreen()),
-                  ),
-                ),
-                GradientIconButton(
-                  icon: Icons.add,
-                  tooltip: 'New task',
-                  onTap: () => _openEditor(null, today),
-                ),
-              ],
-            ),
+            // Nothing but the name: Lists moved into the menu when the tab
+            // bar went, and every section below already carries its own add
+            // button, which files the task on the day it sits under.
+            ScreenHeader(title: 'Schedule', onMenu: widget.onMenu),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 2, 20, 18),
               child: _TodayCard(

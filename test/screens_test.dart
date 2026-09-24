@@ -548,7 +548,7 @@ void main() {
 
     // Nothing but the screen itself until the menu is opened — there is no
     // bar along the bottom naming the other two.
-    expect(find.text('Tasks'), findsWidgets);
+    expect(find.text('Schedule'), findsWidgets);
     expect(find.text('Calendar'), findsNothing);
     expect(find.text('Settings'), findsNothing);
 
@@ -557,15 +557,30 @@ void main() {
 
     expect(find.text('Calendar'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
-    // Lists is still reached from the Tasks header, not from the menu.
-    expect(find.text('Lists'), findsNothing);
-    expect(find.byTooltip('Lists'), findsOneWidget);
+    // Lists moved into the menu when the header buttons went.
+    expect(find.text('Lists'), findsOneWidget);
 
     // Picking one closes the menu and swaps the screen under it.
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
     expect(find.byKey(monthTitleKey), findsOneWidget);
     expect(find.text('Settings'), findsNothing);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('Lists opens from the menu, over the screen showing',
+      (tester) async {
+    await pumpScreen(tester, const HomeScreen());
+
+    await tester.tap(find.byKey(menuButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lists'));
+    await tester.pumpAndSettle();
+
+    // The lists screen, not a swapped-in destination: the seeded lists are
+    // on it and a back arrow leads out.
+    expect(find.text('Work'), findsWidgets);
+    expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     await drainDatabase(tester);
   });
 

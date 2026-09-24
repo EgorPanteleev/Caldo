@@ -119,7 +119,14 @@ class _CalendarScreenState extends State<CalendarScreen>
   double _dragFrom = 0;
 
   /// How far above the add field the content fades out into its ground.
-  static const _fadeHeight = 22.0;
+  static const _fadeHeight = 48.0;
+
+  /// The fade's shape. A straight ramp from clear to solid has a visible edge
+  /// at each end — the point where it starts and the point where it finishes
+  /// both read as lines. These follow a smoothstep instead, so it eases in and
+  /// out of the two grounds and no edge is anywhere to be found.
+  static const _fadeStops = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0];
+  static const _fadeAlphas = [0.0, 0.104, 0.352, 0.5, 0.648, 0.896, 1.0];
 
   /// The ground the add field sits on, and the colour whatever is above it
   /// fades into: the calendar's own once the month is opened out, the app
@@ -520,7 +527,11 @@ class _CalendarScreenState extends State<CalendarScreen>
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
-                              colors: [ground.withValues(alpha: 0), ground],
+                              stops: _fadeStops,
+                              colors: [
+                                for (final a in _fadeAlphas)
+                                  ground.withValues(alpha: a),
+                              ],
                             ),
                           ),
                         );

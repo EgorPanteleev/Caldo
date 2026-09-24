@@ -20,7 +20,8 @@ lib/
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
-  screens/               home (shell + menu), tasks, calendar, search,
+  screens/               home (shell + menu), tasks (Schedule), calendar,
+                         search,
                          lists, task_list, task_edit, list_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
@@ -30,9 +31,9 @@ lib/
                          theme_switcher, gradient_icon_button
 ```
 
-Three destinations — **Tasks**, **Calendar**, **Settings** — in a drawer
-behind the menu button at the top left of each. Lists is not one of them; it is
-reached from the folder button in the Tasks header.
+Three destinations — **Schedule**, **Calendar**, **Settings** — in a drawer
+behind the menu button at the top left of each. **Lists** sits under a rule
+below them: it opens over whatever is showing rather than replacing it.
 
 ## Decisions worth keeping
 
@@ -130,12 +131,14 @@ Changing them back will be noticed.
   pick and sent the other pager off after it. The month header reads its page
   off the controller, so `_onMonthPageChanged` owes it a `setState` even when
   the change was driven rather than swiped.
-- The Tasks screen header is deliberately plain text — it used to be a gradient
-  card and was called too loud.
+- **The Schedule screen's header is its name and nothing else** — deliberately
+  plain text, and with no buttons beside it since the tab bar went. Lists moved
+  into the menu, and a task is added from the `+` on the section it belongs
+  under, which files it on that day rather than asking for the date twice.
 
 ## Tests
 
-`flutter test` — 71 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 72 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
