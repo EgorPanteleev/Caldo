@@ -129,7 +129,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 68 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 71 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -148,7 +148,7 @@ Things that will bite you:
   widths; assert layout invariants instead (e.g. "the title is given all the
   width the controls leave").
 - Widget keys are exported for tests: `monthTitleKey`, `calendarHandleKey`,
-  `daySheetKey`, `menuButtonKey`, `screenTitleKey`, `checkKey`,
+  `daySheetKey`, `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `checkKey`,
   `taskCardTickKey`.
 
 ## Building
