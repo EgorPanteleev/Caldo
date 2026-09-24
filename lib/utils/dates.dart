@@ -61,6 +61,9 @@ class Dates {
   /// "Sep 23" — compact enough for a hint or a chip.
   static String shortDay(DateTime date) => DateFormat('MMM d').format(date);
 
+  /// "Wednesday" — the weekday spelled out beside a big day number.
+  static String weekdayLong(DateTime date) => DateFormat('EEEE').format(date);
+
   /// "WED" — the weekday beside a big day number.
   static String weekdayShort(DateTime date) =>
       DateFormat('EEE').format(date).toUpperCase();

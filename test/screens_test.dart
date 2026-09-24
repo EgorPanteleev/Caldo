@@ -10,6 +10,7 @@ import 'package:caldo/screens/task_edit_screen.dart';
 import 'package:caldo/screens/task_list_screen.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
+import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/material.dart';
@@ -360,18 +361,28 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('picking a day in the opened month closes it again',
+  testWidgets('picking a day in the opened month opens it on top',
       (tester) async {
     await pumpScreen(tester, const CalendarScreen());
     await tester.tap(find.byKey(calendarHandleKey));
     await tester.pumpAndSettle();
+    expect(find.byKey(daySheetKey), findsNothing);
     expect(find.text('Ship'), findsNWidgets(2));
 
     final today = dayOf(DateTime.now());
     await tester.tap(find.text('${today.day}').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('Ship'), findsOneWidget);
+    // The day comes forward as a card, with the month still behind it.
+    expect(find.byKey(daySheetKey), findsOneWidget);
+    expect(find.text(Dates.weekdayLong(today)), findsOneWidget);
+    expect(find.text('Add task on ${Dates.shortDay(today)}'), findsWidgets);
+
+    // Dismissed, the month is as it was.
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect(find.byKey(daySheetKey), findsNothing);
+    expect(find.text('Ship'), findsNWidgets(2));
     await drainDatabase(tester);
   });
 

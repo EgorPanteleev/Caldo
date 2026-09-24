@@ -10,9 +10,11 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/day_sheet.dart';
 import '../widgets/gradient_icon_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
+import '../widgets/quick_add_bar.dart';
 import '../widgets/task_card.dart';
 import 'task_edit_screen.dart';
 
@@ -188,8 +190,10 @@ class _CalendarScreenState extends State<CalendarScreen>
   void _selectDay(DateTime day) {
     setState(() => _selected = day);
     // Picking a day when the grid fills the screen means wanting to see that
-    // day, so make room for it.
-    if (_expansion.value > 0.5) _settleTo(0);
+    // day. There is nowhere left on the screen to list it out, so it opens on
+    // top of the month instead — and the month is still there underneath when
+    // the card is dismissed.
+    if (_expansion.value > 0.5) showDaySheet(context, day);
   }
 
   DateTime _monthOfPage(int page) =>
@@ -404,7 +408,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                             ),
                                             children: [
                                               for (final holiday in dayHolidays)
-                                                _HolidayCard(holiday: holiday),
+                                                HolidayCard(holiday: holiday),
                                               for (final task in dayTasks)
                                                 TaskCard(
                                                   task: task,
@@ -433,130 +437,10 @@ class _CalendarScreenState extends State<CalendarScreen>
               },
             ),
           ),
-          _QuickAddBar(
+          QuickAddBar(
             date: _selected,
             controller: _quickAdd,
             onSubmit: _addQuickTask,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A public holiday under the calendar: the same card as a task, in green
-/// and with nothing to tick off.
-class _HolidayCard extends StatelessWidget {
-  final Holiday holiday;
-
-  const _HolidayCard({required this.holiday});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        decoration: BoxDecoration(
-          color: AppColors.holiday.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.holiday.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.celebration_outlined,
-              color: AppColors.holiday,
-              size: 22,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    holiday.name,
-                    style: TextStyle(
-                      color: p.text,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'Public holiday',
-                    style: TextStyle(color: p.muted, fontSize: 12.5),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The field under the list: type a title, tap +, and it lands on the day in
-/// view without opening the full form.
-class _QuickAddBar extends StatelessWidget {
-  final DateTime date;
-  final TextEditingController controller;
-  final VoidCallback onSubmit;
-
-  const _QuickAddBar({
-    required this.date,
-    required this.controller,
-    required this.onSubmit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              textCapitalization: TextCapitalization.sentences,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => onSubmit(),
-              style: TextStyle(color: p.text, fontSize: 14.5),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: 'Add task on ${Dates.shortDay(date)}',
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide(color: p.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide(color: p.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide(
-                    color: AppTheme.accentOf(context).color,
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          GradientIconButton(
-            icon: Icons.add,
-            size: 48,
-            circle: true,
-            tooltip: 'Add task',
-            onTap: onSubmit,
           ),
         ],
       ),

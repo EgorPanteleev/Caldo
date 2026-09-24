@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../theme/app_theme.dart';
@@ -156,3 +157,57 @@ class _Tick extends StatelessWidget {
 
 /// Identifies the tick circle on a task card.
 const taskCardTickKey = Key('task-card-tick');
+
+/// A public holiday beside a day's tasks: the same card as a [TaskCard], in
+/// green and with nothing to tick off.
+class HolidayCard extends StatelessWidget {
+  final Holiday holiday;
+
+  const HolidayCard({super.key, required this.holiday});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: AppColors.holiday.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.holiday.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.celebration_outlined,
+              color: AppColors.holiday,
+              size: 22,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    holiday.name,
+                    style: TextStyle(
+                      color: p.text,
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Public holiday',
+                    style: TextStyle(color: p.muted, fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
