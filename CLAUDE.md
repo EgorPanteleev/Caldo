@@ -118,7 +118,13 @@ Changing them back will be noticed.
   not the current one.
 - **The strip the add field sits on follows what is above it** — the calendar's
   own ground once the month is opened out, the app background while the day's
-  tasks are still on screen.
+  tasks are still on screen — and whatever is above fades into it over the last
+  22 points rather than being sliced off square by it.
+- **The greys are neutral.** Every surface used to carry a few points of extra
+  blue, which over a whole screen read as a violet wash instead of as grey. The
+  accent and the list swatches came off the bright web palette they were taken
+  from at the same time; the ids are unchanged, so a saved choice still lands
+  on its own colour.
 - **Both pagers ignore the pages an animation passes through** (`_driving`).
   A jump of a week reports six days nobody chose, and each was taken for a new
   pick and sent the other pager off after it. The month header reads its page

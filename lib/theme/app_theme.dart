@@ -3,40 +3,44 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// Obsidian-inspired palette: refined charcoal surfaces, thin borders,
 /// muted text, and a violet→indigo accent.
+///
+/// The greys are as close to neutral as they get. An earlier set carried a
+/// few points of extra blue in every surface, which over a whole screen read
+/// as a violet wash rather than as grey.
 class AppColors {
   // Accent (violet → indigo)
-  static const accent = Color(0xFF8B5CF6);
-  static const accent2 = Color(0xFF6366F1);
-  static const accentSoft = Color(0xFFA78BFA);
+  static const accent = Color(0xFF7B61E8);
+  static const accent2 = Color(0xFF5B4BC4);
+  static const accentSoft = Color(0xFF9C87F0);
 
   // Dark surfaces (Obsidian-like)
-  static const darkBg = Color(0xFF16161A); // app background / content
-  static const darkSidebar = Color(0xFF121216); // slightly darker rail
-  static const darkPanel = Color(0xFF1E1E24); // cards / fields
-  static const darkPanelHi = Color(0xFF26262E); // hovered / elevated
-  static const darkBorder = Color(0xFF2E2E38); // hairline borders
+  static const darkBg = Color(0xFF111112); // app background / content
+  static const darkSidebar = Color(0xFF0A0A0B); // deeper rail
+  static const darkPanel = Color(0xFF1A1A1C); // cards / fields
+  static const darkPanelHi = Color(0xFF242427); // hovered / elevated
+  static const darkBorder = Color(0xFF2C2C30); // hairline borders
 
   // Dark text
-  static const darkText = Color(0xFFDCDDE1);
-  static const darkMuted = Color(0xFF9A9BA6);
-  static const darkFaint = Color(0xFF6B6C78);
+  static const darkText = Color(0xFFE9E9EB);
+  static const darkMuted = Color(0xFF9B9BA1);
+  static const darkFaint = Color(0xFF6A6A70);
 
   // Light surfaces
-  static const lightBg = Color(0xFFF6F6FA);
-  static const lightSidebar = Color(0xFFEDEDF3);
+  static const lightBg = Color(0xFFF7F7F8);
+  static const lightSidebar = Color(0xFFEFEFF1);
   static const lightPanel = Color(0xFFFFFFFF);
-  static const lightPanelHi = Color(0xFFF0F0F6);
-  static const lightBorder = Color(0xFFE2E2EC);
+  static const lightPanelHi = Color(0xFFF1F1F3);
+  static const lightBorder = Color(0xFFE4E4E8);
 
-  static const lightText = Color(0xFF1F1F29);
+  static const lightText = Color(0xFF18181B);
 
   /// Shared semantic colours that do not change with the accent.
-  static const danger = Color(0xFFF87171);
-  static const overdue = Color(0xFFEF4444);
+  static const danger = Color(0xFFE5686B);
+  static const overdue = Color(0xFFE05252);
 
   /// Saturdays, Sundays and public holidays in the calendar.
   static const weekend = Color(0xFFE06C75);
-  static const holiday = Color(0xFF22C55E);
+  static const holiday = Color(0xFF35A06A);
 }
 
 /// Extra semantic colors resolved per-brightness, exposed via [AppTheme.of].
@@ -159,44 +163,44 @@ class AppAccent {
     AppAccent(
       id: 'violet',
       label: 'Violet',
-      color: Color(0xFF8B5CF6),
-      soft: Color(0xFFA78BFA),
-      gradientEnd: Color(0xFF6366F1),
+      color: Color(0xFF7B61E8),
+      soft: Color(0xFF9C87F0),
+      gradientEnd: Color(0xFF5B4BC4),
     ),
     AppAccent(
       id: 'blue',
       label: 'Blue',
-      color: Color(0xFF3B82F6),
-      soft: Color(0xFF60A5FA),
-      gradientEnd: Color(0xFF2563EB),
+      color: Color(0xFF3B7DD8),
+      soft: Color(0xFF6BA1E6),
+      gradientEnd: Color(0xFF2A5FAE),
     ),
     AppAccent(
       id: 'teal',
       label: 'Teal',
-      color: Color(0xFF14B8A6),
-      soft: Color(0xFF2DD4BF),
-      gradientEnd: Color(0xFF0EA5E9),
+      color: Color(0xFF16A394),
+      soft: Color(0xFF43C0B2),
+      gradientEnd: Color(0xFF0E7F87),
     ),
     AppAccent(
       id: 'green',
       label: 'Green',
-      color: Color(0xFF22C55E),
-      soft: Color(0xFF4ADE80),
-      gradientEnd: Color(0xFF16A34A),
+      color: Color(0xFF35A06A),
+      soft: Color(0xFF5CBE8B),
+      gradientEnd: Color(0xFF267E52),
     ),
     AppAccent(
       id: 'amber',
       label: 'Amber',
-      color: Color(0xFFF59E0B),
-      soft: Color(0xFFFBBF24),
-      gradientEnd: Color(0xFFF97316),
+      color: Color(0xFFD99A2B),
+      soft: Color(0xFFECBA5E),
+      gradientEnd: Color(0xFFDB7A33),
     ),
     AppAccent(
       id: 'pink',
       label: 'Pink',
-      color: Color(0xFFEC4899),
-      soft: Color(0xFFF472B6),
-      gradientEnd: Color(0xFFDB2777),
+      color: Color(0xFFD9528A),
+      soft: Color(0xFFE87FAA),
+      gradientEnd: Color(0xFFB43A6D),
     ),
   ];
 
