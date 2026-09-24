@@ -30,8 +30,10 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// Middle of the page range; page [_basePage] shows [_baseMonth].
   static const _basePage = 6000;
 
-  /// Height of the strip carrying the drag handle.
-  static const _handleHeight = 16.0;
+  /// Height of the strip carrying the drag handle. Wide enough to be hit
+  /// reliably with a thumb — at 16 the week view left almost nothing to aim
+  /// at between the grid and the list.
+  static const _handleHeight = 24.0;
 
   late final DateTime _baseMonth;
   late final PageController _controller;
@@ -96,9 +98,14 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   void _onDrag(DragUpdateDetails details) {
     // Pulling down opens the month out, pushing up squeezes it to a week;
-    // the two directions cover different distances.
-    final range = _expansion.value >= 0 ? _rangeUp : _rangeDown;
-    _expansion.value += details.primaryDelta! / range;
+    // the two directions cover different distances. Exactly at the compact
+    // month it is the direction of travel that says which range applies —
+    // reading the value alone made an upward drag from 0 move by the opened
+    // month's range and jump.
+    final value = _expansion.value;
+    final delta = details.primaryDelta!;
+    final range = value > 0 || (value == 0 && delta > 0) ? _rangeUp : _rangeDown;
+    _expansion.value += delta / range;
   }
 
   /// Snaps to the nearest of the three states, following the flick when there
@@ -252,7 +259,10 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 height: gridHeight,
                                 child: GestureDetector(
                                   // Vertical drags open the grid; the PageView keeps
-                                  // the horizontal ones for changing month.
+                                  // the horizontal ones for changing month. Opaque,
+                                  // so a drag that starts on the padding around a day
+                                  // cell is caught too rather than falling through.
+                                  behavior: HitTestBehavior.opaque,
                                   onVerticalDragUpdate: _onDrag,
                                   onVerticalDragEnd: _onDragEnd,
                                   child: PageView.builder(
@@ -312,12 +322,20 @@ class _CalendarScreenState extends State<CalendarScreen>
                               maxHeight: panelLayout,
                               child: Column(
                                 children: [
-                                  _DayBar(
-                                    date: _selected,
-                                    count: dayTasks
-                                        .where((t) => !t.done)
-                                        .length,
-                                    onAdd: () => _openEditor(),
+                                  // The bar takes drags too: from the week
+                                  // view the grid is a thin strip, and this
+                                  // is the obvious thing to pull on.
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onVerticalDragUpdate: _onDrag,
+                                    onVerticalDragEnd: _onDragEnd,
+                                    child: _DayBar(
+                                      date: _selected,
+                                      count: dayTasks
+                                          .where((t) => !t.done)
+                                          .length,
+                                      onAdd: () => _openEditor(),
+                                    ),
                                   ),
                                   Expanded(
                                     child:
