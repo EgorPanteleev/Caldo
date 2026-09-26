@@ -111,12 +111,14 @@ void main() {
       (tester) async {
     await pumpScreen(tester, const TasksScreen());
 
-    expect(find.text('OVERDUE'), findsOneWidget);
+    // The day headings are written as dates now, not shouted section labels.
+    expect(find.text('Overdue'), findsOneWidget);
     expect(find.text('Water'), findsOneWidget);
     expect(find.text('Ship'), findsOneWidget);
-    expect(find.text('1 left of 1 today'), findsOneWidget);
-    // Undated tasks come last, under their own heading.
-    expect(find.text('NO DATE'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
+    // Undated tasks come last, under their own heading — and each card says
+    // the same thing under its title, so there is more than one of it.
+    expect(find.text('No date'), findsWidgets);
     expect(find.text('Someday idea'), findsOneWidget);
   });
 
@@ -166,7 +168,7 @@ void main() {
     expect(find.text('Someday idea'), findsOneWidget);
 
     await pumpScreen(tester, const TasksScreen(), size: narrow, theme: light);
-    expect(find.text('OVERDUE'), findsOneWidget);
+    expect(find.text('Overdue'), findsOneWidget);
   });
 
   testWidgets('the settings screen renders every section', (tester) async {

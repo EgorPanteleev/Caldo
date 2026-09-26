@@ -141,10 +141,17 @@ Changing them back will be noticed.
   pick and sent the other pager off after it. The month header reads its page
   off the controller, so `_onMonthPageChanged` owes it a `setState` even when
   the change was driven rather than swiped.
-- **The Schedule screen's header is its name and nothing else** — deliberately
-  plain text, and with no buttons beside it since the tab bar went. A task is
-  added from the `+` on the section it belongs under, which files it on that
-  day rather than asking for the date twice.
+- **Schedule is a running order of days, not a list of tasks.** A day is a
+  plain date written out — not an uppercase section label with a count and an
+  add button beside it, which made a heading of something the eye should pass
+  straight over. Under it, anything **timed** is a line with the hour down the
+  left and a bar in its list's colour; anything **all-day** is the same filled
+  card the calendar puts under its grid. The difference between the two forms
+  is the point: one happens at a moment and the other does not. Holidays fall
+  in among them.
+- **Schedule's header carries Search and Today**, the same pair the calendar
+  has, and its quick-add field at the foot files on today. Today is a scroll
+  home here, since today is the top of the run.
 
 ## Tests
 
@@ -225,8 +232,6 @@ Two things that look like bugs and are not:
 ## Known gaps
 
 - In week view, swiping sideways still pages by **month**, not by week.
-- The Tasks screen still uses row-style items; only the calendar's day list
-  uses cards.
 - Holiday names are in each country's own language where it was natural
   (DE/FR/ES/IT/PL/NL/TR) and English elsewhere; nothing is localised otherwise.
 - Signing uses the debug keys (Flutter's default), so installs warn about an

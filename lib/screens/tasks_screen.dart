@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/holidays.dart';
 import '../models/task.dart';
+import '../models/task_list.dart';
+import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
-import '../widgets/task_row.dart';
+import '../widgets/task_card.dart';
+import 'search_screen.dart';
 import 'task_edit_screen.dart';
 
-/// The landing screen: every task, day by day — what is overdue, what is due
-/// today, what is coming up, and finally everything with no date on it.
+/// The landing screen: one run of days, each with what is on it. A day that
+/// carries a time is a line in the running order; anything all-day is a card,
+/// the same card the calendar puts under its grid.
 class TasksScreen extends StatefulWidget {
   /// Opens the shell's menu; null when the screen is shown on its own.
   final VoidCallback? onMenu;
@@ -22,12 +28,22 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
+  final _scroll = ScrollController();
+  final _quickAdd = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<TaskProvider>().loadTasks();
     });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _quickAdd.dispose();
+    super.dispose();
   }
 
   Future<void> _openEditor([Task? task, DateTime? date]) async {
@@ -38,240 +54,339 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  /// Files an all-day task on today straight from the field at the foot.
+  Future<void> _addQuickTask() async {
+    final title = _quickAdd.text.trim();
+    if (title.isEmpty) return;
+    final provider = context.read<TaskProvider>();
+    final lists = provider.lists;
+    _quickAdd.clear();
+    await provider.add(
+      Task(
+        listId: lists.isNotEmpty ? lists.first.id! : 1,
+        title: title,
+        dueAt: dayOf(DateTime.now()).millisecondsSinceEpoch,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+  }
+
+  /// Today is the top of the run, so this is a scroll home.
+  void _jumpToToday() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(
+      0,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final provider = context.watch<TaskProvider>();
+    final country = context.watch<SettingsProvider>().effectiveHolidayCountry;
     final today = dayOf(DateTime.now());
     final overdue = provider.overdue;
-    // The list a task belongs to is only worth naming when there is more than
-    // one to tell apart; with a single list every row repeated the same word.
-    final showList = provider.lists.length > 1;
     final byDay = provider.upcomingByDay;
     final days = byDay.keys.toList()..sort();
     final undated = provider.undated;
-
-    final todays = byDay[today] ?? const <Task>[];
-    final doneToday = todays.where((t) => t.done).length;
-    final openToday = todays.length - doneToday;
     final hasAnything =
         overdue.isNotEmpty || days.isNotEmpty || undated.isNotEmpty;
 
+    // Public holidays fall in among the days rather than in a list of their
+    // own, the same way they do under the calendar.
+    final holidays = Holidays.around(country, today);
+
+    Widget entry(Task task) => task.hasTime
+        ? _TimedRow(
+            task: task,
+            list: provider.listById(task.listId),
+            onTap: () => _openEditor(task),
+            onToggle: () => provider.toggleDone(task),
+          )
+        : TaskCard(
+            task: task,
+            list: provider.listById(task.listId),
+            onTap: () => _openEditor(task),
+            onLongPress: () => _openEditor(task),
+            onToggle: () => provider.toggleDone(task),
+          );
+
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: provider.loadTasks,
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 90),
-          children: [
-            // Nothing but the name: Lists moved into the menu when the tab
-            // bar went, and every section below already carries its own add
-            // button, which files the task on the day it sits under.
-            ScreenHeader(title: 'Schedule', onMenu: widget.onMenu),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 2, 20, 18),
-              child: _TodayCard(
-                date: today,
-                open: openToday,
-                done: doneToday,
-                overdue: overdue.length,
+      body: Column(
+        children: [
+          ScreenHeader(
+            title: 'Schedule',
+            onMenu: widget.onMenu,
+            actions: [
+              IconButton(
+                icon: Icon(Icons.search, color: p.muted),
+                tooltip: 'Search',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SearchScreen()),
+                ),
+              ),
+              _TodayButton(onTap: _jumpToToday),
+              const SizedBox(width: 6),
+            ],
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: provider.loadTasks,
+              child: ListView(
+                controller: _scroll,
+                padding: const EdgeInsets.only(top: 4, bottom: 16),
+                children: [
+                  if (!hasAnything)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 40),
+                      child: EmptyState(
+                        icon: Icons.beach_access_outlined,
+                        title: 'Nothing scheduled',
+                        message: 'Add something below. Anything with a date on '
+                            'it is listed here, day by day.',
+                      ),
+                    ),
+                  if (overdue.isNotEmpty) ...[
+                    const _DayHeader(
+                      label: 'Overdue',
+                      color: AppColors.overdue,
+                    ),
+                    for (final task in overdue) entry(task),
+                  ],
+                  for (final day in days) ...[
+                    _DayHeader(label: Dates.day(day)),
+                    for (final holiday in holidays[day] ?? const <Holiday>[])
+                      HolidayCard(holiday: holiday),
+                    for (final task in byDay[day]!) entry(task),
+                  ],
+                  if (undated.isNotEmpty) ...[
+                    const _DayHeader(label: 'No date'),
+                    for (final task in undated) entry(task),
+                  ],
+                  if (days.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                      child: Text(
+                        'Dated tasks are shown for the next '
+                        '${TaskProvider.agendaDays} days.',
+                        style: TextStyle(color: p.faint, fontSize: 12),
+                      ),
+                    ),
+                ],
               ),
             ),
-            if (!hasAnything)
-              Padding(
-                padding: const EdgeInsets.only(top: 40),
-                child: EmptyState(
-                  icon: Icons.beach_access_outlined,
-                  title: 'No tasks yet',
-                  message: 'Tap + to add one. Anything with a due date is '
-                      'listed here day by day.',
-                ),
-              ),
-            if (overdue.isNotEmpty) ...[
-              const _DayHeader(label: 'Overdue', color: AppColors.overdue),
-              for (final task in overdue)
-                TaskRow(
-                  task: task,
-                  list: provider.listById(task.listId),
-                  showList: showList,
-                  onTap: () => _openEditor(task),
-                  onLongPress: () => _openEditor(task),
-                  onToggle: () => provider.toggleDone(task),
-                ),
-            ],
-            for (final day in days) ...[
-              _DayHeader(
-                label: Dates.day(day),
-                color: day == today ? AppTheme.accentOf(context).color : null,
-                trailing: '${byDay[day]!.where((t) => !t.done).length} open',
-                onAdd: () => _openEditor(null, day),
-              ),
-              for (final task in byDay[day]!)
-                TaskRow(
-                  task: task,
-                  list: provider.listById(task.listId),
-                  showList: showList,
-                  hideDate: !task.hasTime,
-                  onTap: () => _openEditor(task),
-                  onLongPress: () => _openEditor(task),
-                  onToggle: () => provider.toggleDone(task),
-                ),
-            ],
-            if (undated.isNotEmpty) ...[
-              _DayHeader(
-                label: 'No date',
-                trailing: '${undated.where((t) => !t.done).length} open',
-                onAdd: () => _openEditor(),
-              ),
-              for (final task in undated)
-                TaskRow(
-                  task: task,
-                  list: provider.listById(task.listId),
-                  showList: showList,
-                  onTap: () => _openEditor(task),
-                  onLongPress: () => _openEditor(task),
-                  onToggle: () => provider.toggleDone(task),
-                ),
-            ],
-            if (days.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          ),
+          QuickAddBar(
+            date: today,
+            controller: _quickAdd,
+            onSubmit: _addQuickTask,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A task with a time on it: the hour down the left, a bar in the list's
+/// colour, then the title. An all-day task is a card instead — the difference
+/// is the point, since one of them happens at a moment and the other does not.
+class _TimedRow extends StatelessWidget {
+  final Task task;
+  final TaskList? list;
+  final VoidCallback onTap;
+  final VoidCallback onToggle;
+
+  const _TimedRow({
+    required this.task,
+    required this.list,
+    required this.onTap,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final color = colorOfTask(
+      task,
+      list,
+      fallback: AppTheme.accentOf(context).color,
+    );
+    final due = task.due;
+    final faded = task.done;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: p.border, width: 0.5)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 46,
                 child: Text(
-                  'Dated tasks are shown for the next '
-                  '${TaskProvider.agendaDays} days.',
-                  style: TextStyle(color: p.faint, fontSize: 12),
+                  due == null ? '' : Dates.time(due),
+                  style: TextStyle(
+                    color: task.isOverdue ? AppColors.overdue : p.muted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-          ],
+              const SizedBox(width: 6),
+              Container(
+                width: 3.5,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: faded ? 0.35 : 1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: faded ? p.faint : p.text,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w600,
+                        decoration: faded ? TextDecoration.lineThrough : null,
+                        decorationColor: p.faint,
+                      ),
+                    ),
+                    if (task.repeat != Repeat.none || task.notes.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          [
+                            if (task.repeat != Repeat.none) task.repeat.label,
+                            if (task.notes.isNotEmpty) task.notes,
+                          ].join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: p.muted, fontSize: 12.5),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // The tick sits at the end of the row rather than the start: the
+              // left of a timed line belongs to the time.
+              _Tick(done: task.done, color: color, onTap: onToggle),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// The hero card at the top of the Tasks screen: today's date and how it is
-/// going.
-class _TodayCard extends StatelessWidget {
-  final DateTime date;
-  final int open;
-  final int done;
-  final int overdue;
+/// The square tick box, matching the one on a card.
+class _Tick extends StatelessWidget {
+  final bool done;
+  final Color color;
+  final VoidCallback onTap;
 
-  const _TodayCard({
-    required this.date,
-    required this.open,
-    required this.done,
-    required this.overdue,
-  });
+  const _Tick({required this.done, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context);
-    final total = open + done;
-    final progress = total == 0 ? 0.0 : done / total;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          Dates.longDay(date),
-          style: TextStyle(
-            color: p.text,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
+    return InkResponse(
+      onTap: onTap,
+      radius: 22,
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: done ? color : Colors.transparent,
+          border: Border.all(color: done ? color : p.border, width: 1.6),
+          borderRadius: BorderRadius.circular(7),
         ),
-        const SizedBox(height: 5),
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                total == 0
-                    ? 'No tasks due today'
-                    : done == total
-                        ? 'All $total done — nice.'
-                        : '$open left of $total today',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: p.muted, fontSize: 13),
-              ),
-            ),
-            if (overdue > 0) ...[
-              Text(' · ', style: TextStyle(color: p.faint, fontSize: 13)),
-              Text(
-                '$overdue overdue',
-                style: const TextStyle(
-                  color: AppColors.overdue,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-        ),
-        if (total > 0) ...[
-          const SizedBox(height: 12),
-          // The only colour left up here: a hairline of progress.
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 3,
-              backgroundColor: p.panelHi,
-              valueColor: AlwaysStoppedAnimation<Color>(accent.color),
-            ),
-          ),
-        ],
-      ],
+        child: done
+            ? const Icon(Icons.check, size: 15, color: Colors.white)
+            : null,
+      ),
     );
   }
 }
 
-/// A day separator, optionally with a count and an add button.
-class _DayHeader extends StatelessWidget {
-  final String label;
-  final Color? color;
-  final String? trailing;
-  final VoidCallback? onAdd;
+/// Back to today, drawn as today's date on a page.
+class _TodayButton extends StatelessWidget {
+  final VoidCallback onTap;
 
-  const _DayHeader({
-    required this.label,
-    this.color,
-    this.trailing,
-    this.onAdd,
-  });
+  const _TodayButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    return Container(
-      color: p.sidebar,
-      padding: EdgeInsets.fromLTRB(20, 10, onAdd == null ? 20 : 8, 10),
-      child: Row(
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: color ?? p.muted,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
+    return Tooltip(
+      message: 'Today',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(9),
+          child: Padding(
+            padding: const EdgeInsets.all(7),
+            child: Container(
+              width: 27,
+              height: 27,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: p.muted, width: 1.6),
+              ),
+              child: Text(
+                '${DateTime.now().day}',
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 13,
+                  height: 1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
-          const Spacer(),
-          if (trailing != null)
-            Text(
-              trailing!,
-              style: TextStyle(color: p.faint, fontSize: 11.5),
-            ),
-          if (onAdd != null)
-            IconButton(
-              icon: Icon(Icons.add, size: 18, color: p.muted),
-              tooltip: 'Add on this day',
-              visualDensity: VisualDensity.compact,
-              onPressed: onAdd,
-            ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The date a run of entries belongs to. Written out plainly — it is a date,
+/// not a section, and the uppercase label with a count beside it made a
+/// heading out of something the eye should pass straight over.
+class _DayHeader extends StatelessWidget {
+  final String label;
+  final Color? color;
+
+  const _DayHeader({required this.label, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color ?? p.text,
+          fontSize: 14.5,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

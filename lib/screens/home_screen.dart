@@ -63,7 +63,9 @@ class _Menu extends StatelessWidget {
   const _Menu({required this.index, required this.onSelected});
 
   static const _items = [
-    _TabItem(Icons.check_circle_outline, Icons.check_circle, 'Schedule'),
+    // A list, not a tick: the screen is a running order of days, and a tick
+    // is what sits on each of the rows inside it.
+    _TabItem(Icons.list_alt_outlined, Icons.list_alt, 'Schedule'),
     _TabItem(Icons.calendar_month_outlined, Icons.calendar_month, 'Calendar'),
     _TabItem(Icons.settings_outlined, Icons.settings, 'Settings'),
   ];
