@@ -305,34 +305,36 @@ void main() {
     expect(find.text('18:00'), findsOneWidget);
   });
 
-  testWidgets('the wheel being turned goes over to the accent', (tester) async {
+  testWidgets('a wheel drops the accent while it turns and takes it back',
+      (tester) async {
     await pumpEditor(tester);
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
 
     final accent = AppAccent.presets.first.color;
-    // Only the numbers on the wheels — the sheet has nothing else tinted.
+    // The hour wheel alone: each wheel marks its own landed value, so turning
+    // one is not supposed to take the accent off the other two.
     bool tinted() => tester
         .widgetList<Text>(find.descendant(
-          of: find.byType(ListWheelScrollView),
+          of: find.byType(ListWheelScrollView).first,
           matching: find.byType(Text),
         ))
         .any((t) => t.style?.color == accent);
 
-    expect(tinted(), isFalse, reason: 'at rest the wheels are plain');
+    expect(tinted(), isTrue, reason: 'the value landed on wears the accent');
 
-    // Held, not flicked: the colour is meant to say which wheel the finger
-    // has hold of, so it has to be there while the finger still does.
+    // Held, not flicked: mid-turn nothing has been landed on, so there is
+    // nothing for the accent to be marking.
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('9').first),
     );
     await gesture.moveBy(const Offset(0, -30));
     await tester.pump();
-    expect(tinted(), isTrue, reason: 'the wheel under the finger is tinted');
+    expect(tinted(), isFalse, reason: 'nothing is chosen while it moves');
 
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(tinted(), isFalse, reason: 'and plain again once it settles');
+    expect(tinted(), isTrue, reason: 'and the stop reads as a choice');
   });
 
   testWidgets('the calendar opens up to spell out each day', (tester) async {

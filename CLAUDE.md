@@ -103,15 +103,15 @@ Changing them back will be noticed.
   `colorOfTask`.
 - **The date and time pickers are our own sheets** — a month grid and scroll
   wheels. Material's dialog and clock dial were rejected by name.
-- **The time wheels are a flat clock**: no band across the middle and no strip
-  behind the numbers. The row the wheels are parked on is the bright, large,
-  heavy one and the rest are small and dim, which is the only thing saying
-  which value is picked — and the drum is flat, since a curve pulls the numbers
-  away from the eye when nothing else is doing the work.
-- **The wheel being turned goes over to the accent**, all of it, and back to
-  plain when it settles. Three wheels sit side by side with nothing drawn
-  around any of them, so that colour is the only thing saying which one the
-  finger has hold of.
+- **The time wheels are a flat clock** — no drum curve, since a curve pulls
+  the numbers away from the eye. The row they are parked on is a lighter strip
+  with the picked value large and heavy on it, so a number crossing the strip's
+  edge sits half on the light and half off it, which is what shows a wheel
+  moving between two values.
+- **The value a wheel has landed on wears the accent**, and the accent goes
+  away while that wheel is being turned — nothing has been landed on yet — and
+  comes back when it stops, which is what makes the stop read as a choice.
+  Each wheel marks its own value, so turning one leaves the other two alone.
 - **The clock is 12-hour with its own AM/PM wheel**, and the shortcuts under it
   are written the same way (`Dates.clock`). Note that the rest of the app still
   shows times on a 24-hour clock (`Dates.time`); pick one if it starts to jar.
