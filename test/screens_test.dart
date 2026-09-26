@@ -305,7 +305,8 @@ void main() {
     expect(find.text('18:00'), findsOneWidget);
   });
 
-  testWidgets('the wheel being turned is the tinted one', (tester) async {
+  testWidgets('a wheel is tinted while it is touched, not while it spins',
+      (tester) async {
     await pumpEditor(tester);
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
@@ -322,18 +323,21 @@ void main() {
 
     expect(tinted(), isFalse, reason: 'at rest the numbers are plain');
 
-    // Held, not flicked: the tint says which wheel the finger has hold of, so
-    // it has to be there while the finger still is.
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('9').first),
     );
     await gesture.moveBy(const Offset(0, -30));
     await tester.pump();
-    expect(tinted(), isTrue, reason: 'the wheel being turned is tinted');
+    expect(tinted(), isTrue, reason: 'the wheel under the finger is tinted');
 
+    // The colour goes with the touch, not with the movement: one frame after
+    // letting go it is plain again, while the wheel is still coming to rest.
     await gesture.up();
+    await tester.pump();
+    expect(tinted(), isFalse, reason: 'plain the moment the finger lifts');
+
     await tester.pumpAndSettle();
-    expect(tinted(), isFalse, reason: 'and plain again once it stops');
+    expect(tinted(), isFalse, reason: 'and still plain once it settles');
   });
 
   testWidgets('the calendar opens up to spell out each day', (tester) async {

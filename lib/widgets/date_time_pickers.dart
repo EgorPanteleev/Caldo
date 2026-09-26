@@ -421,8 +421,10 @@ class _TimeSheetState extends State<_TimeSheet> {
 /// and colour — what marks the one the wheel is parked on is the mask over the
 /// lot of them, which is bright down the middle and dim outside it.
 ///
-/// The whole wheel goes over to the accent while it is being turned, and back
-/// to plain when it stops.
+/// The whole wheel goes over to the accent while a finger is on it, and back
+/// to plain the moment the finger lifts — not when the spinning stops. The
+/// colour is there to say what is being touched, so it leaves with the touch
+/// and lets a flung wheel come to rest in plain white.
 class _Wheel extends StatefulWidget {
   final FixedExtentScrollController controller;
   final int count;
@@ -447,19 +449,17 @@ class _Wheel extends StatefulWidget {
 }
 
 class _WheelState extends State<_Wheel> {
-  bool _turning = false;
+  bool _touched = false;
 
-  bool _onScroll(ScrollNotification notification) {
-    final turning = notification is! ScrollEndNotification;
-    if (turning != _turning) setState(() => _turning = turning);
-    return false;
+  void _setTouched(bool touched) {
+    if (touched != _touched) setState(() => _touched = touched);
   }
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final style = TextStyle(
-      color: _turning ? AppTheme.accentOf(context).color : p.text,
+      color: _touched ? AppTheme.accentOf(context).color : p.text,
       fontSize: 30,
       height: 1,
       fontWeight: FontWeight.w600,
@@ -471,8 +471,10 @@ class _WheelState extends State<_Wheel> {
         Center(child: Text(widget.label(i), style: style)),
     ];
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScroll,
+    return Listener(
+      onPointerDown: (_) => _setTouched(true),
+      onPointerUp: (_) => _setTouched(false),
+      onPointerCancel: (_) => _setTouched(false),
       child: SizedBox(
         width: widget.width,
         child: ListWheelScrollView.useDelegate(

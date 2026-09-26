@@ -111,9 +111,11 @@ Changing them back will be noticed.
   the whole point: a number halfway across the edge comes out bright above the
   line and dim below it, and that split is what shows a wheel standing between
   two values. Per-number colouring cannot produce it — that was tried twice.
-- **The wheel being turned goes over to the accent**, all of it, and back to
-  plain when it stops. Each wheel does this on its own, so turning the hour
-  leaves the minute and the meridiem alone.
+- **The wheel under a finger goes over to the accent**, all of it, and back to
+  white the moment the finger lifts — tracked on pointer down/up, not on the
+  scrolling, so a flung wheel coasts to rest in plain white. The colour is
+  there to say what is being touched, so it leaves with the touch. Each wheel
+  does this on its own, so turning the hour leaves the other two alone.
 - The drum is flat (`diameterRatio: 100`): a curve pulls the numbers away from
   the eye, and the band is already saying which of them is the one.
 - **The clock is 12-hour with its own AM/PM wheel**, and the shortcuts under it
