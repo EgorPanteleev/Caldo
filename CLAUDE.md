@@ -103,15 +103,19 @@ Changing them back will be noticed.
   `colorOfTask`.
 - **The date and time pickers are our own sheets** — a month grid and scroll
   wheels. Material's dialog and clock dial were rejected by name.
-- **The time wheels are a flat clock** — no drum curve, since a curve pulls
-  the numbers away from the eye. The row they are parked on is a lighter strip
-  with the picked value large and heavy on it, so a number crossing the strip's
-  edge sits half on the light and half off it, which is what shows a wheel
-  moving between two values.
-- **The value a wheel has landed on wears the accent**, and the accent goes
-  away while that wheel is being turned — nothing has been landed on yet — and
-  comes back when it stops, which is what makes the stop read as a choice.
-  Each wheel marks its own value, so turning one leaves the other two alone.
+- **The clock's middle band is a window in a mask, not a panel.** Nothing is
+  drawn behind the numbers — no fill, no outline, no band. Every number on a
+  wheel is the same size, weight and colour, and a `ShaderMask` down the drum
+  carries them at full strength inside one row's worth in the middle and at a
+  third of it outside. Doing that to the pixels rather than to each number is
+  the whole point: a number halfway across the edge comes out bright above the
+  line and dim below it, and that split is what shows a wheel standing between
+  two values. Per-number colouring cannot produce it — that was tried twice.
+- **The wheel being turned goes over to the accent**, all of it, and back to
+  plain when it stops. Each wheel does this on its own, so turning the hour
+  leaves the minute and the meridiem alone.
+- The drum is flat (`diameterRatio: 100`): a curve pulls the numbers away from
+  the eye, and the band is already saying which of them is the one.
 - **The clock is 12-hour with its own AM/PM wheel**, and the shortcuts under it
   are written the same way (`Dates.clock`). Note that the rest of the app still
   shows times on a 24-hour clock (`Dates.time`); pick one if it starts to jar.

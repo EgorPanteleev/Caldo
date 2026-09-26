@@ -200,8 +200,14 @@ class _DateSheetState extends State<_DateSheet> {
 
 // ---- Time -----------------------------------------------------------------
 
-/// The height of one row of a wheel.
+/// The height of one row of a wheel, and of the whole drum.
 const _itemExtent = 56.0;
+const _wheelHeight = 224.0;
+
+/// Where the window down the middle of the mask starts and stops: one row's
+/// worth, centred, so it lines up exactly with the value a wheel parks on.
+const _bandTop = (_wheelHeight - _itemExtent) / 2 / _wheelHeight;
+const _bandBottom = 1 - _bandTop;
 
 class _TimeSheet extends StatefulWidget {
   final TimeOfDay initial;
@@ -292,79 +298,79 @@ class _TimeSheetState extends State<_TimeSheet> {
           ),
         ),
         SizedBox(
-          height: 224,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // The row the wheels are parked on is a lighter strip. A number
-              // crossing its edge sits half on the light and half off it,
-              // which is what shows the wheel moving between two values.
-              Container(
-                height: _itemExtent,
-                margin: const EdgeInsets.symmetric(horizontal: 22),
-                decoration: BoxDecoration(
-                  color: p.panelHi,
-                  borderRadius: BorderRadius.circular(16),
+          height: _wheelHeight,
+          // The band down the middle is nothing but a window in the mask — no
+          // fill, no outline. Inside it the numbers are drawn at full strength
+          // and outside at a fraction of it, and because that is done to the
+          // pixels rather than to each number, one halfway across the edge
+          // comes out bright above the line and dim below it. That split is
+          // what shows a wheel standing between two values.
+          child: ShaderMask(
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0x00FFFFFF),
+                Color(0x52FFFFFF),
+                Color(0x52FFFFFF),
+                Color(0xFFFFFFFF),
+                Color(0xFFFFFFFF),
+                Color(0x52FFFFFF),
+                Color(0x52FFFFFF),
+                Color(0x00FFFFFF),
+              ],
+              stops: [
+                0.0,
+                0.14,
+                _bandTop,
+                _bandTop,
+                _bandBottom,
+                _bandBottom,
+                0.86,
+                1.0,
+              ],
+            ).createShader(rect),
+            blendMode: BlendMode.dstIn,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _Wheel(
+                  controller: _hours,
+                  count: 12,
+                  width: 62,
+                  label: (i) => '${i + 1}',
+                  onChanged: (i) => _set(hour12: i + 1),
                 ),
-              ),
-              ShaderMask(
-                shaderCallback: (rect) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black,
-                    Colors.black,
-                    Colors.transparent,
-                  ],
-                  stops: [0.0, 0.28, 0.72, 1.0],
-                ).createShader(rect),
-                blendMode: BlendMode.dstIn,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _Wheel(
-                      controller: _hours,
-                      count: 12,
-                      width: 62,
-                      selected: _hour12 - 1,
-                      label: (i) => '${i + 1}',
-                      onChanged: (i) => _set(hour12: i + 1),
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    ':',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: p.text,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w600,
                     ),
-                    SizedBox(
-                      width: 24,
-                      child: Text(
-                        ':',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: p.faint,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    _Wheel(
-                      controller: _minutes,
-                      count: 60,
-                      width: 62,
-                      selected: _minute,
-                      label: (i) => i.toString().padLeft(2, '0'),
-                      onChanged: (i) => _set(minute: i),
-                    ),
-                    const SizedBox(width: 10),
-                    _Wheel(
-                      controller: _meridiem,
-                      count: 2,
-                      width: 64,
-                      looping: false,
-                      selected: _isPm ? 1 : 0,
-                      label: (i) => i == 0 ? 'AM' : 'PM',
-                      onChanged: (i) => _set(pm: i == 1),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                _Wheel(
+                  controller: _minutes,
+                  count: 60,
+                  width: 62,
+                  label: (i) => i.toString().padLeft(2, '0'),
+                  onChanged: (i) => _set(minute: i),
+                ),
+                const SizedBox(width: 10),
+                _Wheel(
+                  controller: _meridiem,
+                  count: 2,
+                  width: 64,
+                  looping: false,
+                  label: (i) => i == 0 ? 'AM' : 'PM',
+                  onChanged: (i) => _set(pm: i == 1),
+                ),
+              ],
+            ),
           ),
         ),
         Padding(
@@ -411,14 +417,16 @@ class _TimeSheetState extends State<_TimeSheet> {
 /// the rest are small and dim — the only thing saying which value is picked,
 /// now that there is no band behind it.
 ///
-/// The value a wheel has landed on is the accent one. While the wheel is being
-/// turned nothing has been landed on yet, so the accent goes away and comes
-/// back when it stops — which is what makes the stop read as a choice.
+/// One wheel of the clock. Every number on it is drawn the same size, weight
+/// and colour — what marks the one the wheel is parked on is the mask over the
+/// lot of them, which is bright down the middle and dim outside it.
+///
+/// The whole wheel goes over to the accent while it is being turned, and back
+/// to plain when it stops.
 class _Wheel extends StatefulWidget {
   final FixedExtentScrollController controller;
   final int count;
   final double width;
-  final int selected;
   final String Function(int) label;
   final ValueChanged<int> onChanged;
 
@@ -429,7 +437,6 @@ class _Wheel extends StatefulWidget {
     required this.controller,
     required this.count,
     required this.width,
-    required this.selected,
     required this.label,
     required this.onChanged,
     this.looping = true,
@@ -451,27 +458,18 @@ class _WheelState extends State<_Wheel> {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context).color;
+    final style = TextStyle(
+      color: _turning ? AppTheme.accentOf(context).color : p.text,
+      fontSize: 30,
+      height: 1,
+      fontWeight: FontWeight.w600,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
 
-    Widget item(int i) {
-      final picked = i == widget.selected;
-      return Center(
-        child: Text(
-          widget.label(i),
-          style: TextStyle(
-            color: _turning
-                ? (picked ? p.text : p.faint)
-                : (picked ? accent : p.faint),
-            fontSize: picked ? 34 : 27,
-            height: 1,
-            fontWeight: picked ? FontWeight.w700 : FontWeight.w400,
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-      );
-    }
-
-    final children = [for (var i = 0; i < widget.count; i++) item(i)];
+    final children = [
+      for (var i = 0; i < widget.count; i++)
+        Center(child: Text(widget.label(i), style: style)),
+    ];
 
     return NotificationListener<ScrollNotification>(
       onNotification: _onScroll,
@@ -480,8 +478,8 @@ class _WheelState extends State<_Wheel> {
         child: ListWheelScrollView.useDelegate(
           controller: widget.controller,
           itemExtent: _itemExtent,
-          // Flat: a drum curls the numbers away from the eye, and the picked
-          // row is already doing the work of standing out.
+          // Flat: a drum curls the numbers away from the eye, and the band is
+          // already saying which of them is the one.
           diameterRatio: 100,
           perspective: 0.00001,
           physics: const FixedExtentScrollPhysics(),

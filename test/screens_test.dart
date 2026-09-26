@@ -305,8 +305,7 @@ void main() {
     expect(find.text('18:00'), findsOneWidget);
   });
 
-  testWidgets('a wheel drops the accent while it turns and takes it back',
-      (tester) async {
+  testWidgets('the wheel being turned is the tinted one', (tester) async {
     await pumpEditor(tester);
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
@@ -321,20 +320,20 @@ void main() {
         ))
         .any((t) => t.style?.color == accent);
 
-    expect(tinted(), isTrue, reason: 'the value landed on wears the accent');
+    expect(tinted(), isFalse, reason: 'at rest the numbers are plain');
 
-    // Held, not flicked: mid-turn nothing has been landed on, so there is
-    // nothing for the accent to be marking.
+    // Held, not flicked: the tint says which wheel the finger has hold of, so
+    // it has to be there while the finger still is.
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('9').first),
     );
     await gesture.moveBy(const Offset(0, -30));
     await tester.pump();
-    expect(tinted(), isFalse, reason: 'nothing is chosen while it moves');
+    expect(tinted(), isTrue, reason: 'the wheel being turned is tinted');
 
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(tinted(), isTrue, reason: 'and the stop reads as a choice');
+    expect(tinted(), isFalse, reason: 'and plain again once it stops');
   });
 
   testWidgets('the calendar opens up to spell out each day', (tester) async {
