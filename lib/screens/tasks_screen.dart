@@ -189,9 +189,10 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 }
 
-/// A task with a time on it: the hour down the left, a bar in the list's
-/// colour, then the title. An all-day task is a card instead — the difference
-/// is the point, since one of them happens at a moment and the other does not.
+/// A task with a time on it: the tick, a bar in the list's colour, the title,
+/// and the hour at the far end where a column of them can be read down. An
+/// all-day task is a card instead — the difference is the point, since one of
+/// them happens at a moment and the other does not.
 class _TimedRow extends StatelessWidget {
   final Task task;
   final TaskList? list;
@@ -225,21 +226,13 @@ class _TimedRow extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: p.border, width: 0.5)),
           ),
-          padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+          padding: const EdgeInsets.fromLTRB(16, 14, 20, 14),
           child: Row(
             children: [
-              SizedBox(
-                width: 46,
-                child: Text(
-                  due == null ? '' : Dates.time(due),
-                  style: TextStyle(
-                    color: task.isOverdue ? AppColors.overdue : p.muted,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
+              // The tick leads, the same as it does on a card; the hour goes
+              // to the far end, where the eye can run down a column of them.
+              _Tick(done: task.done, color: color, onTap: onToggle),
+              const SizedBox(width: 14),
               Container(
                 width: 3.5,
                 height: 34,
@@ -281,10 +274,16 @@ class _TimedRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              // The tick sits at the end of the row rather than the start: the
-              // left of a timed line belongs to the time.
-              _Tick(done: task.done, color: color, onTap: onToggle),
+              const SizedBox(width: 10),
+              Text(
+                due == null ? '' : Dates.time(due),
+                style: TextStyle(
+                  color: task.isOverdue ? AppColors.overdue : p.muted,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
             ],
           ),
         ),

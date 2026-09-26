@@ -200,9 +200,8 @@ class _DateSheetState extends State<_DateSheet> {
 
 // ---- Time -----------------------------------------------------------------
 
-/// The height of one row of a wheel, and so of the band marking the values
-/// the wheels are parked on.
-const _itemExtent = 54.0;
+/// The height of one row of a wheel.
+const _itemExtent = 56.0;
 
 class _TimeSheet extends StatefulWidget {
   final TimeOfDay initial;
@@ -216,10 +215,17 @@ class _TimeSheetState extends State<_TimeSheet> {
   late int _hour = widget.initial.hour;
   late int _minute = widget.initial.minute;
 
-  late final FixedExtentScrollController _hours =
-      FixedExtentScrollController(initialItem: _hour);
+  /// The hour as the wheel shows it: 1 to 12, with midnight and noon as 12.
+  int get _hour12 => _hour % 12 == 0 ? 12 : _hour % 12;
+  bool get _isPm => _hour >= 12;
+
+  late final FixedExtentScrollController _hours = FixedExtentScrollController(
+    initialItem: _hour12 - 1,
+  );
   late final FixedExtentScrollController _minutes =
       FixedExtentScrollController(initialItem: _minute);
+  late final FixedExtentScrollController _meridiem =
+      FixedExtentScrollController(initialItem: _isPm ? 1 : 0);
 
   /// Four points through the day, one tap away and a single row wide.
   static const _presets = [
@@ -233,7 +239,18 @@ class _TimeSheetState extends State<_TimeSheet> {
   void dispose() {
     _hours.dispose();
     _minutes.dispose();
+    _meridiem.dispose();
     super.dispose();
+  }
+
+  /// Puts the three wheels back together into a 24-hour clock.
+  void _set({int? hour12, int? minute, bool? pm}) {
+    final h = hour12 ?? _hour12;
+    final afternoon = pm ?? _isPm;
+    setState(() {
+      _hour = (h % 12) + (afternoon ? 12 : 0);
+      if (minute != null) _minute = minute;
+    });
   }
 
   void _apply(TimeOfDay time) {
@@ -241,10 +258,11 @@ class _TimeSheetState extends State<_TimeSheet> {
       _hour = time.hour;
       _minute = time.minute;
     });
-    _hours.animateToItem(time.hour,
-        duration: const Duration(milliseconds: 240), curve: Curves.easeOut);
-    _minutes.animateToItem(time.minute,
-        duration: const Duration(milliseconds: 240), curve: Curves.easeOut);
+    const duration = Duration(milliseconds: 240);
+    _hours.animateToItem(_hour12 - 1, duration: duration, curve: Curves.easeOut);
+    _minutes.animateToItem(_minute, duration: duration, curve: Curves.easeOut);
+    _meridiem.animateToItem(_isPm ? 1 : 0,
+        duration: duration, curve: Curves.easeOut);
   }
 
   @override
@@ -260,71 +278,73 @@ class _TimeSheetState extends State<_TimeSheet> {
           child: Text(
             'Select time',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.1,
-                ),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+            ),
           ),
         ),
         SizedBox(
-          height: 216,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // The band marking the values the wheels are parked on: a plain
-              // raised strip, not a tinted one. The accent on it fought with
-              // the numbers sitting inside it.
-              Container(
-                height: _itemExtent,
-                margin: const EdgeInsets.symmetric(horizontal: 28),
-                decoration: BoxDecoration(
-                  color: p.panelHi,
-                  borderRadius: BorderRadius.circular(16),
+          height: 224,
+          // No band across the middle and no strip behind the numbers. The row
+          // the wheels are parked on is told apart by being the bright, large,
+          // heavy one — which is all it needs, and leaves the sheet as plain as
+          // the clock it is standing in for.
+          child: ShaderMask(
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.black,
+                Colors.black,
+                Colors.transparent,
+              ],
+              stops: [0.0, 0.28, 0.72, 1.0],
+            ).createShader(rect),
+            blendMode: BlendMode.dstIn,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _Wheel(
+                  controller: _hours,
+                  count: 12,
+                  width: 62,
+                  selected: _hour12 - 1,
+                  label: (i) => '${i + 1}',
+                  onChanged: (i) => _set(hour12: i + 1),
                 ),
-              ),
-              // Numbers dissolve towards the edges instead of being cut off.
-              ShaderMask(
-                shaderCallback: (rect) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black,
-                    Colors.black,
-                    Colors.transparent,
-                  ],
-                  stops: [0.0, 0.3, 0.7, 1.0],
-                ).createShader(rect),
-                blendMode: BlendMode.dstIn,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _Wheel(
-                      controller: _hours,
-                      count: 24,
-                      selected: _hour,
-                      onChanged: (v) => setState(() => _hour = v),
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    ':',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: p.faint,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w500,
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: Text(
-                        ':',
-                        style: TextStyle(
-                          color: p.muted,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    _Wheel(
-                      controller: _minutes,
-                      count: 60,
-                      selected: _minute,
-                      onChanged: (v) => setState(() => _minute = v),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                _Wheel(
+                  controller: _minutes,
+                  count: 60,
+                  width: 62,
+                  selected: _minute,
+                  label: (i) => i.toString().padLeft(2, '0'),
+                  onChanged: (i) => _set(minute: i),
+                ),
+                const SizedBox(width: 10),
+                _Wheel(
+                  controller: _meridiem,
+                  count: 2,
+                  width: 64,
+                  looping: false,
+                  selected: _isPm ? 1 : 0,
+                  label: (i) => i == 0 ? 'AM' : 'PM',
+                  onChanged: (i) => _set(pm: i == 1),
+                ),
+              ],
+            ),
           ),
         ),
         Padding(
@@ -336,29 +356,28 @@ class _TimeSheetState extends State<_TimeSheet> {
             children: [
               for (final preset in _presets)
                 _QuickChip(
-                  label: Dates.formatTimeOfDay(preset),
+                  label: Dates.clock(preset),
                   selected: preset.hour == _hour && preset.minute == _minute,
                   onTap: () => _apply(preset),
                 ),
             ],
           ),
         ),
+        // Two words, no boxes. A filled button and an outlined one either side
+        // of a sheet this plain were the only heavy things in it, and they
+        // were arguing over which of the two was the one to press.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          padding: const EdgeInsets.fromLTRB(40, 16, 40, 18),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
+              _SheetAction(
+                label: 'Cancel',
+                onTap: () => Navigator.of(context).pop(),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () => Navigator.of(context).pop(current),
-                  child: const Text('Set time'),
-                ),
+              _SheetAction(
+                label: 'Save',
+                onTap: () => Navigator.of(context).pop(current),
               ),
             ],
           ),
@@ -368,68 +387,110 @@ class _TimeSheetState extends State<_TimeSheet> {
   }
 }
 
-/// One looping number wheel (hours or minutes), styled after One UI's: every
-/// number the same size on a plain strip, the one in the band picked out by
-/// weight and colour rather than by the accent.
+/// One number wheel. The row in the middle is the bright, large, heavy one and
+/// the rest are small and dim — the only thing saying which value is picked,
+/// now that there is no band behind it.
 class _Wheel extends StatelessWidget {
   final FixedExtentScrollController controller;
   final int count;
+  final double width;
   final int selected;
+  final String Function(int) label;
   final ValueChanged<int> onChanged;
+
+  /// Hours and minutes run round; AM/PM has two values and an end to it.
+  final bool looping;
 
   const _Wheel({
     required this.controller,
     required this.count,
+    required this.width,
     required this.selected,
+    required this.label,
     required this.onChanged,
+    this.looping = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    Widget item(int i) {
+      final picked = i == selected;
+      return Center(
+        child: Text(
+          label(i),
+          style: TextStyle(
+            color: picked ? p.text : p.faint,
+            fontSize: picked ? 34 : 27,
+            height: 1,
+            fontWeight: picked ? FontWeight.w700 : FontWeight.w400,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
-      width: 78,
+      width: width,
       child: ListWheelScrollView.useDelegate(
         controller: controller,
         itemExtent: _itemExtent,
-        // A shallow drum: a strong curve throws the numbers off the sides of
-        // the band they are supposed to be sitting in.
-        diameterRatio: 2.4,
-        perspective: 0.002,
+        // Flat: a drum curls the numbers away from the eye, and the picked row
+        // is already doing the work of standing out.
+        diameterRatio: 100,
+        perspective: 0.00001,
         physics: const FixedExtentScrollPhysics(),
         onSelectedItemChanged: (i) {
           HapticFeedback.selectionClick();
           onChanged(i % count);
         },
-        overAndUnderCenterOpacity: 0.5,
-        childDelegate: ListWheelChildLoopingListDelegate(
-          children: [
-            for (var i = 0; i < count; i++)
-              Center(
-                child: Text(
-                  i.toString().padLeft(2, '0'),
-                  style: TextStyle(
-                    color: p.text,
-                    // One size throughout: growing the centre number made it
-                    // jump as each one passed through the band.
-                    fontSize: 25,
-                    height: 1,
-                    fontWeight: i == selected
-                        ? FontWeight.w700
-                        : FontWeight.w400,
-                    letterSpacing: 0.5,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
+        childDelegate: looping
+            ? ListWheelChildLoopingListDelegate(
+                children: [for (var i = 0; i < count; i++) item(i)],
+              )
+            : ListWheelChildListDelegate(
+                children: [for (var i = 0; i < count; i++) item(i)],
               ),
-          ],
-        ),
       ),
     );
   }
 }
 
 // ---- Shared pieces --------------------------------------------------------
+
+/// A word at the foot of a sheet that does something: no fill, no outline, and
+/// the same weight as its opposite number, since neither is more the answer
+/// than the other until the user has decided.
+class _SheetAction extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _SheetAction({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: p.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 /// A sheet header with the title between two step arrows.
 class _SheetHeader extends StatelessWidget {

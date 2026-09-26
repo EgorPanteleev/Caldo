@@ -103,9 +103,17 @@ Changing them back will be noticed.
   `colorOfTask`.
 - **The date and time pickers are our own sheets** — a month grid and scroll
   wheels. Material's dialog and clock dial were rejected by name.
-- **The time wheels follow One UI**: one plain raised strip marking where they
-  are parked, numbers all one size picked out by weight alone, a shallow drum,
-  and no accent anywhere in the sheet.
+- **The time wheels are a flat clock**: no band across the middle and no strip
+  behind the numbers. The row the wheels are parked on is the bright, large,
+  heavy one and the rest are small and dim, which is the only thing saying
+  which value is picked — and the drum is flat, since a curve pulls the numbers
+  away from the eye when nothing else is doing the work.
+- **The clock is 12-hour with its own AM/PM wheel**, and the shortcuts under it
+  are written the same way (`Dates.clock`). Note that the rest of the app still
+  shows times on a 24-hour clock (`Dates.time`); pick one if it starts to jar.
+- **A sheet's actions are two plain words**, Cancel at one end and Save at the
+  other. A filled button beside an outlined one were the only heavy things in a
+  sheet this plain, and they argued over which was the one to press.
 - **The quick-add button is a plus until the field is opened, then a tick**,
   and it is plain rather than the accent gradient the headers wear — it sits
   beside the field the eye is already on. The focused field's outline is
@@ -145,8 +153,9 @@ Changing them back will be noticed.
   plain date written out — not an uppercase section label with a count and an
   add button beside it, which made a heading of something the eye should pass
   straight over. Under it, anything **timed** is a line with the hour down the
-  left and a bar in its list's colour; anything **all-day** is the same filled
-  card the calendar puts under its grid. The difference between the two forms
+  left and a bar in its list's colour — the tick leading and the hour at the far
+  end, where a column of them reads down the page; anything **all-day** is the
+  same filled card the calendar puts under its grid. The difference between the two forms
   is the point: one happens at a moment and the other does not. Holidays fall
   in among them.
 - **Schedule's header carries Search and Today**, the same pair the calendar

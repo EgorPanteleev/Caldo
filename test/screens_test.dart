@@ -291,11 +291,14 @@ void main() {
 
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
-    expect(find.text('Set time'), findsOneWidget);
+    // Two plain words at the foot, and an AM/PM wheel beside the numbers.
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('PM'), findsWidgets);
 
-    await tester.tap(find.text('18:00').last);
+    await tester.tap(find.text('6:00 PM').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Set time'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     expect(find.text('All day'), findsNothing);

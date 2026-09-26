@@ -68,6 +68,14 @@ class Dates {
   static String weekdayShort(DateTime date) =>
       DateFormat('EEE').format(date).toUpperCase();
 
+  /// "9:00 AM" — how the time picker's own wheels read, so the shortcuts
+  /// beneath them are written the same way.
+  static String clock(TimeOfDay time) {
+    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute ${time.hour >= 12 ? 'PM' : 'AM'}';
+  }
+
   /// The same 24-hour clock as [time], for a time with no date attached.
   static String formatTimeOfDay(TimeOfDay time) =>
       '${time.hour.toString().padLeft(2, '0')}:'
