@@ -305,6 +305,36 @@ void main() {
     expect(find.text('18:00'), findsOneWidget);
   });
 
+  testWidgets('the wheel being turned goes over to the accent', (tester) async {
+    await pumpEditor(tester);
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+
+    final accent = AppAccent.presets.first.color;
+    // Only the numbers on the wheels — the sheet has nothing else tinted.
+    bool tinted() => tester
+        .widgetList<Text>(find.descendant(
+          of: find.byType(ListWheelScrollView),
+          matching: find.byType(Text),
+        ))
+        .any((t) => t.style?.color == accent);
+
+    expect(tinted(), isFalse, reason: 'at rest the wheels are plain');
+
+    // Held, not flicked: the colour is meant to say which wheel the finger
+    // has hold of, so it has to be there while the finger still does.
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('9').first),
+    );
+    await gesture.moveBy(const Offset(0, -30));
+    await tester.pump();
+    expect(tinted(), isTrue, reason: 'the wheel under the finger is tinted');
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tinted(), isFalse, reason: 'and plain again once it settles');
+  });
+
   testWidgets('the calendar opens up to spell out each day', (tester) async {
     await pumpScreen(tester, const CalendarScreen());
 

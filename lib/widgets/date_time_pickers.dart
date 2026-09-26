@@ -390,7 +390,11 @@ class _TimeSheetState extends State<_TimeSheet> {
 /// One number wheel. The row in the middle is the bright, large, heavy one and
 /// the rest are small and dim — the only thing saying which value is picked,
 /// now that there is no band behind it.
-class _Wheel extends StatelessWidget {
+///
+/// While a wheel is being turned it goes over to the accent, all of it. With
+/// three of them side by side and nothing drawn around any of them, that is
+/// what says which one the finger has hold of.
+class _Wheel extends StatefulWidget {
   final FixedExtentScrollController controller;
   final int count;
   final double width;
@@ -412,15 +416,32 @@ class _Wheel extends StatelessWidget {
   });
 
   @override
+  State<_Wheel> createState() => _WheelState();
+}
+
+class _WheelState extends State<_Wheel> {
+  bool _turning = false;
+
+  bool _onScroll(ScrollNotification notification) {
+    final turning = notification is! ScrollEndNotification;
+    if (turning != _turning) setState(() => _turning = turning);
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final accent = AppTheme.accentOf(context).color;
+
     Widget item(int i) {
-      final picked = i == selected;
+      final picked = i == widget.selected;
       return Center(
         child: Text(
-          label(i),
+          widget.label(i),
           style: TextStyle(
-            color: picked ? p.text : p.faint,
+            color: _turning
+                ? (picked ? accent : accent.withValues(alpha: 0.5))
+                : (picked ? p.text : p.faint),
             fontSize: picked ? 34 : 27,
             height: 1,
             fontWeight: picked ? FontWeight.w700 : FontWeight.w400,
@@ -430,27 +451,28 @@ class _Wheel extends StatelessWidget {
       );
     }
 
-    return SizedBox(
-      width: width,
-      child: ListWheelScrollView.useDelegate(
-        controller: controller,
-        itemExtent: _itemExtent,
-        // Flat: a drum curls the numbers away from the eye, and the picked row
-        // is already doing the work of standing out.
-        diameterRatio: 100,
-        perspective: 0.00001,
-        physics: const FixedExtentScrollPhysics(),
-        onSelectedItemChanged: (i) {
-          HapticFeedback.selectionClick();
-          onChanged(i % count);
-        },
-        childDelegate: looping
-            ? ListWheelChildLoopingListDelegate(
-                children: [for (var i = 0; i < count; i++) item(i)],
-              )
-            : ListWheelChildListDelegate(
-                children: [for (var i = 0; i < count; i++) item(i)],
-              ),
+    final children = [for (var i = 0; i < widget.count; i++) item(i)];
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: SizedBox(
+        width: widget.width,
+        child: ListWheelScrollView.useDelegate(
+          controller: widget.controller,
+          itemExtent: _itemExtent,
+          // Flat: a drum curls the numbers away from the eye, and the picked
+          // row is already doing the work of standing out.
+          diameterRatio: 100,
+          perspective: 0.00001,
+          physics: const FixedExtentScrollPhysics(),
+          onSelectedItemChanged: (i) {
+            HapticFeedback.selectionClick();
+            widget.onChanged(i % widget.count);
+          },
+          childDelegate: widget.looping
+              ? ListWheelChildLoopingListDelegate(children: children)
+              : ListWheelChildListDelegate(children: children),
+        ),
       ),
     );
   }

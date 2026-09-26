@@ -108,6 +108,10 @@ Changing them back will be noticed.
   heavy one and the rest are small and dim, which is the only thing saying
   which value is picked — and the drum is flat, since a curve pulls the numbers
   away from the eye when nothing else is doing the work.
+- **The wheel being turned goes over to the accent**, all of it, and back to
+  plain when it settles. Three wheels sit side by side with nothing drawn
+  around any of them, so that colour is the only thing saying which one the
+  finger has hold of.
 - **The clock is 12-hour with its own AM/PM wheel**, and the shortcuts under it
   are written the same way (`Dates.clock`). Note that the rest of the app still
   shows times on a 24-hour clock (`Dates.time`); pick one if it starts to jar.
@@ -164,7 +168,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 71 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 72 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
