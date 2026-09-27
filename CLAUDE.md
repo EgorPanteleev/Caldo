@@ -180,12 +180,14 @@ Changing them back will be noticed.
 - **Schedule is a running order of days, not a list of tasks.** A day is a
   plain date written out — not an uppercase section label with a count and an
   add button beside it, which made a heading of something the eye should pass
-  straight over. Under it, anything **timed** is a line with the hour down the
-  left and a bar in its list's colour — the tick leading and the hour at the far
-  end, where a column of them reads down the page; anything **all-day** is the
-  same filled card the calendar puts under its grid. The difference between the two forms
-  is the point: one happens at a moment and the other does not. Holidays fall
-  in among them.
+  straight over. Under it, everything is the same filled card the calendar puts
+  under its grid, and holidays fall in among them.
+- **Timed tasks are not a separate form.** There was one: a bare row with the
+  hour at the far end and a bar in the list's colour. Beside the filled cards
+  it sat between, the lone bar read as a stray mark and the title and hour were
+  stranded at opposite ends of a void. The card already writes the hour where
+  an all-day task's says "All day", so the row was drawing a distinction that
+  was already being made — quietly, and better.
 - **Pulling the day panel past either end drives the grid.** The panel is most
   of the screen; a swipe on it that had nowhere else to go used to do nothing.
   A short day's list cannot scroll at all, so every drag on it arrives as

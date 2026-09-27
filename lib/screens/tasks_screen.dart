@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../data/holidays.dart';
 import '../models/task.dart';
-import '../models/task_list.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
@@ -88,20 +87,18 @@ class _TasksScreenState extends State<TasksScreen> {
     // own, the same way they do under the calendar.
     final holidays = Holidays.around(country, today);
 
-    Widget entry(Task task) => task.hasTime
-        ? _TimedRow(
-            task: task,
-            list: provider.listById(task.listId),
-            onTap: () => _openEditor(task),
-            onToggle: () => provider.toggleDone(task),
-          )
-        : TaskCard(
-            task: task,
-            list: provider.listById(task.listId),
-            onTap: () => _openEditor(task),
-            onLongPress: () => _openEditor(task),
-            onToggle: () => provider.toggleDone(task),
-          );
+    // One card for everything on a day. A timed task was a bare row with a
+    // lone colour bar on it and its hour stranded at the far edge, which read
+    // as unfinished beside the filled cards it sat between — and the card
+    // already writes the hour where an all-day one writes "All day", so the
+    // row was drawing a distinction the card had covered.
+    Widget entry(Task task) => TaskCard(
+      task: task,
+      list: provider.listById(task.listId),
+      onTap: () => _openEditor(task),
+      onLongPress: () => _openEditor(task),
+      onToggle: () => provider.toggleDone(task),
+    );
 
     return Scaffold(
       body: Column(
@@ -174,139 +171,6 @@ class _TasksScreenState extends State<TasksScreen> {
             onFullForm: () => _openEditor(null, today),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// A task with a time on it: the tick, a bar in the list's colour, the title,
-/// and the hour at the far end where a column of them can be read down. An
-/// all-day task is a card instead — the difference is the point, since one of
-/// them happens at a moment and the other does not.
-class _TimedRow extends StatelessWidget {
-  final Task task;
-  final TaskList? list;
-  final VoidCallback onTap;
-  final VoidCallback onToggle;
-
-  const _TimedRow({
-    required this.task,
-    required this.list,
-    required this.onTap,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    final color = colorOfTask(
-      task,
-      list,
-      fallback: AppTheme.accentOf(context).color,
-    );
-    final due = task.due;
-    final faded = task.done;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: p.border, width: 0.5)),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 14, 20, 14),
-          child: Row(
-            children: [
-              // The tick leads, the same as it does on a card; the hour goes
-              // to the far end, where the eye can run down a column of them.
-              _Tick(done: task.done, color: color, onTap: onToggle),
-              const SizedBox(width: 14),
-              Container(
-                width: 3.5,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: faded ? 0.35 : 1),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: faded ? p.faint : p.text,
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w600,
-                        decoration: faded ? TextDecoration.lineThrough : null,
-                        decorationColor: p.faint,
-                      ),
-                    ),
-                    if (task.repeat != Repeat.none || task.notes.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          [
-                            if (task.repeat != Repeat.none) task.repeat.label,
-                            if (task.notes.isNotEmpty) task.notes,
-                          ].join(' · '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: p.muted, fontSize: 12.5),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                due == null ? '' : Dates.time(due),
-                style: TextStyle(
-                  color: task.isOverdue ? AppColors.overdue : p.muted,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The square tick box, matching the one on a card.
-class _Tick extends StatelessWidget {
-  final bool done;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _Tick({required this.done, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return InkResponse(
-      onTap: onTap,
-      radius: 22,
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: done ? color : Colors.transparent,
-          border: Border.all(color: done ? color : p.border, width: 1.6),
-          borderRadius: BorderRadius.circular(7),
-        ),
-        child: done
-            ? const Icon(Icons.check, size: 15, color: Colors.white)
-            : null,
       ),
     );
   }
