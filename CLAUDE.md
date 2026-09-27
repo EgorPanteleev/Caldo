@@ -122,6 +122,11 @@ Changing them back will be noticed.
 - **The clock is 12-hour with its own AM/PM wheel**, and the shortcuts under it
   are written the same way (`Dates.clock`). Note that the rest of the app still
   shows times on a 24-hour clock (`Dates.time`); pick one if it starts to jar.
+- **The task form hides its way back once anything is changed**, and puts
+  Cancel and Save at the foot instead. An arrow beside unsaved edits is an
+  invitation to lose them. Untouched, the arrow is there and there is nothing
+  to save. Every field marks the form as touched, including the clears and the
+  two text controllers.
 - **A sheet's actions are two plain words**, Cancel at one end and Save at the
   other. A filled button beside an outlined one were the only heavy things in a
   sheet this plain, and they argued over which was the one to press.

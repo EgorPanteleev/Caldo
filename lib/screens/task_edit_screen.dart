@@ -47,12 +47,24 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   /// Null means the task keeps its list's colour.
   String? _styleId;
 
+  /// Whether anything has been touched since the form opened. Until it has,
+  /// the back arrow is the only way out and there is nothing to save; once it
+  /// has, the arrow goes and the two words at the foot take over — leaving by
+  /// accident with edits on the screen is the thing being prevented.
+  bool _dirty = false;
+
+  void _touched() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
+
   @override
   void initState() {
     super.initState();
     final task = widget.task;
-    _title = TextEditingController(text: task?.title ?? '');
-    _notes = TextEditingController(text: task?.notes ?? '');
+    _title = TextEditingController(text: task?.title ?? '')
+      ..addListener(_touched);
+    _notes = TextEditingController(text: task?.notes ?? '')
+      ..addListener(_touched);
     _priority = task?.priority ?? Priority.none;
     _repeat = task?.repeat ?? Repeat.none;
     // A new task starts in the colour Settings says new tasks start in; an
@@ -97,7 +109,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       context: context,
       initial: _date ?? dayOf(DateTime.now()),
     );
-    if (picked != null) setState(() => _date = dayOf(picked));
+    if (picked != null) {
+      _touched();
+      setState(() => _date = dayOf(picked));
+    }
   }
 
   Future<void> _pickTime() async {
@@ -106,6 +121,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       initial: _time,
     );
     if (picked != null) {
+      _touched();
       setState(() {
         _time = picked;
         _date ??= dayOf(DateTime.now());
@@ -188,6 +204,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // Once something has been changed there is no way out but the two
+        // words at the foot: an arrow beside unsaved edits is an invitation
+        // to lose them.
+        automaticallyImplyLeading: !_dirty,
         title: Text(isEdit ? 'Edit task' : 'New task'),
         actions: [
           if (isEdit)
@@ -229,11 +249,14 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               onTap: _pickDate,
               onClear: _date == null
                   ? null
-                  : () => setState(() {
+                  : () {
+                      _touched();
+                      setState(() {
                         _date = null;
                         _time = null;
                         _repeat = Repeat.none;
-                      }),
+                      });
+                    },
             ),
             const SizedBox(height: 12),
             _FieldTile(
@@ -243,13 +266,21 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                   ? 'All day'
                   : Dates.formatTimeOfDay(_time!),
               onTap: _pickTime,
-              onClear: _time == null ? null : () => setState(() => _time = null),
+              onClear: _time == null
+                  ? null
+                  : () {
+                      _touched();
+                      setState(() => _time = null);
+                    },
             ),
             const SizedBox(height: 12),
             _RepeatField(
               value: _repeat,
               enabled: _date != null,
-              onChanged: (v) => setState(() => _repeat = v),
+              onChanged: (v) {
+                _touched();
+                setState(() => _repeat = v);
+              },
             ),
             const SizedBox(height: 22),
             Text('PRIORITY',
@@ -262,7 +293,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             const SizedBox(height: 10),
             _PrioritySelector(
               value: _priority,
-              onChanged: (v) => setState(() => _priority = v),
+              onChanged: (v) {
+                _touched();
+                setState(() => _priority = v);
+              },
             ),
             const SizedBox(height: 22),
             Text('COLOUR',
@@ -280,7 +314,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                       .map((l) => l.style.color)
                       .firstOrNull ??
                   AppTheme.accentOf(context).color,
-              onChanged: (v) => setState(() => _styleId = v),
+              onChanged: (v) {
+                _touched();
+                setState(() => _styleId = v);
+              },
             ),
             if (lists.length > 1) ...[
               const SizedBox(height: 22),
@@ -301,18 +338,27 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                           ),
                         ))
                     .toList(),
-                onChanged: (v) => setState(() => _selectedListId = v),
+                onChanged: (v) {
+                  _touched();
+                  setState(() => _selectedListId = v);
+                },
               ),
             ],
             const SizedBox(height: 26),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.check, size: 20),
-                label: Text(isEdit ? 'Save changes' : 'Add task'),
+            if (_dirty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _FootAction(
+                      label: 'Cancel',
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                    _FootAction(label: 'Save', onTap: _save),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -533,3 +579,35 @@ class _PriorityChip extends StatelessWidget {
 
 /// Picks the colour a task is drawn in: its list's by default, or any of the
 /// same swatches a list can wear.
+
+/// A word at the foot of the form. The same two plain words the picker sheets
+/// end with, for the same reason: neither is more the answer than the other.
+class _FootAction extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _FootAction({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: p.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

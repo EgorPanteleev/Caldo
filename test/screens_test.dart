@@ -188,10 +188,25 @@ void main() {
     expect(find.text('Ship'), findsOneWidget);
     expect(find.text('tag it first'), findsOneWidget);
     expect(find.text('High'), findsOneWidget);
-    // The save button sits below the fold on a small phone.
-    await tester.drag(find.byType(ListView), const Offset(0, -500));
-    await tester.pump();
-    expect(find.text('Save changes'), findsOneWidget);
+
+    // Untouched, the form leaves the way back in place and has nothing to
+    // save. (The arrow itself only appears when there is a route under this
+    // one, which the test harness does not give it — so the flag is what is
+    // checked.)
+    bool leadingAllowed() =>
+        tester.widget<AppBar>(find.byType(AppBar)).automaticallyImplyLeading;
+    expect(leadingAllowed(), isTrue);
+    expect(find.text('Save'), findsNothing);
+
+    // Changing anything takes the way back away and puts two words at the
+    // foot instead, so there is no exit that quietly drops the edit.
+    await tester.enterText(find.byType(TextFormField).first, 'Shipped');
+    await tester.pumpAndSettle();
+    expect(leadingAllowed(), isFalse);
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
   });
 
   /// Asserts a header title is either drawn in full or given every pixel the
