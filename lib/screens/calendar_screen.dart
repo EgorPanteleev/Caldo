@@ -408,7 +408,34 @@ class _CalendarScreenState extends State<CalendarScreen>
 
                     return AnimatedBuilder(
                       animation: _expansion,
-                      builder: (context, _) {
+                      // Hoisted out of the rebuild: nothing inside the day
+                      // pager depends on how far the month is open, only the
+                      // box it is given. Left in the builder, every card of
+                      // every day was being rebuilt on every frame of the drag.
+                      child: PageView.builder(
+                        controller: _dayController,
+                        onPageChanged: _onDayPageChanged,
+                        itemBuilder: (context, i) {
+                          final day = _dayOfPage(i);
+                          return _DayPanel(
+                            date: day,
+                            tasks: provider.tasksForDay(day),
+                            holidays:
+                                Holidays.around(country, day)[day] ??
+                                const <Holiday>[],
+                            lists: provider.lists,
+                            onDragStart: _onDragStart,
+                            onDrag: _onDrag,
+                            onDragEnd: _onDragEnd,
+                            onPull: _onPull,
+                            onPullStart: _onPullStart,
+                            onPullEnd: _onPullEnd,
+                            onOpen: _openEditor,
+                            onToggle: provider.toggleDone,
+                          );
+                        },
+                      ),
+                      builder: (context, pager) {
                         final t = _expansion.value;
                         final gridHeight = t >= 0
                             ? month + _rangeUp * t
@@ -482,32 +509,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   alignment: Alignment.topCenter,
                                   minHeight: panelLayout,
                                   maxHeight: panelLayout,
-                                  child: PageView.builder(
-                                    controller: _dayController,
-                                    onPageChanged: _onDayPageChanged,
-                                    itemBuilder: (context, i) {
-                                      final day = _dayOfPage(i);
-                                      return _DayPanel(
-                                        date: day,
-                                        tasks: provider.tasksForDay(day),
-                                        holidays:
-                                            Holidays.around(
-                                              country,
-                                              day,
-                                            )[day] ??
-                                            const <Holiday>[],
-                                        lists: provider.lists,
-                                        onDragStart: _onDragStart,
-                                        onDrag: _onDrag,
-                                        onDragEnd: _onDragEnd,
-                                        onPull: _onPull,
-                                        onPullStart: _onPullStart,
-                                        onPullEnd: _onPullEnd,
-                                        onOpen: _openEditor,
-                                        onToggle: provider.toggleDone,
-                                      );
-                                    },
-                                  ),
+                                  child: pager,
                                 ),
                               ),
                             ),

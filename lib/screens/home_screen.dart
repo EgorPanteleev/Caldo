@@ -82,12 +82,6 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor: p.sidebar,
         body: Stack(
           children: [
-            SafeArea(
-              child: SizedBox(
-                width: _menuWidth,
-                child: _Menu(index: _index, onSelected: _select),
-              ),
-            ),
             AnimatedBuilder(
               animation: _slide,
               builder: (context, child) => Transform.translate(
@@ -102,6 +96,21 @@ class _HomeScreenState extends State<HomeScreen>
                 child: SafeArea(
                   child: IndexedStack(index: _index, children: _pages),
                 ),
+              ),
+            ),
+            // On top of the screen and sliding in from off the left edge, so
+            // it reads as a panel lifted above the window rather than
+            // something uncovered behind it. The screen moves out of its way
+            // by exactly its width, so nothing is hidden underneath.
+            AnimatedBuilder(
+              animation: _slide,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(-_menuWidth * (1 - _slide.value), 0),
+                child: child,
+              ),
+              child: SizedBox(
+                width: _menuWidth,
+                child: _Menu(index: _index, onSelected: _select),
               ),
             ),
           ],
@@ -135,16 +144,9 @@ class _Screen extends StatelessWidget {
         return DecoratedBox(
           decoration: BoxDecoration(
             color: p.bg,
+            // Corners only. The menu on top of it is the thing casting a
+            // shadow now, and two of them argued about which was in front.
             borderRadius: BorderRadius.circular(22 * t),
-            boxShadow: t == 0
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.5 * t),
-                      blurRadius: 24 * t,
-                      offset: Offset(-6 * t, 0),
-                    ),
-                  ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(22 * t),
@@ -195,7 +197,13 @@ class _Menu extends StatelessWidget {
 
     return Material(
       color: p.sidebar,
-      child: SizedBox(
+      // Rounded off down its leading edge and shadowed, so it sits above the
+      // window rather than flush against it.
+      borderRadius: const BorderRadius.horizontal(right: Radius.circular(24)),
+      elevation: 16,
+      shadowColor: Colors.black.withValues(alpha: 0.6),
+      clipBehavior: Clip.antiAlias,
+      child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

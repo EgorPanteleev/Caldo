@@ -70,18 +70,27 @@ class Holidays {
     return map;
   }
 
+  /// Three years' worth of rules, run and kept. Nothing here depends on
+  /// anything but the country and the year, and [around] is called from inside
+  /// the calendar's build — which runs on every frame the month is being
+  /// dragged open, so working them out afresh each time was three full years
+  /// of rules per frame per page on screen.
+  static final _cache = <String, Map<DateTime, List<Holiday>>>{};
+
   /// The holidays of [month] together with its neighbours, so the days of
   /// adjacent months shown in a grid are marked too.
   static Map<DateTime, List<Holiday>> around(String? country, DateTime month) {
-    final map = <DateTime, List<Holiday>>{};
-    for (final m in [
-      DateTime(month.year, month.month - 1),
-      DateTime(month.year, month.month),
-      DateTime(month.year, month.month + 1),
-    ]) {
-      map.addAll(forMonth(country, m.year, m.month));
-    }
-    return map;
+    return _cache.putIfAbsent('$country|${month.year}-${month.month}', () {
+      final map = <DateTime, List<Holiday>>{};
+      for (final m in [
+        DateTime(month.year, month.month - 1),
+        DateTime(month.year, month.month),
+        DateTime(month.year, month.month + 1),
+      ]) {
+        map.addAll(forMonth(country, m.year, m.month));
+      }
+      return map;
+    });
   }
 
   // ---- Rule helpers -------------------------------------------------------

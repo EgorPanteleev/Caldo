@@ -90,9 +90,12 @@ Changing them back will be noticed.
   something is overdue — the one thing worth pulling the user back to a screen
   they are not on.
 - **The menu moves the screen aside; it does not cover it.** Opening slides the
-  whole screen `_menuWidth` to the right, rounding and shadowing its left edge
-  as it goes, so what is on it stays legible instead of being hidden under a
-  panel. This is not a Material `Drawer` — the menu is always in the tree,
+  whole screen `_menuWidth` to the right and the menu in from off the left
+  edge, so what is on the screen stays legible instead of being hidden under a
+  panel. The menu is drawn **over** the screen, rounded down its leading edge
+  and shadowed, so it reads as a panel above the window rather than something
+  uncovered behind it — and the screen has moved by exactly its width, so
+  nothing ends up underneath. This is not a Material `Drawer` — the menu is always in the tree,
   behind the screen, which is why a test cannot tell open from closed by
   looking for its text and reads the screen's offset instead. Back closes it
   (`PopScope`), as does a tap or a leftward swipe on the screen.
@@ -199,6 +202,19 @@ Changing them back will be noticed.
 - **Schedule's header carries Search and Today**, the same pair the calendar
   has, and its quick-add field at the foot files on today. Today is a scroll
   home here, since today is the top of the run.
+
+- **The calendar's drag is kept cheap rather than kept short.** It rebuilds on
+  every frame, so anything expensive in that subtree shows up as judder:
+  `Holidays.around` was running three full years of rules per frame per page
+  and is cached; every task chip was being measured with a `TextPainter` per
+  frame and those heights are cached; and the day pager is hoisted into
+  `AnimatedBuilder`'s `child`, since nothing in it depends on how far the month
+  is open. Look there first if it ever feels rough again.
+- **The window asks Android for the fastest display mode** (`MainActivity`).
+  Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
+  The ask is for the fastest mode at the resolution already in use — the
+  supported-mode list mixes resolutions, and the fastest of all of them can
+  drop the screen to a coarser one.
 
 ## Tests
 

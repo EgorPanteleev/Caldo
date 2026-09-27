@@ -487,6 +487,13 @@ class _DayTitles extends StatelessWidget {
   /// from the font size. A box computed to the pixel is a box the text can
   /// overflow by a fraction of one, and an overflowing [TextOverflow.fade]
   /// fades away the bottom half of every letter.
+  ///
+  /// Kept once measured. A day cell is rebuilt on every frame the month is
+  /// being dragged open, and laying out a painter per title per cell per frame
+  /// was the most expensive thing happening during that drag. None of the
+  /// inputs change while it runs, so the answer cannot either.
+  static final _heights = <String, double>{};
+
   static double _heightOf(
     String label,
     double width,
@@ -495,15 +502,19 @@ class _DayTitles extends StatelessWidget {
     TextDirection direction,
   ) {
     if (width <= 0) return _lineHeight + _inset * 2;
-    final painter = TextPainter(
-      text: TextSpan(text: label, style: style),
-      textDirection: direction,
-      textScaler: scaler,
-      maxLines: _maxLines,
-    )..layout(maxWidth: width);
-    final height = painter.height;
-    painter.dispose();
-    return height.ceilToDouble() + _inset * 2;
+    final key = '$label|$width|${style.fontSize}|${style.fontFamily}'
+        '|${scaler.scale(10)}|${direction.index}';
+    return _heights.putIfAbsent(key, () {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: direction,
+        textScaler: scaler,
+        maxLines: _maxLines,
+      )..layout(maxWidth: width);
+      final height = painter.height;
+      painter.dispose();
+      return height.ceilToDouble() + _inset * 2;
+    });
   }
 
   /// One line's worth, for the "+N" that stands for what did not fit.
