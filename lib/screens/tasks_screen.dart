@@ -13,9 +13,8 @@ import '../widgets/task_card.dart';
 import 'search_screen.dart';
 import 'task_edit_screen.dart';
 
-/// The landing screen: one run of days, each with what is on it. A day that
-/// carries a time is a line in the running order; anything all-day is a card,
-/// the same card the calendar puts under its grid.
+/// The landing screen: one run of days, each with what is on it — written out
+/// as the same cards the calendar puts under its grid.
 class TasksScreen extends StatefulWidget {
   /// Opens the shell's menu; null when the screen is shown on its own.
   final VoidCallback? onMenu;
