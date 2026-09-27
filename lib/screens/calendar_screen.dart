@@ -144,6 +144,21 @@ class _CalendarScreenState extends State<CalendarScreen>
     _dragFrom = _expansion.value.roundToDouble();
   }
 
+  /// The day panel pulling past one of its ends, in pixels. Positive means
+  /// the finger is going down, which is the direction that opens the month —
+  /// the same sign the grid's own drag uses.
+  void _onPull(double delta) {
+    final value = _expansion.value;
+    final range = value > 0 || (value == 0 && delta > 0)
+        ? _rangeUp
+        : _rangeDown;
+    _expansion.value += delta / range;
+  }
+
+  void _onPullStart() => _dragFrom = _expansion.value.roundToDouble();
+
+  void _onPullEnd() => _onDragEnd(DragEndDetails());
+
   void _onDrag(DragUpdateDetails details) {
     // Pulling down opens the month out, pushing up squeezes it to a week;
     // the two directions cover different distances. Exactly at the compact
@@ -485,6 +500,9 @@ class _CalendarScreenState extends State<CalendarScreen>
                                         onDragStart: _onDragStart,
                                         onDrag: _onDrag,
                                         onDragEnd: _onDragEnd,
+                                        onPull: _onPull,
+                                        onPullStart: _onPullStart,
+                                        onPullEnd: _onPullEnd,
                                         onOpen: _openEditor,
                                         onToggle: provider.toggleDone,
                                       );
@@ -710,6 +728,13 @@ class _DayPanel extends StatelessWidget {
   final ValueChanged<DragStartDetails> onDragStart;
   final ValueChanged<DragUpdateDetails> onDrag;
   final ValueChanged<DragEndDetails> onDragEnd;
+
+  /// Pulling the day's list past either of its ends drives the grid. The
+  /// panel is most of the screen, and a swipe on it that had nowhere else to
+  /// go should open or close the month rather than do nothing at all.
+  final void Function(double delta) onPull;
+  final VoidCallback onPullStart;
+  final VoidCallback onPullEnd;
   final ValueChanged<Task> onOpen;
   final ValueChanged<Task> onToggle;
 
@@ -721,6 +746,9 @@ class _DayPanel extends StatelessWidget {
     required this.onDragStart,
     required this.onDrag,
     required this.onDragEnd,
+    required this.onPull,
+    required this.onPullStart,
+    required this.onPullEnd,
     required this.onOpen,
     required this.onToggle,
   });
@@ -747,27 +775,41 @@ class _DayPanel extends StatelessWidget {
           child: _DayBar(date: date),
         ),
         Expanded(
-          child: tasks.isEmpty && holidays.isEmpty
-              ? const EmptyState(
-                  icon: Icons.event_available_outlined,
-                  title: 'Nothing on this day',
-                  message: 'Add one in the field below.',
-                )
-              : ListView(
-                  padding: const EdgeInsets.only(top: 4, bottom: 8),
-                  children: [
-                    for (final holiday in holidays)
-                      HolidayCard(holiday: holiday),
-                    for (final task in tasks)
-                      TaskCard(
-                        task: task,
-                        list: _listOf(task),
-                        onTap: () => onOpen(task),
-                        onLongPress: () => onOpen(task),
-                        onToggle: () => onToggle(task),
-                      ),
-                  ],
-                ),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification is ScrollStartNotification) onPullStart();
+              if (notification is ScrollEndNotification) onPullEnd();
+              // A short day's list cannot scroll at all, so every drag on it
+              // arrives here as overscroll; a long one only once it has run
+              // out of list to give.
+              if (notification is OverscrollNotification &&
+                  notification.dragDetails != null) {
+                onPull(-notification.overscroll);
+              }
+              return false;
+            },
+            child: tasks.isEmpty && holidays.isEmpty
+                ? const EmptyState(
+                    icon: Icons.event_available_outlined,
+                    title: 'Nothing on this day',
+                    message: 'Add one in the field below.',
+                  )
+                : ListView(
+                    padding: const EdgeInsets.only(top: 4, bottom: 8),
+                    children: [
+                      for (final holiday in holidays)
+                        HolidayCard(holiday: holiday),
+                      for (final task in tasks)
+                        TaskCard(
+                          task: task,
+                          list: _listOf(task),
+                          onTap: () => onOpen(task),
+                          onLongPress: () => onOpen(task),
+                          onToggle: () => onToggle(task),
+                        ),
+                    ],
+                  ),
+          ),
         ),
       ],
     );

@@ -180,6 +180,14 @@ Changing them back will be noticed.
   same filled card the calendar puts under its grid. The difference between the two forms
   is the point: one happens at a moment and the other does not. Holidays fall
   in among them.
+- **Pulling the day panel past either end drives the grid.** The panel is most
+  of the screen; a swipe on it that had nowhere else to go used to do nothing.
+  A short day's list cannot scroll at all, so every drag on it arrives as
+  overscroll; a long one arrives only once it has run out of list.
+- **Schedule's list is built lazily** (`_LazyList`, rows handed over as
+  builders). `ListView(children: [...])` constructs every row on every build,
+  and the screen rebuilds on each frame of the keyboard sliding in — so opening
+  the keyboard rebuilt the whole agenda sixty times a second and juddered.
 - **Schedule's header carries Search and Today**, the same pair the calendar
   has, and its quick-add field at the foot files on today. Today is a scroll
   home here, since today is the top of the run.

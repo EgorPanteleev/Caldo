@@ -124,12 +124,11 @@ class _TasksScreenState extends State<TasksScreen> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: provider.loadTasks,
-              child: ListView(
+              child: _LazyList(
                 controller: _scroll,
-                padding: const EdgeInsets.only(top: 4, bottom: 16),
                 children: [
                   if (!hasAnything)
-                    const Padding(
+                    () => const Padding(
                       padding: EdgeInsets.only(top: 40),
                       child: EmptyState(
                         icon: Icons.beach_access_outlined,
@@ -139,24 +138,24 @@ class _TasksScreenState extends State<TasksScreen> {
                       ),
                     ),
                   if (overdue.isNotEmpty) ...[
-                    const _DayHeader(
+                    () => const _DayHeader(
                       label: 'Overdue',
                       color: AppColors.overdue,
                     ),
-                    for (final task in overdue) entry(task),
+                    for (final task in overdue) () => entry(task),
                   ],
                   for (final day in days) ...[
-                    _DayHeader(label: Dates.day(day)),
+                    () => _DayHeader(label: Dates.day(day)),
                     for (final holiday in holidays[day] ?? const <Holiday>[])
-                      HolidayCard(holiday: holiday),
-                    for (final task in byDay[day]!) entry(task),
+                      () => HolidayCard(holiday: holiday),
+                    for (final task in byDay[day]!) () => entry(task),
                   ],
                   if (undated.isNotEmpty) ...[
-                    const _DayHeader(label: 'No date'),
-                    for (final task in undated) entry(task),
+                    () => const _DayHeader(label: 'No date'),
+                    for (final task in undated) () => entry(task),
                   ],
                   if (days.isNotEmpty)
-                    Padding(
+                    () => Padding(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                       child: Text(
                         'Dated tasks are shown for the next '
@@ -378,6 +377,30 @@ class _DayHeader extends StatelessWidget {
           fontWeight: FontWeight.w700,
         ),
       ),
+    );
+  }
+}
+
+/// A list whose rows are only built when they come into view.
+///
+/// `ListView(children: [...])` constructs every row on every build, and the
+/// screen rebuilds on each frame of the keyboard sliding in — so opening the
+/// keyboard rebuilt the whole agenda sixty times a second and juddered. The
+/// rows are handed over as builders instead, which costs one closure each and
+/// nothing at all for the ones off screen.
+class _LazyList extends StatelessWidget {
+  final ScrollController controller;
+  final List<Widget Function()> children;
+
+  const _LazyList({required this.controller, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      controller: controller,
+      padding: const EdgeInsets.only(top: 4, bottom: 16),
+      itemCount: children.length,
+      itemBuilder: (context, i) => children[i](),
     );
   }
 }
