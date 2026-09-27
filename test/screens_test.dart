@@ -643,29 +643,32 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('the shell keeps its three screens behind the menu button',
+  testWidgets('the menu moves the screen aside rather than covering it',
       (tester) async {
     await pumpScreen(tester, const HomeScreen());
 
-    // Nothing but the screen itself until the menu is opened — there is no
-    // bar along the bottom naming the other two.
+    // How far over the screen sits, read off something that belongs to it.
+    double screenLeft() => tester.getTopLeft(find.byKey(menuButtonKey)).dx;
+
     expect(find.text('Schedule'), findsWidgets);
-    expect(find.text('Calendar'), findsNothing);
-    expect(find.text('Settings'), findsNothing);
+    expect(screenLeft(), lessThan(40), reason: 'closed, it fills the width');
 
     await tester.tap(find.byKey(menuButtonKey));
     await tester.pumpAndSettle();
 
+    // The menu is always in the tree — it is behind the screen rather than
+    // laid over it — so what says it is open is where the screen has got to.
+    expect(screenLeft(), greaterThan(200), reason: 'open, it has moved over');
     expect(find.text('Calendar'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
     // The menu is the three destinations and nothing else.
     expect(find.text('Lists'), findsNothing);
 
-    // Picking one closes the menu and swaps the screen under it.
+    // Picking one closes the menu and swaps the screen that comes back.
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
     expect(find.byKey(monthTitleKey), findsOneWidget);
-    expect(find.text('Settings'), findsNothing);
+    expect(screenLeft(), lessThan(40), reason: 'and it is back in place');
     await drainDatabase(tester);
   });
 

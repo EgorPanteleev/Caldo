@@ -88,9 +88,14 @@ Changing them back will be noticed.
 - **The three screens live behind a menu button, not a bottom bar.** The
   hamburger sits at the top left of each of them and carries a dot when
   something is overdue — the one thing worth pulling the user back to a screen
-  they are not on. The drawer opens on the button alone
-  (`drawerEnableOpenDragGesture: false`): the calendar and its day list both
-  page sideways, and an edge-drag would take those swipes off them.
+  they are not on.
+- **The menu moves the screen aside; it does not cover it.** Opening slides the
+  whole screen `_menuWidth` to the right, rounding and shadowing its left edge
+  as it goes, so what is on it stays legible instead of being hidden under a
+  panel. This is not a Material `Drawer` — the menu is always in the tree,
+  behind the screen, which is why a test cannot tell open from closed by
+  looking for its text and reads the screen's offset instead. Back closes it
+  (`PopScope`), as does a tap or a leftward swipe on the screen.
 - **Today is a plain light badge; the selected day is a thin neutral outline.**
   Accent on either was "too much". The accent survives on the add buttons, the
   TODAY label and the menu's current entry.

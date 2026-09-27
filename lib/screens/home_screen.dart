@@ -9,8 +9,15 @@ import 'calendar_screen.dart';
 import 'settings_screen.dart';
 import 'tasks_screen.dart';
 
-/// Top-level shell. The three destinations live in a drawer behind the menu
-/// button at the top left of each of them, not in a bar along the bottom.
+/// Width the menu takes, and so how far the screen slides over to show it.
+const _menuWidth = 244.0;
+
+/// Top-level shell. The three destinations live in a menu at the top left of
+/// each of them, not in a bar along the bottom.
+///
+/// Opening it slides the whole screen to the right rather than laying a panel
+/// over it: the screen is not covered up, it has moved aside, and what is on
+/// it stays legible while the menu is open.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -18,8 +25,20 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final _shell = GlobalKey<ScaffoldState>();
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _menu = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    reverseDuration: const Duration(milliseconds: 220),
+  );
+
+  late final Animation<double> _slide = CurvedAnimation(
+    parent: _menu,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+
   int _index = 0;
 
   late final List<Widget> _pages = [
@@ -28,12 +47,21 @@ class _HomeScreenState extends State<HomeScreen> {
     SettingsScreen(onMenu: _openMenu),
   ];
 
-  void _openMenu() => _shell.currentState?.openDrawer();
+  bool get _isOpen => _menu.value > 0.5;
+
+  @override
+  void dispose() {
+    _menu.dispose();
+    super.dispose();
+  }
+
+  void _openMenu() => _menu.forward();
+  void _closeMenu() => _menu.reverse();
 
   /// Switch screens, refreshing the dated views so they stay correct across a
   /// midnight rollover or edits made from another one.
   void _select(int i) {
-    Navigator.of(context).pop();
+    _closeMenu();
     if (i == _index) return;
     setState(() => _index = i);
     final provider = context.read<TaskProvider>();
@@ -43,13 +71,102 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _shell,
-      drawer: _Menu(index: _index, onSelected: _select),
-      // Opened by the button alone. The calendar and its day list both page
-      // sideways, and an edge-drag would take those swipes off them.
-      drawerEnableOpenDragGesture: false,
-      body: SafeArea(child: IndexedStack(index: _index, children: _pages)),
+    final p = AppTheme.of(context);
+    return PopScope(
+      // While the menu is open, back closes it rather than leaving the app.
+      canPop: !_isOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _closeMenu();
+      },
+      child: Scaffold(
+        backgroundColor: p.sidebar,
+        body: Stack(
+          children: [
+            SafeArea(
+              child: SizedBox(
+                width: _menuWidth,
+                child: _Menu(index: _index, onSelected: _select),
+              ),
+            ),
+            AnimatedBuilder(
+              animation: _slide,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(_menuWidth * _slide.value, 0),
+                child: child,
+              ),
+              child: _Screen(
+                // The screen keeps every pixel it had; it has only moved, so
+                // nothing on it reflows as the menu opens.
+                onTapWhileOpen: _closeMenu,
+                isOpen: _menu,
+                child: SafeArea(
+                  child: IndexedStack(index: _index, children: _pages),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The screen as it sits over the menu: rounded off down its left edge once it
+/// has moved, with a shadow to lift it, and swallowing taps while the menu is
+/// open so the first tap back on it is a close rather than a stray press.
+class _Screen extends StatelessWidget {
+  final Animation<double> isOpen;
+  final VoidCallback onTapWhileOpen;
+  final Widget child;
+
+  const _Screen({
+    required this.isOpen,
+    required this.onTapWhileOpen,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return AnimatedBuilder(
+      animation: isOpen,
+      builder: (context, inner) {
+        final t = isOpen.value;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: p.bg,
+            borderRadius: BorderRadius.circular(22 * t),
+            boxShadow: t == 0
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5 * t),
+                      blurRadius: 24 * t,
+                      offset: Offset(-6 * t, 0),
+                    ),
+                  ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22 * t),
+            child: Stack(
+              children: [
+                inner!,
+                if (t > 0)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onTapWhileOpen,
+                      onHorizontalDragEnd: (d) {
+                        if ((d.primaryVelocity ?? 0) < 0) onTapWhileOpen();
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+      child: child,
     );
   }
 }
@@ -76,13 +193,9 @@ class _Menu extends StatelessWidget {
     final accent = AppTheme.accentOf(context);
     final overdue = context.watch<TaskProvider>().overdue.length;
 
-    return Drawer(
-      backgroundColor: p.sidebar,
-      width: 264,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
-      ),
-      child: SafeArea(
+    return Material(
+      color: p.sidebar,
+      child: SizedBox(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
