@@ -14,6 +14,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kShowCompleted = 'show_completed';
   static const _kHolidayCountry = 'holiday_country';
   static const _kShowHolidays = 'show_holidays';
+  static const _kDefaultStyle = 'default_task_style';
 
   /// The app defaults to dark mode.
   ThemeMode _themeMode = ThemeMode.dark;
@@ -33,12 +34,16 @@ class SettingsProvider extends ChangeNotifier {
   /// The country whose holidays are shown, or null to follow the device.
   String? _holidayCountry;
 
+  /// The colour a new task starts with, or null to take its list's.
+  String? _defaultTaskStyleId;
+
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
   bool get weekStartsMonday => _weekStartsMonday;
   bool get showCompleted => _showCompleted;
   bool get showHolidays => _showHolidays;
   String? get holidayCountry => _holidayCountry;
+  String? get defaultTaskStyleId => _defaultTaskStyleId;
 
   /// The country the calendar actually marks holidays for: the chosen one,
   /// the device's when none is chosen, and none at all when they are off.
@@ -53,6 +58,7 @@ class SettingsProvider extends ChangeNotifier {
     _showCompleted = prefs.getBool(_kShowCompleted) ?? _showCompleted;
     _showHolidays = prefs.getBool(_kShowHolidays) ?? _showHolidays;
     _holidayCountry = prefs.getString(_kHolidayCountry);
+    _defaultTaskStyleId = prefs.getString(_kDefaultStyle);
     notifyListeners();
   }
 
@@ -63,9 +69,13 @@ class SettingsProvider extends ChangeNotifier {
     bool? showCompleted,
     bool? showHolidays,
     String? holidayCountry,
+    String? defaultTaskStyleId,
 
     /// Go back to following the device's country.
     bool clearHolidayCountry = false,
+
+    /// Go back to new tasks taking their list's colour.
+    bool clearDefaultTaskStyle = false,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (themeMode != null) {
@@ -94,6 +104,13 @@ class SettingsProvider extends ChangeNotifier {
     } else if (holidayCountry != null) {
       _holidayCountry = holidayCountry;
       await prefs.setString(_kHolidayCountry, holidayCountry);
+    }
+    if (clearDefaultTaskStyle) {
+      _defaultTaskStyleId = null;
+      await prefs.remove(_kDefaultStyle);
+    } else if (defaultTaskStyleId != null) {
+      _defaultTaskStyleId = defaultTaskStyleId;
+      await prefs.setString(_kDefaultStyle, defaultTaskStyleId);
     }
     notifyListeners();
   }

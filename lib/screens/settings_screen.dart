@@ -5,6 +5,7 @@ import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/colour_selector.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/theme_switcher.dart';
 
@@ -120,6 +121,31 @@ class SettingsScreen extends StatelessWidget {
                 ],
                 const SizedBox(height: 28),
                 const SectionLabel('TASKS'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'Colour new tasks start in',
+                    style: TextStyle(color: p.muted, fontSize: 14),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: ColourSelector(
+                    value: settings.defaultTaskStyleId,
+                    // The link swatch means "whatever list it goes into", so
+                    // it shows the colour of the list a new task lands in.
+                    listColor: context
+                            .watch<TaskProvider>()
+                            .lists
+                            .map((l) => l.style.color)
+                            .firstOrNull ??
+                        AppTheme.accentOf(context).color,
+                    onChanged: (v) => context.read<SettingsProvider>().update(
+                      defaultTaskStyleId: v,
+                      clearDefaultTaskStyle: v == null,
+                    ),
+                  ),
+                ),
                 _SwitchTile(
                   icon: Icons.visibility_outlined,
                   title: 'Show completed tasks',

@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/task.dart';
+import '../providers/settings_provider.dart';
+import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+
+/// Identifies the button beside the quick-add field.
+const quickAddButtonKey = Key('quick-add-button');
 
 /// The field under a day's tasks: type a title, confirm, and it lands on the
 /// day in view without opening the full form. Used by the calendar and by the
@@ -10,6 +17,11 @@ class QuickAddBar extends StatefulWidget {
   final DateTime date;
   final TextEditingController controller;
   final VoidCallback onSubmit;
+
+  /// Opens the full form. The button is a plus until the field is opened, and
+  /// a plus has to lead somewhere — pressing it on an empty field used to do
+  /// nothing at all.
+  final VoidCallback onFullForm;
 
   /// Room around the row; the day card sets its own, tighter than the
   /// calendar's.
@@ -20,6 +32,7 @@ class QuickAddBar extends StatefulWidget {
     required this.date,
     required this.controller,
     required this.onSubmit,
+    required this.onFullForm,
     this.padding = const EdgeInsets.fromLTRB(16, 6, 16, 10),
   });
 
@@ -46,6 +59,9 @@ class _QuickAddBarState extends State<QuickAddBar> {
     widget.onSubmit();
     _focus.unfocus();
   }
+
+  /// A plus opens the form; a tick files what has been typed.
+  void _press() => _focus.hasFocus ? _submit() : widget.onFullForm();
 
   @override
   Widget build(BuildContext context) {
@@ -92,8 +108,10 @@ class _QuickAddBarState extends State<QuickAddBar> {
           ),
           const SizedBox(width: 10),
           _ConfirmButton(
+            key: quickAddButtonKey,
             icon: writing ? Icons.check_rounded : Icons.add,
-            onTap: _submit,
+            tooltip: writing ? 'Add task' : 'New task',
+            onTap: _press,
           ),
         ],
       ),
@@ -106,15 +124,21 @@ class _QuickAddBarState extends State<QuickAddBar> {
 /// and a bright disc there pulled attention off what was being typed.
 class _ConfirmButton extends StatelessWidget {
   final IconData icon;
+  final String tooltip;
   final VoidCallback onTap;
 
-  const _ConfirmButton({required this.icon, required this.onTap});
+  const _ConfirmButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Tooltip(
-      message: 'Add task',
+      message: tooltip,
       child: Material(
         color: p.panelHi,
         shape: CircleBorder(side: BorderSide(color: p.border)),
@@ -131,4 +155,27 @@ class _ConfirmButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Files an all-day task on [day] from a one-line title, in the colour new
+/// tasks are set to start in.
+Future<void> quickAddTask(
+  BuildContext context, {
+  required DateTime day,
+  required String title,
+}) async {
+  final trimmed = title.trim();
+  if (trimmed.isEmpty) return;
+  final provider = context.read<TaskProvider>();
+  final styleId = context.read<SettingsProvider>().defaultTaskStyleId;
+  final lists = provider.lists;
+  await provider.add(
+    Task(
+      listId: lists.isNotEmpty ? lists.first.id! : 1,
+      title: trimmed,
+      dueAt: dayOf(day).millisecondsSinceEpoch,
+      styleId: styleId,
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+    ),
+  );
 }

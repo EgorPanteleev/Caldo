@@ -98,19 +98,9 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   /// Creates an all-day task on the selected day straight from the field.
   Future<void> _addQuickTask() async {
-    final title = _quickAdd.text.trim();
-    if (title.isEmpty) return;
-    final provider = context.read<TaskProvider>();
-    final lists = provider.lists;
+    final title = _quickAdd.text;
     _quickAdd.clear();
-    await provider.add(
-      Task(
-        listId: lists.isNotEmpty ? lists.first.id! : 1,
-        title: title,
-        dueAt: _selected.millisecondsSinceEpoch,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
+    await quickAddTask(context, day: _selected, title: title);
   }
 
   /// Where the grid stood when the current drag began; a drag is measured
@@ -553,6 +543,7 @@ class _CalendarScreenState extends State<CalendarScreen>
               date: _selected,
               controller: _quickAdd,
               onSubmit: _addQuickTask,
+              onFullForm: () => _openEditor(),
             ),
           ),
         ],

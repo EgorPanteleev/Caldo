@@ -66,19 +66,9 @@ class _DaySheetState extends State<_DaySheet> {
 
   /// Adds an all-day task on this day straight from the field.
   Future<void> _addQuickTask() async {
-    final title = _quickAdd.text.trim();
-    if (title.isEmpty) return;
-    final provider = context.read<TaskProvider>();
-    final lists = provider.lists;
+    final title = _quickAdd.text;
     _quickAdd.clear();
-    await provider.add(
-      Task(
-        listId: lists.isNotEmpty ? lists.first.id! : 1,
-        title: title,
-        dueAt: dayOf(widget.day).millisecondsSinceEpoch,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
+    await quickAddTask(context, day: widget.day, title: title);
   }
 
   Future<void> _openEditor([Task? task]) => Navigator.of(context).push(
@@ -182,6 +172,7 @@ class _DaySheetState extends State<_DaySheet> {
                 date: day,
                 controller: _quickAdd,
                 onSubmit: _addQuickTask,
+                onFullForm: () => _openEditor(),
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               ),
             ],

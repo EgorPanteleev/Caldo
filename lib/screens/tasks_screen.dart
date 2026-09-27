@@ -56,19 +56,9 @@ class _TasksScreenState extends State<TasksScreen> {
 
   /// Files an all-day task on today straight from the field at the foot.
   Future<void> _addQuickTask() async {
-    final title = _quickAdd.text.trim();
-    if (title.isEmpty) return;
-    final provider = context.read<TaskProvider>();
-    final lists = provider.lists;
+    final title = _quickAdd.text;
     _quickAdd.clear();
-    await provider.add(
-      Task(
-        listId: lists.isNotEmpty ? lists.first.id! : 1,
-        title: title,
-        dueAt: dayOf(DateTime.now()).millisecondsSinceEpoch,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-      ),
-    );
+    await quickAddTask(context, day: dayOf(DateTime.now()), title: title);
   }
 
   /// Today is the top of the run, so this is a scroll home.
@@ -182,6 +172,7 @@ class _TasksScreenState extends State<TasksScreen> {
             date: today,
             controller: _quickAdd,
             onSubmit: _addQuickTask,
+            onFullForm: () => _openEditor(null, today),
           ),
         ],
       ),

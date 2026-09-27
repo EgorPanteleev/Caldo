@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/task.dart';
-import '../models/task_list.dart';
+import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/task_row.dart' show PriorityFlag;
 
@@ -54,7 +55,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     _notes = TextEditingController(text: task?.notes ?? '');
     _priority = task?.priority ?? Priority.none;
     _repeat = task?.repeat ?? Repeat.none;
-    _styleId = task?.styleId;
+    // A new task starts in the colour Settings says new tasks start in; an
+    // existing one keeps whatever it was given.
+    _styleId = task == null
+        ? context.read<SettingsProvider>().defaultTaskStyleId
+        : task.styleId;
 
     final due = task?.due;
     if (due != null) {
@@ -268,7 +273,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                   letterSpacing: 1.2,
                 )),
             const SizedBox(height: 10),
-            _ColourSelector(
+            ColourSelector(
               value: _styleId,
               listColor: lists
                       .where((l) => l.id == validId)
@@ -528,85 +533,3 @@ class _PriorityChip extends StatelessWidget {
 
 /// Picks the colour a task is drawn in: its list's by default, or any of the
 /// same swatches a list can wear.
-class _ColourSelector extends StatelessWidget {
-  final String? value;
-  final Color listColor;
-  final ValueChanged<String?> onChanged;
-
-  const _ColourSelector({
-    required this.value,
-    required this.listColor,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        _Swatch(
-          color: listColor,
-          selected: value == null,
-          // The "same as the list" choice, marked with a link rather than a
-          // colour of its own.
-          icon: Icons.link,
-          onTap: () => onChanged(null),
-          border: p.border,
-        ),
-        for (final style in ListStyle.presets)
-          _Swatch(
-            color: style.color,
-            selected: value == style.id,
-            onTap: () => onChanged(style.id),
-            border: p.border,
-          ),
-      ],
-    );
-  }
-}
-
-class _Swatch extends StatelessWidget {
-  final Color color;
-  final bool selected;
-  final IconData? icon;
-  final Color border;
-  final VoidCallback onTap;
-
-  const _Swatch({
-    required this.color,
-    required this.selected,
-    required this.border,
-    required this.onTap,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: selected ? 1 : 0.35),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? AppTheme.of(context).text : border,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: icon != null
-            ? Icon(icon, size: 17, color: Colors.white)
-            : (selected
-                ? const Icon(Icons.check, size: 18, color: Colors.white)
-                : null),
-      ),
-    );
-  }
-}

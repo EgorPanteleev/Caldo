@@ -13,6 +13,7 @@ import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/menu_button.dart';
+import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:caldo/widgets/task_row.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
@@ -506,7 +507,7 @@ void main() {
     expect(find.text('Add task on ${Dates.shortDay(today)}'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'Buy milk');
-    await tester.tap(find.byTooltip('Add task'));
+    await tester.tap(find.byKey(quickAddButtonKey));
     await tester.pump();
 
     final added = provider.added;
@@ -579,6 +580,51 @@ void main() {
     // straight back to the month it had just left.
     expect(tester.widget<Text>(find.byKey(monthTitleKey)).data, thisMonth);
     expect(find.text('Add task on ${Dates.shortDay(today)}'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('a quick-added task takes the colour new tasks start in',
+      (tester) async {
+    late _CapturingProvider provider;
+    await tester.runAsync(() async {
+      provider = _CapturingProvider();
+      await provider.loadLists();
+    });
+    final settings = SettingsProvider();
+    await tester.runAsync(() => settings.update(defaultTaskStyleId: 'green'));
+
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<TaskProvider>.value(value: provider),
+        ChangeNotifierProvider<SettingsProvider>.value(value: settings),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark(AppAccent.presets.first),
+        home: const CalendarScreen(),
+      ),
+    ));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'Buy milk');
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pump();
+
+    expect(provider.added?.styleId, 'green');
+  });
+
+  testWidgets('the plus beside an empty field opens the full form',
+      (tester) async {
+    await pumpScreen(tester, const TasksScreen());
+
+    // Nothing typed, so the button is a plus — and a plus has to lead
+    // somewhere, which is what it failed to do.
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(find.text('New task'), findsOneWidget);
     await drainDatabase(tester);
   });
 

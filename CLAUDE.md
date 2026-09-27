@@ -26,6 +26,7 @@ lib/
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
+                         colour_selector,
                          date_time_pickers, day_sheet, menu_button,
                          quick_add_bar, screen_header, selection_bar,
                          theme_switcher, gradient_icon_button
@@ -124,6 +125,12 @@ Changing them back will be noticed.
 - **A sheet's actions are two plain words**, Cancel at one end and Save at the
   other. A filled button beside an outlined one were the only heavy things in a
   sheet this plain, and they argued over which was the one to press.
+- **The plus beside the quick-add field opens the full form**; the tick files
+  what has been typed. A plus that did nothing at all on an empty field was
+  the state it was left in when the Schedule header's add button was removed.
+- **New tasks start in the colour Settings names** (`defaultTaskStyleId`, null
+  meaning they take their list's). Every quick-add goes through `quickAddTask`
+  so the three fields that have one cannot drift apart on this.
 - **The quick-add button is a plus until the field is opened, then a tick**,
   and it is plain rather than the accent gradient the headers wear — it sits
   beside the field the eye is already on. The focused field's outline is
@@ -174,7 +181,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 72 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 74 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
