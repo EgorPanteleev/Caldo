@@ -393,9 +393,12 @@ class _TimeSheetState extends State<_TimeSheet> {
         // of a sheet this plain were the only heavy things in it, and they
         // were arguing over which of the two was the one to press.
         Padding(
-          padding: const EdgeInsets.fromLTRB(40, 16, 40, 18),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Drawn in towards the middle rather than pushed out to the two
+            // corners: pinned to the edges they read as one control at each
+            // end of the sheet instead of as a pair to choose between.
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _SheetAction(
                 label: 'Cancel',

@@ -347,9 +347,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             const SizedBox(height: 26),
             if (_dirty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // The same pair, drawn in towards the middle the same way.
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _FootAction(
                       label: 'Cancel',

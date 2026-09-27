@@ -132,8 +132,9 @@ Changing them back will be noticed.
   invitation to lose them. Untouched, the arrow is there and there is nothing
   to save. Every field marks the form as touched, including the clears and the
   two text controllers.
-- **A sheet's actions are two plain words**, Cancel at one end and Save at the
-  other. A filled button beside an outlined one were the only heavy things in a
+- **A sheet's actions are two plain words**, Cancel and Save, drawn in towards
+  the middle rather than pushed out to the corners — pinned to the edges they
+  read as one control at each end rather than as a pair to choose between. A filled button beside an outlined one were the only heavy things in a
   sheet this plain, and they argued over which was the one to press.
 - **The plus beside the quick-add field opens the full form**; the tick files
   what has been typed. A plus that did nothing at all on an empty field was
