@@ -7,8 +7,14 @@ import '../models/task_list.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 
-/// A task as it appears under the calendar: a filled card tinted with its
-/// list's colour, carrying a tick circle, the title and when it is due.
+/// A task as it appears under the calendar: a plain raised card carrying a
+/// tick circle, the title and when it is due.
+///
+/// The card itself is neutral. It used to be washed with its list's colour at
+/// a sixth strength and outlined at a third, which on a run of tasks from one
+/// list turned the whole screen into a single tinted block and left every card
+/// looking like a muddy version of the same thing. The colour is still here —
+/// it is on the tick, where it marks one definite thing instead of a wash.
 class TaskCard extends StatelessWidget {
   final Task task;
   final TaskList? list;
@@ -26,9 +32,9 @@ class TaskCard extends StatelessWidget {
   });
 
   /// "All day", or the time it is due, and the repeat rule if it has one. Not
-  /// the list it belongs to: the card is already tinted with that list's
-  /// colour, and under the calendar a day's tasks are usually all from the
-  /// same one, so the name was the same word under every card.
+  /// the list it belongs to: the tick already wears that list's colour, and
+  /// under the calendar a day's tasks are usually all from the same one, so
+  /// the name was the same word under every card.
   String _subtitle() {
     final due = task.due;
     final when = due == null
@@ -55,15 +61,15 @@ class TaskCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           child: Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: faded ? 0.07 : 0.16),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: color.withValues(alpha: faded ? 0.16 : 0.32),
-              ),
+              // A done task sinks back towards the ground rather than keeping
+              // its place in the run.
+              color: faded ? p.bg : p.panel,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: p.border),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -131,7 +137,6 @@ class _Tick extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
     return GestureDetector(
       key: taskCardTickKey,
       onTap: () {
@@ -146,8 +151,12 @@ class _Tick extends StatelessWidget {
         height: 24,
         decoration: BoxDecoration(
           color: done ? color : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: done ? color : p.faint, width: 1.8),
+          borderRadius: BorderRadius.circular(7),
+          // Outlined in the task's own colour rather than a neutral grey:
+          // with the card itself plain, this is the only place the colour a
+          // task was given is still said, and an empty square is a small
+          // enough mark to say it without tinting the whole run.
+          border: Border.all(color: color, width: 1.8),
         ),
         child: done
             ? const Icon(Icons.check, color: Colors.white, size: 15)
@@ -160,8 +169,8 @@ class _Tick extends StatelessWidget {
 /// Identifies the tick circle on a task card.
 const taskCardTickKey = Key('task-card-tick');
 
-/// A public holiday beside a day's tasks: the same card as a [TaskCard], in
-/// green and with nothing to tick off.
+/// A public holiday beside a day's tasks: the same card as a [TaskCard], with
+/// a green mark where the tick would be and nothing to tick off.
 class HolidayCard extends StatelessWidget {
   final Holiday holiday;
 
@@ -175,9 +184,9 @@ class HolidayCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: AppColors.holiday.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.holiday.withValues(alpha: 0.3)),
+          color: p.panel,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: p.border),
         ),
         child: Row(
           children: [

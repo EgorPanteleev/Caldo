@@ -210,6 +210,15 @@ Changing them back will be noticed.
   stranded at opposite ends of a void. The card already writes the hour where
   an all-day task's says "All day", so the row was drawing a distinction that
   was already being made — quietly, and better.
+- **A task card is a plain panel and the colour is on its tick.** The card
+  used to be washed with its list's colour at a sixth strength and outlined at
+  a third; a run of tasks from one list then turned the whole screen into a
+  single tinted block, and every card read as a muddy version of the same
+  thing. The card is `panel` with a hairline `border` now — the same surface
+  as everything else raised off the ground — and the colour a task carries is
+  the outline of its tick square, which says it once, definitely, instead of
+  everywhere at a sixth strength. A done card drops to the ground colour and
+  keeps only its border, so it sinks out of the run without leaving it.
 - **Pulling the day panel past either end drives the grid.** The panel is most
   of the screen; a swipe on it that had nowhere else to go used to do nothing.
   A short day's list cannot scroll at all, so every drag on it arrives as
