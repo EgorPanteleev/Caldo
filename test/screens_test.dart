@@ -121,6 +121,10 @@ void main() {
     // the same thing under its title, so there is more than one of it.
     expect(find.text('No date'), findsWidgets);
     expect(find.text('Someday idea'), findsOneWidget);
+    // Today wears the word on a badge and the date beside it: the word on its
+    // own used to replace the date, leaving the one day most likely to be
+    // looked up as the one day not written down.
+    expect(find.text(Dates.dayDate(dayOf(DateTime.now()))), findsOneWidget);
   });
 
   testWidgets('the calendar lists the selected day below the month grid',

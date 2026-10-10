@@ -48,6 +48,29 @@ class Dates {
     return DateFormat(pattern).format(d);
   }
 
+  /// The date alone, with no "Today" standing in for it: "Sat, 4 Oct". The
+  /// run of days in Schedule writes both — the word on a badge, the date
+  /// beside it — so a reader never has to work out which day "Today" is.
+  static String dayDate(DateTime date) {
+    final d = dayOf(date);
+    final pattern = d.year == dayOf(DateTime.now()).year
+        ? 'EEE, d MMM'
+        : 'EEE, d MMM yyyy';
+    return DateFormat(pattern).format(d);
+  }
+
+  /// The word for a day near today — "Today", "Tomorrow", "Yesterday" — or
+  /// null for any other day.
+  static String? dayWord(DateTime date) {
+    final diff = dayOf(date).difference(dayOf(DateTime.now())).inDays;
+    return switch (diff) {
+      0 => 'Today',
+      1 => 'Tomorrow',
+      -1 => 'Yesterday',
+      _ => null,
+    };
+  }
+
   /// A longer form for headers: "Saturday, 4 October".
   static String longDay(DateTime date) {
     final today = dayOf(DateTime.now());

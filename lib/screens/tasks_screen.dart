@@ -135,19 +135,22 @@ class _TasksScreenState extends State<TasksScreen> {
                     ),
                   if (overdue.isNotEmpty) ...[
                     () => const _DayHeader(
-                      label: 'Overdue',
+                      word: 'Overdue',
                       color: AppColors.overdue,
                     ),
                     for (final task in overdue) () => entry(task),
                   ],
                   for (final day in days) ...[
-                    () => _DayHeader(label: Dates.day(day)),
+                    () => _DayHeader(
+                      word: Dates.dayWord(day),
+                      label: Dates.dayDate(day),
+                    ),
                     for (final holiday in holidays[day] ?? const <Holiday>[])
                       () => HolidayCard(holiday: holiday),
                     for (final task in byDay[day]!) () => entry(task),
                   ],
                   if (undated.isNotEmpty) ...[
-                    () => const _DayHeader(label: 'No date'),
+                    () => const _DayHeader(word: 'No date'),
                     for (final task in undated) () => entry(task),
                   ],
                   if (days.isNotEmpty)
@@ -221,24 +224,51 @@ class _TodayButton extends StatelessWidget {
 /// The date a run of entries belongs to. Written out plainly — it is a date,
 /// not a section, and the uppercase label with a count beside it made a
 /// heading out of something the eye should pass straight over.
+///
+/// A day the reader has a word for — today, tomorrow, yesterday — wears it on
+/// a badge, with the date itself written beside it. The word alone replaced
+/// the date, so the one day most likely to be looked up was the one day not
+/// written down.
 class _DayHeader extends StatelessWidget {
-  final String label;
+  final String? word;
+  final String? label;
   final Color? color;
 
-  const _DayHeader({required this.label, this.color});
+  const _DayHeader({this.word, this.label, this.color})
+    : assert(word != null || label != null);
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final style = TextStyle(
+      color: color ?? p.text,
+      fontSize: 14.5,
+      fontWeight: FontWeight.w600,
+    );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color ?? p.text,
-          fontSize: 14.5,
-          fontWeight: FontWeight.w700,
-        ),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+      child: Row(
+        children: [
+          if (word != null)
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 5),
+              decoration: BoxDecoration(
+                color: color ?? p.text,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                word!,
+                style: style.copyWith(
+                  color: color == null ? p.bg : Colors.white,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                ),
+              ),
+            ),
+          if (word != null && label != null) const SizedBox(width: 10),
+          if (label != null) Text(label!, style: style),
+        ],
       ),
     );
   }

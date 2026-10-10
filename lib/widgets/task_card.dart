@@ -7,14 +7,14 @@ import '../models/task_list.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 
-/// A task as it appears under the calendar: a plain raised card carrying a
-/// tick circle, the title and when it is due.
+/// A task as it appears under the calendar: a card inked with its list's
+/// colour, carrying a tick, the title and when it is due.
 ///
-/// The card itself is neutral. It used to be washed with its list's colour at
-/// a sixth strength and outlined at a third, which on a run of tasks from one
-/// list turned the whole screen into a single tinted block and left every card
-/// looking like a muddy version of the same thing. The colour is still here —
-/// it is on the tick, where it marks one definite thing instead of a wash.
+/// The ink is mixed into the ground rather than laid over it, which is what
+/// keeps it a deep, flat colour instead of a haze: a quarter of the list's
+/// colour against true black comes out as the near-navy the cards wear. There
+/// is no border — the fill is the shape, and an outline a shade brighter than
+/// it only blurred the edge.
 class TaskCard extends StatelessWidget {
   final Task task;
   final TaskList? list;
@@ -65,11 +65,13 @@ class TaskCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
-              // A done task sinks back towards the ground rather than keeping
-              // its place in the run.
-              color: faded ? p.bg : p.panel,
+              // A done task sinks most of the way back into the ground rather
+              // than keeping its place in the run.
+              color: Color.alphaBlend(
+                color.withValues(alpha: faded ? 0.07 : 0.24),
+                p.bg,
+              ),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: p.border),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -87,7 +89,7 @@ class TaskCard extends StatelessWidget {
                         style: TextStyle(
                           color: faded ? p.faint : p.text,
                           fontSize: 15.5,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                           decoration:
                               faded ? TextDecoration.lineThrough : null,
                           decorationColor: p.faint,
@@ -184,9 +186,11 @@ class HolidayCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: p.panel,
+          color: Color.alphaBlend(
+            AppColors.holiday.withValues(alpha: 0.22),
+            p.bg,
+          ),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: p.border),
         ),
         child: Row(
           children: [
@@ -205,7 +209,7 @@ class HolidayCard extends StatelessWidget {
                     style: TextStyle(
                       color: p.text,
                       fontSize: 15.5,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 3),
