@@ -166,6 +166,16 @@ Changing them back will be noticed.
   own ground once the month is opened out, the app background while the day's
   tasks are still on screen — and whatever is above fades into it over the last
   22 points rather than being sliced off square by it.
+- **The keyboard arrives over the calendar, it does not shorten it.** The
+  screen's `Scaffold` does not resize for the inset; the quick-add bar is
+  wrapped in `KeyboardLift`, which translates it up by the inset instead. A
+  resizing `Scaffold` takes the room out of whatever is above the field, which
+  on an opened month means squeezing the very grid being looked at. The shell's
+  `Scaffold` does not resize either — it would shorten all three screens before
+  any of them was asked — and Schedule still resizes, on its own `Scaffold`,
+  because an agenda that keeps its height would just be hidden under the keys.
+  The inset is read in `KeyboardLift` and nowhere else: it changes on every
+  frame of the keyboard sliding in, and whoever reads it rebuilds that often.
 - **The dark ground is true black.** The calendar's already was, so an app
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything

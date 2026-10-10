@@ -363,6 +363,9 @@ class _CalendarScreenState extends State<CalendarScreen>
     final shownMonth = _monthOfPage(page);
 
     return Scaffold(
+      // The month keeps the height it had when the keyboard arrives; the add
+      // field lifts over it instead of the body being shortened underneath.
+      resizeToAvoidBottomInset: false,
       body: Column(
         children: [
           Container(
@@ -555,15 +558,17 @@ class _CalendarScreenState extends State<CalendarScreen>
           // The strip the field sits on belongs to whatever is above it: the
           // calendar's own ground once the month is opened out, the list's
           // background while the day's tasks are still on screen.
-          AnimatedBuilder(
-            animation: _expansion,
-            builder: (context, child) =>
-                ColoredBox(color: _groundUnderField(p), child: child),
-            child: QuickAddBar(
-              date: _selected,
-              controller: _quickAdd,
-              onSubmit: _addQuickTask,
-              onFullForm: () => _openEditor(),
+          KeyboardLift(
+            child: AnimatedBuilder(
+              animation: _expansion,
+              builder: (context, child) =>
+                  ColoredBox(color: _groundUnderField(p), child: child),
+              child: QuickAddBar(
+                date: _selected,
+                controller: _quickAdd,
+                onSubmit: _addQuickTask,
+                onFullForm: () => _openEditor(),
+              ),
             ),
           ),
         ],

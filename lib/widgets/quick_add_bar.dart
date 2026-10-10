@@ -179,3 +179,28 @@ Future<void> quickAddTask(
     ),
   );
 }
+
+/// Floats [child] above the keyboard without the layout knowing about it.
+///
+/// A `Scaffold` that resizes for the keyboard takes the room out of whatever
+/// is above the field — which on the calendar means squeezing the month the
+/// user is looking at. Translating costs no layout, so the grid keeps the
+/// height it had and the keyboard simply arrives over it.
+///
+/// The inset is read here and nowhere else on purpose: it changes on every
+/// frame of the keyboard sliding in, and whoever reads it is rebuilt that
+/// often. Keeping that to one small widget, with the bar handed in as a
+/// child, is what stops the rest of the screen rebuilding with it.
+class KeyboardLift extends StatelessWidget {
+  final Widget child;
+
+  const KeyboardLift({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.translate(
+      offset: Offset(0, -MediaQuery.viewInsetsOf(context).bottom),
+      child: child,
+    );
+  }
+}

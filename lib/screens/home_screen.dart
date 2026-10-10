@@ -80,6 +80,9 @@ class _HomeScreenState extends State<HomeScreen>
       },
       child: Scaffold(
         backgroundColor: p.sidebar,
+        // Each screen decides for itself what the keyboard does to it. Resize
+        // here and the shell shortens all three before any of them is asked.
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             AnimatedBuilder(
