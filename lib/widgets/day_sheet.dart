@@ -87,9 +87,19 @@ class _DaySheetState extends State<_DaySheet> {
     final holidays = Holidays.around(country, day)[day] ?? const <Holiday>[];
     final open = tasks.where((t) => !t.done).length;
 
+    // The card is a dialog, so nothing lifts it for the keyboard the way a
+    // screen is lifted: the keys arrived over the field at the foot of it and
+    // what was being typed was underneath them. Giving the inset back as
+    // padding takes the room out of the card instead — the list of the day's
+    // tasks is what gives way, and the field stays in sight. The margin above
+    // and below closes up at the same time, since on a short screen the
+    // keyboard leaves little enough as it is.
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final margin = inset > 0 ? 16.0 : 56.0;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 56),
+        padding: EdgeInsets.fromLTRB(16, margin, 16, margin + inset),
         child: Material(
           key: daySheetKey,
           color: p.panel,

@@ -76,7 +76,12 @@ Changing them back will be noticed.
   other and read as a glitch.
 - **Picking a day in the opened month opens it as a card on top** (`day_sheet`)
   rather than collapsing the calendar to make room — the tap was made from that
-  view, so it should still be there underneath.
+  view, so it should still be there underneath. The card gives the keyboard its
+  room out of its own height, margins first and then the list of the day's
+  tasks: it is a dialog, so nothing lifts it the way a screen is lifted, and
+  the keys came up over the field at the foot of it with the typing underneath.
+  This is the opposite of what the calendar does with the same keyboard, and on
+  purpose — there the month is the thing being looked at, here the field is.
 - **The days below the grid are a pager, one page per day.** Picking a day
   slides it in from the edge it lies on and the days can be swiped through
   directly, carrying the month round with them. A day more than ten away is
