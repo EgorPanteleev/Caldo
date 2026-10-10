@@ -20,6 +20,7 @@ class AppColors {
   static const darkSidebar = Color(0xFF0C0C0D); // the menu, lifted off black
   static const darkPanel = Color(0xFF161618); // cards / fields
   static const darkPanelHi = Color(0xFF212124); // hovered / elevated
+  static const darkField = Color(0xFF2C2C31); // the quick-add row, on black
   static const darkBorder = Color(0xFF2A2A2E); // hairline borders
 
   // Dark text
@@ -32,6 +33,7 @@ class AppColors {
   static const lightSidebar = Color(0xFFEFEFF1);
   static const lightPanel = Color(0xFFFFFFFF);
   static const lightPanelHi = Color(0xFFF1F1F3);
+  static const lightField = Color(0xFFE6E6EB);
   static const lightBorder = Color(0xFFE4E4E8);
 
   static const lightText = Color(0xFF18181B);
@@ -52,6 +54,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color sidebar;
   final Color panel;
   final Color panelHi;
+
+  /// The quick-add field and the button beside it. A filled grey rather than
+  /// an outline on the ground: against true black an outlined pill read as a
+  /// hole in the screen, and the pair are the one thing down there to press.
+  final Color field;
+
   final Color border;
   final Color text;
   final Color muted;
@@ -65,6 +73,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.sidebar,
     required this.panel,
     required this.panelHi,
+    required this.field,
     required this.border,
     required this.text,
     required this.muted,
@@ -77,6 +86,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     sidebar: AppColors.darkSidebar,
     panel: AppColors.darkPanel,
     panelHi: AppColors.darkPanelHi,
+    field: AppColors.darkField,
     border: AppColors.darkBorder,
     text: AppColors.darkText,
     muted: AppColors.darkMuted,
@@ -89,6 +99,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     sidebar: AppColors.lightSidebar,
     panel: AppColors.lightPanel,
     panelHi: AppColors.lightPanelHi,
+    field: AppColors.lightField,
     border: AppColors.lightBorder,
     text: AppColors.lightText,
     muted: Color(0xFF5C5D6B),
@@ -102,6 +113,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? sidebar,
     Color? panel,
     Color? panelHi,
+    Color? field,
     Color? border,
     Color? text,
     Color? muted,
@@ -113,6 +125,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
         sidebar: sidebar ?? this.sidebar,
         panel: panel ?? this.panel,
         panelHi: panelHi ?? this.panelHi,
+        field: field ?? this.field,
         border: border ?? this.border,
         text: text ?? this.text,
         muted: muted ?? this.muted,
@@ -128,6 +141,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
       sidebar: Color.lerp(sidebar, other.sidebar, t)!,
       panel: Color.lerp(panel, other.panel, t)!,
       panelHi: Color.lerp(panelHi, other.panelHi, t)!,
+      field: Color.lerp(field, other.field, t)!,
       border: Color.lerp(border, other.border, t)!,
       text: Color.lerp(text, other.text, t)!,
       muted: Color.lerp(muted, other.muted, t)!,

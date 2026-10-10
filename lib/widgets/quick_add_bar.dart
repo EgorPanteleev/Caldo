@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
 
 import '../models/task.dart';
@@ -70,9 +73,12 @@ class _QuickAddBarState extends State<QuickAddBar> {
     // it finishes the task being typed, so it says so. Waiting for the first
     // character left it a plus over an active field.
     final writing = _focus.hasFocus;
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(26),
-      borderSide: BorderSide(color: p.border),
+    // A filled grey rather than an outline: on true black an outlined pill
+    // read as a hole cut in the screen, and the field and the button beside
+    // it are the one thing down there to press.
+    const border = OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(26)),
+      borderSide: BorderSide.none,
     );
 
     return Padding(
@@ -89,20 +95,20 @@ class _QuickAddBarState extends State<QuickAddBar> {
               style: TextStyle(color: p.text, fontSize: 14.5),
               decoration: InputDecoration(
                 isDense: true,
+                filled: true,
+                fillColor: p.field,
                 hintText: 'Add task on ${Dates.shortDay(widget.date)}',
+                hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 14,
                 ),
+                // Nothing marks the focus but the cursor. An accent ring
+                // around half the screen was the loudest thing on it, and a
+                // neutral one on a grey field is a line nobody reads.
                 border: border,
                 enabledBorder: border,
-                // A neutral outline on focus rather than the accent: the
-                // cursor already says where the typing goes, and a coloured
-                // ring around half the screen was the loudest thing on it.
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(26),
-                  borderSide: BorderSide(color: p.muted),
-                ),
+                focusedBorder: border,
               ),
             ),
           ),
@@ -140,8 +146,8 @@ class _ConfirmButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: p.panelHi,
-        shape: CircleBorder(side: BorderSide(color: p.border)),
+        color: p.field,
+        shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -191,16 +197,100 @@ Future<void> quickAddTask(
 /// frame of the keyboard sliding in, and whoever reads it is rebuilt that
 /// often. Keeping that to one small widget, with the bar handed in as a
 /// child, is what stops the rest of the screen rebuilding with it.
-class KeyboardLift extends StatelessWidget {
+class KeyboardLift extends StatefulWidget {
   final Widget child;
 
   const KeyboardLift({super.key, required this.child});
 
   @override
+  State<KeyboardLift> createState() => _KeyboardLiftState();
+}
+
+class _KeyboardLiftState extends State<KeyboardLift>
+    with SingleTickerProviderStateMixin {
+  /// Holds the lift itself, in points, rather than a 0..1 progress: the thing
+  /// being animated is a distance whose target moves mid-flight.
+  late final AnimationController _lift;
+
+  double _inset = 0;
+
+  /// When the inset last changed, and how fast it was moving when it did.
+  /// Android reports the keyboard's slide as a handful of steps and then cuts
+  /// the rest off, so the speed it was going at is the only record of it.
+  Duration? _changedAt;
+  double _reportedSpeed = 0;
+
+  /// Critically damped, so the bar never passes the place it is going to.
+  static const _stiffness = 600.0;
+  static final _spring = SpringDescription.withDampingRatio(
+    mass: 1,
+    stiffness: _stiffness,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _lift = AnimationController.unbounded(vsync: this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    if (inset == _inset) return;
+
+    final now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
+    final since = _changedAt == null
+        ? 0.0
+        : (now - _changedAt!).inMicroseconds / Duration.microsecondsPerSecond;
+    // Anything slower than a few frames apart is a fresh move, not a step of
+    // one already under way, and says nothing about how fast it is going.
+    _reportedSpeed = since > 0 && since < 0.1 ? (inset - _inset) / since : 0;
+    _changedAt = now;
+
+    final at = _lift.value;
+    _inset = inset;
+
+    // A step the keyboard could plausibly have taken in one frame is the
+    // keyboard animating and being reported as it goes, so the bar is put
+    // where it says. Only a fall of most of the lift at once is the rest of
+    // the slide being cut off — that part the bar has to ride down itself.
+    if (inset >= at - at / 3) {
+      _lift.stop();
+      _lift.value = inset;
+      return;
+    }
+
+    // Carrying whatever speed it already had, so the fall is one movement
+    // rather than a drop, a catch, and a second drop. Held to the speed a
+    // critically damped spring can shed over the distance left — faster than
+    // that and it would dip past the bottom and come back up.
+    final speed = _lift.isAnimating ? _lift.velocity : _reportedSpeed;
+    final fastest = -(at - inset) * math.sqrt(_stiffness);
+    _lift.animateWith(
+      SpringSimulation(
+        _spring,
+        at,
+        inset,
+        speed.clamp(fastest, 0.0),
+        tolerance: const Tolerance(distance: 0.1, velocity: 1),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _lift.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Transform.translate(
-      offset: Offset(0, -MediaQuery.viewInsetsOf(context).bottom),
-      child: child,
+    return AnimatedBuilder(
+      animation: _lift,
+      builder: (context, child) =>
+          Transform.translate(offset: Offset(0, -_lift.value), child: child),
+      child: widget.child,
     );
   }
 }

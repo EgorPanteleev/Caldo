@@ -147,9 +147,7 @@ Changing them back will be noticed.
   so the three fields that have one cannot drift apart on this.
 - **The quick-add button is a plus until the field is opened, then a tick**,
   and it is plain rather than the accent gradient the headers wear — it sits
-  beside the field the eye is already on. The focused field's outline is
-  neutral too; an accent ring around half the screen was the loudest thing on
-  it.
+  beside the field the eye is already on.
 - **The day bar names its day and nothing else.** The open-count and the
   full-form button beside it were noise on a bar whose whole job is to say
   which day is below it; the full form is still reached from the day card's
@@ -162,6 +160,10 @@ Changing them back will be noticed.
   will take you to.
 - **The month header shows `Sep`, centred**, gaining the year only when it is
   not the current one.
+- **The field and the button beside it are a filled grey** (`AppPalette.field`,
+  a step above `panelHi`), with no outline on either and nothing marking the
+  focus but the cursor. Outlined on true black the pair read as holes cut in
+  the screen, and a neutral ring around half the width was a line nobody read.
 - **The strip the add field sits on follows what is above it** — the calendar's
   own ground once the month is opened out, the app background while the day's
   tasks are still on screen — and whatever is above fades into it over the last
@@ -176,6 +178,13 @@ Changing them back will be noticed.
   because an agenda that keeps its height would just be hidden under the keys.
   The inset is read in `KeyboardLift` and nowhere else: it changes on every
   frame of the keyboard sliding in, and whoever reads it rebuilds that often.
+- **The bar rides the keyboard down on a spring.** Android reports a closing
+  keyboard as a few steps and then cuts the rest of the slide off in one
+  frame, so the bar is put where the inset says while the steps are small and
+  takes the last lump itself, on a critically damped spring carrying the speed
+  the keyboard was already going at. Easing it from a standstill instead put a
+  visible catch halfway down, which is what made it look jerky; dropping it
+  outright, which is what the inset alone does, was worse.
 - **The dark ground is true black.** The calendar's already was, so an app
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything
