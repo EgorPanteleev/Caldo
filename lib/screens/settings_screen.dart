@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/reminders.dart';
 import '../theme/app_theme.dart';
+import '../utils/dates.dart';
 import '../widgets/colour_selector.dart';
+import '../widgets/date_time_pickers.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/theme_switcher.dart';
 
@@ -54,6 +57,33 @@ class SettingsScreen extends StatelessWidget {
           ? 'No completed tasks to clear'
           : 'Removed $removed completed ${removed == 1 ? "task" : "tasks"}')),
     );
+  }
+
+  /// Turns reminders on or off, asking Android for permission the first time
+  /// they are turned on — a notification nobody has agreed to is simply
+  /// dropped, and silently, which looks exactly like a broken reminder.
+  Future<void> _setReminders(BuildContext context, bool on) async {
+    final settings = context.read<SettingsProvider>();
+    if (on) await Reminders.instance.requestPermission();
+    if (!context.mounted) return;
+    await settings.update(reminders: on);
+    if (!context.mounted) return;
+    // The alarms are set from the agenda, so a change of mind has to go
+    // through the thing that holds it.
+    await context.read<TaskProvider>().loadTasks();
+  }
+
+  /// Picks the hour an all-day task is announced at.
+  Future<void> _pickReminderTime(BuildContext context) async {
+    final settings = context.read<SettingsProvider>();
+    final picked = await showAppTimePicker(
+      context: context,
+      initial: settings.reminderTime,
+    );
+    if (picked == null || !context.mounted) return;
+    await settings.update(reminderMinutes: picked.hour * 60 + picked.minute);
+    if (!context.mounted) return;
+    await context.read<TaskProvider>().loadTasks();
   }
 
   @override
@@ -163,6 +193,27 @@ class SettingsScreen extends StatelessWidget {
                   subtitle: 'Remove every ticked-off task from all lists',
                   onTap: () => _clearCompleted(context),
                 ),
+                const SizedBox(height: 28),
+                const SectionLabel('REMINDERS'),
+                _SwitchTile(
+                  icon: Icons.notifications_none,
+                  title: 'Remind me when a task is due',
+                  subtitle: settings.reminders
+                      ? 'A notification at the time it is due'
+                      : 'Nothing is announced',
+                  value: settings.reminders,
+                  onChanged: (v) => _setReminders(context, v),
+                ),
+                if (settings.reminders) ...[
+                  const SizedBox(height: 12),
+                  _ActionTile(
+                    icon: Icons.schedule,
+                    title: 'All-day tasks at '
+                        '${Dates.clock(settings.reminderTime)}',
+                    subtitle: 'A task with no time of day is announced then',
+                    onTap: () => _pickReminderTime(context),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 const SectionLabel('ABOUT'),
                 Text(

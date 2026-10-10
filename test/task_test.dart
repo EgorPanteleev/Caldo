@@ -1,4 +1,5 @@
 import 'package:caldo/models/task.dart';
+import 'package:caldo/services/reminders.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -117,6 +118,49 @@ void main() {
     test('an unknown repeat rule falls back to none', () {
       expect(Repeat.byName('fortnightly'), Repeat.none);
       expect(Priority.byIndex(99), Priority.none);
+    });
+  });
+
+  group('when a task is announced', () {
+    const nine = 9 * 60;
+
+    test('a timed task is announced at its own time', () {
+      final at = DateTime(2026, 5, 4, 18, 30);
+      final task = taskDue(at, hasTime: true).copyWith(id: 1);
+      expect(Reminders.whenToAnnounce(task, nine), at);
+    });
+
+    test('an all-day task is announced at the hour settings names', () {
+      final task = taskDue(DateTime(2026, 5, 4)).copyWith(id: 1);
+      expect(
+        Reminders.whenToAnnounce(task, nine),
+        DateTime(2026, 5, 4, 9),
+      );
+      expect(
+        Reminders.whenToAnnounce(task, 7 * 60 + 45),
+        DateTime(2026, 5, 4, 7, 45),
+      );
+    });
+
+    test('nothing is announced for a task that is done, undated or unsaved',
+        () {
+      final due = DateTime(2026, 5, 4);
+      expect(
+        Reminders.whenToAnnounce(
+          taskDue(due, done: true).copyWith(id: 1),
+          nine,
+        ),
+        isNull,
+      );
+      expect(
+        Reminders.whenToAnnounce(
+          const Task(listId: 1, title: 'x', createdAt: 0).copyWith(id: 1),
+          nine,
+        ),
+        isNull,
+      );
+      // No id means no alarm to hang it on: the row has not been written yet.
+      expect(Reminders.whenToAnnounce(taskDue(due), nine), isNull);
     });
   });
 }

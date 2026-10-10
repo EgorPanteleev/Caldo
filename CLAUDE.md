@@ -8,7 +8,8 @@ style or structure comes up, look there first.
 ## Stack
 
 Flutter 3.38.6 / Dart 3.10.7. `provider` (state), `sqflite` (storage),
-`shared_preferences` (settings), `google_fonts` (Inter), `intl` (dates).
+`shared_preferences` (settings), `google_fonts` (Inter), `intl` (dates),
+`flutter_local_notifications` + `timezone` + `flutter_timezone` (reminders).
 Dev-only: `sqflite_common_ffi`, so widget tests run against a real database.
 
 ## Layout
@@ -20,6 +21,7 @@ lib/
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
+  services/reminders.dart  the notification each dated task gets
   screens/               home (shell + menu), tasks (Schedule), calendar,
                          search,
                          lists, task_list, task_edit, list_edit, settings
@@ -248,6 +250,24 @@ Changing them back will be noticed.
   frame and those heights are cached; and the day pager is hoisted into
   `AnimatedBuilder`'s `child`, since nothing in it depends on how far the month
   is open. Look there first if it ever feels rough again.
+- **A dated task gets a notification, and the alarms are rebuilt from the
+  agenda rather than kept in step by hand** (`services/reminders.dart`). Every
+  path that changes a task ends in `TaskProvider.loadTasks`, so that is where
+  the whole set is cancelled and re-set: an edited date, a tick, a deletion
+  cannot leave an alarm behind. A timed task is announced at its own time, an
+  all-day one at the hour Settings names (nine by default, since midnight is
+  the one hour nobody wants to hear about it).
+- **Reminders are no-ops until `init` has been through.** The widget tests
+  drive the real providers and nothing in a test can answer the plugin's
+  channels, so the service checks a flag and does nothing rather than throwing
+  on every save. `init` is called from `main` and nowhere else.
+- **Permission is asked for on the first run**, from `SettingsProvider.load`,
+  because reminders are on out of the box and nothing else would ever ask. A
+  permission that was never requested looks exactly like a feature that does
+  not work. Alarms are exact (`USE_EXACT_ALARM`, the calendar-app permission
+  that is granted on install) and fall back to inexact if a device refuses —
+  a reminder that arrives whenever the system next wakes up is worth having,
+  but only as a fallback.
 - **The window asks Android for the fastest display mode** (`MainActivity`).
   Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
   The ask is for the fastest mode at the resolution already in use — the
@@ -256,7 +276,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 74 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 77 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -279,6 +299,14 @@ Things that will bite you:
   `taskCardTickKey`.
 
 ## Building
+
+Three things in `android/` exist only for the reminders, and all three are
+load-bearing: **desugaring** in `app/build.gradle.kts` (the plugin schedules
+through `java.time`, and the build fails without it), the **two receivers and
+three permissions** in the manifest (a scheduled notification is held by the
+system, which forgets them on a reboot and on an update), and
+**`res/raw/keep.xml`** (R8 cannot see that a notification icon is used, and a
+stripped icon fails silently at the moment the reminder was meant to appear).
 
 `android/gradle.properties` is capped on purpose: **`-Xmx2G`, four workers, a
 1G Kotlin daemon**. Flutter's template ships `-Xmx8G`, and on this 13GB machine

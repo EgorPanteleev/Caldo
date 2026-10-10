@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../db/database.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../services/reminders.dart';
 
 /// Strips the time from [date], giving the calendar day it belongs to.
 DateTime dayOf(DateTime date) => DateTime(date.year, date.month, date.day);
@@ -173,6 +174,11 @@ class TaskProvider extends ChangeNotifier {
       to.millisecondsSinceEpoch,
     );
     _undated = await _db.getUndated();
+    // Every path that changes a task ends here, which makes this the one place
+    // the alarms have to be put back in step — an edited date, a tick, a
+    // deletion. They are set from what is already loaded rather than from a
+    // query of their own, so the reminder horizon is the agenda's.
+    await Reminders.instance.sync(_upcoming);
     notifyListeners();
   }
 

@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show ThemeMode;
+import 'package:flutter/material.dart' show ThemeMode, TimeOfDay;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/holidays.dart';
+import '../services/reminders.dart';
 import '../theme/app_theme.dart';
 
 /// Holds user-configurable settings: the app's theme mode and accent, which
-/// day the calendar week starts on, and whether completed tasks stay visible.
+/// day the calendar week starts on, whether completed tasks stay visible, and
+/// when a task is allowed to interrupt.
 class SettingsProvider extends ChangeNotifier {
   static const _kThemeMode = 'theme_mode';
   static const _kAccent = 'accent_id';
@@ -15,6 +17,8 @@ class SettingsProvider extends ChangeNotifier {
   static const _kHolidayCountry = 'holiday_country';
   static const _kShowHolidays = 'show_holidays';
   static const _kDefaultStyle = 'default_task_style';
+  static const _kReminders = 'reminders_enabled';
+  static const _kReminderAt = 'reminder_minutes';
 
   /// The app defaults to dark mode.
   ThemeMode _themeMode = ThemeMode.dark;
@@ -37,6 +41,14 @@ class SettingsProvider extends ChangeNotifier {
   /// The colour a new task starts with, or null to take its list's.
   String? _defaultTaskStyleId;
 
+  /// Whether a dated task puts up a notification when it comes due.
+  bool _reminders = true;
+
+  /// Minutes past midnight an all-day task is announced at. A timed task is
+  /// announced at its own time; one with no time still has to be said at some
+  /// point in the day, and nine in the morning is the least of the evils.
+  int _reminderMinutes = 9 * 60;
+
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
   bool get weekStartsMonday => _weekStartsMonday;
@@ -44,6 +56,12 @@ class SettingsProvider extends ChangeNotifier {
   bool get showHolidays => _showHolidays;
   String? get holidayCountry => _holidayCountry;
   String? get defaultTaskStyleId => _defaultTaskStyleId;
+  bool get reminders => _reminders;
+  int get reminderMinutes => _reminderMinutes;
+
+  /// The hour all-day reminders land on, as the pickers want it.
+  TimeOfDay get reminderTime =>
+      TimeOfDay(hour: _reminderMinutes ~/ 60, minute: _reminderMinutes % 60);
 
   /// The country the calendar actually marks holidays for: the chosen one,
   /// the device's when none is chosen, and none at all when they are off.
@@ -59,6 +77,13 @@ class SettingsProvider extends ChangeNotifier {
     _showHolidays = prefs.getBool(_kShowHolidays) ?? _showHolidays;
     _holidayCountry = prefs.getString(_kHolidayCountry);
     _defaultTaskStyleId = prefs.getString(_kDefaultStyle);
+    _reminders = prefs.getBool(_kReminders) ?? _reminders;
+    _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
+    _tellReminders();
+    // Reminders are on out of the box, so the first run is where Android has
+    // to be asked — nothing else in the app would ever ask, and a permission
+    // that was never requested looks exactly like a feature that is broken.
+    if (_reminders) await Reminders.instance.requestPermission();
     notifyListeners();
   }
 
@@ -70,6 +95,8 @@ class SettingsProvider extends ChangeNotifier {
     bool? showHolidays,
     String? holidayCountry,
     String? defaultTaskStyleId,
+    bool? reminders,
+    int? reminderMinutes,
 
     /// Go back to following the device's country.
     bool clearHolidayCountry = false,
@@ -112,8 +139,25 @@ class SettingsProvider extends ChangeNotifier {
       _defaultTaskStyleId = defaultTaskStyleId;
       await prefs.setString(_kDefaultStyle, defaultTaskStyleId);
     }
+    if (reminders != null) {
+      _reminders = reminders;
+      await prefs.setBool(_kReminders, reminders);
+    }
+    if (reminderMinutes != null) {
+      _reminderMinutes = reminderMinutes;
+      await prefs.setInt(_kReminderAt, reminderMinutes);
+    }
+    if (reminders != null || reminderMinutes != null) _tellReminders();
     notifyListeners();
   }
+
+  /// Hands the two settings that matter to the scheduler, which holds them
+  /// rather than reaching back here: it is called from a provider that may not
+  /// be in scope, and from the database layer, which has no context at all.
+  void _tellReminders() => Reminders.instance.configure(
+    enabled: _reminders,
+    allDayMinutes: _reminderMinutes,
+  );
 
   ThemeMode _themeModeFromString(String? value) {
     return switch (value) {
