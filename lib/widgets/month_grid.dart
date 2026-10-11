@@ -354,7 +354,7 @@ class _DayCell extends StatelessWidget {
               // never moves as the month opens — only what sits under the
               // number changes. Positioned children are bounded, so a cell too
               // short for its content drops it rather than overflowing.
-              const numberTop = 2.0;
+              const numberTop = 5.0;
               const numberHeight = 16.0;
               const contentTop = numberTop + numberHeight + 2;
               final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
