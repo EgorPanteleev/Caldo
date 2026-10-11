@@ -101,8 +101,13 @@ Changing them back will be noticed.
   edge, so what is on the screen stays legible instead of being hidden under a
   panel. The menu is drawn **over** the screen, rounded down its leading edge
   and shadowed, so it reads as a panel above the window rather than something
-  uncovered behind it — and the screen has moved by exactly its width, so
-  nothing ends up underneath. This is not a Material `Drawer` — the menu is always in the tree,
+  uncovered behind it. It laps over the screen by `_menuOverlap`: the screen
+  slides that much less than the menu is wide, so the menu's rounded corners
+  cut into it and its shadow falls across it. Flush, with both of them
+  rounded, nothing said which was in front — and the screen, being the rounded
+  lit one, read as the panel on top, which is backwards. The screen is square
+  now; its leading edge runs underneath.
+  This is not a Material `Drawer` — the menu is always in the tree,
   behind the screen, which is why a test cannot tell open from closed by
   looking for its text and reads the screen's offset instead. Back closes it
   (`PopScope`), as does a tap or a leftward swipe on the screen.

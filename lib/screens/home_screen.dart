@@ -9,8 +9,17 @@ import 'calendar_screen.dart';
 import 'settings_screen.dart';
 import 'tasks_screen.dart';
 
-/// Width the menu takes, and so how far the screen slides over to show it.
+/// Width the menu takes.
 const _menuWidth = 244.0;
+
+/// How far the menu's leading edge lies over the screen.
+///
+/// The screen slides this much less than the menu is wide, so the two overlap
+/// rather than meeting flush. Flush, there is nothing to say which of them is
+/// in front — and with the screen the rounded one, it was the screen that read
+/// as the panel on top. Now the menu's rounded edge and its shadow fall across
+/// the screen, which is the whole of what "above" looks like.
+const _menuOverlap = 18.0;
 
 /// Top-level shell. The three destinations live in a menu at the top left of
 /// each of them, not in a bar along the bottom.
@@ -88,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen>
             AnimatedBuilder(
               animation: _slide,
               builder: (context, child) => Transform.translate(
-                offset: Offset(_menuWidth * _slide.value, 0),
+                offset: Offset((_menuWidth - _menuOverlap) * _slide.value, 0),
                 child: child,
               ),
               child: _Screen(
@@ -103,8 +112,8 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             // On top of the screen and sliding in from off the left edge, so
             // it reads as a panel lifted above the window rather than
-            // something uncovered behind it. The screen moves out of its way
-            // by exactly its width, so nothing is hidden underneath.
+            // something uncovered behind it. It laps over the screen's edge by
+            // `_menuOverlap`, which is what shows it is in front.
             AnimatedBuilder(
               animation: _slide,
               builder: (context, child) => Transform.translate(
@@ -123,9 +132,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-/// The screen as it sits over the menu: rounded off down its left edge once it
-/// has moved, with a shadow to lift it, and swallowing taps while the menu is
-/// open so the first tap back on it is a close rather than a stray press.
+/// The screen as it sits under the menu: a plain slab, its leading edge run
+/// beneath the menu's rounded one, swallowing taps while the menu is open so
+/// the first tap back on it is a close rather than a stray press.
+///
+/// It is deliberately square. Rounded, it read as the card on top — two
+/// rounded edges meeting flush say nothing about which is in front, and the
+/// one that is rounded and lit is the one the eye puts there.
 class _Screen extends StatelessWidget {
   final Animation<double> isOpen;
   final VoidCallback onTapWhileOpen;
@@ -145,29 +158,21 @@ class _Screen extends StatelessWidget {
       builder: (context, inner) {
         final t = isOpen.value;
         return DecoratedBox(
-          decoration: BoxDecoration(
-            color: p.bg,
-            // Corners only. The menu on top of it is the thing casting a
-            // shadow now, and two of them argued about which was in front.
-            borderRadius: BorderRadius.circular(22 * t),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(22 * t),
-            child: Stack(
-              children: [
-                inner!,
-                if (t > 0)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: onTapWhileOpen,
-                      onHorizontalDragEnd: (d) {
-                        if ((d.primaryVelocity ?? 0) < 0) onTapWhileOpen();
-                      },
-                    ),
+          decoration: BoxDecoration(color: p.bg),
+          child: Stack(
+            children: [
+              inner!,
+              if (t > 0)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onTapWhileOpen,
+                    onHorizontalDragEnd: (d) {
+                      if ((d.primaryVelocity ?? 0) < 0) onTapWhileOpen();
+                    },
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         );
       },
