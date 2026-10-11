@@ -275,9 +275,9 @@ class _DayCell extends StatelessWidget {
 
     final Color numberColor;
     if (isToday) {
-      // Whatever reads on the badge: white on the red one, and on the light
-      // one the ground itself — white in dark mode, near-black in light.
-      numberColor = isRed ? Colors.white : p.bg;
+      // Black on the red badge, and on the light one the ground itself —
+      // white in dark mode, near-black in light.
+      numberColor = isRed ? Colors.black : p.bg;
     } else if (!enabled) {
       numberColor = p.faint.withValues(alpha: 0.4);
     } else if (!inMonth) {
@@ -310,10 +310,15 @@ class _DayCell extends StatelessWidget {
         '${day.day}',
         style: TextStyle(
           color: numberColor,
-          fontSize: 13.5,
-          fontWeight: isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
-          // A touch of it here too: the digits of an 11 sitting a box apart
-          // read as two numbers rather than one, badge or no badge.
+          fontSize: 14,
+          // Every number is bold. A grid of dates is read by glancing at it,
+          // not by reading along it, and at this size a medium weight on
+          // black went grey at arm's length. Today and the selected day were
+          // the only bold ones, which is a distinction the badge and the
+          // outline were already making.
+          fontWeight: FontWeight.w700,
+          // The digits of an 11 sitting a box apart read as two numbers
+          // rather than one, badge or no badge.
           letterSpacing: -0.4,
         ),
       ),

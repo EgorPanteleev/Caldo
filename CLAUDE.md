@@ -130,7 +130,12 @@ Changing them back will be noticed.
   either was "too much"; the accent survives on the add buttons, the TODAY
   label and the menu's current entry. The badge takes the colour the day's own
   number would have had — red on a Sunday, light on every other day — since a
-  light badge on a red date was the one place the red stopped halfway.
+  light badge on a red date was the one place the red stopped halfway. The
+  number on the red badge is black; on the light one it is the ground itself.
+- **Every day number is bold.** A grid of dates is read by glancing at it, not
+  by reading along it, and a medium weight on black went grey at arm's length.
+  Today and the selected day used to be the only bold ones, which is a
+  distinction the badge and the outline were already making.
 - **The big day numbers are pulled together** (`letterSpacing`, on the day bar,
   the day card's header and the grid). Digits are laid out in boxes of one
   width so columns of them line up; nothing here is in a column, and at
