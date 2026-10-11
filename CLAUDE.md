@@ -72,6 +72,21 @@ Changing them back will be noticed.
   and round it up: a box worked out from the font size instead is a box the
   text can overflow by a fraction of a pixel, and an overflowing
   `TextOverflow.fade` fades away the bottom half of every letter.
+- **An opened day's chips are inked, not painted** (`dayChipColour`). They
+  were the task's colour at nine tenths — the only saturated blocks left in
+  the app once the cards were inked — and six of them in a cell shouted over
+  the day number they belonged to, so a month with anything on it read as a
+  sheet of violet bricks. The colour is mixed into the calendar's ground
+  instead, a little stronger than a card's since a chip is the size of a word,
+  with the title in the ordinary text colour. The function is top-level so a
+  test can say "this chip wears the task's own colour" without pinning how
+  deep the ink is.
+- **The chips stay tight.** A point of air per chip reads as calmer right up
+  until it costs the day a whole task: at `_inset`/`_gap` of 2 a day with four
+  tasks showed two and "+2 more", which hides more than the air was worth.
+  What did change is the shape — corners at 3 rather than barely off square —
+  and `+N more` is left-aligned under the titles it stands for; centred, it
+  read as a caption on the day rather than the rest of its list.
 - **Collapsing to the week slides the grid past a shrinking window**; every
   week keeps its full-month height and the selected one is where the window is
   left sitting. Shrinking the rows themselves made the numbers close in on each

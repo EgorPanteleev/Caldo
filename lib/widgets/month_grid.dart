@@ -386,6 +386,8 @@ class _DayCell extends StatelessWidget {
                                     ),
                                 ],
                                 muted: p.faint,
+                                text: p.text,
+                                ground: p.calendar,
                               ),
                             ),
                         ],
@@ -450,36 +452,59 @@ class _MarkerBars extends StatelessWidget {
 /// What an opened day writes out: one line per holiday and task.
 typedef DayEntry = ({String label, Color color, bool done});
 
+/// The fill of a chip in an opened day: [colour] mixed into the calendar's
+/// own [ground] rather than laid over it, the same way a task card is inked.
+///
+/// At full strength these were the only saturated blocks left in the app. Six
+/// of them in a cell shouted over the day number they belonged to, and a month
+/// with anything on it read as a sheet of violet bricks.
+///
+/// Out here rather than buried in the widget so a test can say "this chip is
+/// wearing the task's own colour" without also pinning how deep the ink is.
+Color dayChipColour(Color colour, Color ground, {bool done = false}) =>
+    Color.alphaBlend(colour.withValues(alpha: done ? 0.14 : 0.42), ground);
+
 /// A day's entries written out, as many as the opened cell has room for.
 class _DayTitles extends StatelessWidget {
   final List<DayEntry> entries;
   final Color muted;
 
-  const _DayTitles({required this.entries, required this.muted});
+  /// The colour a title is written in, and the ground the chip is mixed into.
+  final Color text;
+  final Color ground;
+
+  const _DayTitles({
+    required this.entries,
+    required this.muted,
+    required this.text,
+    required this.ground,
+  });
 
   static const _fontSize = 7.5;
-  static const _lineSpacing = 1.15;
+  static const _lineSpacing = 1.2;
 
   /// Room above and below the text inside a chip, and between two chips, and
   /// at either end of the title. All kept tight: the chip is the width of a
   /// day, so every point spent on padding is a character lost off the title.
+  /// Kept as tight as it was: a point of air per chip reads as calmer right
+  /// up until it costs the day a whole task, and a day showing two of its
+  /// four with "+2 more" under them hides more than the air was worth.
   static const _inset = 1.5;
   static const _gap = 1.5;
-  static const _sideInset = 2.5;
+  static const _sideInset = 3.0;
 
   /// A title may wrap onto a second line — a day is a few characters wide —
   /// but no further.
   static const _maxLines = 2;
 
-  /// Corners barely off square: at this size a rounder chip loses more of the
-  /// title's first letter than the softening is worth.
-  static const _radius = 1.5;
+  /// Enough to read as a chip rather than a brick, and not so much that the
+  /// corners start eating the first letter of the title.
+  static const _radius = 3.0;
 
   static const _style = TextStyle(
     fontSize: _fontSize,
     height: _lineSpacing,
     fontWeight: FontWeight.w600,
-    color: Colors.white,
   );
 
   /// The height a chip needs for [label] at [width] — the height the engine
@@ -582,8 +607,10 @@ class _DayTitles extends StatelessWidget {
             ),
             alignment: Alignment.centerLeft,
             decoration: BoxDecoration(
-              color: entries[i].color.withValues(
-                alpha: entries[i].done ? 0.35 : 0.9,
+              color: dayChipColour(
+                entries[i].color,
+                ground,
+                done: entries[i].done,
               ),
               borderRadius: BorderRadius.circular(_radius),
             ),
@@ -594,6 +621,7 @@ class _DayTitles extends StatelessWidget {
               // two of the few characters on an ellipsis.
               overflow: TextOverflow.fade,
               style: _style.copyWith(
+                color: entries[i].done ? muted : text,
                 decoration: entries[i].done ? TextDecoration.lineThrough : null,
               ),
             ),
@@ -601,13 +629,21 @@ class _DayTitles extends StatelessWidget {
         if (hidden > 0)
           SizedBox(
             height: _lineHeight + _inset * 2,
-            child: Text(
-              '+$hidden',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: _fontSize,
-                fontWeight: FontWeight.w700,
-                color: muted,
+            child: Padding(
+              // Lined up with the titles it stands for rather than centred
+              // under them — centred, it read as a caption on the day.
+              padding: const EdgeInsets.only(left: _sideInset),
+              child: Text(
+                '+$hidden more',
+                style: TextStyle(
+                  fontSize: _fontSize,
+                  height: _lineSpacing,
+                  fontWeight: FontWeight.w600,
+                  color: muted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.fade,
+                softWrap: false,
               ),
             ),
           ),

@@ -102,7 +102,10 @@ void main() {
           .first,
     );
     final decoration = chip.decoration! as BoxDecoration;
-    expect(decoration.color!.toARGB32(), AppColors.holiday.withValues(alpha: 0.9).toARGB32());
+    expect(
+      decoration.color!.toARGB32(),
+      dayChipColour(AppColors.holiday, AppPalette.dark.calendar).toARGB32(),
+    );
   });
 
   testWidgets('week rules only arrive as the month finishes opening',
@@ -132,6 +135,15 @@ void main() {
     );
     final decoration = chip.decoration! as BoxDecoration;
     final pink = ListStyle.byId('pink').color;
-    expect(decoration.color!.toARGB32(), pink.withValues(alpha: 0.9).toARGB32());
+    expect(
+      decoration.color!.toARGB32(),
+      dayChipColour(pink, AppPalette.dark.calendar).toARGB32(),
+      reason: 'the chip wears the task\'s own colour, not its list\'s',
+    );
+    expect(
+      decoration.color!.toARGB32(),
+      isNot(dayChipColour(work.style.color, AppPalette.dark.calendar)
+          .toARGB32()),
+    );
   });
 }
