@@ -268,10 +268,16 @@ class _DayCell extends StatelessWidget {
     // Only Sundays are red; a holiday says so with its green mark instead.
     final isRed = Dates.isSunday(day);
 
+    // Today's badge is the colour the day's own number would have been: red
+    // on a Sunday, the plain light badge on every other day. A light badge on
+    // a red date was the one place the red stopped halfway.
+    final badge = isRed ? AppColors.weekend : p.text;
+
     final Color numberColor;
     if (isToday) {
-      // Dark on the light badge — white in dark mode, near-black in light.
-      numberColor = p.bg;
+      // Whatever reads on the badge: white on the red one, and on the light
+      // one the ground itself — white in dark mode, near-black in light.
+      numberColor = isRed ? Colors.white : p.bg;
     } else if (!enabled) {
       numberColor = p.faint.withValues(alpha: 0.4);
     } else if (!inMonth) {
@@ -290,14 +296,14 @@ class _DayCell extends StatelessWidget {
       fallback: accent.color,
     ).withValues(alpha: task.done ? 0.35 : (allDone ? 0.55 : 1));
 
-    // Today wears a plain light badge and the selected day a thin neutral
-    // outline: the accent on both was far too loud for a grid of numbers.
+    // Today wears a badge and the selected day a thin neutral outline: the
+    // accent on both was far too loud for a grid of numbers.
     final number = Container(
       width: 28,
       height: 20,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isToday ? p.text : Colors.transparent,
+        color: isToday ? badge : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -306,6 +312,9 @@ class _DayCell extends StatelessWidget {
           color: numberColor,
           fontSize: 13.5,
           fontWeight: isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
+          // A touch of it here too: the digits of an 11 sitting a box apart
+          // read as two numbers rather than one, badge or no badge.
+          letterSpacing: -0.4,
         ),
       ),
     );

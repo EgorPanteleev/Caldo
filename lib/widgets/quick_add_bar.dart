@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
@@ -217,9 +219,10 @@ class _KeyboardLiftState extends State<KeyboardLift>
   /// in a tenth of a second, at rest by a fifth. Stiffer than this and a
   /// lumpy report shows through as a jump again; softer and the field visibly
   /// lags the keys it is supposed to be riding on.
+  static const _stiffness = 900.0;
   static final _spring = SpringDescription.withDampingRatio(
     mass: 1,
-    stiffness: 900,
+    stiffness: _stiffness,
   );
 
   @override
@@ -247,12 +250,24 @@ class _KeyboardLiftState extends State<KeyboardLift>
     // mid-flight stays continuous, and from a standstill it starts from a
     // standstill. Reported smoothly it trails the keyboard by about a frame,
     // which is the price of never jumping.
+    // Critically damped only promises not to overshoot from a standstill. Given
+    // a speed of its own it can be thrown past the target and have to come
+    // back — which, on the way down, is the bar dipping below the place it
+    // lives and climbing back into it. The carried speed is held to what the
+    // spring can shed over the distance that is left.
+    final from = _lift.value;
+    final away = from - inset;
+    final bound = -math.sqrt(_stiffness) * away;
+    final speed = away >= 0
+        ? math.max(_lift.velocity, bound)
+        : math.min(_lift.velocity, bound);
+
     _lift.animateWith(
       SpringSimulation(
         _spring,
-        _lift.value,
+        from,
         inset,
-        _lift.velocity,
+        speed,
         tolerance: const Tolerance(distance: 0.1, velocity: 1),
       ),
     );

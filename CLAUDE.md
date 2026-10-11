@@ -126,9 +126,16 @@ Changing them back will be noticed.
   behind the screen, which is why a test cannot tell open from closed by
   looking for its text and reads the screen's offset instead. Back closes it
   (`PopScope`), as does a tap or a leftward swipe on the screen.
-- **Today is a plain light badge; the selected day is a thin neutral outline.**
-  Accent on either was "too much". The accent survives on the add buttons, the
-  TODAY label and the menu's current entry.
+- **Today is a badge, the selected day a thin neutral outline.** Accent on
+  either was "too much"; the accent survives on the add buttons, the TODAY
+  label and the menu's current entry. The badge takes the colour the day's own
+  number would have had — red on a Sunday, light on every other day — since a
+  light badge on a red date was the one place the red stopped halfway.
+- **The big day numbers are pulled together** (`letterSpacing`, on the day bar,
+  the day card's header and the grid). Digits are laid out in boxes of one
+  width so columns of them line up; nothing here is in a column, and at
+  display sizes the hole between the ones of an 11 reads as two numbers rather
+  than one.
 - **Only Sundays are red.** A holiday does not recolour the number — its green
   mark says it already.
 - **Holidays are not tasks.** They are computed read-only entries; nothing is
@@ -223,7 +230,10 @@ Changing them back will be noticed.
   from a standstill when it was at rest. Following the inset exactly was tried
   on the way up, to stay glued to the keys; on a phone that reports the rise
   in two steps that is two jumps. Reported smoothly, the spring trails by
-  about a frame, which is the price of never jumping.
+  about a frame, which is the price of never jumping. The carried speed is
+  bounded by what the spring can shed over the distance left: critically
+  damped only promises not to overshoot from a standstill, and thrown past its
+  target the bar dips below the place it lives and climbs back into it.
 - **The dark ground is true black.** The calendar's already was, so an app
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything

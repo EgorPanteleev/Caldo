@@ -216,6 +216,9 @@ class _Header extends StatelessWidget {
               fontSize: 28,
               height: 1,
               fontWeight: FontWeight.w700,
+              // As on the day bar: digit boxes are one width, which at this
+              // size shows as a hole between the ones of an 11.
+              letterSpacing: -1.7,
             ),
           ),
           const SizedBox(width: 10),

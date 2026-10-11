@@ -856,6 +856,11 @@ class _DayBar extends StatelessWidget {
               fontSize: 26,
               height: 1,
               fontWeight: FontWeight.w700,
+              // Digits are laid out in boxes of one width so columns of them
+              // line up, which at this size leaves a hole between the ones of
+              // an 11. Nothing here is in a column, so the space is pulled
+              // back out.
+              letterSpacing: -1.6,
             ),
           ),
           const SizedBox(width: 8),
