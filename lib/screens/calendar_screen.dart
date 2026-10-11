@@ -826,6 +826,10 @@ class _DayPanel extends StatelessWidget {
 /// The bar between the grid and the day's task list: the day it is showing,
 /// and nothing else. The count and the button beside it were noise on a bar
 /// whose whole job is to say which day is below it.
+///
+/// It sits on the same ground as the day below it. A shade of its own made a
+/// band across the screen and cut the day in two — the date and the things on
+/// that date are one panel, and the bar is only the top of it.
 class _DayBar extends StatelessWidget {
   final DateTime date;
 
@@ -835,7 +839,7 @@ class _DayBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Container(
-      color: p.sidebar,
+      color: p.bg,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

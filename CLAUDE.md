@@ -175,6 +175,10 @@ Changing them back will be noticed.
 - **The quick-add button is a plus until the field is opened, then a tick**,
   and it is plain rather than the accent gradient the headers wear — it sits
   beside the field the eye is already on.
+- **The day bar sits on the same ground as the day below it.** It had a shade
+  of its own, which put a band across the screen and cut the day in two — the
+  date and the things on that date are one panel, and the bar is only the top
+  of it.
 - **The day bar names its day and nothing else.** The open-count and the
   full-form button beside it were noise on a bar whose whole job is to say
   which day is below it; the full form is still reached from the day card's
