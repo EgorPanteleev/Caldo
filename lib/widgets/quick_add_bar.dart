@@ -214,7 +214,9 @@ class _KeyboardLiftState extends State<KeyboardLift>
 
   /// Critically damped, so the bar never passes the place it is going to, and
   /// quick enough to keep up with the keyboard's own slide: most of the way
-  /// in a tenth of a second, at rest by a fifth.
+  /// in a tenth of a second, at rest by a fifth. Stiffer than this and a
+  /// lumpy report shows through as a jump again; softer and the field visibly
+  /// lags the keys it is supposed to be riding on.
   static final _spring = SpringDescription.withDampingRatio(
     mass: 1,
     stiffness: 900,
@@ -232,30 +234,23 @@ class _KeyboardLiftState extends State<KeyboardLift>
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     if (inset == _inset) return;
     _inset = inset;
-    final at = _lift.value;
 
-    // Rising, the bar is simply put where the keyboard says it is: Android
-    // reports that slide frame by frame, and anything else would leave a gap
-    // between the keys and the field riding above them.
-    if (inset > at) {
-      _lift.stop();
-      _lift.value = inset;
-      return;
-    }
-
-    // Falling, it is never put anywhere — it is always sent there. Android
-    // reports a closing keyboard as two or three lumps, each a couple of
-    // hundred points, and a bar moved straight to one of those has teleported
-    // whether or not the number it was handed was honest.
+    // The bar is never put anywhere — it is always sent there, in both
+    // directions. Android does not promise to report a keyboard's slide frame
+    // by frame; it reports it in however many lumps it feels like, and a bar
+    // moved straight to one of those has teleported whether or not the number
+    // it was handed was honest. Following the inset exactly was tried on the
+    // way up, for the sake of staying glued to the keys — on a phone that
+    // reports the rise in two steps, that is two jumps.
     //
-    // The spring carries whatever speed it already has, which is what keeps a
-    // mid-flight change of target from putting a catch in the middle of the
-    // fall; from a standstill it starts from a standstill, so the fall begins
-    // as a movement rather than as a jump.
+    // The spring carries whatever speed it already has, so a change of target
+    // mid-flight stays continuous, and from a standstill it starts from a
+    // standstill. Reported smoothly it trails the keyboard by about a frame,
+    // which is the price of never jumping.
     _lift.animateWith(
       SpringSimulation(
         _spring,
-        at,
+        _lift.value,
         inset,
         _lift.velocity,
         tolerance: const Tolerance(distance: 0.1, velocity: 1),
