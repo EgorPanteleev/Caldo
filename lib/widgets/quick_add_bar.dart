@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
@@ -214,17 +212,12 @@ class _KeyboardLiftState extends State<KeyboardLift>
 
   double _inset = 0;
 
-  /// When the inset last changed, and how fast it was moving when it did.
-  /// Android reports the keyboard's slide as a handful of steps and then cuts
-  /// the rest off, so the speed it was going at is the only record of it.
-  Duration? _changedAt;
-  double _reportedSpeed = 0;
-
-  /// Critically damped, so the bar never passes the place it is going to.
-  static const _stiffness = 600.0;
+  /// Critically damped, so the bar never passes the place it is going to, and
+  /// quick enough to keep up with the keyboard's own slide: most of the way
+  /// in a tenth of a second, at rest by a fifth.
   static final _spring = SpringDescription.withDampingRatio(
     mass: 1,
-    stiffness: _stiffness,
+    stiffness: 900,
   );
 
   @override
@@ -238,41 +231,33 @@ class _KeyboardLiftState extends State<KeyboardLift>
     super.didChangeDependencies();
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     if (inset == _inset) return;
-
-    final now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
-    final since = _changedAt == null
-        ? 0.0
-        : (now - _changedAt!).inMicroseconds / Duration.microsecondsPerSecond;
-    // Anything slower than a few frames apart is a fresh move, not a step of
-    // one already under way, and says nothing about how fast it is going.
-    _reportedSpeed = since > 0 && since < 0.1 ? (inset - _inset) / since : 0;
-    _changedAt = now;
-
-    final at = _lift.value;
     _inset = inset;
+    final at = _lift.value;
 
-    // A step the keyboard could plausibly have taken in one frame is the
-    // keyboard animating and being reported as it goes, so the bar is put
-    // where it says. Only a fall of most of the lift at once is the rest of
-    // the slide being cut off — that part the bar has to ride down itself.
-    if (inset >= at - at / 3) {
+    // Rising, the bar is simply put where the keyboard says it is: Android
+    // reports that slide frame by frame, and anything else would leave a gap
+    // between the keys and the field riding above them.
+    if (inset > at) {
       _lift.stop();
       _lift.value = inset;
       return;
     }
 
-    // Carrying whatever speed it already had, so the fall is one movement
-    // rather than a drop, a catch, and a second drop. Held to the speed a
-    // critically damped spring can shed over the distance left — faster than
-    // that and it would dip past the bottom and come back up.
-    final speed = _lift.isAnimating ? _lift.velocity : _reportedSpeed;
-    final fastest = -(at - inset) * math.sqrt(_stiffness);
+    // Falling, it is never put anywhere — it is always sent there. Android
+    // reports a closing keyboard as two or three lumps, each a couple of
+    // hundred points, and a bar moved straight to one of those has teleported
+    // whether or not the number it was handed was honest.
+    //
+    // The spring carries whatever speed it already has, which is what keeps a
+    // mid-flight change of target from putting a catch in the middle of the
+    // fall; from a standstill it starts from a standstill, so the fall begins
+    // as a movement rather than as a jump.
     _lift.animateWith(
       SpringSimulation(
         _spring,
         at,
         inset,
-        speed.clamp(fastest, 0.0),
+        _lift.velocity,
         tolerance: const Tolerance(distance: 0.1, velocity: 1),
       ),
     );

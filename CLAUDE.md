@@ -205,13 +205,17 @@ Changing them back will be noticed.
   because an agenda that keeps its height would just be hidden under the keys.
   The inset is read in `KeyboardLift` and nowhere else: it changes on every
   frame of the keyboard sliding in, and whoever reads it rebuilds that often.
-- **The bar rides the keyboard down on a spring.** Android reports a closing
-  keyboard as a few steps and then cuts the rest of the slide off in one
-  frame, so the bar is put where the inset says while the steps are small and
-  takes the last lump itself, on a critically damped spring carrying the speed
-  the keyboard was already going at. Easing it from a standstill instead put a
-  visible catch halfway down, which is what made it look jerky; dropping it
-  outright, which is what the inset alone does, was worse.
+- **The bar is put where the keyboard says on the way up, and sent there on
+  the way down.** Android reports a closing keyboard as two or three lumps of
+  a couple of hundred points each, so a bar moved straight to one of those has
+  teleported whether or not the number it was handed was honest. Every
+  downward change goes through a critically damped spring instead, which
+  carries whatever speed it already has — that is what stops a change of
+  target mid-flight from putting a catch in the middle of the fall — and
+  starts from a standstill when it was at rest, so the fall begins as a
+  movement rather than a jump. Rising is the opposite: the platform animates
+  that one frame by frame, and anything but following it exactly leaves a gap
+  between the keys and the field riding above them.
 - **The dark ground is true black.** The calendar's already was, so an app
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything
