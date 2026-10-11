@@ -310,13 +310,14 @@ class _DayCell extends StatelessWidget {
         '${day.day}',
         style: TextStyle(
           color: numberColor,
-          fontSize: 14,
-          // Every number is bold. A grid of dates is read by glancing at it,
-          // not by reading along it, and at this size a medium weight on
-          // black went grey at arm's length. Today and the selected day were
-          // the only bold ones, which is a distinction the badge and the
-          // outline were already making.
-          fontWeight: FontWeight.w700,
+          fontSize: 13.5,
+          // Every number carries the same weight: a grid of dates is read by
+          // glancing at it, not by reading along it, and today and the
+          // selected day being the only bold ones was a distinction the badge
+          // and the outline were already making. Semibold rather than bold —
+          // bold was heavier than the dates on any other calendar on the
+          // phone, which is what this is read beside.
+          fontWeight: FontWeight.w600,
           // The digits of an 11 sitting a box apart read as two numbers
           // rather than one, badge or no badge.
           letterSpacing: -0.4,

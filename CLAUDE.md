@@ -8,8 +8,9 @@ style or structure comes up, look there first.
 ## Stack
 
 Flutter 3.38.6 / Dart 3.10.7. `provider` (state), `sqflite` (storage),
-`shared_preferences` (settings), `google_fonts` (Inter), `intl` (dates),
+`shared_preferences` (settings), `intl` (dates),
 `flutter_local_notifications` + `timezone` + `flutter_timezone` (reminders).
+The type is the platform's own font — see the decision below.
 Dev-only: `sqflite_common_ffi`, so widget tests run against a real database.
 
 ## Layout
@@ -132,10 +133,19 @@ Changing them back will be noticed.
   number would have had — red on a Sunday, light on every other day — since a
   light badge on a red date was the one place the red stopped halfway. The
   number on the red badge is black; on the light one it is the ground itself.
-- **Every day number is bold.** A grid of dates is read by glancing at it, not
-  by reading along it, and a medium weight on black went grey at arm's length.
-  Today and the selected day used to be the only bold ones, which is a
-  distinction the badge and the outline were already making.
+- **The app is set in the platform's own font.** It was Inter, fetched by
+  `google_fonts` on first launch. Two things were wrong with that: this
+  calendar sits beside other calendars on the same phone and did not look like
+  them — every one of those uses the system font, which is what a date is
+  expected to be set in — and an emulator with no network silently falls back
+  to Roboto, so nothing judged by eye here was ever showing the font that
+  actually shipped. Measured against the screenshot this was matched to, the
+  numbers now come out within two percent on width at the same cap height.
+- **Every day number carries the same weight**, semibold. A grid of dates is
+  read by glancing at it, not by reading along it, and today and the selected
+  day being the only bold ones was a distinction the badge and the outline
+  were already making. Bold for all of them was heavier than the dates on any
+  other calendar on the phone, which is what this is read beside.
 - **The big day numbers are pulled together** (`letterSpacing`, on the day bar,
   the day card's header and the grid). Digits are laid out in boxes of one
   width so columns of them line up; nothing here is in a column, and at
@@ -391,11 +401,8 @@ Changes here are judged by eye: take the screenshot and check it before saying
 it works. `adb shell input tap/swipe/text` drives it; the screen is 1080x1920
 at dpr 3 (360x640 logical).
 
-Two things that look like bugs and are not:
+One thing that looks like a bug and is not:
 
-- `google_fonts` logs a failure to fetch Inter — the emulator has no network,
-  so Flutter falls back to Roboto. On a real phone it downloads once and caches.
-  Offer to bundle the font if it ever matters.
 - An ANR under load is usually host starvation (a Gradle daemon plus the
   emulator on 13GB), not a hang in the app. Check whether unrelated processes
   ANR'd in the same second before hunting for a layout loop.

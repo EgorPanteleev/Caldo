@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Obsidian-inspired palette: refined charcoal surfaces, thin borders,
 /// muted text, and a violet→indigo accent.
@@ -288,9 +287,17 @@ class AppTheme {
       outline: p.border,
     );
 
-    final baseText = GoogleFonts.interTextTheme(
-      ThemeData(brightness: brightness).textTheme,
-    ).apply(bodyColor: p.text, displayColor: p.text);
+    // The platform's own font, not one of our own.
+    //
+    // It was Inter, downloaded by `google_fonts` on first launch. Two things
+    // were wrong with that: the calendar sat beside other calendars on the
+    // same phone and did not look like them — every one of those uses the
+    // system font, which is what a date is expected to be set in — and an
+    // emulator with no network silently falls back to Roboto, so nothing
+    // checked by eye here was ever showing the font the app actually shipped.
+    final baseText = ThemeData(
+      brightness: brightness,
+    ).textTheme.apply(bodyColor: p.text, displayColor: p.text);
 
     return ThemeData(
       useMaterial3: true,
@@ -308,7 +315,7 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.inter(
+        titleTextStyle: TextStyle(
           color: p.text,
           fontSize: 20,
           fontWeight: FontWeight.w700,
@@ -360,7 +367,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -371,7 +378,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
