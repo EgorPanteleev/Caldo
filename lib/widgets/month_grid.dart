@@ -1,6 +1,3 @@
-import 'dart:math' as math;
-import 'dart:ui' show lerpDouble;
-
 import 'package:flutter/material.dart';
 
 import '../data/holidays.dart';
@@ -367,26 +364,16 @@ class _DayCell extends StatelessWidget {
           ),
           child: LayoutBuilder(
             builder: (context, box) {
-              // The number sits in the middle of a compact cell and climbs to
-              // the top of an opened one, carried there by the same value that
-              // opens the month — so it travels with the grid rather than
-              // jumping between two layouts, which an earlier version did by
-              // cross-fading them and the numbers visibly teleported.
-              //
-              // Centred is what the compact month wants: the cell is a square
-              // with a date in it and the selected one is outlined, and a date
-              // held against the top of that outline reads as hung from it.
-              // Opened, the number has a day's work written out underneath and
-              // belongs at the top. Positioned children are bounded, so a cell
-              // too short for its content drops it rather than overflowing.
+              // Everything is positioned from the top of the cell: the number
+              // keeps its place whatever the grid height, so the first week
+              // never moves as the month opens — only what sits under the
+              // number changes. Centring it in a compact cell was tried, and
+              // slid to the top as the month opened; it was asked for and then
+              // asked back. Positioned children are bounded, so a cell too
+              // short for its content drops it rather than overflowing.
+              const numberTop = 5.0;
               const numberHeight = 16.0;
-              const openTop = 5.0;
-              final numberTop = lerpDouble(
-                math.max(openTop, (box.maxHeight - numberHeight) / 2),
-                openTop,
-                expansion.clamp(0.0, 1.0),
-              )!;
-              final contentTop = numberTop + numberHeight + 2;
+              const contentTop = numberTop + numberHeight + 2;
               final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
               final titleOpacity = ((expansion - 0.3) * 2.4).clamp(0.0, 1.0);
 
@@ -463,12 +450,8 @@ class _MarkerBars extends StatelessWidget {
 
   const _MarkerBars({required this.colors});
 
-  // Slimmer than they were, and closer together. With the number sitting in
-  // the middle of a compact cell there is only the lower half to mark up, and
-  // at the old weight a day with four things on it could only show two of
-  // them.
-  static const _barHeight = 2.5;
-  static const _gap = 1.5;
+  static const _barHeight = 3.0;
+  static const _gap = 2.0;
   static const _max = 4;
 
   @override

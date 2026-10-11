@@ -60,20 +60,14 @@ Changing them back will be noticed.
 - **A drag a fifth of the way towards the next state commits to it**, and the
   snap runs on a critically damped spring carrying the drag's own speed, not a
   fixed ease from a standstill. Pulling the whole way was never the point.
-- **A day number sits in the middle of a compact cell and climbs to the top of
-  an opened one**, carried by the same value that opens the month — so it
-  travels with the grid rather than jumping between two layouts. An earlier
-  version cross-faded a centred layout with a top-aligned one and the numbers
-  visibly teleported mid-drag; a lerped offset is the part of that idea that
-  works. Centred is what the compact month wants, because the cell is a square
-  with a date in it and the selected one is outlined, and a date held against
-  the top of that outline reads as hung from it. Opened, the number has a
-  day's work written out underneath and belongs above it.
+- **Day numbers sit at a fixed offset from the top of their cell.** This is
+  why the first week never moves as the grid grows. An earlier version
+  cross-faded a centred layout with a top-aligned one and the numbers visibly
+  teleported mid-drag. Centring them in a compact cell and sliding them to the
+  top as it opens does work — it was built, on a lerped offset — but it was
+  asked for and then asked back, so they are at the top in both states.
 - **A day's tasks are marked with a line each**, the width of the day, stacked
-  under the number — not dots. Holidays come first, in green. They are slim
-  and close together: with the number in the middle of a compact cell there is
-  only the lower half to mark up, and at the weight they used to be a day with
-  four things on it could show two of them.
+  under the number — not dots. Holidays come first, in green.
 - **An opened day's task titles take the lines they need, up to two.** A day
   cell is about seven characters wide, so one line cut most names off — but a
   chip is measured (`TextPainter`, in the chip's own font and width) and a
