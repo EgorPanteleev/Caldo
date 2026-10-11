@@ -133,6 +133,10 @@ Changing them back will be noticed.
   number would have had — red on a Sunday, light on every other day — since a
   light badge on a red date was the one place the red stopped halfway. The
   number on the red badge is black; on the light one it is the ground itself.
+  The badge is near enough square and tight around the digits — measured off
+  the screenshot this was matched to, theirs is a square a fifth wider than
+  the number in it, where ours had been half again as wide as that, a slab
+  with the date floating in the middle.
 - **The app is set in the platform's own font.** It was Inter, fetched by
   `google_fonts` on first launch. Two things were wrong with that: this
   calendar sits beside other calendars on the same phone and did not look like
@@ -140,7 +144,9 @@ Changing them back will be noticed.
   expected to be set in — and an emulator with no network silently falls back
   to Roboto, so nothing judged by eye here was ever showing the font that
   actually shipped. Measured against the screenshot this was matched to, the
-  numbers now come out within two percent on width at the same cap height.
+  numbers now come out within two percent on width at the same cap height, and
+  a date stands the same fraction of the screen tall — 2.04% against 2.03%,
+  which is what 12 points rather than 13.5 buys.
 - **Every day number carries the same weight**, semibold. A grid of dates is
   read by glancing at it, not by reading along it, and today and the selected
   day being the only bold ones was a distinction the badge and the outline

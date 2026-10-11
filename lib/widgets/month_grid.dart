@@ -299,18 +299,25 @@ class _DayCell extends StatelessWidget {
     // Today wears a badge and the selected day a thin neutral outline: the
     // accent on both was far too loud for a grid of numbers.
     final number = Container(
-      width: 28,
-      height: 20,
+      // Near enough square and tight around the digits. Measured off the
+      // screenshot this is matched to, the badge there is a square a fifth
+      // wider than the number inside it; ours was half again as wide as that,
+      // a slab with the date floating in the middle of it.
+      width: 17,
+      height: 16,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: isToday ? badge : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(5.5),
       ),
       child: Text(
         '${day.day}',
         style: TextStyle(
           color: numberColor,
-          fontSize: 13.5,
+          // Measured against the same screenshot: a date there stands about
+          // two percent of the screen's width tall, and at 13.5 ours stood
+          // nearer two and a third.
+          fontSize: 12,
           // Every number carries the same weight: a grid of dates is read by
           // glancing at it, not by reading along it, and today and the
           // selected day being the only bold ones was a distinction the badge
@@ -348,7 +355,7 @@ class _DayCell extends StatelessWidget {
               // number changes. Positioned children are bounded, so a cell too
               // short for its content drops it rather than overflowing.
               const numberTop = 2.0;
-              const numberHeight = 20.0;
+              const numberHeight = 16.0;
               const contentTop = numberTop + numberHeight + 2;
               final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
               final titleOpacity = ((expansion - 0.3) * 2.4).clamp(0.0, 1.0);
