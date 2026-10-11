@@ -308,7 +308,12 @@ class _DayCell extends StatelessWidget {
       // a slab with the date floating in the middle of it.
       width: 17,
       height: 16,
-      alignment: Alignment.center,
+      // Centred on the digits rather than on the line box they are laid out
+      // in. A line box carries room for descenders under the baseline and
+      // none of these numbers has one, so centring the box drops the date
+      // towards the bottom of the badge — which with a badge this tight was
+      // the date all but resting on its edge.
+      alignment: const Alignment(0, 0.2),
       decoration: BoxDecoration(
         color: isToday ? badge : Colors.transparent,
         borderRadius: BorderRadius.circular(5.5),
@@ -321,6 +326,9 @@ class _DayCell extends StatelessWidget {
           // two percent of the screen's width tall, and at 13.5 ours stood
           // nearer two and a third.
           fontSize: 12,
+          // One line's worth and no more, so what is centred is close to the
+          // digits themselves.
+          height: 1,
           // Every number carries the same weight: a grid of dates is read by
           // glancing at it, not by reading along it, and today and the
           // selected day being the only bold ones was a distinction the badge
@@ -328,9 +336,16 @@ class _DayCell extends StatelessWidget {
           // bold was heavier than the dates on any other calendar on the
           // phone, which is what this is read beside.
           fontWeight: FontWeight.w600,
-          // The digits of an 11 sitting a box apart read as two numbers
-          // rather than one, badge or no badge.
-          letterSpacing: -0.4,
+          // Proportional figures, not the tabular ones a font hands out by
+          // default. Tabular digits are each given a box of the same width so
+          // columns of them line up, and a 1 is a narrow glyph in a wide box
+          // — so an 11 comes out with a hole down the middle and its ink
+          // sitting left of where the pair is centred, which is what made the
+          // date look off-centre in its badge. Nothing here is in a column.
+          fontFeatures: const [FontFeature.proportionalFigures()],
+          // And still pulled in a little: proportional or not, the pair reads
+          // as one number rather than two.
+          letterSpacing: -0.3,
         ),
       ),
     );

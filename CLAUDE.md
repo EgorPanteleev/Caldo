@@ -160,11 +160,18 @@ Changing them back will be noticed.
   day being the only bold ones was a distinction the badge and the outline
   were already making. Bold for all of them was heavier than the dates on any
   other calendar on the phone, which is what this is read beside.
-- **The big day numbers are pulled together** (`letterSpacing`, on the day bar,
-  the day card's header and the grid). Digits are laid out in boxes of one
-  width so columns of them line up; nothing here is in a column, and at
-  display sizes the hole between the ones of an 11 reads as two numbers rather
-  than one.
+- **The day numbers are pulled together** (`letterSpacing`, on the day bar,
+  the day card's header and the grid; `FontFeature.proportionalFigures` in the
+  grid as well). Digits are laid out in boxes of one width so columns of them
+  line up, and nothing here is in a column. Two things follow from that: the
+  hole between the ones of an 11 reads as two numbers rather than one, and —
+  since a 1 is a narrow glyph in a wide box — the ink of an 11 sits left of
+  where the pair is centred, which is what had the date looking off-centre in
+  its badge.
+- **The date in the badge is centred on its digits, not on its line box**
+  (`Alignment(0, 0.2)` with `height: 1`). A line box carries room for
+  descenders under the baseline and no date has one, so a date centred by its
+  box sits low — in a badge this tight, all but resting on the bottom edge.
 - **Only Sundays are red.** A holiday does not recolour the number — its green
   mark says it already.
 - **Holidays are not tasks.** They are computed read-only entries; nothing is
