@@ -122,7 +122,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// fades into: the calendar's own once the month is opened out, the app
   /// background while the day's tasks still have the lower half of the screen.
   Color _groundUnderField(AppPalette p) =>
-      Color.lerp(p.bg, p.calendar, math.max(0.0, _expansion.value))!;
+      Color.lerp(p.panel, p.calendar, math.max(0.0, _expansion.value))!;
 
   /// Set while a pick is being carried to the two pagers, so the pages their
   /// animations pass through are not mistaken for picks of their own.
@@ -452,8 +452,10 @@ class _CalendarScreenState extends State<CalendarScreen>
                         final panelLayout = math.max(listHeight, panelVisible);
                         return Column(
                           children: [
-                            // The grid and its grip share the calendar's own ground;
-                            // the day's tasks below sit on the app background.
+                            // The grid and its grip share the calendar's own
+                            // ground; the day below sits on a grey of its own,
+                            // so the month and the day it is showing read as
+                            // two surfaces rather than one dark field.
                             ColoredBox(
                               color: p.calendar,
                               child: Column(
@@ -507,12 +509,15 @@ class _CalendarScreenState extends State<CalendarScreen>
                             // and clips away instead of overflowing as it shrinks.
                             SizedBox(
                               height: panelVisible,
-                              child: ClipRect(
-                                child: OverflowBox(
-                                  alignment: Alignment.topCenter,
-                                  minHeight: panelLayout,
-                                  maxHeight: panelLayout,
-                                  child: pager,
+                              child: ColoredBox(
+                                color: p.panel,
+                                child: ClipRect(
+                                  child: OverflowBox(
+                                    alignment: Alignment.topCenter,
+                                    minHeight: panelLayout,
+                                    maxHeight: panelLayout,
+                                    child: pager,
+                                  ),
                                 ),
                               ),
                             ),
@@ -839,7 +844,7 @@ class _DayBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Container(
-      color: p.bg,
+      color: p.panel,
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

@@ -10,11 +10,14 @@ import '../utils/dates.dart';
 /// A task as it appears under the calendar: a card inked with its list's
 /// colour, carrying a tick, the title and when it is due.
 ///
-/// The ink is mixed into the ground rather than laid over it, which is what
-/// keeps it a deep, flat colour instead of a haze: a quarter of the list's
-/// colour against true black comes out as the near-navy the cards wear. There
-/// is no border — the fill is the shape, and an outline a shade brighter than
-/// it only blurred the edge.
+/// The ink is a quarter of the list's colour over whatever the card is
+/// standing on, which against true black comes out as the near-navy the cards
+/// wear. Left translucent rather than mixed into one named colour, so a card
+/// is inked by the ground it actually sits on — the calendar's day panel is a
+/// grey, the agenda and the day card are black, and a card worked out against
+/// the wrong one of those is a card darker than the sheet under it. There is
+/// no border: the fill is the shape, and an outline a shade brighter than it
+/// only blurred the edge.
 class TaskCard extends StatelessWidget {
   final Task task;
   final TaskList? list;
@@ -67,10 +70,7 @@ class TaskCard extends StatelessWidget {
             decoration: BoxDecoration(
               // A done task sinks most of the way back into the ground rather
               // than keeping its place in the run.
-              color: Color.alphaBlend(
-                color.withValues(alpha: faded ? 0.07 : 0.24),
-                p.bg,
-              ),
+              color: color.withValues(alpha: faded ? 0.07 : 0.24),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
@@ -186,10 +186,7 @@ class HolidayCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: Color.alphaBlend(
-            AppColors.holiday.withValues(alpha: 0.22),
-            p.bg,
-          ),
+          color: AppColors.holiday.withValues(alpha: 0.22),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(

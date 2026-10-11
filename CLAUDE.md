@@ -175,10 +175,14 @@ Changing them back will be noticed.
 - **The quick-add button is a plus until the field is opened, then a tick**,
   and it is plain rather than the accent gradient the headers wear — it sits
   beside the field the eye is already on.
-- **The day bar sits on the same ground as the day below it.** It had a shade
-  of its own, which put a band across the screen and cut the day in two — the
-  date and the things on that date are one panel, and the bar is only the top
-  of it.
+- **The day below the grid is a grey panel, the grid is black.** The month and
+  the day it is showing are two surfaces, not one dark field; `panel` under the
+  day, `calendar` under the grid. The day bar takes the panel's grey too — it
+  had a shade of its own, which put a band across the screen and cut the day in
+  two, when the date and the things on that date are one panel and the bar is
+  only the top of it. The strip under the add field follows, so it is the
+  panel's grey while the day is on screen and the calendar's black once the
+  month is opened out over it.
 - **The day bar names its day and nothing else.** The open-count and the
   full-form button beside it were noise on a bar whose whole job is to say
   which day is below it; the full form is still reached from the day card's
@@ -245,15 +249,18 @@ Changing them back will be noticed.
   stranded at opposite ends of a void. The card already writes the hour where
   an all-day task's says "All day", so the row was drawing a distinction that
   was already being made — quietly, and better.
-- **A task card is inked with its colour, and the ink is mixed into the
-  ground rather than laid over it.** A quarter of the list's colour blended
-  into true black is the deep near-navy the cards wear; the same colour at a
-  sixth strength *over* the ground, with an outline a third of the way up,
-  was a haze with a blurred edge — it was tried, and so was dropping the
-  colour altogether for a neutral panel, which was rejected by name. There is
-  no border: the fill is the shape. A done card keeps a twentieth of the
-  colour, so it sinks most of the way back into the ground without leaving the
-  run, and its tick square fills in instead of standing empty.
+- **A task card is inked with its colour — a quarter of it, over whatever the
+  card is standing on.** Against true black that comes out as the deep
+  near-navy the cards wear. The same colour at a sixth strength with an
+  outline a third of the way up was a haze with a blurred edge; so was
+  dropping the colour for a neutral panel, which was rejected by name. There
+  is no border: the fill is the shape. The ink is left translucent rather than
+  blended into one named colour, so a card is inked by the ground it is
+  actually on — the calendar's day panel is grey, the agenda and the day card
+  are black, and a card worked out against the wrong one of those is a card
+  darker than the sheet under it. A done card keeps a twentieth of the colour,
+  so it sinks most of the way back into the ground without leaving the run,
+  and its tick square fills in instead of standing empty.
 - **A day the reader has a word for wears it on a badge**, with the date
   written beside it — `Today` on a light pill, then `Sat, 4 Oct`. The word
   used to replace the date, which left the one day most likely to be looked up
