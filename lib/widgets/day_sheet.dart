@@ -156,6 +156,7 @@ class _DaySheetState extends State<_DaySheet> {
                               )
                             : ReorderableTaskList(
                                 shrinkWrap: true,
+                                ground: p.bg,
                                 padding: const EdgeInsets.only(
                                   top: 2,
                                   bottom: 10,

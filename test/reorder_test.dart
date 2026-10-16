@@ -61,6 +61,34 @@ void main() {
     expect(titles(p).last, 'latecomer');
   });
 
+  test('the overdue backlog keeps the order it was dragged into', () async {
+    await resetTestDatabase();
+    final p = TaskProvider();
+    await p.loadLists();
+    final now = DateTime.now();
+    // Three days late, two days late, one day late — so the order they fall
+    // into on their own is the reverse of the order they were made in.
+    for (var late = 3; late >= 1; late--) {
+      await p.add(Task(
+        listId: p.lists.first.id!,
+        title: '$late days late',
+        dueAt: dayOf(now.subtract(Duration(days: late)))
+            .millisecondsSinceEpoch,
+        createdAt: now.millisecondsSinceEpoch,
+      ));
+    }
+    await p.loadTasks();
+    expect([for (final t in p.overdue) t.title],
+        ['3 days late', '2 days late', '1 days late']);
+
+    final moved = [p.overdue[2], p.overdue[0], p.overdue[1]];
+    await p.reorder(moved);
+    await p.loadTasks();
+    expect([for (final t in p.overdue) t.title],
+        ['1 days late', '3 days late', '2 days late'],
+        reason: 'the arrangement outranks how late each one is');
+  });
+
   test('one task cannot be reordered, and nothing is written', () async {
     final p = await provider();
     final one = p.tasksForDay(day).first;

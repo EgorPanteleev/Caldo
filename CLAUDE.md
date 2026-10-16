@@ -320,12 +320,27 @@ Changing them back will be noticed.
   already does, so nothing was lost. There are no drag handles: the card is
   the handle, and a grip beside every row would be a column of furniture down
   a list whose whole job is to be read.
-- **A task only ever moves within its own day.** Let go over another day it
-  lands at the near end of its own, because dragging it across would be a
-  change of date wearing the clothes of a change of order. The same rule keeps
-  the overdue backlog out of it: those are tasks from many days gathered
-  together, and the order they want is how late each one is. Holidays sit in
-  the list but cannot be picked up or displaced — nobody placed them there.
+- **A task only ever moves within the run it is in.** Let go over another run
+  it lands at the near end of its own, because dragging it from one day to
+  another would be a change of date wearing the clothes of a change of order.
+  Every run can be dragged, the overdue backlog included — it was left out at
+  first on the grounds that the order a backlog wants is how late each thing
+  is, which ignored that on most days it is the larger part of what is on the
+  screen, so Schedule read as a list that could not be dragged at all.
+  Holidays sit in the list but cannot be picked up or displaced: nobody placed
+  them there.
+- **A hand placement is read before the date, not after it** (the database's
+  `_order`). A run that has been arranged is made of tasks from different
+  days, and sorting on the date first would quietly undo the arranging. The
+  cost is that a day arranged by hand keeps that arrangement when its tasks
+  later turn up in the backlog, ahead of ones nobody has touched — which
+  settles the moment the backlog itself is dragged, since that writes a
+  placement for all of it.
+- **A card being carried is backed by the ground it was picked up from**
+  (`liftedCard`). A reorderable list left to itself wraps the card in a
+  `Material` of the theme's canvas colour, which here is true black — so a
+  card lifted off the calendar's grey day panel dragged a black slab around
+  with it. The lift is said with a little scale instead of with a box.
 - **A day the reader has a word for wears it on a badge**, with the date
   written beside it — `Today` on a light pill, then `Sat, 4 Oct`. The word
   used to replace the date, which left the one day most likely to be looked up
@@ -383,7 +398,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 81 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 82 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

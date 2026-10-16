@@ -8,6 +8,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/quick_add_bar.dart';
+import '../widgets/reorderable_task_list.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart';
 import 'search_screen.dart';
@@ -126,6 +127,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   onRefresh: provider.loadTasks,
                   child: _RunOfDays(
                     controller: _scroll,
+                    ground: p.bg,
                     onReorder: provider.reorder,
                     rows: [
                       if (!hasAnything)
@@ -142,9 +144,11 @@ class _TasksScreenState extends State<TasksScreen> {
                             ),
                           ),
                         ),
-                      // The overdue backlog is not dragged into an order: it
-                      // is tasks from many days gathered together, and the
-                      // order they want is how late each one is.
+                      // The backlog is a run like any other. It wants to be
+                      // ordered by how late each thing is until somebody says
+                      // otherwise, and dragging is them saying otherwise — on
+                      // a screen where most of what there is to drag is often
+                      // in here.
                       if (overdue.isNotEmpty) ...[
                         _Row(
                           key: const ValueKey('overdue'),
@@ -155,7 +159,9 @@ class _TasksScreenState extends State<TasksScreen> {
                         ),
                         for (final task in overdue)
                           _Row(
-                            key: ValueKey('overdue-${task.id}'),
+                            key: ValueKey('task-${task.id}'),
+                            group: 'overdue',
+                            task: task,
                             build: () => entry(task),
                           ),
                       ],
@@ -353,11 +359,13 @@ class _Row {
 class _RunOfDays extends StatelessWidget {
   final ScrollController controller;
   final List<_Row> rows;
+  final Color ground;
   final ValueChanged<List<Task>> onReorder;
 
   const _RunOfDays({
     required this.controller,
     required this.rows,
+    required this.ground,
     required this.onReorder,
   });
 
@@ -400,6 +408,8 @@ class _RunOfDays extends StatelessWidget {
       buildDefaultDragHandles: false,
       itemCount: rows.length,
       onReorder: _reorder,
+      proxyDecorator: (child, _, animation) =>
+          liftedCard(ground, child, animation),
       itemBuilder: (context, i) {
         final row = rows[i];
         if (row.group == null) {

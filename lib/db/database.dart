@@ -166,7 +166,9 @@ class AppDatabase {
       _tasks,
       where: 'done = 0 AND due_at IS NOT NULL AND due_at < ?',
       whereArgs: [beforeMs],
-      orderBy: 'due_at ASC',
+      // However late each one is, unless the backlog has been dragged into
+      // an order of its own.
+      orderBy: '(sort_order IS NULL) ASC, sort_order ASC, due_at ASC',
     );
     return rows.map(Task.fromMap).toList();
   }
@@ -211,9 +213,15 @@ class AppDatabase {
   /// Open first, then by due date (undated last), then newest first.
   /// A hand-placed task goes where it was put; one that has never been
   /// dragged falls through to the ordinary rules, after the placed ones.
+  ///
+  /// The placement is read before the date, not after it. A run the user has
+  /// arranged by hand — the overdue backlog, the undated tail — is made of
+  /// tasks from different days, and sorting by date first would quietly undo
+  /// the arranging. A day's own tasks share a date anyway, so nothing changes
+  /// for them.
   static const _order =
-      'done ASC, (due_at IS NULL) ASC, due_at ASC, '
-      '(sort_order IS NULL) ASC, sort_order ASC, created_at DESC';
+      'done ASC, (sort_order IS NULL) ASC, sort_order ASC, '
+      '(due_at IS NULL) ASC, due_at ASC, created_at DESC';
 
   /// Writes the order a day was dragged into: the position of each id in
   /// [ids] becomes its `sort_order`. Every task of the day is written, not

@@ -16,9 +16,32 @@ import 'task_card.dart';
 /// through the whole day. They have no drag listener and cannot be picked up,
 /// and a task dropped among them is pushed back below them: a public holiday
 /// is not something the user placed, so it has no place in the order.
+/// What a card looks like while it is being carried.
+///
+/// Left to itself a reorderable list wraps the card in a `Material` of the
+/// theme's canvas colour, which here is the true black the app is grounded
+/// on — so a card picked up off the calendar's grey day panel dragged a black
+/// slab around with it. The ground it is standing on is painted instead, so
+/// the card composites over exactly what it does at rest, and the lift is
+/// said with a little scale rather than with a box.
+Widget liftedCard(Color ground, Widget child, Animation<double> animation) {
+  return AnimatedBuilder(
+    animation: animation,
+    builder: (context, inner) => Transform.scale(
+      scale: 1 + 0.02 * Curves.easeOut.transform(animation.value),
+      child: Material(color: ground, child: inner),
+    ),
+    child: child,
+  );
+}
+
 class ReorderableTaskList extends StatelessWidget {
   final List<Holiday> holidays;
   final List<Task> tasks;
+
+  /// What the list is standing on, painted behind a card while it is carried.
+  final Color ground;
+
   final EdgeInsets padding;
   final ScrollController? controller;
   final bool shrinkWrap;
@@ -33,6 +56,7 @@ class ReorderableTaskList extends StatelessWidget {
     super.key,
     required this.holidays,
     required this.tasks,
+    required this.ground,
     required this.listOf,
     required this.onOpen,
     required this.onToggle,
@@ -69,6 +93,8 @@ class ReorderableTaskList extends StatelessWidget {
       buildDefaultDragHandles: false,
       itemCount: holidays.length + tasks.length,
       onReorder: _reorder,
+      proxyDecorator: (child, _, animation) =>
+          liftedCard(ground, child, animation),
       itemBuilder: (context, i) {
         if (i < holidays.length) {
           final holiday = holidays[i];

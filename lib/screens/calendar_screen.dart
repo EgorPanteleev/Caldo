@@ -784,6 +784,7 @@ class _DayPanel extends StatelessWidget {
                   )
                 : ReorderableTaskList(
                     padding: const EdgeInsets.only(top: 4, bottom: 8),
+                    ground: AppTheme.of(context).panel,
                     holidays: holidays,
                     tasks: tasks,
                     listOf: _listOf,
