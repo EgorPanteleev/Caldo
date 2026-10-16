@@ -248,17 +248,13 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
   ReorderableTaskList get w => widget;
 
   void _reorder(int oldIndex, int newIndex) {
-    final first = w.holidays.length;
     // Flutter reports the slot the card would go into before the gap it left
-    // behind is closed up.
-    var to = (newIndex > oldIndex ? newIndex - 1 : newIndex).clamp(
-      first,
-      first + w.tasks.length - 1,
-    );
-    final from = oldIndex - first;
-    if (from < 0 || from == to - first) return;
+    // behind is closed up. No clamping: the reorderable sliver holds the
+    // day's tasks and nothing else, so there is nowhere else to land.
+    final to = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    if (to == oldIndex) return;
     final ordered = [...w.tasks];
-    ordered.insert(to - first, ordered.removeAt(from));
+    ordered.insert(to, ordered.removeAt(oldIndex));
     w.onReorder(ordered);
   }
 
@@ -269,47 +265,51 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
     return DragWithin(child: Builder(builder: (context) => _list(context)));
   }
 
+  /// Holidays in a sliver of their own and the tasks in a reorderable one,
+  /// rather than both in a single list. A list cannot tell a holiday from a
+  /// task, so the gap it opens for the card being carried could land above
+  /// the holidays, where the card could never be dropped.
   Widget _list(BuildContext context) {
-    return ReorderableListView.builder(
-      scrollController: w.controller,
-      padding: w.padding,
+    return CustomScrollView(
+      controller: w.controller,
       shrinkWrap: w.shrinkWrap,
       physics: w.shrinkWrap ? const ClampingScrollPhysics() : null,
-      // The card is the handle; a grip beside every row would be a column of
-      // furniture down a list whose whole job is to be read.
-      buildDefaultDragHandles: false,
-      itemCount: w.holidays.length + w.tasks.length,
-      onReorder: _reorder,
-      proxyDecorator: (child, _, animation) => liftedCard(
-        context,
-        w.ground,
-        child,
-        animation,
-        under: w.holidays.isEmpty ? null : _lastHoliday,
-      ),
-      itemBuilder: (context, i) {
-        if (i < w.holidays.length) {
-          final holiday = w.holidays[i];
-          return KeyedSubtree(
-            key: ValueKey('holiday-${holiday.name}-$i'),
-            child: KeyedSubtree(
-              key: i == w.holidays.length - 1 ? _lastHoliday : null,
-              child: HolidayCard(holiday: holiday),
-            ),
-          );
-        }
-        final task = w.tasks[i - w.holidays.length];
-        return ReorderableDelayedDragStartListener(
-          key: ValueKey('task-${task.id}'),
-          index: i,
-          child: TaskCard(
-            task: task,
-            list: w.listOf(task),
-            onTap: () => w.onOpen(task),
-            onToggle: () => w.onToggle(task),
+      slivers: [
+        SliverToBoxAdapter(child: SizedBox(height: w.padding.top)),
+        SliverList.builder(
+          itemCount: w.holidays.length,
+          itemBuilder: (context, i) => KeyedSubtree(
+            key: i == w.holidays.length - 1 ? _lastHoliday : null,
+            child: HolidayCard(holiday: w.holidays[i]),
           ),
-        );
-      },
+        ),
+        SliverReorderableList(
+          itemCount: w.tasks.length,
+          onReorder: _reorder,
+          proxyDecorator: (child, _, animation) => liftedCard(
+            context,
+            w.ground,
+            child,
+            animation,
+            under: w.holidays.isEmpty ? null : _lastHoliday,
+          ),
+          itemBuilder: (context, i) {
+            final task = w.tasks[i];
+            return ReorderableDelayedDragStartListener(
+              key: ValueKey('task-${task.id}'),
+              index: i,
+              child: TaskCard(
+                task: task,
+                list: w.listOf(task),
+                onTap: () => w.onOpen(task),
+                onToggle: () => w.onToggle(task),
+              ),
+            );
+          },
+        ),
+        SliverToBoxAdapter(child: SizedBox(height: w.padding.bottom)),
+      ],
     );
   }
+
 }

@@ -128,12 +128,11 @@ class _TasksScreenState extends State<TasksScreen> {
                   child: _RunOfDays(
                     controller: _scroll,
                     ground: p.bg,
+                    entry: entry,
                     onReorder: provider.reorder,
-                    rows: [
-                      if (!hasAnything)
-                        _Row(
-                          key: const ValueKey('empty'),
-                          build: () => const Padding(
+                    head: hasAnything
+                        ? null
+                        : const Padding(
                             padding: EdgeInsets.only(top: 40),
                             child: EmptyState(
                               icon: Icons.beach_access_outlined,
@@ -143,67 +142,9 @@ class _TasksScreenState extends State<TasksScreen> {
                                   'on it is listed here, day by day.',
                             ),
                           ),
-                        ),
-                      // The backlog is a run like any other. It wants to be
-                      // ordered by how late each thing is until somebody says
-                      // otherwise, and dragging is them saying otherwise — on
-                      // a screen where most of what there is to drag is often
-                      // in here.
-                      if (overdue.isNotEmpty) ...[
-                        _Row(
-                          key: const ValueKey('overdue'),
-                          build: () => const _DayHeader(
-                            word: 'Overdue',
-                            color: AppColors.overdue,
-                          ),
-                        ),
-                        for (final task in overdue)
-                          _Row(
-                            key: ValueKey('task-${task.id}'),
-                            group: 'overdue',
-                            task: task,
-                            build: () => entry(task),
-                          ),
-                      ],
-                      for (final day in days) ...[
-                        _Row(
-                          key: ValueKey('head-$day'),
-                          build: () => _DayHeader(
-                            word: Dates.dayWord(day),
-                            label: Dates.dayDate(day),
-                          ),
-                        ),
-                        for (final holiday
-                            in holidays[day] ?? const <Holiday>[])
-                          _Row(
-                            key: ValueKey('holiday-$day-${holiday.name}'),
-                            build: () => HolidayCard(holiday: holiday),
-                          ),
-                        for (final task in byDay[day]!)
-                          _Row(
-                            key: ValueKey('task-${task.id}'),
-                            group: '$day',
-                            task: task,
-                            build: () => entry(task),
-                          ),
-                      ],
-                      if (undated.isNotEmpty) ...[
-                        _Row(
-                          key: const ValueKey('undated'),
-                          build: () => const _DayHeader(word: 'No date'),
-                        ),
-                        for (final task in undated)
-                          _Row(
-                            key: ValueKey('task-${task.id}'),
-                            group: 'undated',
-                            task: task,
-                            build: () => entry(task),
-                          ),
-                      ],
-                      if (days.isNotEmpty)
-                        _Row(
-                          key: const ValueKey('footnote'),
-                          build: () => Padding(
+                    foot: days.isEmpty
+                        ? null
+                        : Padding(
                             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                             child: Text(
                               'Dated tasks are shown for the next '
@@ -211,6 +152,36 @@ class _TasksScreenState extends State<TasksScreen> {
                               style: TextStyle(color: p.faint, fontSize: 12),
                             ),
                           ),
+                    runs: [
+                      // The backlog is a run like any other. It wants to be
+                      // ordered by how late each thing is until somebody says
+                      // otherwise, and dragging is them saying otherwise — on
+                      // a screen where most of what there is to drag is often
+                      // in here.
+                      if (overdue.isNotEmpty)
+                        _Run(
+                          id: 'overdue',
+                          heading: () => const _DayHeader(
+                            word: 'Overdue',
+                            color: AppColors.overdue,
+                          ),
+                          tasks: overdue,
+                        ),
+                      for (final day in days)
+                        _Run(
+                          id: '$day',
+                          heading: () => _DayHeader(
+                            word: Dates.dayWord(day),
+                            label: Dates.dayDate(day),
+                          ),
+                          holidays: holidays[day] ?? const <Holiday>[],
+                          tasks: byDay[day]!,
+                        ),
+                      if (undated.isNotEmpty)
+                        _Run(
+                          id: 'undated',
+                          heading: () => const _DayHeader(word: 'No date'),
+                          tasks: undated,
                         ),
                     ],
                   ),
@@ -332,41 +303,52 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-/// One line of the run: a day's heading, a holiday, or a task.
-///
-/// A row carries a builder rather than a built widget. `ListView(children:
-/// [...])` constructs every row on every build, and the screen rebuilds on
-/// each frame of the keyboard sliding in — so opening the keyboard rebuilt the
-/// whole agenda sixty times a second and juddered.
-class _Row {
-  final Key key;
-  final Widget Function() build;
+/// One run in the schedule: a heading, the holidays that fall on it, and the
+/// tasks that can be dragged around inside it.
+class _Run {
+  final String id;
+  final Widget Function() heading;
+  final List<Holiday> holidays;
+  final List<Task> tasks;
 
-  /// Which run of tasks this row can be dragged around inside, or null for a
-  /// row that cannot be picked up at all. A task only ever moves within its
-  /// own day; dragging one into another day would be a change of date wearing
-  /// the clothes of a change of order.
-  final String? group;
-
-  final Task? task;
-
-  const _Row({required this.key, required this.build, this.group, this.task});
+  const _Run({
+    required this.id,
+    required this.heading,
+    required this.tasks,
+    this.holidays = const [],
+  });
 }
 
-/// The run of days, with each day's tasks draggable into an order of their
-/// own. A long press picks a card up — the gesture used to open the editor,
-/// which a tap already does.
+/// The run of days: a heading and a reorderable list per run, not one list
+/// with headings scattered through it.
+///
+/// That distinction is the whole of this widget. One list cannot tell a
+/// heading from a task, so the gap it opens for the card being carried could
+/// land at the very top — above the Overdue badge — and the screen appeared
+/// to jump. A list per run can only open a gap inside its own run. It also
+/// means the drop needs no clamping: a run holds nothing but its own tasks,
+/// so there is nowhere else for one to land.
+///
+/// They are slivers rather than nested lists so the whole thing is still one
+/// scroll, still lazy, and still auto-scrolls while a card is being carried
+/// near the edge.
 class _RunOfDays extends StatefulWidget {
   final ScrollController controller;
-  final List<_Row> rows;
+  final List<_Run> runs;
   final Color ground;
+  final Widget Function(Task) entry;
   final ValueChanged<List<Task>> onReorder;
+  final Widget? head;
+  final Widget? foot;
 
   const _RunOfDays({
     required this.controller,
-    required this.rows,
+    required this.runs,
     required this.ground,
+    required this.entry,
     required this.onReorder,
+    this.head,
+    this.foot,
   });
 
   @override
@@ -374,103 +356,91 @@ class _RunOfDays extends StatefulWidget {
 }
 
 class _RunOfDaysState extends State<_RunOfDays> {
-  // A key for each row that cannot be dragged — the headings, the footnote.
-  // They are what a card being carried is penned in by, and they are the only
-  // rows that can do the job: a row that can be dragged is lifted clean out
-  // of the list while it is carried, and takes its key with it. Kept by row
-  // and reused, because a key that is rebuilt is a subtree that is rebuilt.
-  final _anchors = <Key, GlobalKey>{};
+  // A key on each heading, and on the footnote. They are what a card being
+  // carried is penned in by, and they are the only rows that can do the job:
+  // a row that can be dragged is lifted clean out of the list while it is
+  // carried, and takes its key with it. Kept by run and reused, because a key
+  // that is rebuilt is a subtree that is rebuilt.
+  final _anchors = <String, GlobalKey>{};
 
-  GlobalKey _anchorOf(Key row) => _anchors.putIfAbsent(row, GlobalKey.new);
+  GlobalKey _anchorOf(String id) => _anchors.putIfAbsent(id, GlobalKey.new);
 
-  /// The row above the given run and the row below it, if either exists.
-  (GlobalKey?, GlobalKey?) _pen(String group) {
-    final first = rows.indexWhere((r) => r.group == group);
-    final last = rows.lastIndexWhere((r) => r.group == group);
-    if (first < 0) return (null, null);
-    return (
-      first > 0 ? _anchors[rows[first - 1].key] : null,
-      last < rows.length - 1 ? _anchors[rows[last + 1].key] : null,
-    );
-  }
-
-  List<_Row> get rows => widget.rows;
-
-  void _reorder(int oldIndex, int newIndex) {
-    final group = rows[oldIndex].group;
-    if (group == null) return;
-    // Where this group's tasks are in the run. They are contiguous: a day's
-    // heading and its holidays come first, then every task of that day.
-    final block = [
-      for (var i = 0; i < rows.length; i++)
-        if (rows[i].group == group) i,
-    ];
-    if (block.length < 2) return;
-
+  void _move(_Run run, int oldIndex, int newIndex) {
+    final ordered = [...run.tasks];
     // Flutter reports the slot the card would go into before the gap it left
-    // behind is closed up. Held inside the group: a card let go over another
-    // day lands at the near end of its own rather than changing its date.
-    final to = (newIndex > oldIndex ? newIndex - 1 : newIndex).clamp(
-      block.first,
-      block.last,
-    );
-    final from = oldIndex;
-    if (from == to) return;
-
-    final ordered = [for (final i in block) rows[i].task!];
-    ordered.insert(
-      to - block.first,
-      ordered.removeAt(from - block.first),
-    );
+    // behind is closed up.
+    final to = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    if (to == oldIndex) return;
+    ordered.insert(to, ordered.removeAt(oldIndex));
     widget.onReorder(ordered);
   }
 
   @override
   Widget build(BuildContext context) {
-    // The card being carried belongs to the run, not to the screen: without
-    // this it could be lifted up over the header and the Overdue badge.
-    // The builder is for a context below `DragWithin`, which is where
-    // the card being carried finds the box it has to stay inside.
-    return DragWithin(
-      child: Builder(builder: (context) => _list(context)),
-    );
+    // The builder is for a context below `DragWithin`, which is where the
+    // card being carried finds the box it has to stay inside.
+    return DragWithin(child: Builder(builder: _build));
   }
 
-  Widget _list(BuildContext context) {
-    return ReorderableListView.builder(
-      scrollController: widget.controller,
-      padding: const EdgeInsets.only(top: 4, bottom: 16),
-      // The card is the handle. A grip beside every row would be a column of
-      // furniture down a list whose whole job is to be read.
-      buildDefaultDragHandles: false,
-      itemCount: rows.length,
-      onReorder: _reorder,
-      proxyDecorator: (child, index, animation) {
-        final group = rows[index].group;
-        final pen = group == null ? (null, null) : _pen(group);
-        return liftedCard(
-          context,
-          widget.ground,
-          child,
-          animation,
-          under: pen.$1,
-          over: pen.$2,
+  Widget _build(BuildContext context) {
+    final slivers = <Widget>[
+      const SliverToBoxAdapter(child: SizedBox(height: 4)),
+      if (widget.head != null) SliverToBoxAdapter(child: widget.head),
+    ];
+
+    for (var i = 0; i < widget.runs.length; i++) {
+      final run = widget.runs[i];
+      final below = i + 1 < widget.runs.length
+          ? _anchorOf(widget.runs[i + 1].id)
+          : _anchorOf('foot');
+      slivers.add(
+        SliverToBoxAdapter(
+          child: KeyedSubtree(key: _anchorOf(run.id), child: run.heading()),
+        ),
+      );
+      if (run.holidays.isNotEmpty) {
+        slivers.add(
+          SliverList.builder(
+            itemCount: run.holidays.length,
+            itemBuilder: (context, h) => HolidayCard(holiday: run.holidays[h]),
+          ),
         );
-      },
-      itemBuilder: (context, i) {
-        final row = rows[i];
-        if (row.group == null) {
-          return KeyedSubtree(
-            key: row.key,
-            child: KeyedSubtree(key: _anchorOf(row.key), child: row.build()),
-          );
-        }
-        return ReorderableDelayedDragStartListener(
-          key: row.key,
-          index: i,
-          child: row.build(),
-        );
-      },
+      }
+      slivers.add(
+        SliverReorderableList(
+          key: ValueKey('run-${run.id}'),
+          itemCount: run.tasks.length,
+          onReorder: (from, to) => _move(run, from, to),
+          proxyDecorator: (child, _, animation) => liftedCard(
+            context,
+            widget.ground,
+            child,
+            animation,
+            under: _anchors[run.id],
+            over: below,
+          ),
+          itemBuilder: (context, t) {
+            final task = run.tasks[t];
+            return ReorderableDelayedDragStartListener(
+              key: ValueKey('task-${task.id}'),
+              index: t,
+              child: widget.entry(task),
+            );
+          },
+        ),
+      );
+    }
+
+    slivers.add(
+      SliverToBoxAdapter(
+        child: KeyedSubtree(
+          key: _anchorOf('foot'),
+          child: widget.foot ?? const SizedBox(height: 16),
+        ),
+      ),
     );
+    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 16)));
+
+    return CustomScrollView(controller: widget.controller, slivers: slivers);
   }
 }

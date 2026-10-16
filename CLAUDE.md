@@ -374,10 +374,18 @@ Changing them back will be noticed.
   of the screen; a swipe on it that had nowhere else to go used to do nothing.
   A short day's list cannot scroll at all, so every drag on it arrives as
   overscroll; a long one arrives only once it has run out of list.
-- **Schedule's list is built lazily** (`_RunOfDays`, rows handed over as
-  builders). `ListView(children: [...])` constructs every row on every build,
-  and the screen rebuilds on each frame of the keyboard sliding in — so opening
-  the keyboard rebuilt the whole agenda sixty times a second and juddered.
+- **Schedule is a heading and a reorderable list per run, not one list with
+  headings scattered through it** (`_RunOfDays`, `_Run`). One list cannot tell
+  a heading from a task, so the gap it opens for the card being carried could
+  land at the very top — above the Overdue badge — and the screen appeared to
+  jump down by a card's height. A list per run can only open a gap inside its
+  own run, and the drop then needs no clamping at all: a run holds nothing but
+  its own tasks, so there is nowhere else to land. The calendar's day panel is
+  split the same way, holidays in one sliver and tasks in a reorderable one.
+  They are **slivers** rather than nested lists so the whole thing is still
+  one scroll, still lazy, and still auto-scrolls while a card is near the edge
+  — `ListView(children: [...])` constructs every row on every build, and this
+  screen rebuilds on each frame of the keyboard sliding in.
 - **Schedule's header carries Search and Today**, the same pair the calendar
   has, and its quick-add field at the foot files on today. Today is a scroll
   home here, since today is the top of the run.
@@ -465,8 +473,10 @@ flutter build apk --release --split-per-abi --target-platform android-arm,androi
 ```
 
 `release/` is gitignored and holds `Caldo-arm64.apk`, `Caldo-armv7.apk`,
-`Caldo-universal.apk`, refreshed after each change. A GitHub release `v1.0.0`
-carries the same three files.
+`Caldo-universal.apk`, refreshed after each change. **A release means both**:
+the three files staged there and a GitHub release carrying the same three,
+`gh release create vX.Y.Z release/*.apk`. There was a stretch of local-only
+builds in the middle of this; that is over.
 
 ## Running on the emulator
 
