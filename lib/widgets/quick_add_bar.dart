@@ -214,15 +214,31 @@ class _KeyboardLiftState extends State<KeyboardLift>
 
   double _inset = 0;
 
-  /// Critically damped, so the bar never passes the place it is going to, and
-  /// quick enough to keep up with the keyboard's own slide: most of the way
-  /// in a tenth of a second, at rest by a fifth. Stiffer than this and a
-  /// lumpy report shows through as a jump again; softer and the field visibly
-  /// lags the keys it is supposed to be riding on.
-  static const _stiffness = 900.0;
-  static final _spring = SpringDescription.withDampingRatio(
+  /// Both critically damped, so the bar never passes the place it is going
+  /// to, and both stiff enough that it is never left behind — but not equally
+  /// stiff, because the two directions are not the same job.
+  ///
+  /// Rising, the bar is chasing a keyboard that is sliding up under its own
+  /// animation, reported as it goes. A spring re-aimed at each report trails
+  /// it by about `1/sqrt(stiffness)` of a second: at 900 that is two frames,
+  /// which is the field visibly running late behind the keys. At 3600 it is
+  /// one.
+  ///
+  /// Falling, there is nothing to chase: Android cuts the rest of the slide
+  /// off and reports the floor in one go, so the whole distance arrives at
+  /// once and the spring is the only thing making a movement of it. Stiff,
+  /// that movement is a jump by another name — 3600 would cover a keyboard's
+  /// height at close to three hundred points a frame.
+  static const _riseStiffness = 3600.0;
+  static const _fallStiffness = 900.0;
+
+  static final _rise = SpringDescription.withDampingRatio(
     mass: 1,
-    stiffness: _stiffness,
+    stiffness: _riseStiffness,
+  );
+  static final _fall = SpringDescription.withDampingRatio(
+    mass: 1,
+    stiffness: _fallStiffness,
   );
 
   @override
@@ -238,33 +254,46 @@ class _KeyboardLiftState extends State<KeyboardLift>
     if (inset == _inset) return;
     _inset = inset;
 
-    // The bar is never put anywhere — it is always sent there, in both
-    // directions. Android does not promise to report a keyboard's slide frame
-    // by frame; it reports it in however many lumps it feels like, and a bar
-    // moved straight to one of those has teleported whether or not the number
-    // it was handed was honest. Following the inset exactly was tried on the
-    // way up, for the sake of staying glued to the keys — on a phone that
-    // reports the rise in two steps, that is two jumps.
+    // Rising, the bar goes exactly where the keyboard says — as long as the
+    // keyboard is moving like something being animated rather than something
+    // being teleported.
     //
-    // The spring carries whatever speed it already has, so a change of target
-    // mid-flight stays continuous, and from a standstill it starts from a
-    // standstill. Reported smoothly it trails the keyboard by about a frame,
-    // which is the price of never jumping.
-    // Critically damped only promises not to overshoot from a standstill. Given
-    // a speed of its own it can be thrown past the target and have to come
-    // back — which, on the way down, is the bar dipping below the place it
-    // lives and climbing back into it. The carried speed is held to what the
-    // spring can shed over the distance that is left.
+    // Android does not promise to report a slide frame by frame; it reports
+    // it in however many lumps it feels like. But the two cases are told
+    // apart by size: an animation arriving over a dozen frames moves a tenth
+    // of the keyboard's height at a time, while a slide cut into two or three
+    // lumps moves a third or a half. Under a quarter is followed, and the bar
+    // is then glued to the keys with no lag at all, which is the whole point
+    // of following; over a quarter is sent on the spring below, because a
+    // bar moved straight to one of those has teleported whether or not the
+    // number it was handed was honest.
+    final height = math.max(_lift.value, inset);
+    if (inset > _lift.value && inset - _lift.value < height * 0.25) {
+      _lift.stop();
+      _lift.value = inset;
+      return;
+    }
+    // Everything else is sent, never put: the spring carries whatever speed
+    // it already has, so a change of target mid-flight stays continuous, and
+    // from a standstill it starts from a standstill.
+    //
+    // Critically damped only promises not to overshoot from a standstill.
+    // Given a speed of its own it can be thrown past the target and have to
+    // come back — which, on the way down, is the bar dipping below the place
+    // it lives and climbing back into it. The carried speed is held to what
+    // the spring can shed over the distance that is left.
     final from = _lift.value;
     final away = from - inset;
-    final bound = -math.sqrt(_stiffness) * away;
-    final speed = away >= 0
-        ? math.max(_lift.velocity, bound)
-        : math.min(_lift.velocity, bound);
+    final rising = away < 0;
+    final stiffness = rising ? _riseStiffness : _fallStiffness;
+    final bound = -math.sqrt(stiffness) * away;
+    final speed = rising
+        ? math.min(_lift.velocity, bound)
+        : math.max(_lift.velocity, bound);
 
     _lift.animateWith(
       SpringSimulation(
-        _spring,
+        rising ? _rise : _fall,
         from,
         inset,
         speed,

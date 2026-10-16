@@ -257,20 +257,28 @@ Changing them back will be noticed.
   because an agenda that keeps its height would just be hidden under the keys.
   The inset is read in `KeyboardLift` and nowhere else: it changes on every
   frame of the keyboard sliding in, and whoever reads it rebuilds that often.
-- **The bar is never put anywhere, only ever sent there — both ways.** Android
-  does not promise to report a keyboard's slide frame by frame; it reports it
-  in however many lumps it feels like, so a bar moved straight to one of those
-  has teleported whether or not the number it was handed was honest. Every
-  change of inset goes through a critically damped spring, which carries
+- **The bar follows a keyboard that is being animated, and is sent after one
+  that is being teleported.** Android does not promise to report a slide frame
+  by frame; it reports it in however many lumps it feels like. The two are
+  told apart by size: an animation arriving over a dozen frames moves a tenth
+  of the keyboard's height at a time, a slide cut into two or three lumps
+  moves a third or a half. A rise of under a quarter of the height is followed
+  exactly, which is the only way to be glued to the keys with no lag at all —
+  springing after it instead is what had the field running late behind them.
+  Everything else goes through a critically damped spring, which carries
   whatever speed it already has — that is what stops a change of target
   mid-flight from putting a catch in the middle of the movement — and starts
-  from a standstill when it was at rest. Following the inset exactly was tried
-  on the way up, to stay glued to the keys; on a phone that reports the rise
-  in two steps that is two jumps. Reported smoothly, the spring trails by
-  about a frame, which is the price of never jumping. The carried speed is
-  bounded by what the spring can shed over the distance left: critically
-  damped only promises not to overshoot from a standstill, and thrown past its
-  target the bar dips below the place it lives and climbs back into it.
+  from a standstill when it was at rest. The carried speed is bounded by what
+  the spring can shed over the distance left: critically damped only promises
+  not to overshoot from a standstill, and thrown past its target the bar dips
+  below the place it lives and climbs back into it.
+- **The two directions get different springs** (`_riseStiffness` 3600,
+  `_fallStiffness` 900). Rising, the spring is chasing something already in
+  motion and a soft one trails it by two frames. Falling, there is nothing to
+  chase — Android cuts the rest of the slide off and reports the floor in one
+  go — so the whole distance arrives at once and the spring is the only thing
+  making a movement of it; stiff, that movement is a jump by another name, at
+  something like three hundred points a frame.
 - **The dark ground is true black.** The calendar's already was, so an app
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything
