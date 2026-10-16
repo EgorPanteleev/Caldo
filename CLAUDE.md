@@ -237,9 +237,16 @@ Changing them back will be noticed.
   focus but the cursor. Outlined on true black the pair read as holes cut in
   the screen, and a neutral ring around half the width was a line nobody read.
 - **The strip the add field sits on follows what is above it** — the calendar's
-  own ground once the month is opened out, the app background while the day's
-  tasks are still on screen — and whatever is above fades into it over the last
-  22 points rather than being sliced off square by it.
+  own ground once the month is opened out, the day panel's grey while the
+  day's tasks are still on screen.
+- **Whatever is above the add field fades into the ground it sits on**
+  (`GroundFade`, 48 points, on both the calendar and Schedule). Sliced off
+  square by the field, the last card in a full day ended in a straight cut
+  across the middle of a word. The ramp is a smoothstep, not a straight one: a
+  straight ramp has a visible edge at each end, where it starts and where it
+  finishes, and both read as lines. It is one widget rather than two copies
+  because the two screens have to look the same doing it — which is how it
+  came to be asked for on Schedule in the first place.
 - **The keyboard arrives over the calendar, it does not shorten it.** The
   screen's `Scaffold` does not resize for the inset; the quick-add bar is
   wrapped in `KeyboardLift`, which translates it up by the inset instead. A

@@ -108,16 +108,6 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// commits to the next one.
   double _dragFrom = 0;
 
-  /// How far above the add field the content fades out into its ground.
-  static const _fadeHeight = 48.0;
-
-  /// The fade's shape. A straight ramp from clear to solid has a visible edge
-  /// at each end — the point where it starts and the point where it finishes
-  /// both read as lines. These follow a smoothstep instead, so it eases in and
-  /// out of the two grounds and no edge is anywhere to be found.
-  static const _fadeStops = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0];
-  static const _fadeAlphas = [0.0, 0.104, 0.352, 0.5, 0.648, 0.896, 1.0];
-
   /// The ground the add field sits on, and the colour whatever is above it
   /// fades into: the calendar's own once the month is opened out, the app
   /// background while the day's tasks still have the lower half of the screen.
@@ -534,27 +524,10 @@ class _CalendarScreenState extends State<CalendarScreen>
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  height: _fadeHeight,
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: _expansion,
-                      builder: (context, _) {
-                        final ground = _groundUnderField(p);
-                        return DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              stops: _fadeStops,
-                              colors: [
-                                for (final a in _fadeAlphas)
-                                  ground.withValues(alpha: a),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                  child: AnimatedBuilder(
+                    animation: _expansion,
+                    builder: (context, _) =>
+                        GroundFade(ground: _groundUnderField(p)),
                   ),
                 ),
               ],

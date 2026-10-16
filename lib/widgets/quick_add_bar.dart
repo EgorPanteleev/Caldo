@@ -289,3 +289,47 @@ class _KeyboardLiftState extends State<KeyboardLift>
     );
   }
 }
+
+/// The fade that carries whatever is above the quick-add field down into the
+/// ground the field sits on, instead of letting the field slice it off square
+/// — the last card in a full day used to end in a straight cut across the
+/// middle of a word.
+///
+/// [ground] is what the field is standing on, which is not always the same
+/// colour: on the calendar it follows the month opening out.
+class GroundFade extends StatelessWidget {
+  final Color ground;
+
+  const GroundFade({super.key, required this.ground});
+
+  /// How far above the field the fade reaches.
+  static const height = 48.0;
+
+  /// Its shape. A straight ramp from clear to solid has a visible edge at
+  /// each end — the point where it starts and the point where it finishes
+  /// both read as lines. These follow a smoothstep instead, so it eases in
+  /// and out of the two grounds and no edge is anywhere to be found.
+  static const _stops = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0];
+  static const _alphas = [0.0, 0.104, 0.352, 0.5, 0.648, 0.896, 1.0];
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: SizedBox(
+        height: height,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: _stops,
+              colors: [
+                for (final a in _alphas) ground.withValues(alpha: a),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

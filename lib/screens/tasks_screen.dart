@@ -109,61 +109,76 @@ class _TasksScreenState extends State<TasksScreen> {
               IconButton(
                 icon: Icon(Icons.search, color: p.muted),
                 tooltip: 'Search',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SearchScreen()),
-                ),
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
               ),
               _TodayButton(onTap: _jumpToToday),
               const SizedBox(width: 6),
             ],
           ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: provider.loadTasks,
-              child: _LazyList(
-                controller: _scroll,
-                children: [
-                  if (!hasAnything)
-                    () => const Padding(
-                      padding: EdgeInsets.only(top: 40),
-                      child: EmptyState(
-                        icon: Icons.beach_access_outlined,
-                        title: 'Nothing scheduled',
-                        message: 'Add something below. Anything with a date on '
-                            'it is listed here, day by day.',
-                      ),
-                    ),
-                  if (overdue.isNotEmpty) ...[
-                    () => const _DayHeader(
-                      word: 'Overdue',
-                      color: AppColors.overdue,
-                    ),
-                    for (final task in overdue) () => entry(task),
-                  ],
-                  for (final day in days) ...[
-                    () => _DayHeader(
-                      word: Dates.dayWord(day),
-                      label: Dates.dayDate(day),
-                    ),
-                    for (final holiday in holidays[day] ?? const <Holiday>[])
-                      () => HolidayCard(holiday: holiday),
-                    for (final task in byDay[day]!) () => entry(task),
-                  ],
-                  if (undated.isNotEmpty) ...[
-                    () => const _DayHeader(word: 'No date'),
-                    for (final task in undated) () => entry(task),
-                  ],
-                  if (days.isNotEmpty)
-                    () => Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                      child: Text(
-                        'Dated tasks are shown for the next '
-                        '${TaskProvider.agendaDays} days.',
-                        style: TextStyle(color: p.faint, fontSize: 12),
-                      ),
-                    ),
-                ],
-              ),
+            // The run of days fades into the ground the add field sits on
+            // rather than being cut off square by it, the same way the day's
+            // tasks do under the calendar.
+            child: Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: provider.loadTasks,
+                  child: _LazyList(
+                    controller: _scroll,
+                    children: [
+                      if (!hasAnything)
+                        () => const Padding(
+                          padding: EdgeInsets.only(top: 40),
+                          child: EmptyState(
+                            icon: Icons.beach_access_outlined,
+                            title: 'Nothing scheduled',
+                            message:
+                                'Add something below. Anything with a date on '
+                                'it is listed here, day by day.',
+                          ),
+                        ),
+                      if (overdue.isNotEmpty) ...[
+                        () => const _DayHeader(
+                          word: 'Overdue',
+                          color: AppColors.overdue,
+                        ),
+                        for (final task in overdue) () => entry(task),
+                      ],
+                      for (final day in days) ...[
+                        () => _DayHeader(
+                          word: Dates.dayWord(day),
+                          label: Dates.dayDate(day),
+                        ),
+                        for (final holiday
+                            in holidays[day] ?? const <Holiday>[])
+                          () => HolidayCard(holiday: holiday),
+                        for (final task in byDay[day]!) () => entry(task),
+                      ],
+                      if (undated.isNotEmpty) ...[
+                        () => const _DayHeader(word: 'No date'),
+                        for (final task in undated) () => entry(task),
+                      ],
+                      if (days.isNotEmpty)
+                        () => Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                          child: Text(
+                            'Dated tasks are shown for the next '
+                            '${TaskProvider.agendaDays} days.',
+                            style: TextStyle(color: p.faint, fontSize: 12),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: GroundFade(ground: p.bg),
+                ),
+              ],
             ),
           ),
           QuickAddBar(
