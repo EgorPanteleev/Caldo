@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../data/holidays.dart';
 import '../models/task.dart';
@@ -33,6 +36,8 @@ class DragWithin extends StatefulWidget {
 }
 
 class _DragWithinState extends State<DragWithin> {
+  final GlobalKey _bounds = GlobalKey();
+
   // An overlay reads `initialEntries` once, so the entry has to be told when
   // what it shows has changed — which, for a list of tasks, is every time one
   // of them does.
@@ -46,7 +51,95 @@ class _DragWithinState extends State<DragWithin> {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(child: Overlay(initialEntries: [_entry]));
+    return _DragBounds(
+      bounds: _bounds,
+      child: SizedBox(
+        key: _bounds,
+        child: Overlay(initialEntries: [_entry]),
+      ),
+    );
+  }
+}
+
+/// Where the list is on the screen, for the card being carried over it.
+class _DragBounds extends InheritedWidget {
+  final GlobalKey bounds;
+
+  const _DragBounds({required this.bounds, required super.child});
+
+  static GlobalKey? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_DragBounds>()?.bounds;
+
+  @override
+  bool updateShouldNotify(_DragBounds old) => old.bounds != bounds;
+}
+
+/// Holds whatever it is given inside [bounds] while it is painted.
+///
+/// The card being carried follows the finger, and a finger can go anywhere.
+/// Clipping it to the list was worse than letting it wander: it vanished a
+/// sliver at a time into the top of the screen. It is held against the edge
+/// instead, which is where it would be dropped anyway — the drop is clamped
+/// to the run the card came from.
+class _KeepInside extends SingleChildRenderObjectWidget {
+  final GlobalKey bounds;
+
+  /// The first and last row of the run the card came from, when they are on
+  /// screen. The card is held between them rather than inside the whole list,
+  /// so it never covers the heading of the run above it.
+  final GlobalKey? first;
+  final GlobalKey? last;
+
+  const _KeepInside({
+    required this.bounds,
+    required Widget super.child,
+    this.first,
+    this.last,
+  });
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderKeepInside(bounds, first, last);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderKeepInside render) {
+    render
+      ..bounds = bounds
+      ..first = first
+      ..last = last;
+  }
+}
+
+class _RenderKeepInside extends RenderProxyBox {
+  _RenderKeepInside(this.bounds, this.first, this.last);
+
+  GlobalKey bounds;
+  GlobalKey? first;
+  GlobalKey? last;
+
+  static RenderBox? _boxOf(GlobalKey? key) {
+    final render = key?.currentContext?.findRenderObject();
+    return render is RenderBox && render.hasSize ? render : null;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final whole = _boxOf(bounds);
+    if (whole == null || !hasSize) return super.paint(context, offset);
+
+    // A row that has been scrolled out of the list has nothing to measure, so
+    // the list itself stands in for the end of the run that is missing.
+    final head = _boxOf(first);
+    final tail = _boxOf(last);
+    final listTop = whole.localToGlobal(Offset.zero).dy;
+    final top = head == null ? listTop : head.localToGlobal(Offset.zero).dy;
+    final bottom = tail == null
+        ? listTop + whole.size.height
+        : tail.localToGlobal(Offset.zero).dy + tail.size.height;
+
+    final lowest = math.max(top, bottom - size.height);
+    final mine = localToGlobal(Offset.zero).dy;
+    super.paint(context, offset.translate(0, mine.clamp(top, lowest) - mine));
   }
 }
 
@@ -62,8 +155,15 @@ class _DragWithinState extends State<DragWithin> {
 /// ink in a task card is translucent and has to land on something, or it
 /// turns muddy over whatever it is passing across; this gives it the same
 /// something it has at rest.
-Widget liftedCard(Color ground, Widget child, Animation<double> animation) {
-  return AnimatedBuilder(
+Widget liftedCard(
+  BuildContext context,
+  Color ground,
+  Widget child,
+  Animation<double> animation, {
+  GlobalKey? first,
+  GlobalKey? last,
+}) {
+  final lifted = AnimatedBuilder(
     animation: animation,
     builder: (context, inner) => Transform.scale(
       scale: 1 + 0.02 * Curves.easeOut.transform(animation.value),
@@ -89,9 +189,13 @@ Widget liftedCard(Color ground, Widget child, Animation<double> animation) {
     ),
     child: child,
   );
+  final bounds = _DragBounds.of(context);
+  return bounds == null
+      ? lifted
+      : _KeepInside(bounds: bounds, first: first, last: last, child: lifted);
 }
 
-class ReorderableTaskList extends StatelessWidget {
+class ReorderableTaskList extends StatefulWidget {
   final List<Holiday> holidays;
   final List<Task> tasks;
 
@@ -122,56 +226,84 @@ class ReorderableTaskList extends StatelessWidget {
     this.shrinkWrap = false,
   });
 
+  @override
+  State<ReorderableTaskList> createState() => _ReorderableTaskListState();
+}
+
+class _ReorderableTaskListState extends State<ReorderableTaskList> {
+  // The ends of the run, so a card can be held between them while it is
+  // carried. One pair per list rather than one for the class: the day pager
+  // has several of these alive at once, and a key may only be in the tree in
+  // one place.
+  final _firstTask = GlobalKey();
+  final _lastTask = GlobalKey();
+
+  ReorderableTaskList get w => widget;
+
   void _reorder(int oldIndex, int newIndex) {
-    final first = holidays.length;
+    final first = w.holidays.length;
     // Flutter reports the slot the card would go into before the gap it left
     // behind is closed up.
     var to = (newIndex > oldIndex ? newIndex - 1 : newIndex).clamp(
       first,
-      first + tasks.length - 1,
+      first + w.tasks.length - 1,
     );
     final from = oldIndex - first;
     if (from < 0 || from == to - first) return;
-    final ordered = [...tasks];
+    final ordered = [...w.tasks];
     ordered.insert(to - first, ordered.removeAt(from));
-    onReorder(ordered);
+    w.onReorder(ordered);
   }
 
   @override
   Widget build(BuildContext context) {
-    return DragWithin(child: _list());
+    // The builder is for a context below `DragWithin`, which is where
+    // the card being carried finds the box it has to stay inside.
+    return DragWithin(child: Builder(builder: (context) => _list(context)));
   }
 
-  Widget _list() {
+  Widget _list(BuildContext context) {
     return ReorderableListView.builder(
-      scrollController: controller,
-      padding: padding,
-      shrinkWrap: shrinkWrap,
-      physics: shrinkWrap ? const ClampingScrollPhysics() : null,
+      scrollController: w.controller,
+      padding: w.padding,
+      shrinkWrap: w.shrinkWrap,
+      physics: w.shrinkWrap ? const ClampingScrollPhysics() : null,
       // The card is the handle; a grip beside every row would be a column of
       // furniture down a list whose whole job is to be read.
       buildDefaultDragHandles: false,
-      itemCount: holidays.length + tasks.length,
+      itemCount: w.holidays.length + w.tasks.length,
       onReorder: _reorder,
-      proxyDecorator: (child, _, animation) =>
-          liftedCard(ground, child, animation),
+      proxyDecorator: (child, _, animation) => liftedCard(
+        context,
+        w.ground,
+        child,
+        animation,
+        first: _firstTask,
+        last: _lastTask,
+      ),
       itemBuilder: (context, i) {
-        if (i < holidays.length) {
-          final holiday = holidays[i];
+        if (i < w.holidays.length) {
+          final holiday = w.holidays[i];
           return HolidayCard(
             key: ValueKey('holiday-${holiday.name}-$i'),
             holiday: holiday,
           );
         }
-        final task = tasks[i - holidays.length];
+        final at = i - w.holidays.length;
+        final task = w.tasks[at];
         return ReorderableDelayedDragStartListener(
           key: ValueKey('task-${task.id}'),
           index: i,
-          child: TaskCard(
-            task: task,
-            list: listOf(task),
-            onTap: () => onOpen(task),
-            onToggle: () => onToggle(task),
+          child: KeyedSubtree(
+            key: at == 0
+                ? _firstTask
+                : (at == w.tasks.length - 1 ? _lastTask : null),
+            child: TaskCard(
+              task: task,
+              list: w.listOf(task),
+              onTap: () => w.onOpen(task),
+              onToggle: () => w.onToggle(task),
+            ),
           ),
         );
       },

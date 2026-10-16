@@ -356,7 +356,7 @@ class _Row {
 /// The run of days, with each day's tasks draggable into an order of their
 /// own. A long press picks a card up — the gesture used to open the editor,
 /// which a tap already does.
-class _RunOfDays extends StatelessWidget {
+class _RunOfDays extends StatefulWidget {
   final ScrollController controller;
   final List<_Row> rows;
   final Color ground;
@@ -368,6 +368,21 @@ class _RunOfDays extends StatelessWidget {
     required this.ground,
     required this.onReorder,
   });
+
+  @override
+  State<_RunOfDays> createState() => _RunOfDaysState();
+}
+
+class _RunOfDaysState extends State<_RunOfDays> {
+  // The ends of each run, so a card being carried can be held between them
+  // and never ride up over the heading of the run above it. Kept by group id
+  // and reused, because a key that is rebuilt is a subtree that is rebuilt.
+  final _ends = <String, (GlobalKey, GlobalKey)>{};
+
+  (GlobalKey, GlobalKey) _endsOf(String group) =>
+      _ends.putIfAbsent(group, () => (GlobalKey(), GlobalKey()));
+
+  List<_Row> get rows => widget.rows;
 
   void _reorder(int oldIndex, int newIndex) {
     final group = rows[oldIndex].group;
@@ -395,36 +410,58 @@ class _RunOfDays extends StatelessWidget {
       to - block.first,
       ordered.removeAt(from - block.first),
     );
-    onReorder(ordered);
+    widget.onReorder(ordered);
   }
 
   @override
   Widget build(BuildContext context) {
     // The card being carried belongs to the run, not to the screen: without
     // this it could be lifted up over the header and the Overdue badge.
-    return DragWithin(child: _list());
+    // The builder is for a context below `DragWithin`, which is where
+    // the card being carried finds the box it has to stay inside.
+    return DragWithin(
+      child: Builder(builder: (context) => _list(context)),
+    );
   }
 
-  Widget _list() {
+  Widget _list(BuildContext context) {
     return ReorderableListView.builder(
-      scrollController: controller,
+      scrollController: widget.controller,
       padding: const EdgeInsets.only(top: 4, bottom: 16),
       // The card is the handle. A grip beside every row would be a column of
       // furniture down a list whose whole job is to be read.
       buildDefaultDragHandles: false,
       itemCount: rows.length,
       onReorder: _reorder,
-      proxyDecorator: (child, _, animation) =>
-          liftedCard(ground, child, animation),
+      proxyDecorator: (child, index, animation) {
+        final group = rows[index].group;
+        final ends = group == null ? null : _ends[group];
+        return liftedCard(
+          context,
+          widget.ground,
+          child,
+          animation,
+          first: ends?.$1,
+          last: ends?.$2,
+        );
+      },
       itemBuilder: (context, i) {
         final row = rows[i];
         if (row.group == null) {
           return KeyedSubtree(key: row.key, child: row.build());
         }
+        // The first and last of each run carry a key so the carried card
+        // can be held between them.
+        final ends = _endsOf(row.group!);
+        final first = rows.indexWhere((r) => r.group == row.group);
+        final last = rows.lastIndexWhere((r) => r.group == row.group);
         return ReorderableDelayedDragStartListener(
           key: row.key,
           index: i,
-          child: row.build(),
+          child: KeyedSubtree(
+            key: i == first ? ends.$1 : (i == last ? ends.$2 : null),
+            child: row.build(),
+          ),
         );
       },
     );
