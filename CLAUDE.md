@@ -336,6 +336,14 @@ Changing them back will be noticed.
   later turn up in the backlog, ahead of ones nobody has touched — which
   settles the moment the backlog itself is dragged, since that writes a
   placement for all of it.
+- **A card being carried stays inside its list** (`DragWithin`). A reorderable
+  list puts the card it is dragging into an `Overlay`, and the nearest one is
+  the app's — the whole screen — so a card could be carried up over the
+  calendar's grid or above Schedule's header, somewhere it could never be
+  dropped. Each list is given an overlay of its own, which is the size of the
+  list and clips to it. The entry has to be told when to rebuild: an overlay
+  reads `initialEntries` once, and what is in this one changes every time a
+  task does.
 - **A card being carried is the card and nothing else** (`liftedCard`). A
   reorderable list left to itself wraps it in a `Material` of the theme's
   canvas colour, which here is true black, so a card lifted off the calendar's

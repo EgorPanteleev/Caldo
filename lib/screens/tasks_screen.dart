@@ -400,6 +400,12 @@ class _RunOfDays extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The card being carried belongs to the run, not to the screen: without
+    // this it could be lifted up over the header and the Overdue badge.
+    return DragWithin(child: _list());
+  }
+
+  Widget _list() {
     return ReorderableListView.builder(
       scrollController: controller,
       padding: const EdgeInsets.only(top: 4, bottom: 16),

@@ -16,6 +16,40 @@ import 'task_card.dart';
 /// through the whole day. They have no drag listener and cannot be picked up,
 /// and a task dropped among them is pushed back below them: a public holiday
 /// is not something the user placed, so it has no place in the order.
+/// Keeps a card being carried inside the list it came from.
+///
+/// A reorderable list puts the card it is dragging into an `Overlay`, and the
+/// nearest one is the app's — the whole screen. So a card could be carried up
+/// over the calendar's grid, or above Schedule's first heading, somewhere it
+/// could never be dropped. Giving the list an overlay of its own puts the
+/// card in a box the size of the list, and clips it to it.
+class DragWithin extends StatefulWidget {
+  final Widget child;
+
+  const DragWithin({super.key, required this.child});
+
+  @override
+  State<DragWithin> createState() => _DragWithinState();
+}
+
+class _DragWithinState extends State<DragWithin> {
+  // An overlay reads `initialEntries` once, so the entry has to be told when
+  // what it shows has changed — which, for a list of tasks, is every time one
+  // of them does.
+  late final OverlayEntry _entry = OverlayEntry(builder: (_) => widget.child);
+
+  @override
+  void didUpdateWidget(covariant DragWithin old) {
+    super.didUpdateWidget(old);
+    _entry.markNeedsBuild();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(child: Overlay(initialEntries: [_entry]));
+  }
+}
+
 /// What a card looks like while it is being carried: the card, and nothing
 /// else — no slab behind it and no square corners anywhere.
 ///
@@ -105,6 +139,10 @@ class ReorderableTaskList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return DragWithin(child: _list());
+  }
+
+  Widget _list() {
     return ReorderableListView.builder(
       scrollController: controller,
       padding: padding,
