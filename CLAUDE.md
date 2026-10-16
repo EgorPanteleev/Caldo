@@ -343,12 +343,18 @@ Changing them back will be noticed.
   it could never be dropped. Each list gets an overlay of its own, which gives
   the card a box; clipping it to that box was worse than letting it wander,
   because it vanished a sliver at a time into the top of the screen. It is
-  held against the first and last row of its run instead, which is where it
+  penned between the rows on either side of its run instead, which is where it
   would land anyway — so it stops under the Overdue badge rather than over it.
-  Two details: an overlay reads `initialEntries` once, so the entry is told to
-  rebuild whenever the list changes; and the keys marking the ends of a run
+  Three details, each of which cost a round: an overlay reads `initialEntries`
+  once, so the entry is told to rebuild whenever the list changes; the keys
   belong to the state, not the class, because the day pager has several of
-  these alive at once and a key may only be in the tree in one place.
+  these lists alive at once and a key may only be in the tree in one place;
+  and the pen is anchored to rows that **cannot** be dragged — a heading, a
+  holiday — because a row that can be dragged is lifted clean out of the list
+  while it is carried and takes its key with it. Anchoring to the run's own
+  first and last row meant that dragging the first card of a run, or the only
+  card of a day, left nothing to measure against and it was clipped in half
+  under the day bar.
 - **A card being carried is the card and nothing else** (`liftedCard`). A
   reorderable list left to itself wraps it in a `Material` of the theme's
   canvas colour, which here is true black, so a card lifted off the calendar's

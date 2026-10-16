@@ -374,13 +374,25 @@ class _RunOfDays extends StatefulWidget {
 }
 
 class _RunOfDaysState extends State<_RunOfDays> {
-  // The ends of each run, so a card being carried can be held between them
-  // and never ride up over the heading of the run above it. Kept by group id
+  // A key for each row that cannot be dragged — the headings, the footnote.
+  // They are what a card being carried is penned in by, and they are the only
+  // rows that can do the job: a row that can be dragged is lifted clean out
+  // of the list while it is carried, and takes its key with it. Kept by row
   // and reused, because a key that is rebuilt is a subtree that is rebuilt.
-  final _ends = <String, (GlobalKey, GlobalKey)>{};
+  final _anchors = <Key, GlobalKey>{};
 
-  (GlobalKey, GlobalKey) _endsOf(String group) =>
-      _ends.putIfAbsent(group, () => (GlobalKey(), GlobalKey()));
+  GlobalKey _anchorOf(Key row) => _anchors.putIfAbsent(row, GlobalKey.new);
+
+  /// The row above the given run and the row below it, if either exists.
+  (GlobalKey?, GlobalKey?) _pen(String group) {
+    final first = rows.indexWhere((r) => r.group == group);
+    final last = rows.lastIndexWhere((r) => r.group == group);
+    if (first < 0) return (null, null);
+    return (
+      first > 0 ? _anchors[rows[first - 1].key] : null,
+      last < rows.length - 1 ? _anchors[rows[last + 1].key] : null,
+    );
+  }
 
   List<_Row> get rows => widget.rows;
 
@@ -435,33 +447,28 @@ class _RunOfDaysState extends State<_RunOfDays> {
       onReorder: _reorder,
       proxyDecorator: (child, index, animation) {
         final group = rows[index].group;
-        final ends = group == null ? null : _ends[group];
+        final pen = group == null ? (null, null) : _pen(group);
         return liftedCard(
           context,
           widget.ground,
           child,
           animation,
-          first: ends?.$1,
-          last: ends?.$2,
+          under: pen.$1,
+          over: pen.$2,
         );
       },
       itemBuilder: (context, i) {
         final row = rows[i];
         if (row.group == null) {
-          return KeyedSubtree(key: row.key, child: row.build());
+          return KeyedSubtree(
+            key: row.key,
+            child: KeyedSubtree(key: _anchorOf(row.key), child: row.build()),
+          );
         }
-        // The first and last of each run carry a key so the carried card
-        // can be held between them.
-        final ends = _endsOf(row.group!);
-        final first = rows.indexWhere((r) => r.group == row.group);
-        final last = rows.lastIndexWhere((r) => r.group == row.group);
         return ReorderableDelayedDragStartListener(
           key: row.key,
           index: i,
-          child: KeyedSubtree(
-            key: i == first ? ends.$1 : (i == last ? ends.$2 : null),
-            child: row.build(),
-          ),
+          child: row.build(),
         );
       },
     );

@@ -84,38 +84,44 @@ class _DragBounds extends InheritedWidget {
 class _KeepInside extends SingleChildRenderObjectWidget {
   final GlobalKey bounds;
 
-  /// The first and last row of the run the card came from, when they are on
-  /// screen. The card is held between them rather than inside the whole list,
-  /// so it never covers the heading of the run above it.
-  final GlobalKey? first;
-  final GlobalKey? last;
+  /// The rows the run is penned in by: the card is kept below [under] and
+  /// above [over].
+  ///
+  /// Both are rows that cannot themselves be dragged — a heading, a holiday —
+  /// because a row that can be dragged is lifted clean out of the list while
+  /// it is carried, taking its key with it. Anchoring to the ends of the run
+  /// meant that dragging the first card of one left nothing to measure
+  /// against, which is the card most likely to be dragged somewhere it should
+  /// not go.
+  final GlobalKey? under;
+  final GlobalKey? over;
 
   const _KeepInside({
     required this.bounds,
     required Widget super.child,
-    this.first,
-    this.last,
+    this.under,
+    this.over,
   });
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderKeepInside(bounds, first, last);
+      _RenderKeepInside(bounds, under, over);
 
   @override
   void updateRenderObject(BuildContext context, _RenderKeepInside render) {
     render
       ..bounds = bounds
-      ..first = first
-      ..last = last;
+      ..under = under
+      ..over = over;
   }
 }
 
 class _RenderKeepInside extends RenderProxyBox {
-  _RenderKeepInside(this.bounds, this.first, this.last);
+  _RenderKeepInside(this.bounds, this.under, this.over);
 
   GlobalKey bounds;
-  GlobalKey? first;
-  GlobalKey? last;
+  GlobalKey? under;
+  GlobalKey? over;
 
   static RenderBox? _boxOf(GlobalKey? key) {
     final render = key?.currentContext?.findRenderObject();
@@ -127,15 +133,17 @@ class _RenderKeepInside extends RenderProxyBox {
     final whole = _boxOf(bounds);
     if (whole == null || !hasSize) return super.paint(context, offset);
 
-    // A row that has been scrolled out of the list has nothing to measure, so
-    // the list itself stands in for the end of the run that is missing.
-    final head = _boxOf(first);
-    final tail = _boxOf(last);
+    // A row scrolled out of the list has nothing to measure, so the list
+    // itself stands in for whichever end of the pen is missing.
+    final above = _boxOf(under);
+    final below = _boxOf(over);
     final listTop = whole.localToGlobal(Offset.zero).dy;
-    final top = head == null ? listTop : head.localToGlobal(Offset.zero).dy;
-    final bottom = tail == null
+    final top = above == null
+        ? listTop
+        : above.localToGlobal(Offset.zero).dy + above.size.height;
+    final bottom = below == null
         ? listTop + whole.size.height
-        : tail.localToGlobal(Offset.zero).dy + tail.size.height;
+        : below.localToGlobal(Offset.zero).dy;
 
     final lowest = math.max(top, bottom - size.height);
     final mine = localToGlobal(Offset.zero).dy;
@@ -160,8 +168,8 @@ Widget liftedCard(
   Color ground,
   Widget child,
   Animation<double> animation, {
-  GlobalKey? first,
-  GlobalKey? last,
+  GlobalKey? under,
+  GlobalKey? over,
 }) {
   final lifted = AnimatedBuilder(
     animation: animation,
@@ -192,7 +200,7 @@ Widget liftedCard(
   final bounds = _DragBounds.of(context);
   return bounds == null
       ? lifted
-      : _KeepInside(bounds: bounds, first: first, last: last, child: lifted);
+      : _KeepInside(bounds: bounds, under: under, over: over, child: lifted);
 }
 
 class ReorderableTaskList extends StatefulWidget {
@@ -235,8 +243,7 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
   // carried. One pair per list rather than one for the class: the day pager
   // has several of these alive at once, and a key may only be in the tree in
   // one place.
-  final _firstTask = GlobalKey();
-  final _lastTask = GlobalKey();
+  final _lastHoliday = GlobalKey();
 
   ReorderableTaskList get w => widget;
 
@@ -278,32 +285,28 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
         w.ground,
         child,
         animation,
-        first: _firstTask,
-        last: _lastTask,
+        under: w.holidays.isEmpty ? null : _lastHoliday,
       ),
       itemBuilder: (context, i) {
         if (i < w.holidays.length) {
           final holiday = w.holidays[i];
-          return HolidayCard(
+          return KeyedSubtree(
             key: ValueKey('holiday-${holiday.name}-$i'),
-            holiday: holiday,
+            child: KeyedSubtree(
+              key: i == w.holidays.length - 1 ? _lastHoliday : null,
+              child: HolidayCard(holiday: holiday),
+            ),
           );
         }
-        final at = i - w.holidays.length;
-        final task = w.tasks[at];
+        final task = w.tasks[i - w.holidays.length];
         return ReorderableDelayedDragStartListener(
           key: ValueKey('task-${task.id}'),
           index: i,
-          child: KeyedSubtree(
-            key: at == 0
-                ? _firstTask
-                : (at == w.tasks.length - 1 ? _lastTask : null),
-            child: TaskCard(
-              task: task,
-              list: w.listOf(task),
-              onTap: () => w.onOpen(task),
-              onToggle: () => w.onToggle(task),
-            ),
+          child: TaskCard(
+            task: task,
+            list: w.listOf(task),
+            onTap: () => w.onOpen(task),
+            onToggle: () => w.onToggle(task),
           ),
         );
       },
