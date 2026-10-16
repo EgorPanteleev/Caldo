@@ -16,20 +16,42 @@ import 'task_card.dart';
 /// through the whole day. They have no drag listener and cannot be picked up,
 /// and a task dropped among them is pushed back below them: a public holiday
 /// is not something the user placed, so it has no place in the order.
-/// What a card looks like while it is being carried.
+/// What a card looks like while it is being carried: the card, and nothing
+/// else — no slab behind it and no square corners anywhere.
 ///
 /// Left to itself a reorderable list wraps the card in a `Material` of the
-/// theme's canvas colour, which here is the true black the app is grounded
-/// on — so a card picked up off the calendar's grey day panel dragged a black
-/// slab around with it. The ground it is standing on is painted instead, so
-/// the card composites over exactly what it does at rest, and the lift is
-/// said with a little scale rather than with a box.
+/// theme's canvas colour, which here is the true black the app is grounded on,
+/// so a card picked up off the calendar's grey day panel dragged a black box
+/// around with it. Painting the ground instead fixed the colour but kept the
+/// box. What is painted now is the card's own rectangle, in its own corners,
+/// in the colour it is standing on — which is to say nothing you can see. The
+/// ink in a task card is translucent and has to land on something, or it
+/// turns muddy over whatever it is passing across; this gives it the same
+/// something it has at rest.
 Widget liftedCard(Color ground, Widget child, Animation<double> animation) {
   return AnimatedBuilder(
     animation: animation,
     builder: (context, inner) => Transform.scale(
       scale: 1 + 0.02 * Curves.easeOut.transform(animation.value),
-      child: Material(color: ground, child: inner),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Padding(
+                padding: TaskCard.margin,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: ground,
+                    borderRadius: BorderRadius.circular(TaskCard.radius),
+                  ),
+                ),
+              ),
+            ),
+            inner!,
+          ],
+        ),
+      ),
     ),
     child: child,
   );

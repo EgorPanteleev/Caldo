@@ -336,11 +336,16 @@ Changing them back will be noticed.
   later turn up in the backlog, ahead of ones nobody has touched — which
   settles the moment the backlog itself is dragged, since that writes a
   placement for all of it.
-- **A card being carried is backed by the ground it was picked up from**
-  (`liftedCard`). A reorderable list left to itself wraps the card in a
-  `Material` of the theme's canvas colour, which here is true black — so a
-  card lifted off the calendar's grey day panel dragged a black slab around
-  with it. The lift is said with a little scale instead of with a box.
+- **A card being carried is the card and nothing else** (`liftedCard`). A
+  reorderable list left to itself wraps it in a `Material` of the theme's
+  canvas colour, which here is true black, so a card lifted off the calendar's
+  grey day panel dragged a black slab around with it; painting the ground
+  instead fixed the colour and kept the slab. What is painted is the card's
+  own rectangle, in its own corners (`TaskCard.margin`, `TaskCard.radius`), in
+  the colour it is standing on — nothing you can see. It cannot simply be
+  transparent: the ink in a task card is translucent and has to land on
+  something, or it goes muddy over whatever it is passing across. The lift is
+  said with a little scale rather than with a box.
 - **A day the reader has a word for wears it on a badge**, with the date
   written beside it — `Today` on a light pill, then `Sat, 4 Oct`. The word
   used to replace the date, which left the one day most likely to be looked up

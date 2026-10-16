@@ -19,6 +19,12 @@ import '../utils/dates.dart';
 /// no border: the fill is the shape, and an outline a shade brighter than it
 /// only blurred the edge.
 class TaskCard extends StatelessWidget {
+  /// The room a card leaves around itself, and the corners it is cut to.
+  /// Out here because a card being carried is backed in its own shape, and
+  /// two places guessing at the same rectangle would drift.
+  static const margin = EdgeInsets.fromLTRB(16, 0, 16, 8);
+  static const radius = 14.0;
+
   final Task task;
   final TaskList? list;
   final VoidCallback onTap;
@@ -60,20 +66,20 @@ class TaskCard extends StatelessWidget {
     final faded = task.done;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: TaskCard.margin,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(TaskCard.radius),
           child: Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
               // A done task sinks most of the way back into the ground rather
               // than keeping its place in the run.
               color: color.withValues(alpha: faded ? 0.07 : 0.24),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(TaskCard.radius),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -184,12 +190,12 @@ class HolidayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: TaskCard.margin,
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
           color: AppColors.holiday.withValues(alpha: 0.22),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(TaskCard.radius),
         ),
         child: Row(
           children: [
