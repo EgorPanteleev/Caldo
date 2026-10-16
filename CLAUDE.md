@@ -18,7 +18,7 @@ Dev-only: `sqflite_common_ffi`, so widget tests run against a real database.
 ```
 lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
-  db/database.dart       schema v2: lists, tasks (+ migration)
+  db/database.dart       schema v3: lists, tasks (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
@@ -308,6 +308,24 @@ Changing them back will be noticed.
   darker than the sheet under it. A done card keeps a twentieth of the colour,
   so it sinks most of the way back into the ground without leaving the run,
   and its tick square fills in instead of standing empty.
+- **A day's tasks can be dragged into an order of their own** (`sort_order`,
+  schema v3, null until a day is actually dragged). Null rather than zero on
+  purpose: a column of zeros would claim every task had been placed by hand,
+  and a day nobody has touched should keep the order it has always had. A task
+  that arrives in a day somebody has already arranged goes after the arranged
+  ones. The hand order sits under "open before done" rather than over it —
+  ticking a task off is about whether it is still to be done, not about where
+  in the day it sits.
+- **A long press picks a card up; it used to open the editor**, which a tap
+  already does, so nothing was lost. There are no drag handles: the card is
+  the handle, and a grip beside every row would be a column of furniture down
+  a list whose whole job is to be read.
+- **A task only ever moves within its own day.** Let go over another day it
+  lands at the near end of its own, because dragging it across would be a
+  change of date wearing the clothes of a change of order. The same rule keeps
+  the overdue backlog out of it: those are tasks from many days gathered
+  together, and the order they want is how late each one is. Holidays sit in
+  the list but cannot be picked up or displaced — nobody placed them there.
 - **A day the reader has a word for wears it on a badge**, with the date
   written beside it — `Today` on a light pill, then `Sat, 4 Oct`. The word
   used to replace the date, which left the one day most likely to be looked up
@@ -317,7 +335,7 @@ Changing them back will be noticed.
   of the screen; a swipe on it that had nowhere else to go used to do nothing.
   A short day's list cannot scroll at all, so every drag on it arrives as
   overscroll; a long one arrives only once it has run out of list.
-- **Schedule's list is built lazily** (`_LazyList`, rows handed over as
+- **Schedule's list is built lazily** (`_RunOfDays`, rows handed over as
   builders). `ListView(children: [...])` constructs every row on every build,
   and the screen rebuilds on each frame of the keyboard sliding in — so opening
   the keyboard rebuilt the whole agenda sixty times a second and juddered.
@@ -365,7 +383,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 77 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 81 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

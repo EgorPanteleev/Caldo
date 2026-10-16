@@ -9,8 +9,8 @@ import '../screens/task_edit_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import 'quick_add_bar.dart';
+import 'reorderable_task_list.dart';
 import 'screen_header.dart';
-import 'task_card.dart';
 
 /// Identifies the day card, for tests and for the calendar that opens it.
 const daySheetKey = Key('day-sheet');
@@ -154,24 +154,18 @@ class _DaySheetState extends State<_DaySheet> {
                                       'above for the full form.',
                                 ),
                               )
-                            : ListView(
+                            : ReorderableTaskList(
                                 shrinkWrap: true,
                                 padding: const EdgeInsets.only(
                                   top: 2,
                                   bottom: 10,
                                 ),
-                                children: [
-                                  for (final holiday in holidays)
-                                    HolidayCard(holiday: holiday),
-                                  for (final task in tasks)
-                                    TaskCard(
-                                      task: task,
-                                      list: provider.listById(task.listId),
-                                      onTap: () => _openEditor(task),
-                                      onLongPress: () => _openEditor(task),
-                                      onToggle: () => provider.toggleDone(task),
-                                    ),
-                                ],
+                                holidays: holidays,
+                                tasks: tasks,
+                                listOf: (t) => provider.listById(t.listId),
+                                onOpen: _openEditor,
+                                onToggle: provider.toggleDone,
+                                onReorder: provider.reorder,
                               ),
                       ),
                     ],

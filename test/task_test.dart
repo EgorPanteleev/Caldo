@@ -108,6 +108,15 @@ void main() {
       expect(task.copyWith(clearStyleId: true).styleId, isNull);
     });
 
+    test('a hand-placed position survives the round trip', () {
+      final placed = taskDue(DateTime(2026, 5, 4)).copyWith(sortOrder: 2);
+      expect(Task.fromMap(placed.toMap()).sortOrder, 2);
+      expect(placed.copyWith(clearSortOrder: true).sortOrder, isNull);
+      // Null is "never dragged", which is not the same as "first".
+      expect(Task.fromMap(taskDue(DateTime(2026, 5, 4)).toMap()).sortOrder,
+          isNull);
+    });
+
     test('copyWith can clear the due date and the completion', () {
       final task = taskDue(DateTime(2026, 5, 4)).copyWith(completedAt: 1);
       final cleared = task.copyWith(clearDueAt: true, clearCompletedAt: true);

@@ -85,6 +85,12 @@ class Task {
   /// Epoch millis the task was last completed, or null while it is open.
   final int? completedAt;
 
+  /// Where the user has dragged this task within its day, or null if its day
+  /// has never been reordered. Null means "wherever the ordinary rules put
+  /// it", which is why it is nullable rather than defaulted to zero: a column
+  /// of zeros would claim every task had been placed by hand.
+  final int? sortOrder;
+
   const Task({
     this.id,
     required this.listId,
@@ -98,6 +104,7 @@ class Task {
     this.styleId,
     required this.createdAt,
     this.completedAt,
+    this.sortOrder,
   });
 
   /// The due moment, or null for an undated task.
@@ -139,6 +146,8 @@ class Task {
     int? createdAt,
     int? completedAt,
     bool clearCompletedAt = false,
+    int? sortOrder,
+    bool clearSortOrder = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -153,6 +162,7 @@ class Task {
       styleId: clearStyleId ? null : (styleId ?? this.styleId),
       createdAt: createdAt ?? this.createdAt,
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
+      sortOrder: clearSortOrder ? null : (sortOrder ?? this.sortOrder),
     );
   }
 
@@ -170,6 +180,7 @@ class Task {
       'style_id': styleId,
       'created_at': createdAt,
       'completed_at': completedAt,
+      'sort_order': sortOrder,
     };
   }
 
@@ -187,6 +198,7 @@ class Task {
       styleId: map['style_id'] as String?,
       createdAt: map['created_at'] as int? ?? 0,
       completedAt: map['completed_at'] as int?,
+      sortOrder: map['sort_order'] as int?,
     );
   }
 }

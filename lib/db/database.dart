@@ -11,7 +11,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
 
@@ -54,7 +54,8 @@ class AppDatabase {
             repeat_rule TEXT NOT NULL DEFAULT 'none',
             style_id TEXT,
             created_at INTEGER NOT NULL,
-            completed_at INTEGER
+            completed_at INTEGER,
+            sort_order INTEGER
           )
         ''');
         await db.execute(
@@ -66,6 +67,12 @@ class AppDatabase {
         if (oldVersion < 2) {
           // v1 -> a task can override the colour it takes from its list.
           await db.execute('ALTER TABLE $_tasks ADD COLUMN style_id TEXT');
+        }
+        if (oldVersion < 3) {
+          // v2 -> a day can be put in an order of the user's own. Null until
+          // one is, so every day that has never been dragged keeps the
+          // ordering it has always had.
+          await db.execute('ALTER TABLE $_tasks ADD COLUMN sort_order INTEGER');
         }
       },
     );
@@ -202,6 +209,27 @@ class AppDatabase {
   }
 
   /// Open first, then by due date (undated last), then newest first.
+  /// A hand-placed task goes where it was put; one that has never been
+  /// dragged falls through to the ordinary rules, after the placed ones.
   static const _order =
-      'done ASC, (due_at IS NULL) ASC, due_at ASC, created_at DESC';
+      'done ASC, (due_at IS NULL) ASC, due_at ASC, '
+      '(sort_order IS NULL) ASC, sort_order ASC, created_at DESC';
+
+  /// Writes the order a day was dragged into: the position of each id in
+  /// [ids] becomes its `sort_order`. Every task of the day is written, not
+  /// only the one that moved, so the day is left with a complete order rather
+  /// than one task holding a number and the rest guessing.
+  Future<void> setOrder(List<int> ids) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < ids.length; i++) {
+      batch.update(
+        _tasks,
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [ids[i]],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
 }

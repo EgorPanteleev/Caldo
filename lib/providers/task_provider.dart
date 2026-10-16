@@ -198,9 +198,21 @@ class TaskProvider extends ChangeNotifier {
     return map;
   }
 
-  /// Open before done, earlier before later, all-day before timed.
+  /// Open before done, then where the day was dragged into, then earlier
+  /// before later and all-day before timed.
+  ///
+  /// The hand-placed order comes first because it is the one the user chose;
+  /// it sits under "open before done" rather than over it, since a task being
+  /// ticked off is about whether it is still to be done, not about where in
+  /// the day it sits. A task with no placement of its own goes after the ones
+  /// that have it — it arrived in a day somebody had already arranged.
   static int _compare(Task a, Task b) {
     if (a.done != b.done) return a.done ? 1 : -1;
+    if (a.sortOrder != b.sortOrder) {
+      if (a.sortOrder == null) return 1;
+      if (b.sortOrder == null) return -1;
+      return a.sortOrder!.compareTo(b.sortOrder!);
+    }
     if (a.hasTime != b.hasTime) return a.hasTime ? 1 : -1;
     final byDue = (a.dueAt ?? 0).compareTo(b.dueAt ?? 0);
     if (byDue != 0) return byDue;
@@ -241,6 +253,18 @@ class TaskProvider extends ChangeNotifier {
           ? task.copyWith(done: false, clearCompletedAt: true)
           : task.copyWith(done: true, completedAt: now));
     }
+    await _reloadAll();
+  }
+
+  /// Writes the order a run of tasks was dragged into — the whole run, in the
+  /// order it now reads, not just the one that moved.
+  Future<void> reorder(List<Task> ordered) async {
+    final ids = [
+      for (final task in ordered)
+        if (task.id != null) task.id!,
+    ];
+    if (ids.length < 2) return;
+    await _db.setOrder(ids);
     await _reloadAll();
   }
 

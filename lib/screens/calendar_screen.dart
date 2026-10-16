@@ -16,7 +16,7 @@ import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/quick_add_bar.dart';
-import '../widgets/task_card.dart';
+import '../widgets/reorderable_task_list.dart';
 import 'search_screen.dart';
 import 'task_edit_screen.dart';
 
@@ -425,6 +425,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                             onPullEnd: _onPullEnd,
                             onOpen: _openEditor,
                             onToggle: provider.toggleDone,
+                            onReorder: provider.reorder,
                           );
                         },
                       ),
@@ -722,6 +723,7 @@ class _DayPanel extends StatelessWidget {
   final VoidCallback onPullEnd;
   final ValueChanged<Task> onOpen;
   final ValueChanged<Task> onToggle;
+  final ValueChanged<List<Task>> onReorder;
 
   const _DayPanel({
     required this.date,
@@ -736,6 +738,7 @@ class _DayPanel extends StatelessWidget {
     required this.onPullEnd,
     required this.onOpen,
     required this.onToggle,
+    required this.onReorder,
   });
 
   TaskList? _listOf(Task task) {
@@ -779,20 +782,14 @@ class _DayPanel extends StatelessWidget {
                     title: 'Nothing on this day',
                     message: 'Add one in the field below.',
                   )
-                : ListView(
+                : ReorderableTaskList(
                     padding: const EdgeInsets.only(top: 4, bottom: 8),
-                    children: [
-                      for (final holiday in holidays)
-                        HolidayCard(holiday: holiday),
-                      for (final task in tasks)
-                        TaskCard(
-                          task: task,
-                          list: _listOf(task),
-                          onTap: () => onOpen(task),
-                          onLongPress: () => onOpen(task),
-                          onToggle: () => onToggle(task),
-                        ),
-                    ],
+                    holidays: holidays,
+                    tasks: tasks,
+                    listOf: _listOf,
+                    onOpen: onOpen,
+                    onToggle: onToggle,
+                    onReorder: onReorder,
                   ),
           ),
         ),

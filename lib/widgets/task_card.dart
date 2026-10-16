@@ -22,7 +22,9 @@ class TaskCard extends StatelessWidget {
   final Task task;
   final TaskList? list;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  /// Null where a long press belongs to something else — a list that can be
+  /// dragged into a new order takes it to start the drag.
+  final VoidCallback? onLongPress;
   final VoidCallback onToggle;
 
   const TaskCard({
@@ -30,7 +32,7 @@ class TaskCard extends StatelessWidget {
     required this.task,
     this.list,
     required this.onTap,
-    required this.onLongPress,
+    this.onLongPress,
     required this.onToggle,
   });
 

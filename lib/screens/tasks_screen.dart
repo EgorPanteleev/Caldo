@@ -95,7 +95,6 @@ class _TasksScreenState extends State<TasksScreen> {
       task: task,
       list: provider.listById(task.listId),
       onTap: () => _openEditor(task),
-      onLongPress: () => _openEditor(task),
       onToggle: () => provider.toggleDone(task),
     );
 
@@ -125,48 +124,86 @@ class _TasksScreenState extends State<TasksScreen> {
               children: [
                 RefreshIndicator(
                   onRefresh: provider.loadTasks,
-                  child: _LazyList(
+                  child: _RunOfDays(
                     controller: _scroll,
-                    children: [
+                    onReorder: provider.reorder,
+                    rows: [
                       if (!hasAnything)
-                        () => const Padding(
-                          padding: EdgeInsets.only(top: 40),
-                          child: EmptyState(
-                            icon: Icons.beach_access_outlined,
-                            title: 'Nothing scheduled',
-                            message:
-                                'Add something below. Anything with a date on '
-                                'it is listed here, day by day.',
+                        _Row(
+                          key: const ValueKey('empty'),
+                          build: () => const Padding(
+                            padding: EdgeInsets.only(top: 40),
+                            child: EmptyState(
+                              icon: Icons.beach_access_outlined,
+                              title: 'Nothing scheduled',
+                              message:
+                                  'Add something below. Anything with a date '
+                                  'on it is listed here, day by day.',
+                            ),
                           ),
                         ),
+                      // The overdue backlog is not dragged into an order: it
+                      // is tasks from many days gathered together, and the
+                      // order they want is how late each one is.
                       if (overdue.isNotEmpty) ...[
-                        () => const _DayHeader(
-                          word: 'Overdue',
-                          color: AppColors.overdue,
+                        _Row(
+                          key: const ValueKey('overdue'),
+                          build: () => const _DayHeader(
+                            word: 'Overdue',
+                            color: AppColors.overdue,
+                          ),
                         ),
-                        for (final task in overdue) () => entry(task),
+                        for (final task in overdue)
+                          _Row(
+                            key: ValueKey('overdue-${task.id}'),
+                            build: () => entry(task),
+                          ),
                       ],
                       for (final day in days) ...[
-                        () => _DayHeader(
-                          word: Dates.dayWord(day),
-                          label: Dates.dayDate(day),
+                        _Row(
+                          key: ValueKey('head-$day'),
+                          build: () => _DayHeader(
+                            word: Dates.dayWord(day),
+                            label: Dates.dayDate(day),
+                          ),
                         ),
                         for (final holiday
                             in holidays[day] ?? const <Holiday>[])
-                          () => HolidayCard(holiday: holiday),
-                        for (final task in byDay[day]!) () => entry(task),
+                          _Row(
+                            key: ValueKey('holiday-$day-${holiday.name}'),
+                            build: () => HolidayCard(holiday: holiday),
+                          ),
+                        for (final task in byDay[day]!)
+                          _Row(
+                            key: ValueKey('task-${task.id}'),
+                            group: '$day',
+                            task: task,
+                            build: () => entry(task),
+                          ),
                       ],
                       if (undated.isNotEmpty) ...[
-                        () => const _DayHeader(word: 'No date'),
-                        for (final task in undated) () => entry(task),
+                        _Row(
+                          key: const ValueKey('undated'),
+                          build: () => const _DayHeader(word: 'No date'),
+                        ),
+                        for (final task in undated)
+                          _Row(
+                            key: ValueKey('task-${task.id}'),
+                            group: 'undated',
+                            task: task,
+                            build: () => entry(task),
+                          ),
                       ],
                       if (days.isNotEmpty)
-                        () => Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                          child: Text(
-                            'Dated tasks are shown for the next '
-                            '${TaskProvider.agendaDays} days.',
-                            style: TextStyle(color: p.faint, fontSize: 12),
+                        _Row(
+                          key: const ValueKey('footnote'),
+                          build: () => Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                            child: Text(
+                              'Dated tasks are shown for the next '
+                              '${TaskProvider.agendaDays} days.',
+                              style: TextStyle(color: p.faint, fontSize: 12),
+                            ),
                           ),
                         ),
                     ],
@@ -289,26 +326,91 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-/// A list whose rows are only built when they come into view.
+/// One line of the run: a day's heading, a holiday, or a task.
 ///
-/// `ListView(children: [...])` constructs every row on every build, and the
-/// screen rebuilds on each frame of the keyboard sliding in — so opening the
-/// keyboard rebuilt the whole agenda sixty times a second and juddered. The
-/// rows are handed over as builders instead, which costs one closure each and
-/// nothing at all for the ones off screen.
-class _LazyList extends StatelessWidget {
-  final ScrollController controller;
-  final List<Widget Function()> children;
+/// A row carries a builder rather than a built widget. `ListView(children:
+/// [...])` constructs every row on every build, and the screen rebuilds on
+/// each frame of the keyboard sliding in — so opening the keyboard rebuilt the
+/// whole agenda sixty times a second and juddered.
+class _Row {
+  final Key key;
+  final Widget Function() build;
 
-  const _LazyList({required this.controller, required this.children});
+  /// Which run of tasks this row can be dragged around inside, or null for a
+  /// row that cannot be picked up at all. A task only ever moves within its
+  /// own day; dragging one into another day would be a change of date wearing
+  /// the clothes of a change of order.
+  final String? group;
+
+  final Task? task;
+
+  const _Row({required this.key, required this.build, this.group, this.task});
+}
+
+/// The run of days, with each day's tasks draggable into an order of their
+/// own. A long press picks a card up — the gesture used to open the editor,
+/// which a tap already does.
+class _RunOfDays extends StatelessWidget {
+  final ScrollController controller;
+  final List<_Row> rows;
+  final ValueChanged<List<Task>> onReorder;
+
+  const _RunOfDays({
+    required this.controller,
+    required this.rows,
+    required this.onReorder,
+  });
+
+  void _reorder(int oldIndex, int newIndex) {
+    final group = rows[oldIndex].group;
+    if (group == null) return;
+    // Where this group's tasks are in the run. They are contiguous: a day's
+    // heading and its holidays come first, then every task of that day.
+    final block = [
+      for (var i = 0; i < rows.length; i++)
+        if (rows[i].group == group) i,
+    ];
+    if (block.length < 2) return;
+
+    // Flutter reports the slot the card would go into before the gap it left
+    // behind is closed up. Held inside the group: a card let go over another
+    // day lands at the near end of its own rather than changing its date.
+    final to = (newIndex > oldIndex ? newIndex - 1 : newIndex).clamp(
+      block.first,
+      block.last,
+    );
+    final from = oldIndex;
+    if (from == to) return;
+
+    final ordered = [for (final i in block) rows[i].task!];
+    ordered.insert(
+      to - block.first,
+      ordered.removeAt(from - block.first),
+    );
+    onReorder(ordered);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      controller: controller,
+    return ReorderableListView.builder(
+      scrollController: controller,
       padding: const EdgeInsets.only(top: 4, bottom: 16),
-      itemCount: children.length,
-      itemBuilder: (context, i) => children[i](),
+      // The card is the handle. A grip beside every row would be a column of
+      // furniture down a list whose whole job is to be read.
+      buildDefaultDragHandles: false,
+      itemCount: rows.length,
+      onReorder: _reorder,
+      itemBuilder: (context, i) {
+        final row = rows[i];
+        if (row.group == null) {
+          return KeyedSubtree(key: row.key, child: row.build());
+        }
+        return ReorderableDelayedDragStartListener(
+          key: row.key,
+          index: i,
+          child: row.build(),
+        );
+      },
     );
   }
 }
