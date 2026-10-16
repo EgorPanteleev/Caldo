@@ -331,7 +331,14 @@ Changing them back will be noticed.
   the whole set is cancelled and re-set: an edited date, a tick, a deletion
   cannot leave an alarm behind. A timed task is announced at its own time, an
   all-day one at the hour Settings names (nine by default, since midnight is
-  the one hour nobody wants to hear about it).
+  the one hour nobody wants to hear about it) — including one due today, as
+  long as that hour has not already gone by.
+- **Changing a reminder setting re-sets the alarms already standing**
+  (`Reminders.configure` keeps the task list its last sync was built from).
+  Settings and the agenda load at the same time when the app starts and
+  whichever lands first wins: with the tasks first, every alarm was worked out
+  against the default hour, and an all-day task went on announcing itself at
+  nine however many times the hour was changed in Settings.
 - **Reminders are no-ops until `init` has been through.** The widget tests
   drive the real providers and nothing in a test can answer the plugin's
   channels, so the service checks a flag and does nothing rather than throwing

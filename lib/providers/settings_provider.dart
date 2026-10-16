@@ -79,7 +79,7 @@ class SettingsProvider extends ChangeNotifier {
     _defaultTaskStyleId = prefs.getString(_kDefaultStyle);
     _reminders = prefs.getBool(_kReminders) ?? _reminders;
     _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
-    _tellReminders();
+    await _tellReminders();
     // Reminders are on out of the box, so the first run is where Android has
     // to be asked — nothing else in the app would ever ask, and a permission
     // that was never requested looks exactly like a feature that is broken.
@@ -147,14 +147,14 @@ class SettingsProvider extends ChangeNotifier {
       _reminderMinutes = reminderMinutes;
       await prefs.setInt(_kReminderAt, reminderMinutes);
     }
-    if (reminders != null || reminderMinutes != null) _tellReminders();
+    if (reminders != null || reminderMinutes != null) await _tellReminders();
     notifyListeners();
   }
 
   /// Hands the two settings that matter to the scheduler, which holds them
   /// rather than reaching back here: it is called from a provider that may not
   /// be in scope, and from the database layer, which has no context at all.
-  void _tellReminders() => Reminders.instance.configure(
+  Future<void> _tellReminders() => Reminders.instance.configure(
     enabled: _reminders,
     allDayMinutes: _reminderMinutes,
   );

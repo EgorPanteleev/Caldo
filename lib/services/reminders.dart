@@ -41,6 +41,11 @@ class Reminders {
   /// reminder into whenever it next wakes up, which can be an hour late.
   bool _exact = true;
 
+  /// What the alarms currently standing were set from, so a change of settings
+  /// can re-set them against the same tasks.
+  List<Task> _last = const [];
+  bool _synced = false;
+
   /// How far ahead reminders are set — the same window the agenda loads, since
   /// that is what they are set from. Android caps how many alarms one app may
   /// hold, and a task two months out does not need its alarm booked today:
@@ -108,10 +113,22 @@ class Reminders {
     return granted;
   }
 
-  /// Takes the settings that decide whether and when anything is announced.
-  void configure({required bool enabled, required int allDayMinutes}) {
+  /// Takes the settings that decide whether and when anything is announced,
+  /// and re-sets what is already standing against them.
+  ///
+  /// The re-set is the point. Settings and the agenda load at the same time
+  /// when the app starts, and whichever lands first wins: if the tasks got
+  /// there first, every alarm was worked out against the default hour, and an
+  /// all-day task would have gone on announcing itself at nine however many
+  /// times the hour had been changed in Settings.
+  Future<void> configure({
+    required bool enabled,
+    required int allDayMinutes,
+  }) async {
+    if (_enabled == enabled && _allDayMinutes == allDayMinutes) return;
     _enabled = enabled;
     _allDayMinutes = allDayMinutes;
+    if (_synced) await sync(_last);
   }
 
   /// Replaces every alarm with one per task in [tasks] that is still to come.
@@ -122,6 +139,8 @@ class Reminders {
   /// cannot leave an alarm behind it.
   Future<void> sync(List<Task> tasks) async {
     if (!_ready) return;
+    _last = tasks;
+    _synced = true;
     try {
       await _plugin.cancelAll();
       if (!_enabled) return;

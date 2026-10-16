@@ -66,11 +66,9 @@ class SettingsScreen extends StatelessWidget {
     final settings = context.read<SettingsProvider>();
     if (on) await Reminders.instance.requestPermission();
     if (!context.mounted) return;
+    // Saving is all that is needed: the scheduler re-sets what is standing
+    // against the settings it is handed.
     await settings.update(reminders: on);
-    if (!context.mounted) return;
-    // The alarms are set from the agenda, so a change of mind has to go
-    // through the thing that holds it.
-    await context.read<TaskProvider>().loadTasks();
   }
 
   /// Picks the hour an all-day task is announced at.
@@ -82,8 +80,6 @@ class SettingsScreen extends StatelessWidget {
     );
     if (picked == null || !context.mounted) return;
     await settings.update(reminderMinutes: picked.hour * 60 + picked.minute);
-    if (!context.mounted) return;
-    await context.read<TaskProvider>().loadTasks();
   }
 
   @override
