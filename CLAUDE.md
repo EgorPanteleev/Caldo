@@ -255,6 +255,15 @@ Changing them back will be noticed.
   finishes, and both read as lines. It is one widget rather than two copies
   because the two screens have to look the same doing it — which is how it
   came to be asked for on Schedule in the first place.
+- **The fade goes as the month opens out** (`GroundFade.strength`, driven by
+  the calendar's expansion). It is for a list that runs under the field, and
+  the calendar only has one while the day's tasks are on screen. Opened out,
+  what sits above the field is the grid — a fixed layout that ends above the
+  field with nothing to soften — so the fade only dimmed the last week of
+  the month. Measured: the outline around a selected day in the bottom row
+  fell from 155 to 112 over its last sixty pixels, and a day with enough
+  tasks had the chips in that strip washed out with it. It was reported as
+  "when I extend my calendar, in the bottom it's like more transparent".
 - **The keyboard arrives over both screens, it does not shorten either.**
   Neither `Scaffold` resizes for the inset; the quick-add bar is wrapped in
   `KeyboardLift`, which translates it instead, and the fade above it goes up
@@ -460,7 +469,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 86 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 87 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

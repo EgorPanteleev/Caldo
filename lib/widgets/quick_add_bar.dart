@@ -300,7 +300,19 @@ class KeyboardRoom extends StatelessWidget {
 class GroundFade extends StatelessWidget {
   final Color ground;
 
-  const GroundFade({super.key, required this.ground});
+  /// How much of it to draw, from all of it down to none.
+  ///
+  /// The fade is for a list that runs under the field. The calendar has one
+  /// only while the day's tasks are on screen: opened out, what sits above
+  /// the field is the month itself, which is a fixed grid that ends above
+  /// the field and has nothing to soften — so the fade there only dimmed
+  /// the last week of the month. Measured on the opened month, the outline
+  /// around the selected day went from 155 down to 112 over its last sixty
+  /// pixels, and a day with enough tasks had their chips washed out the
+  /// same way.
+  final double strength;
+
+  const GroundFade({super.key, required this.ground, this.strength = 1});
 
   /// How far above the field the fade reaches.
   static const height = 48.0;
@@ -323,7 +335,10 @@ class GroundFade extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               stops: _stops,
-              colors: [for (final a in _alphas) ground.withValues(alpha: a)],
+              colors: [
+                for (final a in _alphas)
+                  ground.withValues(alpha: a * strength.clamp(0.0, 1.0)),
+              ],
             ),
           ),
         ),

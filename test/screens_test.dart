@@ -50,16 +50,18 @@ void main() {
     late TaskProvider provider;
     await tester.runAsync(() async => provider = await seedProvider());
 
-    await tester.pumpWidget(MultiProvider(
-      providers: [
-        ChangeNotifierProvider<TaskProvider>.value(value: provider),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
-      ],
-      child: MaterialApp(
-        theme: theme ?? AppTheme.dark(AppAccent.presets.first),
-        home: screen,
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: theme ?? AppTheme.dark(AppAccent.presets.first),
+          home: screen,
+        ),
       ),
-    ));
+    );
     await tester.pump();
     return provider;
   }
@@ -83,33 +85,35 @@ void main() {
     tester.view.physicalSize = narrow;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MultiProvider(
-      providers: [
-        ChangeNotifierProvider<TaskProvider>.value(value: provider),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
-      ],
-      child: MaterialApp(
-        theme: AppTheme.dark(AppAccent.presets.first),
-        home: TaskEditScreen(
-          task: existing
-              ? provider.tasks.firstWhere((t) => t.title == 'Ship')
-              : null,
-          listId: provider.currentListId,
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: TaskEditScreen(
+            task: existing
+                ? provider.tasks.firstWhere((t) => t.title == 'Ship')
+                : null,
+            listId: provider.currentListId,
+          ),
         ),
       ),
-    ));
+    );
     await tester.pump();
   }
 
   /// Lets the database reads a screen started (a month change, say) finish
   /// before the test ends and the next case closes the database.
-  Future<void> drainDatabase(WidgetTester tester) =>
-      tester.runAsync(() => Future<void>.delayed(
-            const Duration(milliseconds: 80),
-          ));
+  Future<void> drainDatabase(WidgetTester tester) => tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 80)),
+  );
 
-  testWidgets('the tasks screen separates overdue from what is due today',
-      (tester) async {
+  testWidgets('the tasks screen separates overdue from what is due today', (
+    tester,
+  ) async {
     await pumpScreen(tester, const TasksScreen());
 
     // The day headings are written as dates now, not shouted section labels.
@@ -127,8 +131,9 @@ void main() {
     expect(find.text(Dates.dayDate(dayOf(DateTime.now()))), findsOneWidget);
   });
 
-  testWidgets('the calendar lists the selected day below the month grid',
-      (tester) async {
+  testWidgets('the calendar lists the selected day below the month grid', (
+    tester,
+  ) async {
     await pumpScreen(tester, const CalendarScreen());
 
     // One-letter weekday heads, weekend last.
@@ -161,15 +166,24 @@ void main() {
     expect(find.text('Empty'), findsOneWidget);
   });
 
-  testWidgets('the screens hold up on a narrow phone in light mode',
-      (tester) async {
+  testWidgets('the screens hold up on a narrow phone in light mode', (
+    tester,
+  ) async {
     final light = AppTheme.light(AppAccent.presets.first);
-    await pumpScreen(tester, const CalendarScreen(),
-        size: narrow, theme: light);
+    await pumpScreen(
+      tester,
+      const CalendarScreen(),
+      size: narrow,
+      theme: light,
+    );
     expect(find.text('Ship'), findsOneWidget);
 
-    await pumpScreen(tester, const TaskListScreen(),
-        size: narrow, theme: light);
+    await pumpScreen(
+      tester,
+      const TaskListScreen(),
+      size: narrow,
+      theme: light,
+    );
     expect(find.text('Someday idea'), findsOneWidget);
 
     await pumpScreen(tester, const TasksScreen(), size: narrow, theme: light);
@@ -270,8 +284,9 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('the month name carries the year only when it is not this one',
-      (tester) async {
+  testWidgets('the month name carries the year only when it is not this one', (
+    tester,
+  ) async {
     final thisYear = DateTime(DateTime.now().year, 6);
     final nextYear = DateTime(DateTime.now().year + 1, 6);
     expect(Dates.monthTitle(thisYear), 'Jun');
@@ -325,8 +340,9 @@ void main() {
     expect(find.text('18:00'), findsOneWidget);
   });
 
-  testWidgets('a wheel is tinted while it is touched, not while it spins',
-      (tester) async {
+  testWidgets('a wheel is tinted while it is touched, not while it spins', (
+    tester,
+  ) async {
     await pumpEditor(tester);
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
@@ -335,10 +351,12 @@ void main() {
     // The hour wheel alone: each wheel marks its own landed value, so turning
     // one is not supposed to take the accent off the other two.
     bool tinted() => tester
-        .widgetList<Text>(find.descendant(
-          of: find.byType(ListWheelScrollView).first,
-          matching: find.byType(Text),
-        ))
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(ListWheelScrollView).first,
+            matching: find.byType(Text),
+          ),
+        )
         .any((t) => t.style?.color == accent);
 
     expect(tinted(), isFalse, reason: 'at rest the numbers are plain');
@@ -379,6 +397,27 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('the fade over the day goes as the month opens out', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const CalendarScreen());
+
+    double fade() =>
+        tester.widget<GroundFade>(find.byType(GroundFade)).strength;
+
+    // Compact: the day's tasks scroll under the field, so the fade is there
+    // to carry the last card into it.
+    expect(fade(), 1);
+
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, 320));
+    await tester.pumpAndSettle();
+
+    // Opened: what sits above the field is the grid, which ends above it and
+    // has nothing to soften — faded, it only dimmed the last week.
+    expect(fade(), 0);
+    await drainDatabase(tester);
+  });
+
   testWidgets('the calendar squeezes down to a single week', (tester) async {
     await pumpScreen(tester, const CalendarScreen());
     final month = tester.getSize(find.byType(MonthGrid).first).height;
@@ -387,21 +426,27 @@ void main() {
     await tester.drag(find.byKey(calendarHandleKey), const Offset(0, -300));
     await tester.pumpAndSettle();
     final week = tester.getSize(find.byType(MonthGrid).first).height;
-    expect(week, lessThan(month / 3),
-        reason: 'a week should be a fraction of the month');
+    expect(
+      week,
+      lessThan(month / 3),
+      reason: 'a week should be a fraction of the month',
+    );
     // The day's tasks keep their place, with more room than before.
     expect(find.text('Ship'), findsOneWidget);
 
     // And a tap brings the month back.
     await tester.tap(find.byKey(calendarHandleKey));
     await tester.pumpAndSettle();
-    expect(tester.getSize(find.byType(MonthGrid).first).height,
-        closeTo(month, 1));
+    expect(
+      tester.getSize(find.byType(MonthGrid).first).height,
+      closeTo(month, 1),
+    );
     await drainDatabase(tester);
   });
 
-  testWidgets('tapping the grip walks through the three states',
-      (tester) async {
+  testWidgets('tapping the grip walks through the three states', (
+    tester,
+  ) async {
     await pumpScreen(tester, const CalendarScreen());
     double height() => tester.getSize(find.byType(MonthGrid).first).height;
     final month = height();
@@ -429,13 +474,16 @@ void main() {
     // Well short of the distance between the two states, but clearly meant.
     await tester.drag(find.byKey(calendarHandleKey), const Offset(0, 90));
     await tester.pumpAndSettle();
-    expect(tester.getSize(find.byType(MonthGrid).first).height,
-        greaterThan(month * 1.3));
+    expect(
+      tester.getSize(find.byType(MonthGrid).first).height,
+      greaterThan(month * 1.3),
+    );
     await drainDatabase(tester);
   });
 
-  testWidgets('the days below the grid are a row that can be swiped',
-      (tester) async {
+  testWidgets('the days below the grid are a row that can be swiped', (
+    tester,
+  ) async {
     await pumpScreen(tester, const CalendarScreen());
     final today = dayOf(DateTime.now());
     final tomorrow = today.add(const Duration(days: 1));
@@ -451,12 +499,16 @@ void main() {
     expect(find.text(Dates.weekdayShort(tomorrow)), findsOneWidget);
     expect(find.text(Dates.weekdayShort(today)), findsNothing);
     // And the rest of the screen follows the day that is now in view.
-    expect(find.text('Add task on ${Dates.shortDay(tomorrow)}'), findsOneWidget);
+    expect(
+      find.text('Add task on ${Dates.shortDay(tomorrow)}'),
+      findsOneWidget,
+    );
     await drainDatabase(tester);
   });
 
-  testWidgets('picking a day in the grid slides the day across',
-      (tester) async {
+  testWidgets('picking a day in the grid slides the day across', (
+    tester,
+  ) async {
     await pumpScreen(tester, const CalendarScreen());
     final today = dayOf(DateTime.now());
     // A day in the same week, so the grid has it whichever day today is.
@@ -472,8 +524,9 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('picking a day in the opened month opens it on top',
-      (tester) async {
+  testWidgets('picking a day in the opened month opens it on top', (
+    tester,
+  ) async {
     await pumpScreen(tester, const CalendarScreen());
     await tester.tap(find.byKey(calendarHandleKey));
     await tester.pumpAndSettle();
@@ -497,8 +550,9 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('the quick-add field schedules on the day in view',
-      (tester) async {
+  testWidgets('the quick-add field schedules on the day in view', (
+    tester,
+  ) async {
     // A provider that captures instead of writing: a tap inside the widget
     // tree cannot await real database work, but the task it hands over can
     // still be checked.
@@ -510,16 +564,18 @@ void main() {
     tester.view.physicalSize = const Size(1080, 2280);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MultiProvider(
-      providers: [
-        ChangeNotifierProvider<TaskProvider>.value(value: provider),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
-      ],
-      child: MaterialApp(
-        theme: AppTheme.dark(AppAccent.presets.first),
-        home: const CalendarScreen(),
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: const CalendarScreen(),
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     final today = dayOf(DateTime.now());
@@ -540,8 +596,9 @@ void main() {
     expect(field.controller?.text, isEmpty);
   });
 
-  testWidgets('search finds a task in any list by title or notes',
-      (tester) async {
+  testWidgets('search finds a task in any list by title or notes', (
+    tester,
+  ) async {
     await pumpScreen(tester, const SearchScreen());
 
     // Nothing is claimed until something has been typed.
@@ -565,8 +622,9 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('the calendar offers a way back to today and a way to search',
-      (tester) async {
+  testWidgets('the calendar offers a way back to today and a way to search', (
+    tester,
+  ) async {
     await pumpScreen(tester, const CalendarScreen());
 
     expect(find.byTooltip('Today'), findsOneWidget);
@@ -602,8 +660,9 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('a quick-added task takes the colour new tasks start in',
-      (tester) async {
+  testWidgets('a quick-added task takes the colour new tasks start in', (
+    tester,
+  ) async {
     late _CapturingProvider provider;
     await tester.runAsync(() async {
       provider = _CapturingProvider();
@@ -615,16 +674,18 @@ void main() {
     tester.view.physicalSize = const Size(1080, 2280);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MultiProvider(
-      providers: [
-        ChangeNotifierProvider<TaskProvider>.value(value: provider),
-        ChangeNotifierProvider<SettingsProvider>.value(value: settings),
-      ],
-      child: MaterialApp(
-        theme: AppTheme.dark(AppAccent.presets.first),
-        home: const CalendarScreen(),
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider<SettingsProvider>.value(value: settings),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: const CalendarScreen(),
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'Buy milk');
@@ -634,8 +695,9 @@ void main() {
     expect(provider.added?.styleId, 'green');
   });
 
-  testWidgets('the plus beside an empty field opens the full form',
-      (tester) async {
+  testWidgets('the plus beside an empty field opens the full form', (
+    tester,
+  ) async {
     await pumpScreen(tester, const TasksScreen());
 
     // Nothing typed, so the button is a plus — and a plus has to lead
@@ -647,8 +709,9 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('the menu moves the screen aside rather than covering it',
-      (tester) async {
+  testWidgets('the menu moves the screen aside rather than covering it', (
+    tester,
+  ) async {
     await pumpScreen(tester, const HomeScreen());
 
     // How far over the screen sits, read off something that belongs to it.

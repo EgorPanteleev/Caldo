@@ -532,8 +532,12 @@ class _CalendarScreenState extends State<CalendarScreen>
                   child: KeyboardLift(
                     child: AnimatedBuilder(
                       animation: _expansion,
-                      builder: (context, _) =>
-                          GroundFade(ground: _groundUnderField(p)),
+                      // Gone by the time the month is open: see
+                      // GroundFade.strength.
+                      builder: (context, _) => GroundFade(
+                        ground: _groundUnderField(p),
+                        strength: 1 - _expansion.value.clamp(0.0, 1.0),
+                      ),
                     ),
                   ),
                 ),
