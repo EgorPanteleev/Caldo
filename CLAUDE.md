@@ -542,6 +542,18 @@ Three things that look like bugs and are not:
   bar is behind the keys for the first half of that, so it only becomes
   measurable once it clears the keyboard's top edge. The way down is a single
   lump here, as it is on real devices.
+- **A debug build draws at about half the rate on this emulator, which
+  makes anything glued to the keyboard look broken.** Measured with the
+  quick-add bar's box painted red, so its edge could be read against the
+  keys: in a debug build the bar holds each position for two display frames
+  while the IME moves on every one, so half the frames of a slide show a gap
+  of up to 68px under the bar or a 20px overlap. The same code in a release
+  build is within 1-2px of the keyboard's top edge on **every** frame of the
+  slide, first to last. Judge anything that rides the keyboard on a release
+  build, and if a mismatch is reported, measure that before touching the
+  code — three rounds went into the lift when the lift was not what was
+  wrong. The emulator's window on the host can resample again on top of
+  that; a phone is the only place to settle how it feels.
 - **`screenrecord` drops frames**, and more of them the more the host is
   doing. Frame-by-frame measurements off a recording show the *shape* of a
   movement — whether it builds and decays, or jumps and catches — which is
