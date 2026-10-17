@@ -43,31 +43,45 @@ const _frame = Duration(milliseconds: 16);
 void main() {
   setUp(KeyboardGap.instance.forget);
 
-  testWidgets('a slide whose inset already counts the bar is not lifted past '
-      'the keys', (tester) async {
+  testWidgets('the keys are met wherever they are reported furthest', (
+    tester,
+  ) async {
     await tester.pumpWidget(_harness(0));
     _rest = tester.getBottomLeft(find.byKey(_bar)).dy;
 
-    // One slide, reported the way the first one after the keyboard has been
-    // away is: the strip at the foot of the window left out of the animated
-    // inset, and the platform saying how much that is.
-    KeyboardGap.instance.missing.value = 28;
+    // Mid-slide on an edge-to-edge window, `viewInsets` leaves the system
+    // bar strip out and the platform does not. The further of the two is
+    // where the keys actually are.
+    KeyboardGap.instance.covered.value = 228;
     await tester.pumpWidget(_harness(200));
     await tester.pump(_frame);
-    expect(_bottomGap(tester), 228, reason: 'mid-slide, the strip is owed');
+    expect(_bottomGap(tester), 228, reason: 'the platform knows better here');
 
-    KeyboardGap.instance.missing.value = 0;
+    // And on the next slide the inset counts the strip itself. Nothing is
+    // added to it — before, a correction was, and the bar spent that whole
+    // slide a strip above the keys.
+    KeyboardGap.instance.covered.value = 295;
     await tester.pumpWidget(_harness(295));
     await tester.pump(_frame);
-    expect(_bottomGap(tester), 295, reason: 'settled: the inset is the truth');
+    expect(_bottomGap(tester), 295);
 
-    // And the next slide, reported the other way — the strip already counted
-    // in the inset while the platform still says it is owed. Adding it would
-    // put the bar a whole strip above the keys, which is what it did.
-    KeyboardGap.instance.missing.value = 28;
+    // A platform message that arrives a frame late must not hold the bar
+    // over the keys either: whichever reaches further wins, and on the way
+    // up that is the fresher number.
+    KeyboardGap.instance.covered.value = 200;
     await tester.pumpWidget(_harness(295));
     await tester.pump(_frame);
-    expect(_bottomGap(tester), 295, reason: 'never past the keyboard itself');
+    expect(
+      _bottomGap(tester),
+      295,
+      reason: 'a stale report cannot drag it down',
+    );
+
+    // Keyboard gone: both say so.
+    KeyboardGap.instance.covered.value = 0;
+    await tester.pumpWidget(_harness(0));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 0);
   });
 
   testWidgets('the bar sits on the keyboard at every step of a slide', (

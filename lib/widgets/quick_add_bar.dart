@@ -187,24 +187,30 @@ Future<void> quickAddTask(
   );
 }
 
-/// The part of the keyboard that `MediaQuery` does not account for while a
-/// slide is running, reported by [MainActivity] over a channel.
+/// Where the keyboard is, as Android measures it, kept beside what
+/// `MediaQuery` says and used whenever it is the larger of the two.
 ///
-/// `viewInsets.bottom` is how far the keys reach past the system bars. That
-/// is the whole story on a window that stops above the navigation bar, and
-/// it is why this is zero on such a device and the app behaves exactly as it
-/// did. Drawn edge to edge, though, the bar strip at the foot of the screen
-/// is inside the window, and the moment the keys cover it Android drops it
-/// from `padding.bottom` while the animated inset still leaves it out — so
-/// for the length of the slide the app is told some ten points less than the
-/// keyboard covers, and anything glued to the keyboard rides that much too
-/// low until the final inset puts it back in one step.
+/// `viewInsets.bottom` is not one measurement. On a window drawn edge to
+/// edge it leaves the system bar strip at the foot of the screen out of a
+/// slide's animated values and puts it back at the end — and *which* slides
+/// leave it out varies: opening the field, closing it and opening it again
+/// quickly produced one of each. Measured off a phone recording, the field
+/// sat 17px from the keys on the first opening and 62px on the second.
 ///
-/// Measured on a phone: through the whole slide the field sat 2-3px off the
-/// keys instead of its own 18px of padding, and then rose 17px *after* the
-/// keyboard had stopped. That last hop is the jump at the end of the slide,
-/// and no arithmetic on `viewInsets` alone can undo it, because what the
-/// number leaves out changes halfway through.
+/// Correcting a number whose meaning changes needs something saying which
+/// meaning is in force, and that was tried: the activity reported what was
+/// missing while an animation was running. It is a race — the flag comes
+/// down one channel and the number down another — and it showed as the bar
+/// sitting a strip too high for the whole of every other opening, but only
+/// when the field was opened and closed quickly, which is exactly when two
+/// slides overlap.
+///
+/// So the activity reports where the keyboard is instead (`MainActivity`),
+/// which cannot disagree with itself, and the two are reconciled by taking
+/// whichever says the keys reach further. That way neither a platform
+/// message that arrives a frame late nor an inset that is a strip short can
+/// put the bar over the keyboard; the worst either can do is hold it where
+/// the keys were a frame ago.
 class KeyboardGap {
   KeyboardGap._();
 
@@ -212,10 +218,12 @@ class KeyboardGap {
 
   static const _channel = EventChannel('caldo/ime');
 
-  /// What is missing from `viewInsets.bottom` right now, in logical pixels.
-  /// Zero unless a slide is running on an edge-to-edge window, and zero
-  /// always on a platform that never reports (an older Android, or a test).
-  final ValueNotifier<double> missing = ValueNotifier<double>(0);
+  /// How far the keys reach into the window, in logical pixels, as Android
+  /// last reported it. Zero while the keyboard is away, and zero always on
+  /// a platform that never reports — an Android older than 11, or a test —
+  /// where `MediaQuery` is left to say it alone, as it did before any of
+  /// this.
+  final ValueNotifier<double> covered = ValueNotifier<double>(0);
 
   StreamSubscription<dynamic>? _sub;
 
@@ -223,45 +231,21 @@ class KeyboardGap {
     if (_sub != null) return;
     _sub = _channel.receiveBroadcastStream().listen(
       (value) {
-        if (value is num) missing.value = value.toDouble();
+        if (value is num) covered.value = value.toDouble();
       },
       // Nothing to do but carry on with Flutter's number, which is what the
       // app ran on before and is right wherever this cannot be reported.
-      onError: (_) => missing.value = 0,
+      onError: (_) => covered.value = 0,
     );
   }
 
-  /// The tallest the keyboard has been seen to be with a slide over and the
-  /// insets no longer in doubt. It is the only ceiling there is on what the
-  /// keys can be covering, and [of] needs one: whether the animated inset
-  /// leaves the system bar strip out is not something the app is told, and
-  /// it is not even the same from one slide to the next. Measured on a
-  /// phone, the first slide after the keyboard had been away left the strip
-  /// out and the second put it in, so adding it blind lifted the bar a whole
-  /// strip too high for the length of every other slide — "add task widget
-  /// for 1ms gets too high".
-  ///
-  /// The largest rather than the latest, because the tail of a slide down
-  /// reports small insets with the slide already called off, and a ceiling
-  /// learnt from one of those would hold every later keyboard to a couple of
-  /// points.
-  double _tallest = 0;
-
   /// How far to lift whatever is glued to the keyboard.
   static double of(BuildContext context) {
-    final inset = MediaQuery.viewInsetsOf(context).bottom;
-    if (inset <= 0) return 0;
-    final missing = instance.missing.value;
-    if (missing == 0 && inset > instance._tallest) instance._tallest = inset;
-    // What the keyboard covers: the inset, plus the strip Android leaves out
-    // of it while a slide is running — but never more than the keyboard is
-    // tall, because on a slide whose insets already count the strip the
-    // correction is not owed and adding it anyway is the bar leaving the
-    // keys behind.
-    var covered = inset + missing;
-    if (instance._tallest > 0) {
-      covered = math.min(covered, instance._tallest);
-    }
+    final covered = math.max(
+      MediaQuery.viewInsetsOf(context).bottom,
+      instance.covered.value,
+    );
+    if (covered <= 0) return 0;
     // Less the strip at the foot of the window the layout never had: the
     // screens sit in a `SafeArea` that keeps the gesture bar reserved
     // whether or not the keys are over it, so the bar starts that much above
@@ -274,13 +258,10 @@ class KeyboardGap {
     return math.max(0.0, covered - reserved);
   }
 
-  /// Forgets what it has learnt, so one test cannot set the ceiling for the
-  /// next.
+  /// Forgets what the platform last said, so one test cannot set the stage
+  /// for the next.
   @visibleForTesting
-  void forget() {
-    _tallest = 0;
-    missing.value = 0;
-  }
+  void forget() => covered.value = 0;
 }
 
 /// Floats [child] above the keyboard: its bottom edge is the keyboard's top
@@ -309,7 +290,7 @@ class KeyboardLift extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
-      valueListenable: KeyboardGap.instance.missing,
+      valueListenable: KeyboardGap.instance.covered,
       builder: (context, _, child) => Transform.translate(
         offset: Offset(0, -KeyboardGap.of(context)),
         child: child,
@@ -329,7 +310,7 @@ class KeyboardRoom extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
-      valueListenable: KeyboardGap.instance.missing,
+      valueListenable: KeyboardGap.instance.covered,
       builder: (context, _, _) => SizedBox(height: KeyboardGap.of(context)),
     );
   }

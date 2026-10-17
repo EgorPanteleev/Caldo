@@ -313,41 +313,35 @@ Changing them back will be noticed.
   3000 points a second, so any cap under that turns following into trailing,
   and no tuning turns a lag back into an attachment. **Do not put a curve
   back in here.**
-- **`viewInsets.bottom` leaves the bar ten points low for the length of a
-  slide on an edge-to-edge window, and `MainActivity` is what puts it back**
-  (`KeyboardGap`). Flutter's number is how far the keys reach past the
-  system bars. Below Android 15 the window stops above the navigation bar,
-  the strip is not ours, and the number is the whole story — which is why
-  the emulator was always right and why this correction is zero there.
-  Drawn edge to edge the strip *is* inside the window, and the moment the
-  keys cover it Android drops it from `padding.bottom` while the animated
-  inset still leaves it out: for the length of the slide the app is told
-  about ten points less than the keyboard covers, and the final inset puts
-  it back in one step at the end. That step is the jump at the end of the
-  slide, reported from the first message of this whole thread.
-  Measured off a phone recording: through the slide the field sat 2-3px off
-  the keys instead of its own 18px of padding, and then rose 17px *after*
-  the keyboard had stopped — the deficit was a constant 15-16px while the
-  keyboard's speed varied by a factor of 260 between frames, which is what
-  rules out frame lag and points at the number changing meaning. So the
-  activity reports what is missing and when: the system bar strip that lies
-  inside the window (`navigationBars()` less whatever lies below the content
-  view, measured while the keyboard is down and the view is at full height),
-  while `WindowInsetsAnimation` says a slide is running, and nothing at all
-  once it has settled.
-- **The correction is capped at the tallest the keyboard has been seen to
-  be** (`KeyboardGap._tallest`). Whether the animated inset leaves the strip
-  out is not something the app is told, and it is not even the same from one
-  slide to the next: measured on a phone, the first slide after the keyboard
-  had been away left it out and the next one counted it, so adding it blind
-  put the bar a whole strip above the keys for the length of every other
-  slide. Reported as "add task widget for 1ms gets too high", and measured
-  off the video — the field sat 17px off the keys on the first opening and
-  62px on the second. A ceiling settles it without having to know which
-  convention is in force: the keys can never cover more than the keyboard is
-  tall, and that number is beyond doubt whenever a slide has finished. It is
-  the largest such reading rather than the latest, because the tail of a
-  slide down reports small insets with the slide already called off.
+- **Where the keyboard is comes from Android as well as from Flutter, and
+  the two are reconciled by taking whichever reaches further**
+  (`KeyboardGap`, `MainActivity`). `viewInsets.bottom` is not one
+  measurement: on a window drawn edge to edge it leaves the system bar strip
+  at the foot of the screen out of a slide's animated values and puts it
+  back at the end. That is the ten points the bar used to ride low for the
+  length of a slide, and the jump at the end of it, reported in the first
+  message of this whole thread.
+  Two cleverer answers failed before this one, and both failed the same way
+  — they tried to correct a number whose meaning changes. Adding the strip
+  while an animation was running put the bar a strip *above* the keys on any
+  slide whose insets already counted it, which turns out to be some of them:
+  opening the field, closing it and opening it again quickly produces one of
+  each. Capping the correction at the keyboard's known height only helped
+  once a slide had settled, so it did nothing at all for the fast case,
+  which is the only case that shows it. The flag saying which meaning is in
+  force arrives down one channel while the number arrives down another;
+  that is a race, and no arithmetic on the far end of it can win.
+  So the activity reports where the keyboard is — `Type.ime()` from the
+  bottom of the display, less whatever lies below this window, which is the
+  navigation bar below Android 15 and nothing at all edge to edge — and
+  `KeyboardGap.of` takes the larger of that and `viewInsets`. One number
+  cannot disagree with itself, and the larger of two cannot put the bar over
+  the keyboard: the worst either can do is hold it where the keys were a
+  frame ago.
+  Measured off a phone recording of the bug: the field sat 17px from the
+  keys on the first opening and 62px on the second, and waiting a couple of
+  seconds between them made it go away — which is what pointed at two
+  overlapping slides rather than at any one convention.
 - **The inset is read in `KeyboardLift` and `KeyboardRoom` and nowhere
   else.** It changes on every frame of a slide and whoever reads it rebuilds
   that often, so the two widgets that move with it are the two that read it,

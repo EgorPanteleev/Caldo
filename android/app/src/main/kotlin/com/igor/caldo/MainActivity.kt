@@ -20,10 +20,9 @@ import io.flutter.plugin.common.EventChannel
  * resolutions, and taking the fastest of all of them can drop the screen to
  * a coarser one to get there.
  *
- * The second is telling Dart the one thing about the keyboard that Flutter
- * cannot work out on its own: whether the system bar strip at the foot of
- * the screen is inside this window, and so whether the keyboard covering it
- * is already counted in `viewInsets`. See [send].
+ * The second is telling Dart where the keyboard is, in a measurement that
+ * means the same thing at every moment of a slide — which `viewInsets` does
+ * not. See [send].
  */
 class MainActivity : FlutterActivity() {
     private var imeSink: EventChannel.EventSink? = null
@@ -55,27 +54,32 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * The part of the keyboard that Flutter's `viewInsets.bottom` does not
-     * account for while the slide is running, in logical pixels.
+     * How far the keyboard reaches into this window, in logical pixels.
      *
-     * Flutter's number is how far the keys reach past the system bars. That
-     * is the whole story when the window stops above the navigation bar, as
-     * it does below Android 15 — the strip is not ours to begin with. Drawn
-     * edge to edge, though, the strip *is* inside the window, and the moment
-     * the keys cover it Android drops it from `padding.bottom` while the
-     * animated inset still leaves it out, so for the length of the slide the
-     * app is told some ten points less than the keyboard covers and anything
-     * glued to the keyboard rides that much too low. At the end the final
-     * inset puts it back in one step — the jump at the end of the slide.
+     * One number, from one place, on every frame of a slide and whenever
+     * the insets are applied. `Type.ime()` is measured from the bottom of
+     * the display, and the window does not always reach that far: below
+     * Android 15 it stops above the navigation bar, which is its own
+     * window. What the keys take from us is therefore the keyboard's height
+     * less whatever lies between our bottom edge and the display's —
+     * nothing at all when the window is drawn edge to edge.
      *
-     * So this reports what is missing and when: the system bar strip that
-     * lies inside our window, while a slide is running, and nothing at all
-     * once it has settled.
+     * This replaced a cleverer thing that sent only what Flutter's own
+     * `viewInsets.bottom` was missing, and only while an animation was
+     * running. Flutter's number is not one measurement: on an edge-to-edge
+     * window it leaves the system bar strip out of a slide's animated
+     * values and puts it back at the end, but *which* slides leave it out
+     * varies — opening, closing and opening again quickly produced one of
+     * each. Correcting a number whose meaning changes needs a flag saying
+     * which meaning is in force, and a flag that arrives down one channel
+     * while the number arrives down another is a race: it was reported as
+     * the field sitting a strip too high for the whole of every other
+     * opening, and only when the field was opened and closed quickly.
+     * Reporting where the keyboard is cannot race with itself.
      */
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun send(insets: WindowInsets, sliding: Boolean) {
+    private fun send(insets: WindowInsets) {
         val sink = imeSink ?: return
-        val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
         val ime = insets.getInsets(WindowInsets.Type.ime()).bottom
         // Measured while the keyboard is down, when the content view is at
         // its full height: how much of the display lies below our window.
@@ -90,22 +94,19 @@ class MainActivity : FlutterActivity() {
                     (at[1] + content.height)
             }
         }
-        val inside = (nav - below.coerceAtLeast(0)).coerceAtLeast(0)
-        val missing = if (sliding) inside else 0
-        sink.success(missing / resources.displayMetrics.density)
+        val reach = (ime - below.coerceAtLeast(0)).coerceAtLeast(0)
+        sink.success(reach / resources.displayMetrics.density)
     }
 
     private fun reportIme() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val insets = window.decorView.rootWindowInsets ?: return
-        send(insets, sliding = false)
+        send(insets)
     }
 
     private fun watchIme() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        // While a slide is running, on every frame of it: this is the only
-        // way to know the keyboard is moving, and so the only time the
-        // correction below is owed. Attached to the decor view and passed on
+        // Every frame of a slide. Attached to the decor view and passed on
         // through the subtree, so the engine's own inset handling runs
         // exactly as it did — this listens, it does not take over.
         window.decorView.setWindowInsetsAnimationCallback(
@@ -115,7 +116,7 @@ class MainActivity : FlutterActivity() {
                     insets: WindowInsets,
                     running: MutableList<WindowInsetsAnimation>,
                 ): WindowInsets {
-                    send(insets, sliding = true)
+                    send(insets)
                     return insets
                 }
 
@@ -128,7 +129,7 @@ class MainActivity : FlutterActivity() {
         // else — a rotation, a split-screen resize, a keyboard that appears
         // without animating at all.
         window.decorView.setOnApplyWindowInsetsListener { view: View, insets: WindowInsets ->
-            send(insets, sliding = false)
+            send(insets)
             view.onApplyWindowInsets(insets)
         }
         // Once the view tree has been laid out: until then the content view

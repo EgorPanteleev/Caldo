@@ -14,9 +14,9 @@ void main() async {
   // Before the first screen, because the first thing a screen does is load its
   // tasks, and loading tasks is what sets the alarms.
   await Reminders.instance.init();
-  // What MediaQuery leaves out of the keyboard's height while it is sliding
-  // comes from Android — see KeyboardGap. Nothing reads it until a field is
-  // tapped, but the channel has to be listening before that.
+  // Where the keyboard is comes from Android as well as from MediaQuery —
+  // see KeyboardGap. Nothing reads it until a field is tapped, but the
+  // channel has to be listening before that.
   KeyboardGap.instance.listen();
   // Read before the first frame: the app has to open on the right screen,
   // not open on Schedule and swap a frame later. It is one small read, and
