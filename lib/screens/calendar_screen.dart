@@ -552,11 +552,17 @@ class _CalendarScreenState extends State<CalendarScreen>
               animation: _expansion,
               builder: (context, child) =>
                   ColoredBox(color: _groundUnderField(p), child: child),
-              child: QuickAddBar(
-                date: _selected,
-                controller: _quickAdd,
-                onSubmit: _addQuickTask,
-                onFullForm: () => _openEditor(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const KeyboardNumbers(),
+                  QuickAddBar(
+                    date: _selected,
+                    controller: _quickAdd,
+                    onSubmit: _addQuickTask,
+                    onFullForm: () => _openEditor(),
+                  ),
+                ],
               ),
             ),
           ),

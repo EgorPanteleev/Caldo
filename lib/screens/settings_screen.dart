@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
+import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/theme_switcher.dart';
 
@@ -98,7 +99,28 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 90),
         children: [
-          ScreenHeader(title: 'Settings', onMenu: onMenu),
+          // A long press on the title puts the keyboard's numbers on screen,
+          // above the add field. Four attempts at one keyboard bug went by
+          // on a phone that cannot be plugged into the machine the app is
+          // built on; this is how the next one gets measured rather than
+          // guessed at. Off by default and not stored.
+          GestureDetector(
+            onLongPress: () {
+              final on = !KeyboardGap.showNumbers.value;
+              KeyboardGap.showNumbers.value = on;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    on
+                        ? 'Keyboard numbers on — they show above the add field'
+                        : 'Keyboard numbers off',
+                  ),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: ScreenHeader(title: 'Settings', onMenu: onMenu),
+          ),
           Divider(height: 1, color: p.border),
           Padding(
             padding: const EdgeInsets.all(20),

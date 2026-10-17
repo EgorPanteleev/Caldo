@@ -211,11 +211,17 @@ class _TasksScreenState extends State<TasksScreen> {
           KeyboardLift(
             child: ColoredBox(
               color: p.bg,
-              child: QuickAddBar(
-                date: today,
-                controller: _quickAdd,
-                onSubmit: _addQuickTask,
-                onFullForm: () => _openEditor(null, today),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const KeyboardNumbers(),
+                  QuickAddBar(
+                    date: today,
+                    controller: _quickAdd,
+                    onSubmit: _addQuickTask,
+                    onFullForm: () => _openEditor(null, today),
+                  ),
+                ],
               ),
             ),
           ),

@@ -342,6 +342,25 @@ Changing them back will be noticed.
   keys on the first opening and 62px on the second, and waiting a couple of
   seconds between them made it go away — which is what pointed at two
   overlapping slides rather than at any one convention.
+- **The window's offset below the display is believed only when it says one
+  of the two things it can say** (`MainActivity.below`). It is measured from
+  the content view while the keyboard is down, and `adjustResize` leaves
+  that view part way between its two heights for a while after the keys have
+  gone: a reading taken then is neither the navigation bar nor nothing, and
+  the one that landed in a fast open-close-open took the window for an
+  edge-to-edge one and reported the keyboard a whole bar taller than it was
+  for the length of the next slide. So a reading within two pixels of zero
+  or of the navigation bar is kept and anything else is dropped, and until
+  one has been kept the bar is assumed to be there — under-reporting is free,
+  since Dart holds the larger of this and its own number, while
+  over-reporting lifts the field clear of the keys.
+- **Long-pressing the Settings title puts the keyboard's numbers on screen**
+  (`KeyboardGap.showNumbers`, drawn by `KeyboardNumbers` above the add
+  field): the inset Flutter reports, what Android says, the strip the layout
+  reserves, and the lift the three of them come to. Four rounds went into
+  one keyboard bug on a phone that cannot be plugged into this machine,
+  every one of them a guess at which number was lying. A recording of the
+  fault with this on answers that in one go. Off by default, not stored.
 - **The inset is read in `KeyboardLift` and `KeyboardRoom` and nowhere
   else.** It changes on every frame of a slide and whoever reads it rebuilds
   that often, so the two widgets that move with it are the two that read it,

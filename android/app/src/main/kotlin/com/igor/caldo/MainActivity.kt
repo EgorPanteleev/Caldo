@@ -27,8 +27,12 @@ import io.flutter.plugin.common.EventChannel
 class MainActivity : FlutterActivity() {
     private var imeSink: EventChannel.EventSink? = null
 
-    /** How much of the display lies below this window; see [send]. */
-    private var below = 0
+    /**
+     * How much of the display lies below this window — the navigation bar
+     * when the window stops above it, nothing when it is drawn edge to
+     * edge. Negative until a reading has been believed; see [send].
+     */
+    private var below = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,20 +85,34 @@ class MainActivity : FlutterActivity() {
     private fun send(insets: WindowInsets) {
         val sink = imeSink ?: return
         val ime = insets.getInsets(WindowInsets.Type.ime()).bottom
+        val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
         // Measured while the keyboard is down, when the content view is at
-        // its full height: how much of the display lies below our window.
-        // Read during the slide it is unreliable, because `adjustResize` may
-        // have shortened the view by then.
+        // its full height — and then only believed if it says one of the two
+        // things it can possibly say. `adjustResize` leaves the view part
+        // way between its two heights for a while after the keys have gone,
+        // and a reading taken then is neither: opening the field, closing it
+        // and opening it again quickly caught exactly that, took the window
+        // for an edge-to-edge one, and reported the keyboard a whole
+        // navigation bar taller than it was for the length of the next
+        // slide.
         if (ime == 0) {
             val content = findViewById<View>(android.R.id.content)
             if (content != null && content.height > 0) {
                 val at = IntArray(2)
                 content.getLocationOnScreen(at)
-                below = windowManager.currentWindowMetrics.bounds.height() -
+                val gap = windowManager.currentWindowMetrics.bounds.height() -
                     (at[1] + content.height)
+                if (gap <= SLACK) below = 0
+                else if (kotlin.math.abs(gap - nav) <= SLACK) below = nav
             }
         }
-        val reach = (ime - below.coerceAtLeast(0)).coerceAtLeast(0)
+        // Until one has been believed, assume the window stops above the
+        // bars: that under-reports the keyboard on a window that does not,
+        // and Dart holds the larger of this and its own number, so an
+        // under-report costs nothing while an over-report would lift the bar
+        // clear of the keys.
+        val off = if (below >= 0) below else nav
+        val reach = (ime - off).coerceAtLeast(0)
         sink.success(reach / resources.displayMetrics.density)
     }
 
@@ -160,5 +178,8 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val IME_CHANNEL = "caldo/ime"
+
+        /** What a measurement may be out by and still be believed. */
+        const val SLACK = 2
     }
 }

@@ -258,10 +258,65 @@ class KeyboardGap {
     return math.max(0.0, covered - reserved);
   }
 
+  /// Whether to draw the numbers above the bar. Off, and not stored: it is
+  /// turned on by a long press on the Settings title when something about
+  /// the keyboard looks wrong on a device that cannot be plugged into a
+  /// machine, and it has taken four attempts at one such bug to decide that
+  /// is worth having. What it shows is every number the lift is made of, so
+  /// a recording of the fault says which of them is lying.
+  static final showNumbers = ValueNotifier<bool>(false);
+
   /// Forgets what the platform last said, so one test cannot set the stage
   /// for the next.
   @visibleForTesting
   void forget() => covered.value = 0;
+}
+
+/// The numbers behind the lift, drawn above the bar while [showNumbers] is
+/// on and the keyboard is up.
+class KeyboardNumbers extends StatelessWidget {
+  const KeyboardNumbers({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: KeyboardGap.showNumbers,
+      builder: (context, on, _) {
+        if (!on) return const SizedBox.shrink();
+        return ValueListenableBuilder<double>(
+          valueListenable: KeyboardGap.instance.covered,
+          builder: (context, platform, _) {
+            final inset = MediaQuery.viewInsetsOf(context).bottom;
+            if (inset <= 0 && platform <= 0) return const SizedBox.shrink();
+            final reserved = MediaQueryData.fromView(
+              View.of(context),
+            ).viewPadding.bottom;
+            final line =
+                'inset ${inset.toStringAsFixed(1)}  '
+                'android ${platform.toStringAsFixed(1)}  '
+                'strip ${reserved.toStringAsFixed(1)}  '
+                'lift ${KeyboardGap.of(context).toStringAsFixed(1)}';
+            return IgnorePointer(
+              child: Container(
+                width: double.infinity,
+                color: const Color(0xCC000000),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                child: Text(
+                  line,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: Color(0xFF7CFF9B),
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
 /// Floats [child] above the keyboard: its bottom edge is the keyboard's top
