@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -234,7 +235,16 @@ class KeyboardGap {
   static double of(BuildContext context) {
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     if (inset <= 0) return 0;
-    return inset + instance.missing.value;
+    // What the keyboard covers, less the strip at the foot of the window the
+    // layout never had: the screens sit in a `SafeArea` that keeps the
+    // gesture bar reserved whether or not the keys are over it, so the bar
+    // starts that much above the window's edge and has that much less to
+    // climb. Read from the view, since the SafeArea has taken it out of the
+    // `MediaQuery` handed down — that is what it is for.
+    final reserved = MediaQueryData.fromView(
+      View.of(context),
+    ).viewPadding.bottom;
+    return math.max(0.0, inset + instance.missing.value - reserved);
   }
 }
 

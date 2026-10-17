@@ -709,6 +709,25 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('the app opens on the screen settings names', (tester) async {
+    await pumpScreen(tester, const HomeScreen());
+    // Out of the box: Schedule, the screen that answers "what now".
+    expect(find.text('Schedule'), findsWidgets);
+    expect(find.byKey(monthTitleKey), findsNothing);
+    await drainDatabase(tester);
+
+    // Torn down in between: the shell reads the setting as it is built and
+    // not again, so a second pump of the same widget would keep the screen
+    // the first one opened on.
+    await tester.pumpWidget(const SizedBox());
+    await pumpScreen(tester, const HomeScreen(start: StartScreen.calendar));
+    // The other two screens are still in the stack, so this says which one
+    // is actually on top rather than which ones exist.
+    expect(find.byKey(monthTitleKey), findsOneWidget);
+    expect(find.byKey(screenTitleKey), findsNothing);
+    await drainDatabase(tester);
+  });
+
   testWidgets('the menu moves the screen aside rather than covering it', (
     tester,
   ) async {

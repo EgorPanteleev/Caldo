@@ -37,15 +37,18 @@ class SettingsScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Clear completed tasks?'),
         content: const Text(
-            'Every completed task in every list will be removed. '
-            'This cannot be undone.'),
+          'Every completed task in every list will be removed. '
+          'This cannot be undone.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Clear')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear'),
+          ),
         ],
       ),
     );
@@ -53,9 +56,13 @@ class SettingsScreen extends StatelessWidget {
     final removed = await context.read<TaskProvider>().clearCompleted();
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(removed == 0
-          ? 'No completed tasks to clear'
-          : 'Removed $removed completed ${removed == 1 ? "task" : "tasks"}')),
+      SnackBar(
+        content: Text(
+          removed == 0
+              ? 'No completed tasks to clear'
+              : 'Removed $removed completed ${removed == 1 ? "task" : "tasks"}',
+        ),
+      ),
     );
   }
 
@@ -98,6 +105,21 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const SectionLabel('GENERAL'),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'Screen the app opens on',
+                    style: TextStyle(color: p.muted, fontSize: 14),
+                  ),
+                ),
+                _StartScreenSelector(
+                  value: settings.startScreen,
+                  onChanged: (screen) => context
+                      .read<SettingsProvider>()
+                      .update(startScreen: screen),
+                ),
+                const SizedBox(height: 28),
                 const SectionLabel('APPEARANCE'),
                 _ThemeModeSelector(
                   value: settings.themeMode,
@@ -118,9 +140,9 @@ class SettingsScreen extends StatelessWidget {
                       ? 'Weeks run Monday to Sunday'
                       : 'Weeks run Sunday to Saturday',
                   value: settings.weekStartsMonday,
-                  onChanged: (v) => context
-                      .read<SettingsProvider>()
-                      .update(weekStartsMonday: v),
+                  onChanged: (v) => context.read<SettingsProvider>().update(
+                    weekStartsMonday: v,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _SwitchTile(
@@ -140,9 +162,9 @@ class SettingsScreen extends StatelessWidget {
                     detected: Holidays.detectCountry(),
                     onChanged: (code) =>
                         context.read<SettingsProvider>().update(
-                              holidayCountry: code,
-                              clearHolidayCountry: code == null,
-                            ),
+                          holidayCountry: code,
+                          clearHolidayCountry: code == null,
+                        ),
                   ),
                 ],
                 const SizedBox(height: 28),
@@ -160,7 +182,8 @@ class SettingsScreen extends StatelessWidget {
                     value: settings.defaultTaskStyleId,
                     // The link swatch means "whatever list it goes into", so
                     // it shows the colour of the list a new task lands in.
-                    listColor: context
+                    listColor:
+                        context
                             .watch<TaskProvider>()
                             .lists
                             .map((l) => l.style.color)
@@ -204,7 +227,8 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   _ActionTile(
                     icon: Icons.schedule,
-                    title: 'All-day tasks at '
+                    title:
+                        'All-day tasks at '
                         '${Dates.clock(settings.reminderTime)}',
                     subtitle: 'A task with no time of day is announced then',
                     onTap: () => _pickReminderTime(context),
@@ -221,6 +245,41 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Which of the two task screens the app opens on. Takes effect next launch
+/// — a screen that jumped out from under the setting being changed would be
+/// startling, and the one being looked at is Settings either way.
+class _StartScreenSelector extends StatelessWidget {
+  final StartScreen value;
+  final ValueChanged<StartScreen> onChanged;
+
+  const _StartScreenSelector({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<StartScreen>(
+        showSelectedIcon: false,
+        style: SegmentedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        ),
+        segments: const [
+          ButtonSegment(
+            value: StartScreen.schedule,
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Schedule')),
+          ),
+          ButtonSegment(
+            value: StartScreen.calendar,
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Calendar')),
+          ),
+        ],
+        selected: {value},
+        onSelectionChanged: (s) => onChanged(s.first),
       ),
     );
   }
@@ -370,14 +429,19 @@ class _SwitchTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: TextStyle(
-                        color: p.text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: p.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle,
-                    style: TextStyle(color: p.faint, fontSize: 12.5)),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: p.faint, fontSize: 12.5),
+                ),
               ],
             ),
           ),
@@ -425,14 +489,19 @@ class _ActionTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: TextStyle(
-                            color: p.text,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600)),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: TextStyle(color: p.faint, fontSize: 12.5)),
+                    Text(
+                      subtitle,
+                      style: TextStyle(color: p.faint, fontSize: 12.5),
+                    ),
                   ],
                 ),
               ),
@@ -491,7 +560,10 @@ class _CountryField extends StatelessWidget {
                 items: [
                   DropdownMenuItem(value: '', child: Text(followLabel)),
                   for (final entry in Holidays.countries.entries)
-                    DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                    DropdownMenuItem(
+                      value: entry.key,
+                      child: Text(entry.value),
+                    ),
                 ],
                 onChanged: (v) => onChanged(v == null || v.isEmpty ? null : v),
               ),

@@ -28,6 +28,7 @@ class TaskCard extends StatelessWidget {
   final Task task;
   final TaskList? list;
   final VoidCallback onTap;
+
   /// Null where a long press belongs to something else — a list that can be
   /// dragged into a new order takes it to start the drag.
   final VoidCallback? onLongPress;
@@ -51,18 +52,18 @@ class TaskCard extends StatelessWidget {
     final when = due == null
         ? 'No date'
         : (task.hasTime ? Dates.time(due) : 'All day');
-    final parts = [
-      when,
-      if (task.repeat != Repeat.none) task.repeat.label,
-    ];
+    final parts = [when, if (task.repeat != Repeat.none) task.repeat.label];
     return parts.join(' · ');
   }
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final color = colorOfTask(task, list,
-        fallback: AppTheme.accentOf(context).color);
+    final color = colorOfTask(
+      task,
+      list,
+      fallback: AppTheme.accentOf(context).color,
+    );
     final faded = task.done;
 
     return Padding(
@@ -73,7 +74,11 @@ class TaskCard extends StatelessWidget {
           onTap: onTap,
           onLongPress: onLongPress,
           borderRadius: BorderRadius.circular(TaskCard.radius),
-          child: Container(
+          child: AnimatedContainer(
+            // Ticked off, a card sinks over a moment rather than between two
+            // frames: the point of the gesture is seeing it happen.
+            duration: _settle,
+            curve: Curves.easeOut,
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             decoration: BoxDecoration(
               // A done task sinks most of the way back into the ground rather
@@ -90,17 +95,20 @@ class TaskCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        task.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      AnimatedDefaultTextStyle(
+                        duration: _settle,
+                        curve: Curves.easeOut,
                         style: TextStyle(
                           color: faded ? p.faint : p.text,
                           fontSize: 15.5,
                           fontWeight: FontWeight.w500,
-                          decoration:
-                              faded ? TextDecoration.lineThrough : null,
+                          decoration: faded ? TextDecoration.lineThrough : null,
                           decorationColor: p.faint,
+                        ),
+                        child: Text(
+                          task.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -118,8 +126,11 @@ class TaskCard extends StatelessWidget {
                 ),
                 if (task.priority != Priority.none) ...[
                   const SizedBox(width: 10),
-                  Icon(Icons.flag,
-                      size: 16, color: _priorityColor(task.priority)),
+                  Icon(
+                    Icons.flag,
+                    size: 16,
+                    color: _priorityColor(task.priority),
+                  ),
                 ],
               ],
             ),
@@ -130,15 +141,31 @@ class TaskCard extends StatelessWidget {
   }
 
   static Color _priorityColor(Priority priority) => switch (priority) {
-        Priority.high => const Color(0xFFEF4444),
-        Priority.medium => const Color(0xFFF59E0B),
-        Priority.low => const Color(0xFF60A5FA),
-        Priority.none => const Color(0xFF9394A1),
-      };
+    Priority.high => const Color(0xFFEF4444),
+    Priority.medium => const Color(0xFFF59E0B),
+    Priority.low => const Color(0xFF60A5FA),
+    Priority.none => const Color(0xFF9394A1),
+  };
 }
 
-/// The tappable tick circle on a card.
-class _Tick extends StatelessWidget {
+/// How long a card takes to settle into its new state once it is ticked —
+/// long enough to be seen as something happening, short enough that the run
+/// it sits in is not left waiting on it. The list holds its reordering for
+/// the same stretch, so the card is still under the finger that ticked it
+/// while the tick is being drawn (`TaskProvider.toggleDone`).
+const _settle = Duration(milliseconds: 240);
+
+/// The tappable tick on a card.
+///
+/// Ticking something off is the one gesture in this app worth watching
+/// happen, so the mark is drawn rather than switched on: the square fills
+/// and the stroke runs through it, over [_settle]. It used to appear whole
+/// between two frames, which — with the card leaving for the done end of
+/// the run in the same instant — meant the gesture had no moment at all.
+///
+/// Coming off, it goes in half the time and without the drawing: undoing is
+/// a correction, and a correction should not be a flourish.
+class _Tick extends StatefulWidget {
   final bool done;
   final Color color;
   final VoidCallback onTap;
@@ -146,38 +173,130 @@ class _Tick extends StatelessWidget {
   const _Tick({required this.done, required this.color, required this.onTap});
 
   @override
+  State<_Tick> createState() => _TickState();
+}
+
+class _TickState extends State<_Tick> with SingleTickerProviderStateMixin {
+  late final AnimationController _draw = AnimationController(
+    vsync: this,
+    duration: _settle,
+    reverseDuration: const Duration(milliseconds: 110),
+    value: widget.done ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(_Tick old) {
+    super.didUpdateWidget(old);
+    if (widget.done != old.done) {
+      widget.done ? _draw.forward() : _draw.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _draw.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
       key: taskCardTickKey,
       onTap: () {
         HapticFeedback.selectionClick();
-        onTap();
+        widget.onTap();
       },
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: done ? color : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
-          // Outlined in the task's own colour rather than a neutral grey:
-          // with the card itself plain, this is the only place the colour a
-          // task was given is still said, and an empty square is a small
-          // enough mark to say it without tinting the whole run.
-          border: Border.all(color: color, width: 1.8),
-        ),
-        child: done
-            ? const Icon(Icons.check, color: Colors.white, size: 15)
-            : null,
+      child: AnimatedBuilder(
+        animation: _draw,
+        builder: (context, _) {
+          // The square fills first and the stroke follows it in, so the two
+          // read as one movement rather than a fill with a mark dropped on
+          // top of it.
+          final fill = Curves.easeOut.transform(_draw.value);
+          final mark = Curves.easeOutCubic.transform(
+            ((_draw.value - 0.25) / 0.75).clamp(0.0, 1.0),
+          );
+          return Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: widget.color.withValues(alpha: fill),
+              borderRadius: BorderRadius.circular(7),
+              // Outlined in the task's own colour rather than a neutral grey:
+              // with the card itself plain, this is the only place the colour
+              // a task was given is still said, and an empty square is a
+              // small enough mark to say it without tinting the whole run.
+              border: Border.all(color: widget.color, width: 1.8),
+            ),
+            child: CustomPaint(
+              key: taskCardMarkKey,
+              painter: CheckMark(progress: mark),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-/// Identifies the tick circle on a task card.
+/// The tick's stroke, drawn as far as [progress].
+///
+/// Public, and holding the progress where a test can read it, for the same
+/// reason `dayChipColour` is: the thing worth pinning is that the mark is
+/// drawn over a moment rather than switched on, and nothing about how it is
+/// painted should have to be pinned with it.
+class CheckMark extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  const CheckMark({required this.progress, this.color = Colors.white});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0) return;
+    final w = size.width;
+    final h = size.height;
+    final path = Path()
+      ..moveTo(w * 0.26, h * 0.52)
+      ..lineTo(w * 0.44, h * 0.70)
+      ..lineTo(w * 0.76, h * 0.32);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    if (progress >= 1) {
+      canvas.drawPath(path, paint);
+      return;
+    }
+    // Drawn to the same fraction of the whole stroke rather than of each
+    // leg, so the short leg does not take as long as the long one.
+    final total = [
+      for (final metric in path.computeMetrics()) metric.length,
+    ].fold<double>(0, (a, b) => a + b);
+    var left = total * progress;
+    final drawn = Path();
+    for (final metric in path.computeMetrics()) {
+      if (left <= 0) break;
+      drawn.addPath(
+        metric.extractPath(0, left.clamp(0, metric.length)),
+        Offset.zero,
+      );
+      left -= metric.length;
+    }
+    canvas.drawPath(drawn, paint);
+  }
+
+  @override
+  bool shouldRepaint(CheckMark old) =>
+      old.progress != progress || old.color != color;
+}
+
+/// Identifies the tick circle on a task card, and the mark inside it.
 const taskCardTickKey = Key('task-card-tick');
+const taskCardMarkKey = Key('task-card-mark');
 
 /// A public holiday beside a day's tasks: the same card as a [TaskCard], with
 /// a green mark where the tick would be and nothing to tick off.

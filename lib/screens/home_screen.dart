@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -28,7 +29,12 @@ const _menuOverlap = 18.0;
 /// over it: the screen is not covered up, it has moved aside, and what is on
 /// it stays legible while the menu is open.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// Which screen to open on. Only read as the shell is built: changing the
+  /// setting is about the next launch, and a screen that jumped out from
+  /// under the setting being changed would be startling.
+  final StartScreen start;
+
+  const HomeScreen({super.key, this.start = StartScreen.schedule});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -48,7 +54,10 @@ class _HomeScreenState extends State<HomeScreen>
     reverseCurve: Curves.easeInCubic,
   );
 
-  int _index = 0;
+  late int _index = switch (widget.start) {
+    StartScreen.schedule => 0,
+    StartScreen.calendar => 1,
+  };
 
   late final List<Widget> _pages = [
     TasksScreen(onMenu: _openMenu),
@@ -106,6 +115,16 @@ class _HomeScreenState extends State<HomeScreen>
                 onTapWhileOpen: _closeMenu,
                 isOpen: _menu,
                 child: SafeArea(
+                  // The strip at the foot of the screen stays reserved while
+                  // the keyboard is over it. Android stops counting the
+                  // gesture bar as padding the moment the keys cover it, and
+                  // without this the screen grows by that much as the
+                  // keyboard arrives — which on a phone drawn edge to edge
+                  // was the month and the day's tasks shifting slightly every
+                  // time the add field was tapped. Nothing about the screen
+                  // should move when the keyboard does; only the field rides
+                  // it up.
+                  maintainBottomViewPadding: true,
                   child: IndexedStack(index: _index, children: _pages),
                 ),
               ),

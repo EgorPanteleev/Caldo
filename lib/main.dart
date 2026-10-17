@@ -18,11 +18,18 @@ void main() async {
   // comes from Android — see KeyboardGap. Nothing reads it until a field is
   // tapped, but the channel has to be listening before that.
   KeyboardGap.instance.listen();
-  runApp(const CaldoApp());
+  // Read before the first frame: the app has to open on the right screen,
+  // not open on Schedule and swap a frame later. It is one small read, and
+  // the provider reads the rest for itself once it is up.
+  final start = await SettingsProvider.storedStartScreen();
+  runApp(CaldoApp(start: start));
 }
 
 class CaldoApp extends StatelessWidget {
-  const CaldoApp({super.key});
+  /// The screen to open on, read from storage before the app was built.
+  final StartScreen start;
+
+  const CaldoApp({super.key, this.start = StartScreen.schedule});
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +56,7 @@ class CaldoApp extends StatelessWidget {
           // as a cross-fade for a perfectly smooth transition.
           themeAnimationDuration: Duration.zero,
           builder: (context, child) => ThemeSwitcher(child: child!),
-          home: const HomeScreen(),
+          home: HomeScreen(start: start),
         ),
       ),
     );

@@ -6,10 +6,14 @@ import '../data/holidays.dart';
 import '../services/reminders.dart';
 import '../theme/app_theme.dart';
 
-/// Holds user-configurable settings: the app's theme mode and accent, which
-/// day the calendar week starts on, whether completed tasks stay visible, and
-/// when a task is allowed to interrupt.
+/// Which of the two task screens the app opens on.
+enum StartScreen { schedule, calendar }
+
+/// Holds user-configurable settings: the screen the app opens on, its theme
+/// mode and accent, which day the calendar week starts on, whether completed
+/// tasks stay visible, and when a task is allowed to interrupt.
 class SettingsProvider extends ChangeNotifier {
+  static const _kStartScreen = 'start_screen';
   static const _kThemeMode = 'theme_mode';
   static const _kAccent = 'accent_id';
   static const _kWeekStart = 'week_starts_monday';
@@ -19,6 +23,11 @@ class SettingsProvider extends ChangeNotifier {
   static const _kDefaultStyle = 'default_task_style';
   static const _kReminders = 'reminders_enabled';
   static const _kReminderAt = 'reminder_minutes';
+
+  /// The screen the app opens on. Schedule out of the box: it is the one
+  /// that answers "what now", which is what opening a to-do list is usually
+  /// for.
+  StartScreen _startScreen = StartScreen.schedule;
 
   /// The app defaults to dark mode.
   ThemeMode _themeMode = ThemeMode.dark;
@@ -49,6 +58,7 @@ class SettingsProvider extends ChangeNotifier {
   /// point in the day, and nine in the morning is the least of the evils.
   int _reminderMinutes = 9 * 60;
 
+  StartScreen get startScreen => _startScreen;
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
   bool get weekStartsMonday => _weekStartsMonday;
@@ -68,8 +78,22 @@ class SettingsProvider extends ChangeNotifier {
   String? get effectiveHolidayCountry =>
       _showHolidays ? (_holidayCountry ?? Holidays.detectCountry()) : null;
 
+  /// The stored choice on its own, read before the first frame.
+  ///
+  /// [load] cannot be waited for: it ends by asking Android about
+  /// notifications, and on a first run that is a dialog the user has to
+  /// answer — waiting for it would hold the app on a blank screen until they
+  /// did. The screen to open on has to be known before anything is drawn,
+  /// though, or the app shows Schedule for a frame or two and then swaps,
+  /// which is worse than the setting not existing.
+  static Future<StartScreen> storedStartScreen() async {
+    final prefs = await SharedPreferences.getInstance();
+    return _startScreenFromString(prefs.getString(_kStartScreen));
+  }
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    _startScreen = _startScreenFromString(prefs.getString(_kStartScreen));
     _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
     _accent = AppAccent.byId(prefs.getString(_kAccent));
     _weekStartsMonday = prefs.getBool(_kWeekStart) ?? _weekStartsMonday;
@@ -88,6 +112,7 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> update({
+    StartScreen? startScreen,
     ThemeMode? themeMode,
     AppAccent? accent,
     bool? weekStartsMonday,
@@ -105,6 +130,10 @@ class SettingsProvider extends ChangeNotifier {
     bool clearDefaultTaskStyle = false,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+    if (startScreen != null) {
+      _startScreen = startScreen;
+      await prefs.setString(_kStartScreen, startScreen.name);
+    }
     if (themeMode != null) {
       _themeMode = themeMode;
       await prefs.setString(_kThemeMode, themeMode.name);
@@ -158,6 +187,12 @@ class SettingsProvider extends ChangeNotifier {
     enabled: _reminders,
     allDayMinutes: _reminderMinutes,
   );
+
+  static StartScreen _startScreenFromString(String? value) {
+    return value == StartScreen.calendar.name
+        ? StartScreen.calendar
+        : StartScreen.schedule;
+  }
 
   ThemeMode _themeModeFromString(String? value) {
     return switch (value) {

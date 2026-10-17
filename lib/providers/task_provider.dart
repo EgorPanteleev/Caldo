@@ -149,9 +149,10 @@ class TaskProvider extends ChangeNotifier {
   Future<void> loadMonth(DateTime date) async {
     _month = DateTime(date.year, date.month);
     final from = _month.subtract(const Duration(days: 7));
-    final to = DateTime(_month.year, _month.month + 1).add(
-      const Duration(days: 7),
-    );
+    final to = DateTime(
+      _month.year,
+      _month.month + 1,
+    ).add(const Duration(days: 7));
     final tasks = await _db.getTasksInRange(
       from.millisecondsSinceEpoch,
       to.millisecondsSinceEpoch,
@@ -236,24 +237,68 @@ class TaskProvider extends ChangeNotifier {
     await _reloadAll();
   }
 
+  /// How long a ticked task keeps its place in the run before the lists are
+  /// read back and it takes its new one. Open tasks sort before done ones,
+  /// so without this a card leaves the moment it is ticked — the mark being
+  /// drawn on it goes with it, and what the gesture looked like was the card
+  /// jumping somewhere else. Matched to the card's own settle.
+  static const settle = Duration(milliseconds: 240);
+
   /// Ticks a task off. A repeating task with a due date is not closed: it
   /// rolls forward to its next occurrence instead, which is what makes a
   /// recurring chore behave like one.
+  ///
+  /// The database is written at once; only the re-read waits. The card is
+  /// shown as done where it already is, so the tick is drawn on a card that
+  /// is standing still, and the run rearranges itself once that is over.
   Future<void> toggleDone(Task task) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final due = task.due;
-    if (!task.done && task.repeat != Repeat.none && due != null) {
-      final next = task.repeat.next(due);
-      await _db.update(task.copyWith(
-        dueAt: next?.millisecondsSinceEpoch,
-        completedAt: now,
-      ));
+    final rolls = !task.done && task.repeat != Repeat.none && due != null;
+    if (rolls) {
+      await _db.update(
+        task.copyWith(
+          dueAt: task.repeat.next(due)!.millisecondsSinceEpoch,
+          completedAt: now,
+        ),
+      );
     } else {
-      await _db.update(task.done
-          ? task.copyWith(done: false, clearCompletedAt: true)
-          : task.copyWith(done: true, completedAt: now));
+      await _db.update(
+        task.done
+            ? task.copyWith(done: false, clearCompletedAt: true)
+            : task.copyWith(done: true, completedAt: now),
+      );
     }
+    // A task that rolls forward to another day has nowhere to be ticked: it
+    // is leaving this run whatever happens, so it goes straight away.
+    if (rolls) {
+      await _reloadAll();
+      return;
+    }
+    _showAsDone(task, !task.done);
+    notifyListeners();
+    await Future<void>.delayed(settle);
     await _reloadAll();
+  }
+
+  /// Marks the copies of [task] already on screen done or not, in place, so
+  /// the card it is drawn on can animate without moving.
+  void _showAsDone(Task task, bool done) {
+    Task mark(Task t) => t.id == task.id
+        ? t.copyWith(
+            done: done,
+            completedAt: done ? DateTime.now().millisecondsSinceEpoch : null,
+            clearCompletedAt: !done,
+          )
+        : t;
+    List<Task> marked(List<Task> run) => [for (final t in run) mark(t)];
+    _tasks = marked(_tasks);
+    _overdue = marked(_overdue);
+    _upcoming = marked(_upcoming);
+    _undated = marked(_undated);
+    _byDay = {
+      for (final entry in _byDay.entries) entry.key: marked(entry.value),
+    };
   }
 
   /// Writes the order a run of tasks was dragged into — the whole run, in the

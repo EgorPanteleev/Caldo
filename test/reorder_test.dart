@@ -15,19 +15,42 @@ void main() {
     await provider.loadLists();
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final title in ['one', 'two', 'three']) {
-      await provider.add(Task(
-        listId: provider.lists.first.id!,
-        title: title,
-        dueAt: day.millisecondsSinceEpoch,
-        createdAt: now,
-      ));
+      await provider.add(
+        Task(
+          listId: provider.lists.first.id!,
+          title: title,
+          dueAt: day.millisecondsSinceEpoch,
+          createdAt: now,
+        ),
+      );
     }
     await provider.loadMonth(day);
     return provider;
   }
 
-  List<String> titles(TaskProvider p) =>
-      [for (final task in p.tasksForDay(day)) task.title];
+  List<String> titles(TaskProvider p) => [
+    for (final task in p.tasksForDay(day)) task.title,
+  ];
+
+  test('a ticked task keeps its place until the tick has been drawn', () async {
+    final p = await provider();
+    final first = p.tasksForDay(day).first;
+
+    // Not awaited: what is being pinned is what the run looks like while the
+    // mark is being drawn on the card, which is before this returns.
+    final ticking = p.toggleDone(first);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    // Shown as done, and still where it was — the card the finger is on has
+    // to stand still long enough for the tick to be worth watching.
+    expect(titles(p).first, first.title);
+    expect(p.tasksForDay(day).first.done, isTrue);
+
+    await ticking;
+    // And then it takes its place among the done ones, which sort last.
+    expect(titles(p).last, first.title);
+    expect(p.tasksForDay(day).last.done, isTrue);
+  });
 
   test('a day keeps the order it was dragged into', () async {
     final p = await provider();
@@ -46,20 +69,24 @@ void main() {
     expect(titles(second), titles(p));
   });
 
-  test('a task added to an arranged day goes after the arranged ones',
-      () async {
-    final p = await provider();
-    final start = p.tasksForDay(day);
-    await p.reorder([start[2], start[1], start[0]]);
-    await p.add(Task(
-      listId: p.lists.first.id!,
-      title: 'latecomer',
-      dueAt: day.millisecondsSinceEpoch,
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-    ));
-    await p.loadMonth(day);
-    expect(titles(p).last, 'latecomer');
-  });
+  test(
+    'a task added to an arranged day goes after the arranged ones',
+    () async {
+      final p = await provider();
+      final start = p.tasksForDay(day);
+      await p.reorder([start[2], start[1], start[0]]);
+      await p.add(
+        Task(
+          listId: p.lists.first.id!,
+          title: 'latecomer',
+          dueAt: day.millisecondsSinceEpoch,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+      await p.loadMonth(day);
+      expect(titles(p).last, 'latecomer');
+    },
+  );
 
   test('the overdue backlog keeps the order it was dragged into', () async {
     await resetTestDatabase();
@@ -69,24 +96,31 @@ void main() {
     // Three days late, two days late, one day late — so the order they fall
     // into on their own is the reverse of the order they were made in.
     for (var late = 3; late >= 1; late--) {
-      await p.add(Task(
-        listId: p.lists.first.id!,
-        title: '$late days late',
-        dueAt: dayOf(now.subtract(Duration(days: late)))
-            .millisecondsSinceEpoch,
-        createdAt: now.millisecondsSinceEpoch,
-      ));
+      await p.add(
+        Task(
+          listId: p.lists.first.id!,
+          title: '$late days late',
+          dueAt: dayOf(
+            now.subtract(Duration(days: late)),
+          ).millisecondsSinceEpoch,
+          createdAt: now.millisecondsSinceEpoch,
+        ),
+      );
     }
     await p.loadTasks();
-    expect([for (final t in p.overdue) t.title],
-        ['3 days late', '2 days late', '1 days late']);
+    expect(
+      [for (final t in p.overdue) t.title],
+      ['3 days late', '2 days late', '1 days late'],
+    );
 
     final moved = [p.overdue[2], p.overdue[0], p.overdue[1]];
     await p.reorder(moved);
     await p.loadTasks();
-    expect([for (final t in p.overdue) t.title],
-        ['1 days late', '3 days late', '2 days late'],
-        reason: 'the arrangement outranks how late each one is');
+    expect(
+      [for (final t in p.overdue) t.title],
+      ['1 days late', '3 days late', '2 days late'],
+      reason: 'the arrangement outranks how late each one is',
+    );
   });
 
   test('one task cannot be reordered, and nothing is written', () async {

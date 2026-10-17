@@ -118,6 +118,35 @@ Changing them back will be noticed.
   swipe across a month boundary from bouncing.
 - **Week rules only arrive at the end of the opening** (`weekRuleAlpha`, last
   quarter) and never while the month is shrinking.
+- **Which of Schedule and Calendar the app opens on is a setting**
+  (`StartScreen`, read in `main` before the first frame). It cannot wait for
+  `SettingsProvider.load`: that ends by asking Android about notifications,
+  which on a first run is a dialog the user has to answer, and waiting for it
+  would hold the app on a blank screen. So the one key is read on its own
+  first, and the shell takes it as it is built and never again — a screen
+  that jumped out from under the setting being changed would be startling,
+  and the setting is about the next launch.
+- **Nothing on a screen moves when the keyboard does** (`SafeArea`'s
+  `maintainBottomViewPadding` in the shell). Android stops counting the
+  gesture bar as padding the moment the keys cover it, so a screen drawn edge
+  to edge grows by that much as the keyboard arrives: it was reported as the
+  month and the day's tasks shifting slightly every time the add field was
+  tapped, on a phone and not on the emulator, whose window stops above the
+  navigation bar and never had the padding to lose. The strip stays reserved
+  instead, and `KeyboardGap` subtracts it from the lift, since the bar now
+  starts that much above the window's edge.
+- **Ticking a task off is drawn, and the run waits for it** (`CheckMark`,
+  `TaskProvider.settle`). The mark used to appear whole between two frames
+  while the card left for the done end of the run in the same instant, so
+  the gesture had no moment at all — "too fast", and nothing to see. Now the
+  square fills, the stroke runs through it a quarter of the way in, and the
+  card's ink sinks to its done shade, all over 240ms; the provider writes the
+  database at once but holds the re-read for the same stretch, so the card
+  under the finger stands still while its tick is being drawn and the run
+  rearranges itself afterwards. Coming off, the mark goes in half the time
+  and without the drawing: undoing is a correction, not a flourish. A task
+  that rolls forward on a repeat skips all of this — it is leaving the run
+  whatever happens.
 - **The three screens live behind a menu button, not a bottom bar.** The
   hamburger sits at the top left of each of them and carries a dot when
   something is overdue — the one thing worth pulling the user back to a screen
@@ -469,7 +498,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 87 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 91 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -534,7 +563,10 @@ adb exec-out screencap -p > shot.png     # then look at it
 
 Changes here are judged by eye: take the screenshot and check it before saying
 it works. `adb shell input tap/swipe/text` drives it; the screen is 1080x1920
-at dpr 3 (360x640 logical).
+at **dpr 2.625** (411x731 logical) — `adb shell wm density` says 420, and the
+note here said dpr 3 for months, which is what kept the keyboard arithmetic
+from reconciling for a whole morning. `input text` cannot send Cyrillic, so
+seed Russian titles some other way or use Latin ones of the same length.
 
 **A long press cannot be done with `input swipe`.** It interpolates from the
 first millisecond, so the press has moved past the touch slop long before the
