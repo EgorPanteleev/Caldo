@@ -6,6 +6,7 @@ import 'providers/task_provider.dart';
 import 'screens/home_screen.dart';
 import 'services/reminders.dart';
 import 'theme/app_theme.dart';
+import 'widgets/quick_add_bar.dart';
 import 'widgets/theme_switcher.dart';
 
 void main() async {
@@ -13,6 +14,10 @@ void main() async {
   // Before the first screen, because the first thing a screen does is load its
   // tasks, and loading tasks is what sets the alarms.
   await Reminders.instance.init();
+  // What MediaQuery leaves out of the keyboard's height while it is sliding
+  // comes from Android — see KeyboardGap. Nothing reads it until a field is
+  // tapped, but the channel has to be listening before that.
+  KeyboardGap.instance.listen();
   runApp(const CaldoApp());
 }
 

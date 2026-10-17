@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/task.dart';
@@ -183,6 +186,58 @@ Future<void> quickAddTask(
   );
 }
 
+/// The part of the keyboard that `MediaQuery` does not account for while a
+/// slide is running, reported by [MainActivity] over a channel.
+///
+/// `viewInsets.bottom` is how far the keys reach past the system bars. That
+/// is the whole story on a window that stops above the navigation bar, and
+/// it is why this is zero on such a device and the app behaves exactly as it
+/// did. Drawn edge to edge, though, the bar strip at the foot of the screen
+/// is inside the window, and the moment the keys cover it Android drops it
+/// from `padding.bottom` while the animated inset still leaves it out — so
+/// for the length of the slide the app is told some ten points less than the
+/// keyboard covers, and anything glued to the keyboard rides that much too
+/// low until the final inset puts it back in one step.
+///
+/// Measured on a phone: through the whole slide the field sat 2-3px off the
+/// keys instead of its own 18px of padding, and then rose 17px *after* the
+/// keyboard had stopped. That last hop is the jump at the end of the slide,
+/// and no arithmetic on `viewInsets` alone can undo it, because what the
+/// number leaves out changes halfway through.
+class KeyboardGap {
+  KeyboardGap._();
+
+  static final instance = KeyboardGap._();
+
+  static const _channel = EventChannel('caldo/ime');
+
+  /// What is missing from `viewInsets.bottom` right now, in logical pixels.
+  /// Zero unless a slide is running on an edge-to-edge window, and zero
+  /// always on a platform that never reports (an older Android, or a test).
+  final ValueNotifier<double> missing = ValueNotifier<double>(0);
+
+  StreamSubscription<dynamic>? _sub;
+
+  void listen() {
+    if (_sub != null) return;
+    _sub = _channel.receiveBroadcastStream().listen(
+      (value) {
+        if (value is num) missing.value = value.toDouble();
+      },
+      // Nothing to do but carry on with Flutter's number, which is what the
+      // app ran on before and is right wherever this cannot be reported.
+      onError: (_) => missing.value = 0,
+    );
+  }
+
+  /// How far to lift whatever is glued to the keyboard.
+  static double of(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    if (inset <= 0) return 0;
+    return inset + instance.missing.value;
+  }
+}
+
 /// Floats [child] above the keyboard: its bottom edge is the keyboard's top
 /// edge, at every moment of the slide and wherever the slide stops.
 ///
@@ -191,12 +246,12 @@ Future<void> quickAddTask(
 /// Anything laid over that — a spring, a speed limit, a rule about which
 /// reports to believe — is the bar deciding to be somewhere the keyboard is
 /// not, which is the one thing it may never do. Three of those were tried
-/// and all three were wrong in the same way: smoothing a report that was
-/// honest put the bar behind the keys, and no amount of tuning turns a lag
-/// into an attachment. If a keyboard jumps, the bar jumps with it — that is
-/// what being attached to it means.
+/// and all three were wrong the same way: smoothing a report that was honest
+/// put the bar behind the keys, and no amount of tuning turns a lag into an
+/// attachment. If a keyboard jumps, the bar jumps with it — that is what
+/// being attached to it means.
 ///
-/// The inset is read here and in [KeyboardRoom] and nowhere else, so a
+/// The height is read here and in [KeyboardRoom] and nowhere else, so a
 /// change that arrives on every frame of a slide rebuilds two small widgets
 /// rather than a screen. The screens' `Scaffold`s do not resize for it: that
 /// would take the room out of whatever is above the field, which on an
@@ -208,8 +263,12 @@ class KeyboardLift extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Transform.translate(
-      offset: Offset(0, -MediaQuery.viewInsetsOf(context).bottom),
+    return ValueListenableBuilder<double>(
+      valueListenable: KeyboardGap.instance.missing,
+      builder: (context, _, child) => Transform.translate(
+        offset: Offset(0, -KeyboardGap.of(context)),
+        child: child,
+      ),
       child: child,
     );
   }
@@ -224,7 +283,10 @@ class KeyboardRoom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(height: MediaQuery.viewInsetsOf(context).bottom);
+    return ValueListenableBuilder<double>(
+      valueListenable: KeyboardGap.instance.missing,
+      builder: (context, _, _) => SizedBox(height: KeyboardGap.of(context)),
+    );
   }
 }
 

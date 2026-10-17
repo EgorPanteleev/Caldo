@@ -258,29 +258,37 @@ Changing them back will be noticed.
   all three screens before any of them was asked.
 - **The quick-add bar is attached to the keyboard: its bottom edge is the
   keyboard's top edge, at every moment of the slide.** `KeyboardLift`
-  translates the bar by `MediaQuery.viewInsetsOf(context).bottom` and that is
-  the whole of it — no animation, no spring, no speed limit, no rule about
-  which reports to believe. Android says where the keyboard is; the bar is
-  there in the same frame. If the keyboard jumps, the bar jumps with it,
-  because that is what attached means.
-  This was asked for three times and got three cleverer answers, each wrong
-  the same way. A `Scaffold` that resizes moves the bar by relayout, which is
-  attached but drags the rest of the screen around with it. A spring after
-  the reports, and then a speed limit with a glide, both put the bar
-  somewhere the keyboard was not: a real keyboard covers 154 points in the
-  first 50ms of its rise — better than 3000 points a second — so any cap
-  under that turns following into trailing, and no tuning turns a lag back
-  into an attachment. Smoothing is only ever worth discussing if the jump
-  being smoothed is one the keyboard did not make, and there is no way to
-  know that from the outside. **Do not put a curve back in here.**
-  Measured on the emulator, frame by frame off `screenrecord`: through the
-  whole rise the bar's top edge sits 154px above the keyboard's top edge on
-  every frame, which is the bar's own height — bottom edge on the keys,
-  start to finish. On the way down the recording shows it up to 100 points
-  behind for two or three frames; since the bar is a plain translate of the
-  last reported inset, that is either Android reporting the hide later than
-  it paints it or frames the app did not draw under emulator load, and
-  nothing in the app adds to it.
+  translates the bar and that is the whole of it — no animation, no spring,
+  no speed limit, no rule about which reports to believe. Android says where
+  the keyboard is; the bar is there in the same frame. If the keyboard
+  jumps, the bar jumps with it, because that is what attached means.
+  Three cleverer answers were tried first and each was wrong the same way: a
+  real keyboard covers 154 points in the first 50ms of its rise, better than
+  3000 points a second, so any cap under that turns following into trailing,
+  and no tuning turns a lag back into an attachment. **Do not put a curve
+  back in here.**
+- **`viewInsets.bottom` leaves the bar ten points low for the length of a
+  slide on an edge-to-edge window, and `MainActivity` is what puts it back**
+  (`KeyboardGap`). Flutter's number is how far the keys reach past the
+  system bars. Below Android 15 the window stops above the navigation bar,
+  the strip is not ours, and the number is the whole story — which is why
+  the emulator was always right and why this correction is zero there.
+  Drawn edge to edge the strip *is* inside the window, and the moment the
+  keys cover it Android drops it from `padding.bottom` while the animated
+  inset still leaves it out: for the length of the slide the app is told
+  about ten points less than the keyboard covers, and the final inset puts
+  it back in one step at the end. That step is the jump at the end of the
+  slide, reported from the first message of this whole thread.
+  Measured off a phone recording: through the slide the field sat 2-3px off
+  the keys instead of its own 18px of padding, and then rose 17px *after*
+  the keyboard had stopped — the deficit was a constant 15-16px while the
+  keyboard's speed varied by a factor of 260 between frames, which is what
+  rules out frame lag and points at the number changing meaning. So the
+  activity reports what is missing and when: the system bar strip that lies
+  inside the window (`navigationBars()` less whatever lies below the content
+  view, measured while the keyboard is down and the view is at full height),
+  while `WindowInsetsAnimation` says a slide is running, and nothing at all
+  once it has settled.
 - **The inset is read in `KeyboardLift` and `KeyboardRoom` and nowhere
   else.** It changes on every frame of a slide and whoever reads it rebuilds
   that often, so the two widgets that move with it are the two that read it,
@@ -533,6 +541,15 @@ Three things that look like bugs and are not:
 - An ANR under load is usually host starvation (a Gradle daemon plus the
   emulator on 13GB), not a hang in the app. Check whether unrelated processes
   ANR'd in the same second before hunting for a layout loop.
+- **A loaded host makes the emulator drop app frames, and a dropped frame
+  looks exactly like a bar that is not attached.** Judge anything that rides
+  the keyboard on a release build, and run the committed build as a control
+  before concluding that a change caused a lag: measured on a quiet machine
+  the bar held within 1-2px of the keys on every frame, and after a morning
+  of Gradle builds the *same commit* trailed them by up to 67px. What
+  distinguishes a real fault from this one is that frame lag scales with how
+  fast the keyboard is moving and vanishes when it stops, while a number
+  that means the wrong thing is off by the same distance at every speed.
 - **The emulator's keyboard does slide, and finely enough to follow** —
   contrary to what was written here before, which was taken from a single
   lump the inset once arrived in. Measured off `screenrecord` on
