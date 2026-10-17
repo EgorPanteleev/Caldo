@@ -342,18 +342,25 @@ Changing them back will be noticed.
   keys on the first opening and 62px on the second, and waiting a couple of
   seconds between them made it go away — which is what pointed at two
   overlapping slides rather than at any one convention.
-- **The window's offset below the display is believed only when it says one
-  of the two things it can say** (`MainActivity.below`). It is measured from
-  the content view while the keyboard is down, and `adjustResize` leaves
-  that view part way between its two heights for a while after the keys have
-  gone: a reading taken then is neither the navigation bar nor nothing, and
-  the one that landed in a fast open-close-open took the window for an
-  edge-to-edge one and reported the keyboard a whole bar taller than it was
-  for the length of the next slide. So a reading within two pixels of zero
-  or of the navigation bar is kept and anything else is dropped, and until
-  one has been kept the bar is assumed to be there — under-reporting is free,
-  since Dart holds the larger of this and its own number, while
-  over-reporting lifts the field clear of the keys.
+- **The window's offset below the display is the largest credible reading,
+  not the latest** (`MainActivity.below`). It is measured from the content
+  view while the keyboard is down, and `adjustResize` leaves that view part
+  way between its two heights for a while after the keys have gone, where
+  it looks exactly like an edge-to-edge window. Whether this window reaches
+  past the bars does not change while it is running, so two different
+  answers mean one was taken mid-resize — and it is always the zero that is
+  wrong, since a view caught between its heights reaches further down than
+  it ends up. Keeping the larger keeps the honest one. Until one has been
+  believed the bar is assumed to be there: under-reporting is free, because
+  Dart holds the larger of this and its own number, while over-reporting
+  lifts the field clear of the keys.
+  This is what the fast open-close-open was. Measured from a recording with
+  the numbers on screen, against the keyboard's painted position: on the
+  first slide the reported height was right to within a point at every
+  moment, and on the second it was a constant 29 points — one navigation
+  bar — too tall, from the first frame to the last, correcting itself the
+  instant the slide ended. Three fixes before this one were aimed at the
+  wrong number entirely.
 - **Long-pressing the Settings title puts the keyboard's numbers on screen**
   (`KeyboardGap.showNumbers`, drawn by `KeyboardNumbers` above the add
   field): the inset Flutter reports, what Android says, the strip the layout

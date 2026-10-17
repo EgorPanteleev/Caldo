@@ -87,14 +87,16 @@ class MainActivity : FlutterActivity() {
         val ime = insets.getInsets(WindowInsets.Type.ime()).bottom
         val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
         // Measured while the keyboard is down, when the content view is at
-        // its full height — and then only believed if it says one of the two
-        // things it can possibly say. `adjustResize` leaves the view part
-        // way between its two heights for a while after the keys have gone,
-        // and a reading taken then is neither: opening the field, closing it
-        // and opening it again quickly caught exactly that, took the window
-        // for an edge-to-edge one, and reported the keyboard a whole
-        // navigation bar taller than it was for the length of the next
-        // slide.
+        // its full height — believed only if it says one of the two things
+        // it can possibly say, and then only if it is the largest such
+        // answer so far. `adjustResize` leaves the view part way between its
+        // two heights for a while after the keys have gone, and a reading
+        // taken then can look exactly like an edge-to-edge window. Measured
+        // from a recording of the fault with the numbers on screen: a fast
+        // open-close-open caught one, and the keyboard was then reported a
+        // constant 29 points — one navigation bar — taller than it was for
+        // the whole of the next slide, correcting itself the instant the
+        // slide ended.
         if (ime == 0) {
             val content = findViewById<View>(android.R.id.content)
             if (content != null && content.height > 0) {
@@ -102,8 +104,19 @@ class MainActivity : FlutterActivity() {
                 content.getLocationOnScreen(at)
                 val gap = windowManager.currentWindowMetrics.bounds.height() -
                     (at[1] + content.height)
-                if (gap <= SLACK) below = 0
-                else if (kotlin.math.abs(gap - nav) <= SLACK) below = nav
+                val credible = when {
+                    gap <= SLACK -> 0
+                    kotlin.math.abs(gap - nav) <= SLACK -> nav
+                    else -> -1
+                }
+                // The largest credible reading, not the latest. Whether this
+                // window reaches past the bars does not change while it is
+                // running, so two different answers mean one of them was
+                // taken mid-resize — and it is always the zero that is
+                // wrong, because a view caught between its two heights
+                // reaches further down than it will end up. Keeping the
+                // larger is keeping the honest one.
+                if (credible > below) below = credible
             }
         }
         // Until one has been believed, assume the window stops above the
