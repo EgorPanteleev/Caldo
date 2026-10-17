@@ -231,20 +231,55 @@ class KeyboardGap {
     );
   }
 
+  /// The tallest the keyboard has been seen to be with a slide over and the
+  /// insets no longer in doubt. It is the only ceiling there is on what the
+  /// keys can be covering, and [of] needs one: whether the animated inset
+  /// leaves the system bar strip out is not something the app is told, and
+  /// it is not even the same from one slide to the next. Measured on a
+  /// phone, the first slide after the keyboard had been away left the strip
+  /// out and the second put it in, so adding it blind lifted the bar a whole
+  /// strip too high for the length of every other slide — "add task widget
+  /// for 1ms gets too high".
+  ///
+  /// The largest rather than the latest, because the tail of a slide down
+  /// reports small insets with the slide already called off, and a ceiling
+  /// learnt from one of those would hold every later keyboard to a couple of
+  /// points.
+  double _tallest = 0;
+
   /// How far to lift whatever is glued to the keyboard.
   static double of(BuildContext context) {
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     if (inset <= 0) return 0;
-    // What the keyboard covers, less the strip at the foot of the window the
-    // layout never had: the screens sit in a `SafeArea` that keeps the
-    // gesture bar reserved whether or not the keys are over it, so the bar
-    // starts that much above the window's edge and has that much less to
-    // climb. Read from the view, since the SafeArea has taken it out of the
-    // `MediaQuery` handed down — that is what it is for.
+    final missing = instance.missing.value;
+    if (missing == 0 && inset > instance._tallest) instance._tallest = inset;
+    // What the keyboard covers: the inset, plus the strip Android leaves out
+    // of it while a slide is running — but never more than the keyboard is
+    // tall, because on a slide whose insets already count the strip the
+    // correction is not owed and adding it anyway is the bar leaving the
+    // keys behind.
+    var covered = inset + missing;
+    if (instance._tallest > 0) {
+      covered = math.min(covered, instance._tallest);
+    }
+    // Less the strip at the foot of the window the layout never had: the
+    // screens sit in a `SafeArea` that keeps the gesture bar reserved
+    // whether or not the keys are over it, so the bar starts that much above
+    // the window's edge and has that much less to climb. Read from the view,
+    // since the SafeArea has taken it out of the `MediaQuery` handed down —
+    // that is what it is for.
     final reserved = MediaQueryData.fromView(
       View.of(context),
     ).viewPadding.bottom;
-    return math.max(0.0, inset + instance.missing.value - reserved);
+    return math.max(0.0, covered - reserved);
+  }
+
+  /// Forgets what it has learnt, so one test cannot set the ceiling for the
+  /// next.
+  @visibleForTesting
+  void forget() {
+    _tallest = 0;
+    missing.value = 0;
   }
 }
 

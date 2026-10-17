@@ -335,6 +335,19 @@ Changing them back will be noticed.
   view, measured while the keyboard is down and the view is at full height),
   while `WindowInsetsAnimation` says a slide is running, and nothing at all
   once it has settled.
+- **The correction is capped at the tallest the keyboard has been seen to
+  be** (`KeyboardGap._tallest`). Whether the animated inset leaves the strip
+  out is not something the app is told, and it is not even the same from one
+  slide to the next: measured on a phone, the first slide after the keyboard
+  had been away left it out and the next one counted it, so adding it blind
+  put the bar a whole strip above the keys for the length of every other
+  slide. Reported as "add task widget for 1ms gets too high", and measured
+  off the video — the field sat 17px off the keys on the first opening and
+  62px on the second. A ceiling settles it without having to know which
+  convention is in force: the keys can never cover more than the keyboard is
+  tall, and that number is beyond doubt whenever a slide has finished. It is
+  the largest such reading rather than the latest, because the tail of a
+  slide down reports small insets with the slide already called off.
 - **The inset is read in `KeyboardLift` and `KeyboardRoom` and nowhere
   else.** It changes on every frame of a slide and whoever reads it rebuilds
   that often, so the two widgets that move with it are the two that read it,
@@ -498,7 +511,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 91 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 92 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

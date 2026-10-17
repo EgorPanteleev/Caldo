@@ -41,6 +41,35 @@ double _bottomGap(WidgetTester tester) =>
 const _frame = Duration(milliseconds: 16);
 
 void main() {
+  setUp(KeyboardGap.instance.forget);
+
+  testWidgets('a slide whose inset already counts the bar is not lifted past '
+      'the keys', (tester) async {
+    await tester.pumpWidget(_harness(0));
+    _rest = tester.getBottomLeft(find.byKey(_bar)).dy;
+
+    // One slide, reported the way the first one after the keyboard has been
+    // away is: the strip at the foot of the window left out of the animated
+    // inset, and the platform saying how much that is.
+    KeyboardGap.instance.missing.value = 28;
+    await tester.pumpWidget(_harness(200));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 228, reason: 'mid-slide, the strip is owed');
+
+    KeyboardGap.instance.missing.value = 0;
+    await tester.pumpWidget(_harness(295));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 295, reason: 'settled: the inset is the truth');
+
+    // And the next slide, reported the other way — the strip already counted
+    // in the inset while the platform still says it is owed. Adding it would
+    // put the bar a whole strip above the keys, which is what it did.
+    KeyboardGap.instance.missing.value = 28;
+    await tester.pumpWidget(_harness(295));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 295, reason: 'never past the keyboard itself');
+  });
+
   testWidgets('the bar sits on the keyboard at every step of a slide', (
     tester,
   ) async {
