@@ -247,38 +247,54 @@ Changing them back will be noticed.
   finishes, and both read as lines. It is one widget rather than two copies
   because the two screens have to look the same doing it — which is how it
   came to be asked for on Schedule in the first place.
-- **The keyboard arrives over the calendar, it does not shorten it.** The
-  screen's `Scaffold` does not resize for the inset; the quick-add bar is
-  wrapped in `KeyboardLift`, which translates it up by the inset instead. A
-  resizing `Scaffold` takes the room out of whatever is above the field, which
-  on an opened month means squeezing the very grid being looked at. The shell's
-  `Scaffold` does not resize either — it would shorten all three screens before
-  any of them was asked — and Schedule still resizes, on its own `Scaffold`,
-  because an agenda that keeps its height would just be hidden under the keys.
-  The inset is read in `KeyboardLift` and nowhere else: it changes on every
-  frame of the keyboard sliding in, and whoever reads it rebuilds that often.
-- **The bar follows a keyboard that is being animated, and is sent after one
-  that is being teleported.** Android does not promise to report a slide frame
-  by frame; it reports it in however many lumps it feels like. The two are
-  told apart by size: an animation arriving over a dozen frames moves a tenth
-  of the keyboard's height at a time, a slide cut into two or three lumps
-  moves a third or a half. A rise of under a quarter of the height is followed
-  exactly, which is the only way to be glued to the keys with no lag at all —
-  springing after it instead is what had the field running late behind them.
-  Everything else goes through a critically damped spring, which carries
-  whatever speed it already has — that is what stops a change of target
-  mid-flight from putting a catch in the middle of the movement — and starts
-  from a standstill when it was at rest. The carried speed is bounded by what
-  the spring can shed over the distance left: critically damped only promises
-  not to overshoot from a standstill, and thrown past its target the bar dips
-  below the place it lives and climbs back into it.
-- **The two directions get different springs** (`_riseStiffness` 3600,
-  `_fallStiffness` 900). Rising, the spring is chasing something already in
-  motion and a soft one trails it by two frames. Falling, there is nothing to
-  chase — Android cuts the rest of the slide off and reports the floor in one
-  go — so the whole distance arrives at once and the spring is the only thing
-  making a movement of it; stiff, that movement is a jump by another name, at
-  something like three hundred points a frame.
+- **The keyboard arrives over both screens, it does not shorten either.**
+  Neither `Scaffold` resizes for the inset; the quick-add bar is wrapped in
+  `KeyboardLift`, which translates it up by the lift instead, and the fade
+  above it goes up with it. A resizing `Scaffold` takes the room out of
+  whatever is above the field, which on an opened month means squeezing the
+  very grid being looked at — and on Schedule it meant the field being moved
+  by relayout, which follows every lump Android reports exactly, teleports
+  and all. Schedule keeps its run reachable by putting the keyboard's own
+  height at the foot of it (`KeyboardRoom`) rather than by shrinking the
+  viewport. The shell's `Scaffold` does not resize either — it would shorten
+  all three screens before any of them was asked.
+- **The inset is read in one place and smoothed there** (`KeyboardInset`,
+  which both screens wrap their body in and hand out as a `ValueListenable`).
+  One mechanism, so the two screens cannot disagree about how a field meets a
+  keyboard — they used to, and the difference was the first thing noticed.
+  Only the handful of widgets that move with it listen, because it changes on
+  every frame the keyboard is moving.
+- **A report is honoured if one frame can carry it, and glided to if it
+  cannot.** Android does not promise to report the slide frame by frame; it
+  reports it in however many lumps it feels like, and a bar moved straight to
+  each report is therefore glued to the keys on a phone that reports every
+  frame and teleports on one that reports three times — the last lump, which
+  lands when the keys have already stopped, being the one the eye is resting
+  on. What is reported is a position and never a speed, so the only question
+  asked of a report is how far the bar would have to move in the frame it is
+  being read in. Under the speed limit it goes straight there, which is being
+  glued with no lag at all; over it, the same distance is covered at that
+  speed instead. How long ago the last report came does not enter into it:
+  those frames are spent. One frame of the display is the unit, taken from
+  `View.of(context).display.refreshRate`, since the app asks Android for the
+  fastest mode the panel has.
+- **The limit is a speed, and the last of the distance is a spring**
+  (`_riseSpeed` 2200 points a second against `_fallSpeed` 1600,
+  `_riseStiffness` 3600 against `_fallStiffness` 1600). The rise is held just
+  above the fastest the keys themselves travel, so a frame-by-frame report is
+  always inside one frame's worth and followed exactly; the fall has nothing
+  to keep up with, since Android cuts the rest of that slide off and reports
+  the floor in one go. The critically damped spring is the slower of the two
+  inside the last of the distance, which is what settles the bar onto the
+  keys instead of halting it on them. Two details each cost a round: the
+  spring is stepped by its closed form, because stiffness 3600 over a 60Hz
+  frame is a radian of its own period and adding up accelerations at that
+  rate has it overshoot and come back; and the speed it carries into the
+  spring is bounded by what the spring can shed over the distance left, since
+  critical damping only promises not to overshoot from a standstill.
+  Measured on the emulator, a dismissal is a glide of 70px a frame with an
+  exponential tail of 40, 20, 12, 6, 2 — about 270ms, landing on its rest
+  position without dipping below it.
 - **The dark ground is true black.** The calendar's already was, so an app
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything
@@ -438,7 +454,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 82 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 85 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -527,10 +543,15 @@ Three things that look like bugs and are not:
 - An ANR under load is usually host starvation (a Gradle daemon plus the
   emulator on 13GB), not a hang in the app. Check whether unrelated processes
   ANR'd in the same second before hunting for a layout loop.
-- **The emulator's keyboard has no slide.** It is simply there on one frame
-  and gone on the next, so nothing about how the add field rides it up can be
-  judged here — the inset arrives as a single lump every time. The way down
-  can be measured, because that is a single lump on real devices too.
+- **The emulator's keyboard does slide, and finely enough to follow** —
+  contrary to what was written here before, which was taken from a single
+  lump the inset once arrived in. Measured off `screenrecord` on
+  `pixel_api34`: the keys rise over sixteen frames, about 270ms, in steps the
+  quick-add bar matches one for one, and it is reported in small enough
+  pieces that the bar is glued to them rather than gliding after them. The
+  bar is behind the keys for the first half of that, so it only becomes
+  measurable once it clears the keyboard's top edge. The way down is a single
+  lump here, as it is on real devices.
 - **`screenrecord` drops frames**, and more of them the more the host is
   doing. Frame-by-frame measurements off a recording show the *shape* of a
   movement — whether it builds and decays, or jumps and catches — which is
