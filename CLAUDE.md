@@ -249,52 +249,42 @@ Changing them back will be noticed.
   came to be asked for on Schedule in the first place.
 - **The keyboard arrives over both screens, it does not shorten either.**
   Neither `Scaffold` resizes for the inset; the quick-add bar is wrapped in
-  `KeyboardLift`, which translates it up by the lift instead, and the fade
-  above it goes up with it. A resizing `Scaffold` takes the room out of
-  whatever is above the field, which on an opened month means squeezing the
-  very grid being looked at — and on Schedule it meant the field being moved
-  by relayout, which follows every lump Android reports exactly, teleports
-  and all. Schedule keeps its run reachable by putting the keyboard's own
-  height at the foot of it (`KeyboardRoom`) rather than by shrinking the
+  `KeyboardLift`, which translates it instead, and the fade above it goes up
+  with it. A resizing `Scaffold` takes the room out of whatever is above the
+  field, which on an opened month means squeezing the very grid being looked
+  at. Schedule keeps the end of its run reachable by putting the keyboard's
+  own height at the foot of it (`KeyboardRoom`) rather than by shrinking the
   viewport. The shell's `Scaffold` does not resize either — it would shorten
   all three screens before any of them was asked.
-- **The inset is read in one place and smoothed there** (`KeyboardInset`,
-  which both screens wrap their body in and hand out as a `ValueListenable`).
-  One mechanism, so the two screens cannot disagree about how a field meets a
-  keyboard — they used to, and the difference was the first thing noticed.
-  Only the handful of widgets that move with it listen, because it changes on
-  every frame the keyboard is moving.
-- **A report is honoured if one frame can carry it, and glided to if it
-  cannot.** Android does not promise to report the slide frame by frame; it
-  reports it in however many lumps it feels like, and a bar moved straight to
-  each report is therefore glued to the keys on a phone that reports every
-  frame and teleports on one that reports three times — the last lump, which
-  lands when the keys have already stopped, being the one the eye is resting
-  on. What is reported is a position and never a speed, so the only question
-  asked of a report is how far the bar would have to move in the frame it is
-  being read in. Under the speed limit it goes straight there, which is being
-  glued with no lag at all; over it, the same distance is covered at that
-  speed instead. How long ago the last report came does not enter into it:
-  those frames are spent. One frame of the display is the unit, taken from
-  `View.of(context).display.refreshRate`, since the app asks Android for the
-  fastest mode the panel has.
-- **The limit is a speed, and the last of the distance is a spring**
-  (`_riseSpeed` 2200 points a second against `_fallSpeed` 1600,
-  `_riseStiffness` 3600 against `_fallStiffness` 1600). The rise is held just
-  above the fastest the keys themselves travel, so a frame-by-frame report is
-  always inside one frame's worth and followed exactly; the fall has nothing
-  to keep up with, since Android cuts the rest of that slide off and reports
-  the floor in one go. The critically damped spring is the slower of the two
-  inside the last of the distance, which is what settles the bar onto the
-  keys instead of halting it on them. Two details each cost a round: the
-  spring is stepped by its closed form, because stiffness 3600 over a 60Hz
-  frame is a radian of its own period and adding up accelerations at that
-  rate has it overshoot and come back; and the speed it carries into the
-  spring is bounded by what the spring can shed over the distance left, since
-  critical damping only promises not to overshoot from a standstill.
-  Measured on the emulator, a dismissal is a glide of 70px a frame with an
-  exponential tail of 40, 20, 12, 6, 2 — about 270ms, landing on its rest
-  position without dipping below it.
+- **The quick-add bar is attached to the keyboard: its bottom edge is the
+  keyboard's top edge, at every moment of the slide.** `KeyboardLift`
+  translates the bar by `MediaQuery.viewInsetsOf(context).bottom` and that is
+  the whole of it — no animation, no spring, no speed limit, no rule about
+  which reports to believe. Android says where the keyboard is; the bar is
+  there in the same frame. If the keyboard jumps, the bar jumps with it,
+  because that is what attached means.
+  This was asked for three times and got three cleverer answers, each wrong
+  the same way. A `Scaffold` that resizes moves the bar by relayout, which is
+  attached but drags the rest of the screen around with it. A spring after
+  the reports, and then a speed limit with a glide, both put the bar
+  somewhere the keyboard was not: a real keyboard covers 154 points in the
+  first 50ms of its rise — better than 3000 points a second — so any cap
+  under that turns following into trailing, and no tuning turns a lag back
+  into an attachment. Smoothing is only ever worth discussing if the jump
+  being smoothed is one the keyboard did not make, and there is no way to
+  know that from the outside. **Do not put a curve back in here.**
+  Measured on the emulator, frame by frame off `screenrecord`: through the
+  whole rise the bar's top edge sits 154px above the keyboard's top edge on
+  every frame, which is the bar's own height — bottom edge on the keys,
+  start to finish. On the way down the recording shows it up to 100 points
+  behind for two or three frames; since the bar is a plain translate of the
+  last reported inset, that is either Android reporting the hide later than
+  it paints it or frames the app did not draw under emulator load, and
+  nothing in the app adds to it.
+- **The inset is read in `KeyboardLift` and `KeyboardRoom` and nowhere
+  else.** It changes on every frame of a slide and whoever reads it rebuilds
+  that often, so the two widgets that move with it are the two that read it,
+  and the screens around them are left alone.
 - **The dark ground is true black.** The calendar's already was, so an app
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything

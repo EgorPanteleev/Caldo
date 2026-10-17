@@ -108,120 +108,118 @@ class _TasksScreenState extends State<TasksScreen> {
       // gets the keys' height as room at its foot instead, so nothing at the
       // bottom of it is out of reach while the keyboard is up.
       resizeToAvoidBottomInset: false,
-      body: KeyboardInset(
-        child: Column(
-          children: [
-            ScreenHeader(
-              title: 'Schedule',
-              onMenu: widget.onMenu,
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.search, color: p.muted),
-                  tooltip: 'Search',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SearchScreen()),
+      body: Column(
+        children: [
+          ScreenHeader(
+            title: 'Schedule',
+            onMenu: widget.onMenu,
+            actions: [
+              IconButton(
+                icon: Icon(Icons.search, color: p.muted),
+                tooltip: 'Search',
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
+              ),
+              _TodayButton(onTap: _jumpToToday),
+              const SizedBox(width: 6),
+            ],
+          ),
+          Expanded(
+            // The run of days fades into the ground the add field sits on
+            // rather than being cut off square by it, the same way the day's
+            // tasks do under the calendar.
+            child: Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: provider.loadTasks,
+                  child: _RunOfDays(
+                    controller: _scroll,
+                    ground: p.bg,
+                    entry: entry,
+                    onReorder: provider.reorder,
+                    head: hasAnything
+                        ? null
+                        : const Padding(
+                            padding: EdgeInsets.only(top: 40),
+                            child: EmptyState(
+                              icon: Icons.beach_access_outlined,
+                              title: 'Nothing scheduled',
+                              message:
+                                  'Add something below. Anything with a date '
+                                  'on it is listed here, day by day.',
+                            ),
+                          ),
+                    foot: days.isEmpty
+                        ? null
+                        : Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                            child: Text(
+                              'Dated tasks are shown for the next '
+                              '${TaskProvider.agendaDays} days.',
+                              style: TextStyle(color: p.faint, fontSize: 12),
+                            ),
+                          ),
+                    runs: [
+                      // The backlog is a run like any other. It wants to be
+                      // ordered by how late each thing is until somebody says
+                      // otherwise, and dragging is them saying otherwise — on
+                      // a screen where most of what there is to drag is often
+                      // in here.
+                      if (overdue.isNotEmpty)
+                        _Run(
+                          id: 'overdue',
+                          heading: () => const _DayHeader(
+                            word: 'Overdue',
+                            color: AppColors.overdue,
+                          ),
+                          tasks: overdue,
+                        ),
+                      for (final day in days)
+                        _Run(
+                          id: '$day',
+                          heading: () => _DayHeader(
+                            word: Dates.dayWord(day),
+                            label: Dates.dayDate(day),
+                          ),
+                          holidays: holidays[day] ?? const <Holiday>[],
+                          tasks: byDay[day]!,
+                        ),
+                      if (undated.isNotEmpty)
+                        _Run(
+                          id: 'undated',
+                          heading: () => const _DayHeader(word: 'No date'),
+                          tasks: undated,
+                        ),
+                    ],
                   ),
                 ),
-                _TodayButton(onTap: _jumpToToday),
-                const SizedBox(width: 6),
+                // The fade goes up with the field it belongs to; left at the
+                // foot of the screen it would be fading the run into a strip
+                // behind the keyboard.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: KeyboardLift(child: GroundFade(ground: p.bg)),
+                ),
               ],
             ),
-            Expanded(
-              // The run of days fades into the ground the add field sits on
-              // rather than being cut off square by it, the same way the day's
-              // tasks do under the calendar.
-              child: Stack(
-                children: [
-                  RefreshIndicator(
-                    onRefresh: provider.loadTasks,
-                    child: _RunOfDays(
-                      controller: _scroll,
-                      ground: p.bg,
-                      entry: entry,
-                      onReorder: provider.reorder,
-                      head: hasAnything
-                          ? null
-                          : const Padding(
-                              padding: EdgeInsets.only(top: 40),
-                              child: EmptyState(
-                                icon: Icons.beach_access_outlined,
-                                title: 'Nothing scheduled',
-                                message:
-                                    'Add something below. Anything with a date '
-                                    'on it is listed here, day by day.',
-                              ),
-                            ),
-                      foot: days.isEmpty
-                          ? null
-                          : Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                              child: Text(
-                                'Dated tasks are shown for the next '
-                                '${TaskProvider.agendaDays} days.',
-                                style: TextStyle(color: p.faint, fontSize: 12),
-                              ),
-                            ),
-                      runs: [
-                        // The backlog is a run like any other. It wants to be
-                        // ordered by how late each thing is until somebody says
-                        // otherwise, and dragging is them saying otherwise — on
-                        // a screen where most of what there is to drag is often
-                        // in here.
-                        if (overdue.isNotEmpty)
-                          _Run(
-                            id: 'overdue',
-                            heading: () => const _DayHeader(
-                              word: 'Overdue',
-                              color: AppColors.overdue,
-                            ),
-                            tasks: overdue,
-                          ),
-                        for (final day in days)
-                          _Run(
-                            id: '$day',
-                            heading: () => _DayHeader(
-                              word: Dates.dayWord(day),
-                              label: Dates.dayDate(day),
-                            ),
-                            holidays: holidays[day] ?? const <Holiday>[],
-                            tasks: byDay[day]!,
-                          ),
-                        if (undated.isNotEmpty)
-                          _Run(
-                            id: 'undated',
-                            heading: () => const _DayHeader(word: 'No date'),
-                            tasks: undated,
-                          ),
-                      ],
-                    ),
-                  ),
-                  // The fade goes up with the field it belongs to; left at the
-                  // foot of the screen it would be fading the run into a strip
-                  // behind the keyboard.
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: KeyboardLift(child: GroundFade(ground: p.bg)),
-                  ),
-                ],
+          ),
+          // Opaque, now that it rides up over the run rather than sitting in
+          // a slot of its own below it.
+          KeyboardLift(
+            child: ColoredBox(
+              color: p.bg,
+              child: QuickAddBar(
+                date: today,
+                controller: _quickAdd,
+                onSubmit: _addQuickTask,
+                onFullForm: () => _openEditor(null, today),
               ),
             ),
-            // Opaque, now that it rides up over the run rather than sitting in
-            // a slot of its own below it.
-            KeyboardLift(
-              child: ColoredBox(
-                color: p.bg,
-                child: QuickAddBar(
-                  date: today,
-                  controller: _quickAdd,
-                  onSubmit: _addQuickTask,
-                  onFullForm: () => _openEditor(null, today),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
