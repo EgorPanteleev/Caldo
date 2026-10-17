@@ -546,29 +546,32 @@ class _DayTitles extends StatelessWidget {
     fontWeight: FontWeight.w600,
   );
 
-  /// The height a chip needs for [label] at [width] — the height the engine
-  /// actually lays the title out at, rounded up, rather than one worked out
-  /// from the font size. A box computed to the pixel is a box the text can
-  /// overflow by a fraction of one, and an overflowing [TextOverflow.fade]
-  /// fades away the bottom half of every letter.
+  /// What [label] needs at [width]: the height the engine actually lays the
+  /// title out at, rounded up, rather than one worked out from the font
+  /// size — a box computed to the pixel is a box the text can overflow by a
+  /// fraction of one — and whether the title ran past the lines it is
+  /// allowed, which decides how the end of it is drawn.
   ///
   /// Kept once measured. A day cell is rebuilt on every frame the month is
   /// being dragged open, and laying out a painter per title per cell per frame
   /// was the most expensive thing happening during that drag. None of the
   /// inputs change while it runs, so the answer cannot either.
-  static final _heights = <String, double>{};
+  static final _measured = <String, ({double height, bool overran})>{};
 
-  static double _heightOf(
+  static ({double height, bool overran}) _measure(
     String label,
     double width,
     TextStyle style,
     TextScaler scaler,
     TextDirection direction,
   ) {
-    if (width <= 0) return _lineHeight + _inset * 2;
-    final key = '$label|$width|${style.fontSize}|${style.fontFamily}'
+    if (width <= 0) {
+      return (height: _lineHeight + _inset * 2, overran: false);
+    }
+    final key =
+        '$label|$width|${style.fontSize}|${style.fontFamily}'
         '|${scaler.scale(10)}|${direction.index}';
-    return _heights.putIfAbsent(key, () {
+    return _measured.putIfAbsent(key, () {
       final painter = TextPainter(
         text: TextSpan(text: label, style: style),
         textDirection: direction,
@@ -576,8 +579,9 @@ class _DayTitles extends StatelessWidget {
         maxLines: _maxLines,
       )..layout(maxWidth: width);
       final height = painter.height;
+      final overran = painter.didExceedMaxLines;
       painter.dispose();
-      return height.ceilToDouble() + _inset * 2;
+      return (height: height.ceilToDouble() + _inset * 2, overran: overran);
     });
   }
 
@@ -595,10 +599,11 @@ class _DayTitles extends StatelessWidget {
         final scaler = MediaQuery.textScalerOf(context);
         final direction = Directionality.of(context);
         final width = box.maxWidth - _sideInset * 2;
-        final heights = [
+        final sizes = [
           for (final entry in entries)
-            _heightOf(entry.label, width, style, scaler, direction),
+            _measure(entry.label, width, style, scaler, direction),
         ];
+        final heights = [for (final size in sizes) size.height];
 
         // Whole chips only — a half-clipped title would read as a glitch.
         var used = 0.0;
@@ -610,7 +615,7 @@ class _DayTitles extends StatelessWidget {
           fits++;
         }
         if (fits == 0) return const SizedBox.shrink();
-        if (fits == entries.length) return _titles(fits, 0, heights);
+        if (fits == entries.length) return _titles(fits, 0, sizes);
 
         // The rest are counted in a "+N", which needs room of its own, taken
         // from the last titles that fit. With space for only one thing, spend
@@ -621,20 +626,24 @@ class _DayTitles extends StatelessWidget {
           used -= heights[--shown] + _gap;
         }
         if (used + _gap + plus > box.maxHeight) {
-          return _titles(shown, 0, heights);
+          return _titles(shown, 0, sizes);
         }
-        return _titles(shown, entries.length - shown, heights);
+        return _titles(shown, entries.length - shown, sizes);
       },
     );
   }
 
-  Widget _titles(int shown, int hidden, List<double> heights) {
+  Widget _titles(
+    int shown,
+    int hidden,
+    List<({double height, bool overran})> sizes,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var i = 0; i < shown; i++)
           Container(
-            height: heights[i],
+            height: sizes[i].height,
             // A gap only where something follows, so the column never runs
             // two pixels past the height it was measured against.
             margin: EdgeInsets.only(
@@ -656,9 +665,18 @@ class _DayTitles extends StatelessWidget {
             child: Text(
               entries[i].label,
               maxLines: _maxLines,
-              // Fades out rather than cutting a letter in half or spending
-              // two of the few characters on an ellipsis.
-              overflow: TextOverflow.fade,
+              // A title too long for the chip's *width* fades out at the end
+              // of its line, which is what a fade is good at: no letter cut
+              // in half, no ellipsis eating two of the few characters there
+              // are. A title too long for its *height* is a different thing
+              // — there Flutter fades the bottom half of the last line it
+              // drew, so every letter on it is sliced through the middle and
+              // the chip reads as a rendering fault. That one is cut at the
+              // line instead, which is a whole line of whole letters; the
+              // rest of the title is a tap away in the day card.
+              overflow: sizes[i].overran
+                  ? TextOverflow.clip
+                  : TextOverflow.fade,
               style: _style.copyWith(
                 color: entries[i].done ? muted : text,
                 decoration: entries[i].done ? TextDecoration.lineThrough : null,

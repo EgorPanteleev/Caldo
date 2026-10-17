@@ -17,27 +17,29 @@ void main() {
     Map<DateTime, List<Holiday>> holidays = const {},
     double expansion = 0,
   }) async {
-    await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.dark(AppAccent.presets.first),
-      home: Scaffold(
-        body: SizedBox(
-          // Five week rows at roughly the height the opened calendar gives
-          // them on a phone, so a day has room for the two lines a title is
-          // allowed to wrap over.
-          height: 520,
-          child: MonthGrid(
-            month: month,
-            selected: DateTime(2026, 9, 1),
-            mondayFirst: true,
-            tasksByDay: tasks,
-            holidaysByDay: holidays,
-            lists: [work],
-            expansion: expansion,
-            onSelect: (_) {},
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(AppAccent.presets.first),
+        home: Scaffold(
+          body: SizedBox(
+            // Five week rows at roughly the height the opened calendar gives
+            // them on a phone, so a day has room for the two lines a title is
+            // allowed to wrap over.
+            height: 520,
+            child: MonthGrid(
+              month: month,
+              selected: DateTime(2026, 9, 1),
+              mondayFirst: true,
+              tasksByDay: tasks,
+              holidaysByDay: holidays,
+              lists: [work],
+              expansion: expansion,
+              onSelect: (_) {},
+            ),
           ),
         ),
       ),
-    ));
+    );
     await tester.pump();
   }
 
@@ -52,30 +54,75 @@ void main() {
     await pumpGrid(tester);
 
     expect(colorOfNumber(tester, 6), AppColors.weekend, reason: 'Sunday');
-    expect(colorOfNumber(tester, 5), isNot(AppColors.weekend),
-        reason: 'Saturday');
-    expect(colorOfNumber(tester, 4), isNot(AppColors.weekend),
-        reason: 'Friday');
+    expect(
+      colorOfNumber(tester, 5),
+      isNot(AppColors.weekend),
+      reason: 'Saturday',
+    );
+    expect(
+      colorOfNumber(tester, 4),
+      isNot(AppColors.weekend),
+      reason: 'Friday',
+    );
   });
 
-  testWidgets('a holiday leaves its number alone and marks it green',
-      (tester) async {
-    await pumpGrid(tester, holidays: {
-      DateTime(2026, 9, 10): [
-        Holiday(DateTime(2026, 9, 10), 'Made-up Day'),
-      ],
-    });
+  testWidgets('a holiday leaves its number alone and marks it green', (
+    tester,
+  ) async {
+    await pumpGrid(
+      tester,
+      holidays: {
+        DateTime(2026, 9, 10): [Holiday(DateTime(2026, 9, 10), 'Made-up Day')],
+      },
+    );
 
     expect(colorOfNumber(tester, 10), isNot(AppColors.weekend));
 
     // The day is marked by a green line rather than a red number.
     final marks = tester
         .widgetList<Container>(find.byType(Container))
-        .where((c) =>
-            c.decoration is BoxDecoration &&
-            (c.decoration! as BoxDecoration).color?.toARGB32() ==
-                AppColors.holiday.toARGB32());
+        .where(
+          (c) =>
+              c.decoration is BoxDecoration &&
+              (c.decoration! as BoxDecoration).color?.toARGB32() ==
+                  AppColors.holiday.toARGB32(),
+        );
     expect(marks, isNotEmpty);
+  });
+
+  testWidgets('a title too tall for its chip is cut at the line, not faded', (
+    tester,
+  ) async {
+    await pumpGrid(
+      tester,
+      expansion: 1,
+      tasks: {
+        DateTime(2026, 9, 10): [
+          Task(listId: 1, title: 'Short', createdAt: 0),
+          Task(
+            listId: 1,
+            // Far more than the two lines a chip allows at the width of a
+            // day, so the paragraph runs past its last line.
+            title: 'A title long enough to want a third line and then some',
+            createdAt: 0,
+          ),
+        ],
+      },
+    );
+
+    TextOverflow overflowOf(String title) =>
+        tester.widget<Text>(find.text(title)).overflow!;
+
+    // Flutter fades a paragraph that overran its lines by washing out the
+    // bottom half of the last line it drew, which slices every letter on it
+    // through the middle. A title that only overruns the chip's width is
+    // still faded — there the fade runs off the end of the line, which is
+    // what it is good at.
+    expect(
+      overflowOf('A title long enough to want a third line and then some'),
+      TextOverflow.clip,
+    );
+    expect(overflowOf('Short'), TextOverflow.fade);
   });
 
   testWidgets('an opened month writes holidays out in green', (tester) async {
@@ -83,9 +130,7 @@ void main() {
       tester,
       expansion: 1,
       holidays: {
-        DateTime(2026, 9, 10): [
-          Holiday(DateTime(2026, 9, 10), 'Made-up Day'),
-        ],
+        DateTime(2026, 9, 10): [Holiday(DateTime(2026, 9, 10), 'Made-up Day')],
       },
       tasks: {
         DateTime(2026, 9, 10): [
@@ -98,7 +143,10 @@ void main() {
     expect(find.text('Standup'), findsOneWidget);
     final chip = tester.widget<Container>(
       find
-          .ancestor(of: find.text('Made-up Day'), matching: find.byType(Container))
+          .ancestor(
+            of: find.text('Made-up Day'),
+            matching: find.byType(Container),
+          )
           .first,
     );
     final decoration = chip.decoration! as BoxDecoration;
@@ -108,8 +156,9 @@ void main() {
     );
   });
 
-  testWidgets('week rules only arrive as the month finishes opening',
-      (tester) async {
+  testWidgets('week rules only arrive as the month finishes opening', (
+    tester,
+  ) async {
     expect(weekRuleAlpha(0), 0, reason: 'compact month');
     expect(weekRuleAlpha(0.5), 0, reason: 'halfway open');
     expect(weekRuleAlpha(0.75), 0, reason: 'three quarters open');
@@ -130,7 +179,10 @@ void main() {
 
     final chip = tester.widget<Container>(
       find
-          .ancestor(of: find.text('Own colour'), matching: find.byType(Container))
+          .ancestor(
+            of: find.text('Own colour'),
+            matching: find.byType(Container),
+          )
           .first,
     );
     final decoration = chip.decoration! as BoxDecoration;
@@ -142,8 +194,9 @@ void main() {
     );
     expect(
       decoration.color!.toARGB32(),
-      isNot(dayChipColour(work.style.color, AppPalette.dark.calendar)
-          .toARGB32()),
+      isNot(
+        dayChipColour(work.style.color, AppPalette.dark.calendar).toARGB32(),
+      ),
     );
   });
 }

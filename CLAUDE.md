@@ -73,8 +73,16 @@ Changing them back will be noticed.
   chip is measured (`TextPainter`, in the chip's own font and width) and a
   short title still gets a single-line chip. Take the height from the painter
   and round it up: a box worked out from the font size instead is a box the
-  text can overflow by a fraction of a pixel, and an overflowing
-  `TextOverflow.fade` fades away the bottom half of every letter.
+  text can overflow by a fraction of a pixel.
+- **A title too long for the chip's width fades; one too long for its height
+  is cut at the line** (`_measure` keeps the painter's `didExceedMaxLines`
+  beside its height). A fade is right when it runs off the end of a line —
+  no letter cut in half, no ellipsis eating two of the few characters there
+  are. It is wrong when the paragraph has overrun its last line, because
+  what Flutter fades then is the bottom half of that line: every letter on
+  it is sliced through the middle and the chip reads as a rendering fault.
+  It was reported as "in the bottom it's like more transparent, looks ugly",
+  and the ghost under such a line is that line's own lower half.
 - **An opened day's chips are inked, not painted** (`dayChipColour`). They
   were the task's colour at nine tenths — the only saturated blocks left in
   the app once the cards were inked — and six of them in a cell shouted over
@@ -452,7 +460,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 85 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 86 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
