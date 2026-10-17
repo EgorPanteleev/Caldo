@@ -30,9 +30,18 @@ class MainActivity : FlutterActivity() {
     /**
      * How much of the display lies below this window — the navigation bar
      * when the window stops above it, nothing when it is drawn edge to
-     * edge. Negative until a reading has been believed; see [send].
+     * edge. Worked out in [send] from [contentNav].
      */
-    private var below = -1
+    private var below = 0
+
+    /**
+     * The navigation bar as the content view is told about it: zero when
+     * the window fits the system bars, because they have been taken out of
+     * the insets before they reach it, and the bar's own height when the
+     * window is drawn edge to edge. Negative until it has been told
+     * anything.
+     */
+    private var contentNav = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,47 +95,46 @@ class MainActivity : FlutterActivity() {
         val sink = imeSink ?: return
         val ime = insets.getInsets(WindowInsets.Type.ime()).bottom
         val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
-        // Measured while the keyboard is down, when the content view is at
-        // its full height — believed only if it says one of the two things
-        // it can possibly say, and then only if it is the largest such
-        // answer so far. `adjustResize` leaves the view part way between its
-        // two heights for a while after the keys have gone, and a reading
-        // taken then can look exactly like an edge-to-edge window. Measured
-        // from a recording of the fault with the numbers on screen: a fast
-        // open-close-open caught one, and the keyboard was then reported a
-        // constant 29 points — one navigation bar — taller than it was for
-        // the whole of the next slide, correcting itself the instant the
-        // slide ended.
-        if (ime == 0) {
-            val content = findViewById<View>(android.R.id.content)
-            if (content != null && content.height > 0) {
-                val at = IntArray(2)
-                content.getLocationOnScreen(at)
-                val gap = windowManager.currentWindowMetrics.bounds.height() -
-                    (at[1] + content.height)
-                val credible = when {
-                    gap <= SLACK -> 0
-                    kotlin.math.abs(gap - nav) <= SLACK -> nav
-                    else -> -1
-                }
-                // The largest credible reading, not the latest. Whether this
-                // window reaches past the bars does not change while it is
-                // running, so two different answers mean one of them was
-                // taken mid-resize — and it is always the zero that is
-                // wrong, because a view caught between its two heights
-                // reaches further down than it will end up. Keeping the
-                // larger is keeping the honest one.
-                if (credible > below) below = credible
-            }
+        // Whether this window reaches past the system bars is read from
+        // what the bars look like *to the content view*, not from how tall
+        // that view happens to be. A window that fits them has them taken
+        // out of the insets handed down to it; one drawn edge to edge
+        // does not. Nothing about that reading moves with `adjustResize`.
+        //
+        // It used to be worked out from the content view's height against
+        // the display's, and that is what four attempts at one bug came
+        // down to: `adjustResize` leaves the view between its two heights
+        // for a while after the keys have gone, a reading taken then says
+        // the window reaches the bottom of the display when it does not,
+        // and once believed it was never contradicted — on this phone no
+        // honest reading ever says the opposite, because the honest answer
+        // is the default. From then on the keyboard was reported a bar too
+        // tall, and the field rode a bar above the keys, for the length of
+        // every slide.
+        // Until the content view has been handed a set of insets to judge
+        // by, assume the window stops above the bars: that under-reports
+        // the keyboard on a window that does not, and Dart holds the larger
+        // of this and its own number, so an under-report costs nothing
+        // while an over-report lifts the bar clear of the keys.
+        below = when (contentNav) {
+            -1 -> nav
+            0 -> nav
+            else -> 0
         }
-        // Until one has been believed, assume the window stops above the
-        // bars: that under-reports the keyboard on a window that does not,
-        // and Dart holds the larger of this and its own number, so an
-        // under-report costs nothing while an over-report would lift the bar
-        // clear of the keys.
-        val off = if (below >= 0) below else nav
+        val off = below
         val reach = (ime - off).coerceAtLeast(0)
-        sink.success(reach / resources.displayMetrics.density)
+        val density = resources.displayMetrics.density
+        // The raw figures travel with it, for the numbers a long press puts
+        // on screen: a recording of a fault is worth a great deal more when
+        // what each side of it believed is written across the top.
+        sink.success(
+            mapOf(
+                "reach" to reach / density,
+                "ime" to ime / density,
+                "nav" to nav / density,
+                "below" to off / density,
+            ),
+        )
     }
 
     private fun reportIme() {
@@ -163,10 +171,18 @@ class MainActivity : FlutterActivity() {
             send(insets)
             view.onApplyWindowInsets(insets)
         }
-        // Once the view tree has been laid out: until then the content view
-        // has no height to measure the window against, and a slide that
-        // started before the first measurement would be told the strip is
-        // ours when it is not.
+        // What the bars look like by the time they reach the content view,
+        // which is how [send] tells a window that fits them from one drawn
+        // edge to edge. Passed straight on; this only reads.
+        findViewById<View>(android.R.id.content)?.setOnApplyWindowInsetsListener {
+            view: View,
+            insets: WindowInsets,
+            ->
+            contentNav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+            view.onApplyWindowInsets(insets)
+        }
+        // Once the view tree has been laid out and the insets have been
+        // round the houses at least once.
         window.decorView.post { reportIme() }
     }
 

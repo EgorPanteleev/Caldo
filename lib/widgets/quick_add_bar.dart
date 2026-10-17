@@ -225,13 +225,26 @@ class KeyboardGap {
   /// this.
   final ValueNotifier<double> covered = ValueNotifier<double>(0);
 
+  /// What Android reported it from, for the numbers on screen: the raw IME
+  /// inset, the navigation bar, and how much of the display it takes this
+  /// window to sit above.
+  final ValueNotifier<String> raw = ValueNotifier<String>('');
+
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
     if (_sub != null) return;
     _sub = _channel.receiveBroadcastStream().listen(
       (value) {
-        if (value is num) covered.value = value.toDouble();
+        if (value is num) {
+          covered.value = value.toDouble();
+        } else if (value is Map) {
+          covered.value = (value['reach'] as num).toDouble();
+          raw.value =
+              'ime ${(value['ime'] as num).toStringAsFixed(1)} '
+              'nav ${(value['nav'] as num).toStringAsFixed(1)} '
+              'below ${(value['below'] as num).toStringAsFixed(1)}';
+        }
       },
       // Nothing to do but carry on with Flutter's number, which is what the
       // app ran on before and is right wherever this cannot be reported.
@@ -295,7 +308,8 @@ class KeyboardNumbers extends StatelessWidget {
                 'inset ${inset.toStringAsFixed(1)}  '
                 'android ${platform.toStringAsFixed(1)}  '
                 'strip ${reserved.toStringAsFixed(1)}  '
-                'lift ${KeyboardGap.of(context).toStringAsFixed(1)}';
+                'lift ${KeyboardGap.of(context).toStringAsFixed(1)}\n'
+                '${KeyboardGap.instance.raw.value}';
             return IgnorePointer(
               child: Container(
                 width: double.infinity,
@@ -304,6 +318,7 @@ class KeyboardNumbers extends StatelessWidget {
                 child: Text(
                   line,
                   textAlign: TextAlign.right,
+                  maxLines: 2,
                   style: const TextStyle(
                     color: Color(0xFF7CFF9B),
                     fontSize: 10,

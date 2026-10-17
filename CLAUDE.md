@@ -342,29 +342,34 @@ Changing them back will be noticed.
   keys on the first opening and 62px on the second, and waiting a couple of
   seconds between them made it go away — which is what pointed at two
   overlapping slides rather than at any one convention.
-- **The window's offset below the display is the largest credible reading,
-  not the latest** (`MainActivity.below`). It is measured from the content
-  view while the keyboard is down, and `adjustResize` leaves that view part
-  way between its two heights for a while after the keys have gone, where
-  it looks exactly like an edge-to-edge window. Whether this window reaches
-  past the bars does not change while it is running, so two different
-  answers mean one was taken mid-resize — and it is always the zero that is
-  wrong, since a view caught between its heights reaches further down than
-  it ends up. Keeping the larger keeps the honest one. Until one has been
-  believed the bar is assumed to be there: under-reporting is free, because
-  Dart holds the larger of this and its own number, while over-reporting
-  lifts the field clear of the keys.
-  This is what the fast open-close-open was. Measured from a recording with
-  the numbers on screen, against the keyboard's painted position: on the
-  first slide the reported height was right to within a point at every
-  moment, and on the second it was a constant 29 points — one navigation
-  bar — too tall, from the first frame to the last, correcting itself the
-  instant the slide ended. Three fixes before this one were aimed at the
-  wrong number entirely.
+- **Whether the window reaches past the system bars is read from the
+  insets the content view is handed, never from how tall it happens to be**
+  (`MainActivity.contentNav`). A window that fits the bars has them taken
+  out of the insets before they reach its content view; one drawn edge to
+  edge does not. That reading does not move with `adjustResize`.
+  Working it out from the content view's height against the display's is
+  what four attempts at one bug came down to. `adjustResize` leaves that
+  view between its two heights for a while after the keys have gone; a
+  reading taken then says the window reaches the bottom of the display when
+  it does not, and once believed it was never contradicted, because on a
+  phone where the honest answer is "it does not" no measurement ever says
+  so out loud — the honest answer is the default. From then on the keyboard
+  was reported a navigation bar too tall and the field rode a bar above the
+  keys for the length of every slide. The user had it right before the
+  numbers did: it was never about doing it fast, it was about which button
+  closed the keyboard, because that is what decided when a poisoned reading
+  was taken.
+  Measured from a recording with the numbers on screen, against the
+  keyboard's painted position: on a good slide the app's figure was right
+  to within a point at every moment; on a bad one it was a constant 29
+  points — two of that phone's 14.9-point bars — too tall from the first
+  frame to the last.
 - **Long-pressing the Settings title puts the keyboard's numbers on screen**
   (`KeyboardGap.showNumbers`, drawn by `KeyboardNumbers` above the add
   field): the inset Flutter reports, what Android says, the strip the layout
-  reserves, and the lift the three of them come to. Four rounds went into
+  reserves, the lift the three of them come to, and on a second line the
+  raw figures Android was asked — the IME inset, the navigation bar, and
+  the offset below the window. Four rounds went into
   one keyboard bug on a phone that cannot be plugged into this machine,
   every one of them a guess at which number was lying. A recording of the
   fault with this on answers that in one go. Off by default, not stored.
