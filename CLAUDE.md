@@ -505,11 +505,37 @@ Changes here are judged by eye: take the screenshot and check it before saying
 it works. `adb shell input tap/swipe/text` drives it; the screen is 1080x1920
 at dpr 3 (360x640 logical).
 
-One thing that looks like a bug and is not:
+**A long press cannot be done with `input swipe`.** It interpolates from the
+first millisecond, so the press has moved past the touch slop long before the
+half-second a long press needs and the gesture is cancelled. Nothing that
+starts with a long press — picking a card up to drag it — can be driven that
+way. Use the event stream instead, where the latency between `adb` calls is
+itself the hold:
+
+```sh
+adb shell input motionevent DOWN 540 880
+sleep 1
+for y in 840 760 680 600; do adb shell input motionevent MOVE 540 $y; done
+adb shell input motionevent UP 540 600
+```
+
+Screenshot between the MOVEs to catch a gesture in flight — that is how the
+carried card was measured against the run it was supposed to stay inside.
+
+Three things that look like bugs and are not:
 
 - An ANR under load is usually host starvation (a Gradle daemon plus the
   emulator on 13GB), not a hang in the app. Check whether unrelated processes
   ANR'd in the same second before hunting for a layout loop.
+- **The emulator's keyboard has no slide.** It is simply there on one frame
+  and gone on the next, so nothing about how the add field rides it up can be
+  judged here — the inset arrives as a single lump every time. The way down
+  can be measured, because that is a single lump on real devices too.
+- **`screenrecord` drops frames**, and more of them the more the host is
+  doing. Frame-by-frame measurements off a recording show the *shape* of a
+  movement — whether it builds and decays, or jumps and catches — which is
+  enough to tell a spring from a teleport. They do not show whether it is
+  smooth. Say which of the two was checked.
 
 ## Conventions
 
