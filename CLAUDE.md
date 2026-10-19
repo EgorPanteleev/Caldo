@@ -652,6 +652,12 @@ adb shell monkey -p com.igor.caldo -c android.intent.category.LAUNCHER 1
 adb exec-out screencap -p > shot.png     # then look at it
 ```
 
+**The emulator always runs the latest commit.** After every change, build a
+release APK (`flutter build apk --release` — no version bump, no GitHub
+release) and `adb install -r` it, starting the emulator first if it is down.
+Releases only go out when asked for, so the emulator is where a change can be
+tried in between, and a stale one means judging a fix that is not there.
+
 Changes here are judged by eye: take the screenshot and check it before saying
 it works. `adb shell input tap/swipe/text` drives it; the screen is 1080x1920
 at **dpr 2.625** (411x731 logical) — `adb shell wm density` says 420, and the
