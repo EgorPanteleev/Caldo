@@ -123,7 +123,13 @@ class _UndoBar extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.undo_rounded, size: 19, color: accent),
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CustomPaint(
+                                painter: _UndoArrow(color: accent),
+                              ),
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Undo',
@@ -186,4 +192,43 @@ class AsShown extends StatelessWidget {
       builder: (context, _) => builder(context, provider.shown(task)),
     );
   }
+}
+
+/// The arrow beside Undo, drawn in the same round-ended stroke as the tick on
+/// the other end of the bar: a head pointing back, and a line that runs out
+/// and curls round under it. The stock icon was a filled hook of a different
+/// weight from everything else on the bar.
+class _UndoArrow extends CustomPainter {
+  final Color color;
+
+  const _UndoArrow({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Laid out on a 24-point square and scaled to whatever it is given.
+    final k = size.width / 24;
+    Offset at(double x, double y) => Offset(x * k, y * k);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4 * k
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final head = Path()
+      ..moveTo(at(9, 14).dx, at(9, 14).dy)
+      ..lineTo(at(4, 9).dx, at(4, 9).dy)
+      ..lineTo(at(9, 4).dx, at(9, 4).dy);
+    final radius = Radius.circular(5.5 * k);
+    final tail = Path()
+      ..moveTo(at(4, 9).dx, at(4, 9).dy)
+      ..lineTo(at(14.5, 9).dx, at(14.5, 9).dy)
+      ..arcToPoint(at(14.5, 20), radius: radius)
+      ..lineTo(at(11, 20).dx, at(11, 20).dy);
+    canvas
+      ..drawPath(head, paint)
+      ..drawPath(tail, paint);
+  }
+
+  @override
+  bool shouldRepaint(_UndoArrow old) => old.color != color;
 }

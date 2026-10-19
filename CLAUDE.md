@@ -174,7 +174,9 @@ Changing them back will be noticed.
   and gets no bar.
   The bar draws itself (`_UndoBar`): the add field's grey, lifted off the
   cards with a shadow, the same filled tick a done card wears beside the
-  task's name, a bold accent "↶ Undo", and a line along its foot that runs
+  task's name, a bold accent "↶ Undo" (the arrow drawn, `_UndoArrow`, in the tick's round-ended
+  stroke — the stock icon was a filled hook of another weight), and a line
+  along its foot that runs
   down over the four seconds. The stock snack bar was a flat slab with the
   action in a dim accent, which on a list of cards read as one more card —
   "make undo look better".
