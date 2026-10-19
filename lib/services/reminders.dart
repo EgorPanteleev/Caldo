@@ -47,6 +47,11 @@ class Reminders {
   List<Task> _last = const [];
   bool _synced = false;
 
+  /// The alarms this run of the app has set, by task id, each with what it
+  /// was set to say and when — so a sync only touches the ones that changed.
+  /// Null until the first sync, which clears whatever an earlier run left.
+  Map<int, String>? _standing;
+
   /// How far ahead reminders are set — the same window the agenda loads, since
   /// that is what they are set from. Android caps how many alarms one app may
   /// hold, and a task two months out does not need its alarm booked today:
@@ -132,33 +137,55 @@ class Reminders {
     if (_synced) await sync(_last);
   }
 
-  /// Replaces every alarm with one per task in [tasks] that is still to come.
+  /// Brings the alarms in line with [tasks]: one per task that is still to
+  /// come.
   ///
-  /// Everything is cancelled and re-set rather than diffed. The list is a
-  /// couple of dozen rows and this runs after a save, so the cost is nothing
-  /// next to being sure that an edited date, a completed task or a deleted one
-  /// cannot leave an alarm behind it.
+  /// The first sync cancels everything and sets the lot, since an earlier run
+  /// of the app may have left alarms behind. After that only what changed is
+  /// cancelled or set. Re-setting all of them used to run on every tick, and
+  /// the plugin rewrites its whole store of alarms for each one it sets, all
+  /// on the platform's main thread — which is where frames come from, so the
+  /// card sliding into place after a tick stuttered through it.
   Future<void> sync(List<Task> tasks) async {
     if (!_ready) return;
     _last = tasks;
     _synced = true;
     try {
-      await _plugin.cancelAll();
-      if (!_enabled) return;
-
-      final now = DateTime.now();
-      final until = now.add(_horizon);
-      final due = <(DateTime, Task)>[];
-      for (final task in tasks) {
-        final at = whenToAnnounce(task, _allDayMinutes);
-        if (at == null || at.isBefore(now) || at.isAfter(until)) continue;
-        due.add((at, task));
+      final wanted = <int, (DateTime, Task, String)>{};
+      if (_enabled) {
+        final now = DateTime.now();
+        final until = now.add(_horizon);
+        final due = <(DateTime, Task)>[];
+        for (final task in tasks) {
+          final at = whenToAnnounce(task, _allDayMinutes);
+          if (at == null || at.isBefore(now) || at.isAfter(until)) continue;
+          due.add((at, task));
+        }
+        due.sort((a, b) => a.$1.compareTo(b.$1));
+        for (final (at, task) in due.take(_limit)) {
+          final body = _body(task);
+          wanted[task.id!] = (
+            at,
+            task,
+            '${at.toIso8601String()}|${task.title}|$body|$_exact',
+          );
+        }
       }
-      due.sort((a, b) => a.$1.compareTo(b.$1));
 
-      for (final (at, task) in due.take(_limit)) {
+      var standing = _standing;
+      if (standing == null) {
+        await _plugin.cancelAll();
+        standing = _standing = {};
+      }
+      for (final id in [...standing.keys]) {
+        if (wanted[id]?.$3 == standing[id]) continue;
+        await _plugin.cancel(id: id);
+        standing.remove(id);
+      }
+      for (final MapEntry(key: id, value: (at, task, said)) in wanted.entries) {
+        if (standing[id] == said) continue;
         await _plugin.zonedSchedule(
-          id: task.id!,
+          id: id,
           scheduledDate: tz.TZDateTime.from(at, tz.local),
           title: task.title,
           body: _body(task),
@@ -176,8 +203,11 @@ class Reminders {
               ? AndroidScheduleMode.exactAllowWhileIdle
               : AndroidScheduleMode.inexactAllowWhileIdle,
         );
+        standing[id] = said;
       }
     } catch (error, stack) {
+      // Whatever is standing is no longer known for sure; start over next time.
+      _standing = null;
       debugPrint('Could not set reminders: $error\n$stack');
     }
   }

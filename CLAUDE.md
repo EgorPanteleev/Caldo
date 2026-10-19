@@ -143,15 +143,21 @@ Changing them back will be noticed.
   taken away if it is leaving** (`CheckMark`, `TaskProvider.settle`/`linger`/
   `leave`, `TaskCard.ticking`/`leaving`, `TaskProvider.isTicking`/`isLeaving`).
   The tick answers the tap: the square fills and the stroke runs through it
-  (240ms). 400ms after that the card is crossed out and its ink sinks — the
+  (240ms). 250ms after that the card is crossed out and its ink sinks — the
   same moment a card that is leaving its run starts to go — and a card
   leaves only if its task will not be in that run once it is read back: a
   done task leaves the overdue backlog, since it is not overdue any more,
   and a repeating one rolls on to its next date and leaves every run. Those
   fade over the first half of 280ms while the gap they leave closes over the
-  whole. Everything else is crossed out in place and then **slides** to the
-  end of its day as the run is read back (`SlideIntoPlace`, 320ms), with the
-  cards below it rising into the gap. Three rounds got here: the card used
+  whole. Everything else is crossed out in place, holds there 150ms
+  (`TaskProvider.hold`), and then **slides** to the end of its day as the
+  run is read back (`SlideIntoPlace`, 260ms), with the cards below it rising
+  into the gap — under a second from tap to rest, after "make it faster".
+  Schedule and Calendar must play this the same way: Schedule's days were
+  once re-sorted on every build (`upcomingByDay` as a getter), so a ticked
+  task there jumped to the end the instant it was marked done, while the
+  calendar waited. The grouping is now made once per load and marked in
+  place like the rest. Three rounds got here: the card used
   to leave the instant the tick was drawn ("disappears too fast"), then every
   ticked card faded out — including ones the reload put straight back at the
   end of the day, which was a card disappearing and reappearing ("it's
@@ -559,8 +565,14 @@ Changing them back will be noticed.
 - **A dated task gets a notification, and the alarms are rebuilt from the
   agenda rather than kept in step by hand** (`services/reminders.dart`). Every
   path that changes a task ends in `TaskProvider.loadTasks`, so that is where
-  the whole set is cancelled and re-set: an edited date, a tick, a deletion
-  cannot leave an alarm behind. A timed task is announced at its own time, an
+  the alarms are brought back in line: an edited date, a tick, a deletion
+  cannot leave an alarm behind. The first sync of a run cancels everything
+  and sets the lot; after that only alarms whose time, title or text changed
+  are cancelled or set (`Reminders._standing`), and the sync runs after the
+  lists have been put on screen. Re-setting all of them on every tick ran on
+  Android's main thread — where frames come from — while the ticked card was
+  sliding, and the plugin rewrites its whole stored list per alarm; it was
+  reported as the slide being "a little bit laggy". A timed task is announced at its own time, an
   all-day one at the hour Settings names (nine by default, since midnight is
   the one hour nobody wants to hear about it) — including one due today, as
   long as that hour has not already gone by.

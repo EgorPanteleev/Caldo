@@ -66,6 +66,9 @@ void main() {
       expect(p.isLeaving(first), isFalse);
       expect(titles(p).first, first.title);
       expect(rearranged, 0);
+      // Schedule too: its days were sorted afresh on every build, so there
+      // the task went to the end the moment it was ticked.
+      expect(p.upcomingByDay[day]!.first.title, first.title);
 
       // Then the run is read back with it at the end, under the ones still to
       // do — and the cards are told first, so they can slide there rather than
@@ -74,6 +77,7 @@ void main() {
       expect(rearranged, 1);
       expect(titles(p).last, first.title);
       expect(p.tasksForDay(day).last.done, isTrue);
+      expect(p.upcomingByDay[day]!.last.title, first.title);
     },
   );
 

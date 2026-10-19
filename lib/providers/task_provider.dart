@@ -35,6 +35,12 @@ class TaskProvider extends ChangeNotifier {
   /// is visible), backing the Tasks screen and the calendar.
   List<Task> _upcoming = [];
 
+  /// [_upcoming] grouped into days, sorted once when it is read in. Sorting
+  /// it again on every build put a ticked task at the end of its day on
+  /// Schedule the moment it was marked done — before it was crossed out, and
+  /// with nothing to slide it there.
+  Map<DateTime, List<Task>> _upcomingByDay = {};
+
   /// Tasks with no due date, listed after the dated ones.
   List<Task> _undated = [];
 
@@ -175,16 +181,20 @@ class TaskProvider extends ChangeNotifier {
       to.millisecondsSinceEpoch,
     );
     _undated = await _db.getUndated();
+    _upcomingByDay = _groupByDay(_upcoming);
+    notifyListeners();
     // Every path that changes a task ends here, which makes this the one place
     // the alarms have to be put back in step — an edited date, a tick, a
     // deletion. They are set from what is already loaded rather than from a
-    // query of their own, so the reminder horizon is the agenda's.
+    // query of their own, so the reminder horizon is the agenda's. They are
+    // set after the notify rather than before it: alarms are set on the
+    // platform's main thread, which is also the one that hands out frames, and
+    // the lists should be on screen — their cards sliding — first.
     await Reminders.instance.sync(_upcoming);
-    notifyListeners();
   }
 
   /// The dated tasks grouped into days, ordered soonest first.
-  Map<DateTime, List<Task>> get upcomingByDay => _groupByDay(_upcoming);
+  Map<DateTime, List<Task>> get upcomingByDay => _upcomingByDay;
 
   Map<DateTime, List<Task>> _groupByDay(List<Task> tasks) {
     final map = <DateTime, List<Task>>{};
@@ -249,7 +259,12 @@ class TaskProvider extends ChangeNotifier {
   /// the answer to the tap; being crossed out and leaving are what follow
   /// from it, and they follow a beat later so the tap is seen to have been
   /// taken before the card changes underneath it.
-  static const linger = Duration(milliseconds: 400);
+  static const linger = Duration(milliseconds: 250);
+
+  /// How long a crossed-out card that is staying in its run holds still
+  /// before the run is read back and it slides to the end of its day — long
+  /// enough to be seen crossed out where it was.
+  static const hold = Duration(milliseconds: 150);
 
   /// How long a leaving card takes to fade and close up the gap it leaves.
   /// Matched to the card's own (`TaskCard`).
@@ -352,7 +367,11 @@ class TaskProvider extends ChangeNotifier {
       _ticking.remove(id);
       _settled.add(id);
       notifyListeners();
-      await Future<void>.delayed(leave);
+      // A card that is leaving fades out first; one that is staying only has
+      // to be seen crossed out before it moves.
+      await Future<void>.delayed(
+        rolls || _overdue.any((t) => t.id == id) ? leave : hold,
+      );
       _settled.remove(id);
       _rolling.remove(id);
     }
@@ -390,6 +409,10 @@ class TaskProvider extends ChangeNotifier {
     _tasks = marked(_tasks);
     _overdue = marked(_overdue);
     _upcoming = marked(_upcoming);
+    _upcomingByDay = {
+      for (final entry in _upcomingByDay.entries)
+        entry.key: marked(entry.value),
+    };
     _undated = marked(_undated);
     _byDay = {
       for (final entry in _byDay.entries) entry.key: marked(entry.value),

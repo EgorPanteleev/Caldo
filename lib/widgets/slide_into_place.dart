@@ -35,7 +35,7 @@ class SlideIntoPlace extends StatefulWidget {
   });
 
   /// How long a card takes to slide into its new place.
-  static const duration = Duration(milliseconds: 320);
+  static const duration = Duration(milliseconds: 260);
 
   @override
   State<SlideIntoPlace> createState() => _SlideIntoPlaceState();
