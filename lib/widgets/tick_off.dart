@@ -43,3 +43,24 @@ void tickOff(BuildContext context, Task task) {
       ),
     );
 }
+
+/// Builds a task's card from [task] as it is shown right now
+/// (`TaskProvider.shown`), and again whenever a tick moves on.
+///
+/// The card listens to the tick rather than to the provider, so drawing a
+/// tick or crossing a card out rebuilds that card and nothing around it.
+class AsShown extends StatelessWidget {
+  final Task task;
+  final Widget Function(BuildContext context, Task task) builder;
+
+  const AsShown({super.key, required this.task, required this.builder});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.read<TaskProvider>();
+    return ListenableBuilder(
+      listenable: provider.ticked,
+      builder: (context, _) => builder(context, provider.shown(task)),
+    );
+  }
+}

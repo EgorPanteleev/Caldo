@@ -153,6 +153,11 @@ class TaskProvider extends ChangeNotifier {
   /// Loads the dated tasks of the month containing [date] (plus a little
   /// padding, so days of adjacent months shown in the grid are populated too).
   Future<void> loadMonth(DateTime date) async {
+    await _readMonth(date);
+    notifyListeners();
+  }
+
+  Future<void> _readMonth(DateTime date) async {
     _month = DateTime(date.year, date.month);
     final from = _month.subtract(const Duration(days: 7));
     final to = DateTime(
@@ -164,7 +169,6 @@ class TaskProvider extends ChangeNotifier {
       to.millisecondsSinceEpoch,
     );
     _byDay = _groupByDay(tasks);
-    notifyListeners();
   }
 
   /// Tasks due on [day], open ones first.
@@ -173,25 +177,37 @@ class TaskProvider extends ChangeNotifier {
   /// Loads what the Tasks screen shows: the overdue backlog, the next
   /// [agendaDays] days of dated tasks, and everything with no date.
   Future<void> loadTasks() async {
+    await _readAgenda();
+    notifyListeners();
+    await _syncReminders();
+  }
+
+  /// Reads the agenda in whole before any of it is put in place, so nothing
+  /// that rebuilds in between sees a backlog from after a change beside days
+  /// from before it.
+  Future<void> _readAgenda() async {
     final today = dayOf(DateTime.now());
     final to = today.add(const Duration(days: agendaDays));
-    _overdue = await _db.getOverdue(today.millisecondsSinceEpoch);
-    _upcoming = await _db.getTasksInRange(
+    final overdue = await _db.getOverdue(today.millisecondsSinceEpoch);
+    final upcoming = await _db.getTasksInRange(
       today.millisecondsSinceEpoch,
       to.millisecondsSinceEpoch,
     );
-    _undated = await _db.getUndated();
-    _upcomingByDay = _groupByDay(_upcoming);
-    notifyListeners();
-    // Every path that changes a task ends here, which makes this the one place
-    // the alarms have to be put back in step — an edited date, a tick, a
-    // deletion. They are set from what is already loaded rather than from a
-    // query of their own, so the reminder horizon is the agenda's. They are
-    // set after the notify rather than before it: alarms are set on the
-    // platform's main thread, which is also the one that hands out frames, and
-    // the lists should be on screen — their cards sliding — first.
-    await Reminders.instance.sync(_upcoming);
+    final undated = await _db.getUndated();
+    _overdue = overdue;
+    _upcoming = upcoming;
+    _undated = undated;
+    _upcomingByDay = _groupByDay(upcoming);
   }
+
+  /// Every path that changes a task ends in a read of the agenda, which makes
+  /// that the one place the alarms have to be put back in step — an edited
+  /// date, a tick, a deletion. They are set from what is already loaded rather
+  /// than from a query of their own, so the reminder horizon is the agenda's,
+  /// and after the notify rather than before it: alarms are set on the
+  /// platform's main thread, which is also the one that hands out frames, and
+  /// the lists should be on screen — their cards sliding — first.
+  Future<void> _syncReminders() => Reminders.instance.sync(_upcoming);
 
   /// The dated tasks grouped into days, ordered soonest first.
   Map<DateTime, List<Task>> get upcomingByDay => _upcomingByDay;
@@ -277,6 +293,31 @@ class TaskProvider extends ChangeNotifier {
   /// rather than the card vanishing from one place and turning up in another.
   final ValueNotifier<int> rearranging = ValueNotifier<int>(0);
 
+  /// Fires as a tick plays out — drawn, crossed out, taken back — which is
+  /// what a card listens to (`AsShown`) rather than to this provider.
+  ///
+  /// Only the card being ticked changes in those moments, and a notify from
+  /// here rebuilds both screens, the calendar's whole month and pager among
+  /// them: measured at 9–14ms a frame on the emulator, past the 8ms a 120Hz
+  /// phone has, at the very frame each step of the tick starts on. The lists
+  /// are read back, and this provider notifies, once the tick is over.
+  final ValueNotifier<int> ticked = ValueNotifier<int>(0);
+
+  /// Tasks shown done, or not, ahead of the lists being read back.
+  final Map<int, bool> _shownDone = {};
+
+  /// [task] as it should be drawn right now: ticked the moment it was tapped,
+  /// although the list it came from is only read back once the tick is over.
+  Task shown(Task task) {
+    final done = _shownDone[task.id];
+    if (done == null || done == task.done) return task;
+    return task.copyWith(
+      done: done,
+      completedAt: done ? DateTime.now().millisecondsSinceEpoch : null,
+      clearCompletedAt: !done,
+    );
+  }
+
   /// Tasks whose tick has been drawn and that are not yet crossed out.
   final Set<int> _ticking = {};
 
@@ -347,26 +388,25 @@ class TaskProvider extends ChangeNotifier {
     // what was written is its next date: it is being done today, and that
     // is what the tap should be seen to do.
     final done = rolls || !task.done;
-    _showAsDone(task, done);
+    if (id != null) _shownDone[id] = done;
 
     if (!done) {
-      notifyListeners();
+      ticked.value++;
       await Future<void>.delayed(settle);
-      rearranging.value++;
-      await _reloadAll();
+      await _readBack(id, tick);
       return;
     }
     if (id != null) {
       _ticking.add(id);
       if (rolls) _rolling.add(id);
     }
-    notifyListeners();
+    ticked.value++;
 
     await Future<void>.delayed(settle + linger);
     if (id != null && _ticks[id] == tick) {
       _ticking.remove(id);
       _settled.add(id);
-      notifyListeners();
+      ticked.value++;
       // A card that is leaving fades out first; one that is staying only has
       // to be seen crossed out before it moves.
       await Future<void>.delayed(
@@ -375,8 +415,17 @@ class TaskProvider extends ChangeNotifier {
       _settled.remove(id);
       _rolling.remove(id);
     }
+    await _readBack(id, tick);
+  }
+
+  /// Reads the lists back once a tick on [id] is over, with the cards told
+  /// first so they can slide to their new places. What the card was shown
+  /// as is dropped only by the latest tick on it, and only once the lists
+  /// say the same.
+  Future<void> _readBack(int? id, int tick) async {
     rearranging.value++;
     await _reloadAll();
+    if (id != null && _ticks[id] == tick) _shownDone.remove(id);
   }
 
   /// Puts [original] back exactly as it was before it was ticked — not
@@ -390,33 +439,11 @@ class TaskProvider extends ChangeNotifier {
     _ticking.remove(id);
     _settled.remove(id);
     _rolling.remove(id);
+    _shownDone.remove(id);
+    ticked.value++;
     await _db.update(original);
     rearranging.value++;
     await _reloadAll();
-  }
-
-  /// Marks the copies of [task] already on screen done or not, in place, so
-  /// the card it is drawn on can animate without moving.
-  void _showAsDone(Task task, bool done) {
-    Task mark(Task t) => t.id == task.id
-        ? t.copyWith(
-            done: done,
-            completedAt: done ? DateTime.now().millisecondsSinceEpoch : null,
-            clearCompletedAt: !done,
-          )
-        : t;
-    List<Task> marked(List<Task> run) => [for (final t in run) mark(t)];
-    _tasks = marked(_tasks);
-    _overdue = marked(_overdue);
-    _upcoming = marked(_upcoming);
-    _upcomingByDay = {
-      for (final entry in _upcomingByDay.entries)
-        entry.key: marked(entry.value),
-    };
-    _undated = marked(_undated);
-    _byDay = {
-      for (final entry in _byDay.entries) entry.key: marked(entry.value),
-    };
   }
 
   /// Writes the order a run of tasks was dragged into — the whole run, in the
@@ -448,7 +475,12 @@ class TaskProvider extends ChangeNotifier {
         includeDone: _showCompleted,
       );
     }
-    await loadMonth(_month);
-    await loadTasks();
+    // One notify for the lot. It was one for the month and another for the
+    // agenda, three queries later — each a rebuild of both screens, and on a
+    // phone the second one landed a frame or two into the slide it started.
+    await _readMonth(_month);
+    await _readAgenda();
+    notifyListeners();
+    await _syncReminders();
   }
 }

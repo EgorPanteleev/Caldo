@@ -53,9 +53,12 @@ void main() {
       final ticking = p.toggleDone(first);
       await Future<void>.delayed(const Duration(milliseconds: 40));
 
-      // Ticked at once, where it stands — but not crossed out yet.
+      // Ticked at once, where it stands — but not crossed out yet. Shown as
+      // done rather than read back as done: the lists are only read again
+      // once the tick is over, so that drawing it rebuilds the card alone.
       expect(titles(p).first, first.title);
-      expect(p.tasksForDay(day).first.done, isTrue);
+      expect(p.tasksForDay(day).first.done, isFalse);
+      expect(p.shown(p.tasksForDay(day).first).done, isTrue);
       expect(p.isTicking(first), isTrue);
 
       // A beat later it is crossed out, still in place, and not fading: a day's
@@ -127,6 +130,7 @@ void main() {
     await ticking;
     expect(titles(p).first, first.title);
     expect(p.tasksForDay(day).first.done, isFalse);
+    expect(p.shown(p.tasksForDay(day).first).done, isFalse);
     expect(p.isTicking(first), isFalse);
   });
 

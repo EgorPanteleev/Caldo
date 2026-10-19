@@ -101,15 +101,18 @@ class _TasksScreenState extends State<TasksScreen> {
       scope: 'schedule',
       id: task.id ?? task,
       trigger: provider.rearranging,
-      child: TaskCard(
+      child: AsShown(
         task: task,
-        list: provider.listById(task.listId),
-        onTap: () => _openEditor(task),
-        onToggle: () => tickOff(context, task),
-        ticking: provider.isTicking(task),
-        leaving: provider.isLeaving(
-          task,
-          fromOverdue: overdueIds.contains(task.id),
+        builder: (context, shown) => TaskCard(
+          task: shown,
+          list: provider.listById(task.listId),
+          onTap: () => _openEditor(task),
+          onToggle: () => tickOff(context, shown),
+          ticking: provider.isTicking(task),
+          leaving: provider.isLeaving(
+            task,
+            fromOverdue: overdueIds.contains(task.id),
+          ),
         ),
       ),
     );

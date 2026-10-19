@@ -8,6 +8,7 @@ import '../models/task.dart';
 import '../models/task_list.dart';
 import 'slide_into_place.dart';
 import 'task_card.dart';
+import 'tick_off.dart';
 
 /// One day's holidays and tasks, with the tasks draggable into an order of
 /// the user's own.
@@ -322,13 +323,16 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
                 scope: w.scope,
                 id: task.id ?? task,
                 trigger: w.rearranging ?? const _Never(),
-                child: TaskCard(
+                child: AsShown(
                   task: task,
-                  list: w.listOf(task),
-                  onTap: () => w.onOpen(task),
-                  onToggle: () => w.onToggle(task),
-                  ticking: w.isTicking?.call(task) ?? false,
-                  leaving: w.isLeaving?.call(task) ?? false,
+                  builder: (context, shown) => TaskCard(
+                    task: shown,
+                    list: w.listOf(task),
+                    onTap: () => w.onOpen(task),
+                    onToggle: () => w.onToggle(shown),
+                    ticking: w.isTicking?.call(task) ?? false,
+                    leaving: w.isLeaving?.call(task) ?? false,
+                  ),
                 ),
               ),
             );

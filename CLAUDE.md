@@ -179,6 +179,27 @@ Changing them back will be noticed.
   back at its old place and eased to the new one. Notes are keyed by
   (screen, task id): a reorderable list hands card state to a different task
   when it reorders, and Schedule and Calendar are both alive under the menu.
+  **The move is found while the card is painted** (`_RenderSlide`), in the
+  frame that lays out the new order. Found after the frame, as it first was,
+  that frame had already gone out with every card at its destination, and
+  the slide began by jumping back — a stutter at the start of every one.
+  Painting is the earliest the new place is known, and a card that has only
+  moved is not repainted on its own (the list's repaint boundary just shifts
+  it), so a rebuild marks it for paint.
+- **A tick does not rebuild the screens; only the read-back after it does**
+  (`TaskProvider.ticked`, `shown`, `AsShown`). A notify from the provider
+  rebuilds both screens, the calendar's month and pager among them, and the
+  tick used to send one when it was drawn and another when it was crossed
+  out: measured on the emulator with frame timings logged from a release
+  build, those frames took 9–14ms to build, past the 8ms a 120Hz phone has,
+  at the very frame each step started on — reported as "laggy". The cards
+  listen to `ticked` instead and draw a task as `shown` says, and the lists
+  are read back, with one notify for month and agenda together, once the
+  tick is over. That read-back is the one heavy frame left (8–10ms on the
+  emulator), and it lands before the slide moves anything. Settings and the
+  menu `select` the one value each wants rather than watching the provider:
+  Settings, hidden in the stack, was being rebuilt in whole on every change
+  to any task.
 - **The three screens live behind a menu button, not a bottom bar.** The
   hamburger sits at the top left of each of them and carries a dot when
   something is overdue — the one thing worth pulling the user back to a screen
@@ -622,7 +643,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 105 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 106 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

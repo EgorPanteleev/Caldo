@@ -5,6 +5,7 @@ import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/tick_off.dart';
 import '../widgets/gradient_icon_button.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/selection_bar.dart';
@@ -233,15 +234,18 @@ class _TaskListScreenState extends State<TaskListScreen> {
                         padding: const EdgeInsets.only(bottom: 90),
                         children: [
                           for (final task in open)
-                            TaskRow(
+                            AsShown(
                               task: task,
-                              list: list,
-                              selected: _selected.contains(task.id),
-                              onTap: () => selecting
-                                  ? _toggle(task.id!)
-                                  : _openEditor(task),
-                              onLongPress: () => _toggle(task.id!),
-                              onToggle: () => provider.toggleDone(task),
+                              builder: (context, shown) => TaskRow(
+                                task: shown,
+                                list: list,
+                                selected: _selected.contains(task.id),
+                                onTap: () => selecting
+                                    ? _toggle(task.id!)
+                                    : _openEditor(task),
+                                onLongPress: () => _toggle(task.id!),
+                                onToggle: () => provider.toggleDone(task),
+                              ),
                             ),
                           if (done.isNotEmpty)
                             Padding(
@@ -249,15 +253,18 @@ class _TaskListScreenState extends State<TaskListScreen> {
                               child: SectionLabel('COMPLETED · ${done.length}'),
                             ),
                           for (final task in done)
-                            TaskRow(
+                            AsShown(
                               task: task,
-                              list: list,
-                              selected: _selected.contains(task.id),
-                              onTap: () => selecting
-                                  ? _toggle(task.id!)
-                                  : _openEditor(task),
-                              onLongPress: () => _toggle(task.id!),
-                              onToggle: () => provider.toggleDone(task),
+                              builder: (context, shown) => TaskRow(
+                                task: shown,
+                                list: list,
+                                selected: _selected.contains(task.id),
+                                onTap: () => selecting
+                                    ? _toggle(task.id!)
+                                    : _openEditor(task),
+                                onLongPress: () => _toggle(task.id!),
+                                onToggle: () => provider.toggleDone(task),
+                              ),
                             ),
                         ],
                       ),

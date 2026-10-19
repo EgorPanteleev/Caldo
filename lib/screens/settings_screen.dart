@@ -204,12 +204,13 @@ class SettingsScreen extends StatelessWidget {
                     value: settings.defaultTaskStyleId,
                     // The link swatch means "whatever list it goes into", so
                     // it shows the colour of the list a new task lands in.
+                    // Selected rather than watched: watching the provider
+                    // rebuilt all of Settings, hidden in the stack, on every
+                    // change to any task.
                     listColor:
-                        context
-                            .watch<TaskProvider>()
-                            .lists
-                            .map((l) => l.style.color)
-                            .firstOrNull ??
+                        context.select<TaskProvider, Color?>(
+                          (p) => p.lists.map((l) => l.style.color).firstOrNull,
+                        ) ??
                         AppTheme.accentOf(context).color,
                     onChanged: (v) => context.read<SettingsProvider>().update(
                       defaultTaskStyleId: v,
