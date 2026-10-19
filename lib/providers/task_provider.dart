@@ -446,6 +446,41 @@ class TaskProvider extends ChangeNotifier {
     await _reloadAll();
   }
 
+  /// Moves [task] to [day] — or off the calendar, when null — keeping the
+  /// time of day it had.
+  ///
+  /// With [among], the run it was dropped into in its new order, that order
+  /// is written for the whole run, the moved task included. Without, the
+  /// task lets go of the place it had in its old day and goes after whatever
+  /// the new one already has arranged, the way a task added to it would.
+  Future<void> moveToDay(Task task, DateTime? day, {List<Task>? among}) async {
+    final due = task.due;
+    final Task moved;
+    if (day == null) {
+      moved = task.copyWith(
+        clearDueAt: true,
+        hasTime: false,
+        clearSortOrder: true,
+      );
+    } else {
+      final at = task.hasTime && due != null
+          ? DateTime(day.year, day.month, day.day, due.hour, due.minute)
+          : dayOf(day);
+      moved = task.copyWith(
+        dueAt: at.millisecondsSinceEpoch,
+        clearSortOrder: true,
+      );
+    }
+    await _db.update(moved);
+    final ids = [
+      for (final t in among ?? const <Task>[])
+        if (t.id != null) t.id!,
+    ];
+    if (ids.length > 1) await _db.setOrder(ids);
+    rearranging.value++;
+    await _reloadAll();
+  }
+
   /// Writes the order a run of tasks was dragged into — the whole run, in the
   /// order it now reads, not just the one that moved.
   Future<void> reorder(List<Task> ordered) async {

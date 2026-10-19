@@ -18,6 +18,7 @@ import 'package:caldo/widgets/task_card.dart';
 import 'package:caldo/widgets/task_row.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -654,6 +655,111 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  /// Pumps [screen] over a provider that records a move rather than making
+  /// it, seeded for real first.
+  Future<_CapturingProvider> pumpCapturing(
+    WidgetTester tester,
+    Widget screen,
+  ) async {
+    late _CapturingProvider provider;
+    await tester.runAsync(() async {
+      await seedProvider();
+      provider = _CapturingProvider();
+      await provider.loadLists();
+      await provider.loadMonth(DateTime.now());
+      await provider.loadTasks();
+    });
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: screen,
+        ),
+      ),
+    );
+    await tester.pump();
+    return provider;
+  }
+
+  /// Picks a card up the way a finger does — held, then moved — and lets it
+  /// go at [to].
+  Future<void> carry(WidgetTester tester, Offset from, Offset to) async {
+    final finger = await tester.startGesture(from);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    for (var i = 1; i <= 10; i++) {
+      await finger.moveTo(Offset.lerp(from, to, i / 10)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await finger.up();
+    await tester.pump();
+  }
+
+  testWidgets('a card carried into another run moves to its day', (
+    tester,
+  ) async {
+    final provider = await pumpCapturing(tester, const TasksScreen());
+
+    // Today's timed task, let go over the undated one.
+    await carry(
+      tester,
+      tester.getCenter(find.text('Ship')),
+      tester.getCenter(find.text('Someday idea')) + const Offset(0, 20),
+    );
+    await tester.pumpAndSettle();
+
+    expect(provider.moved?.title, 'Ship');
+    expect(provider.movedTo, isNull, reason: 'No date has no date');
+    // Below the middle of the card it was let go on, so after it.
+    expect(
+      [for (final t in provider.movedAmong!) t.title],
+      ['Someday idea', 'Ship'],
+    );
+  });
+
+  testWidgets('a card let go inside its own run is only reordered', (
+    tester,
+  ) async {
+    final provider = await pumpCapturing(tester, const TasksScreen());
+    final ship = tester.getCenter(find.text('Ship'));
+    await carry(tester, ship, ship + const Offset(0, 30));
+    await tester.pumpAndSettle();
+    expect(provider.moved, isNull);
+  });
+
+  testWidgets('a card carried up onto the month moves to that day', (
+    tester,
+  ) async {
+    final provider = await pumpCapturing(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    // A day in the same month as today, so it is on the grid on show.
+    final other = today.day > 1
+        ? today.subtract(const Duration(days: 1))
+        : today.add(const Duration(days: 1));
+
+    final grid = tester.getRect(find.byType(MonthGrid));
+    final layout = MonthLayout(
+      month: DateTime(today.year, today.month),
+      mondayFirst: true,
+      selected: today,
+      weekCollapse: 0,
+      size: grid.size,
+    );
+    final cell = layout.rectOf(other)!.shift(grid.topLeft);
+
+    await carry(tester, tester.getCenter(find.text('Ship')), cell.center);
+    await tester.pumpAndSettle();
+
+    expect(provider.moved?.title, 'Ship');
+    expect(provider.movedTo, other);
+  });
+
   testWidgets('search finds a task in any list by title or notes', (
     tester,
   ) async {
@@ -863,4 +969,15 @@ class _CapturingProvider extends TaskProvider {
 
   @override
   Future<void> restore(Task original) async => restored = original;
+
+  Task? moved;
+  DateTime? movedTo;
+  List<Task>? movedAmong;
+
+  @override
+  Future<void> moveToDay(Task task, DateTime? day, {List<Task>? among}) async {
+    moved = task;
+    movedTo = day;
+    movedAmong = among;
+  }
 }

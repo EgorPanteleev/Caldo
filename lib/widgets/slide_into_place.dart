@@ -38,6 +38,14 @@ class SlideIntoPlace extends StatefulWidget {
   /// How long a card takes to slide into its new place.
   static const duration = Duration(milliseconds: 260);
 
+  /// The card standing for task [id] in list [scope], if it is built — for
+  /// working out where among them a carried card is being put down.
+  static RenderBox? boxOf(String scope, Object id) {
+    final state = _SlideIntoPlaceState._built[(scope, id)];
+    final box = state?.context.findRenderObject() as RenderBox?;
+    return box != null && box.attached && box.hasSize ? box : null;
+  }
+
   @override
   State<SlideIntoPlace> createState() => _SlideIntoPlaceState();
 }
@@ -49,6 +57,8 @@ class _SlideIntoPlaceState extends State<SlideIntoPlace>
   /// that never moved its card, and is dropped rather than replayed later.
   static final Map<(String, Object), ({double y, DateTime at})> _stood = {};
   static const _stale = Duration(milliseconds: 900);
+
+  static final Map<(String, Object), _SlideIntoPlaceState> _built = {};
 
   late final AnimationController _slide = AnimationController(
     vsync: this,
@@ -70,6 +80,7 @@ class _SlideIntoPlaceState extends State<SlideIntoPlace>
   void initState() {
     super.initState();
     widget.trigger.addListener(_note);
+    _built[_key] = this;
   }
 
   @override
@@ -85,10 +96,16 @@ class _SlideIntoPlaceState extends State<SlideIntoPlace>
       old.trigger.removeListener(_note);
       widget.trigger.addListener(_note);
     }
+    final was = (old.scope, old.id);
+    if (was != _key) {
+      if (_built[was] == this) _built.remove(was);
+      _built[_key] = this;
+    }
   }
 
   @override
   void dispose() {
+    if (_built[_key] == this) _built.remove(_key);
     widget.trigger.removeListener(_note);
     _slide.dispose();
     super.dispose();

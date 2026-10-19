@@ -67,6 +67,83 @@ class WeekdayRow extends StatelessWidget {
   }
 }
 
+/// Where the days of a [MonthGrid] fall inside it, for a grid of [size].
+///
+/// The grid lays itself out from this, and so does anything that has to find
+/// a day in it from a point on the screen — a task card carried over the
+/// month — so the two cannot come apart.
+class MonthLayout {
+  final DateTime month;
+  final bool mondayFirst;
+  final DateTime? selected;
+  final double weekCollapse;
+  final Size size;
+
+  /// The grid's inset from its own edges, either side.
+  static const inset = 8.0;
+
+  MonthLayout({
+    required this.month,
+    required this.mondayFirst,
+    required this.selected,
+    required this.weekCollapse,
+    required this.size,
+  });
+
+  late final DateTime first = DateTime(month.year, month.month);
+
+  // Sunday is weekday 7 in Dart, so it needs folding back to column 0.
+  late final int lead = mondayFirst ? first.weekday - 1 : first.weekday % 7;
+
+  late final int rows =
+      ((lead + DateTime(month.year, month.month + 1, 0).day) / 7).ceil();
+
+  /// The row holding the selected day — the one that stays when the grid is
+  /// squeezed down to a single week.
+  late final int selectedRow = () {
+    final index = selected == null
+        ? -1
+        : selected!.difference(first.subtract(Duration(days: lead))).inDays;
+    return index >= 0 && index < rows * 7 ? index ~/ 7 : 0;
+  }();
+
+  // Squeezing the month down to a week slides the whole grid past a
+  // shrinking window instead of squashing the rows, so the row height is
+  // read back out of the window's: at rest that is a rows-th of it, and at
+  // the end of the collapse the whole of it.
+  late final double rowHeight =
+      size.height / (rows - weekCollapse * (rows - 1));
+
+  /// How far the rows have slid up past the top of the window.
+  late final double travel = selectedRow * rowHeight * weekCollapse;
+
+  double get _cellWidth => (size.width - 2 * inset) / 7;
+
+  DateTime dayOfCell(int row, int col) =>
+      first.add(Duration(days: row * 7 + col - lead));
+
+  /// The day under [local], a point in the grid's own box.
+  DateTime? dayAt(Offset local) {
+    if (local.dy < 0 || local.dy >= size.height) return null;
+    final col = ((local.dx - inset) / _cellWidth).floor();
+    final row = ((local.dy + travel) / rowHeight).floor();
+    if (col < 0 || col > 6 || row < 0 || row >= rows) return null;
+    return dayOfCell(row, col);
+  }
+
+  /// [day]'s cell, in the grid's own box.
+  Rect? rectOf(DateTime day) {
+    final index = dayOf(day).difference(dayOfCell(0, 0)).inDays;
+    if (index < 0 || index >= rows * 7) return null;
+    return Rect.fromLTWH(
+      inset + (index % 7) * _cellWidth,
+      (index ~/ 7) * rowHeight - travel,
+      _cellWidth,
+      rowHeight,
+    );
+  }
+}
+
 /// One month of day cells. Shared by the Calendar tab and the date picker, so
 /// picking a date looks exactly like reading the calendar.
 class MonthGrid extends StatelessWidget {
@@ -115,41 +192,29 @@ class MonthGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final first = DateTime(month.year, month.month);
-    // Sunday is weekday 7 in Dart, so it needs folding back to column 0.
-    final lead = mondayFirst ? first.weekday - 1 : first.weekday % 7;
-    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
-    final rows = ((lead + daysInMonth) / 7).ceil();
     final today = dayOf(DateTime.now());
 
-    // Which row holds the selected day — the one that stays when the grid is
-    // squeezed down to a single week.
-    final gridStart = first.subtract(Duration(days: lead));
-    final selectedIndex = selected == null
-        ? -1
-        : selected!.difference(gridStart).inDays;
-    final selectedRow = (selectedIndex >= 0 && selectedIndex < rows * 7)
-        ? selectedIndex ~/ 7
-        : 0;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          // Squeezing the month down to a week slides the whole grid past a
-          // shrinking window instead of squashing the rows: every week keeps
-          // the height it has in the full month, so the numbers travel
-          // together the way a list does, and the selected week is the one
-          // the window is left sitting on. Shrinking the rows themselves made
-          // the numbers close in on each other and read as a glitch.
-          //
-          // Only the window's height is known here, so the row height is read
-          // back out of it: at rest that is a rows-th of it, and at the end of
-          // the collapse the whole of it.
-          final rowHeight = box.maxHeight / (rows - weekCollapse * (rows - 1));
-          final travel = selectedRow * rowHeight * weekCollapse;
-
-          return ClipRect(
+    return LayoutBuilder(
+      builder: (context, box) {
+        final layout = MonthLayout(
+          month: month,
+          mondayFirst: mondayFirst,
+          selected: selected,
+          weekCollapse: weekCollapse,
+          size: box.biggest,
+        );
+        // Squeezing the month down to a week slides the whole grid past a
+        // shrinking window instead of squashing the rows: every week keeps
+        // the height it has in the full month, so the numbers travel
+        // together the way a list does, and the selected week is the one
+        // the window is left sitting on. Shrinking the rows themselves made
+        // the numbers close in on each other and read as a glitch.
+        final rows = layout.rows;
+        final rowHeight = layout.rowHeight;
+        final travel = layout.travel;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: MonthLayout.inset),
+          child: ClipRect(
             child: OverflowBox(
               alignment: Alignment.topCenter,
               minHeight: rowHeight * rows,
@@ -181,9 +246,7 @@ class MonthGrid extends StatelessWidget {
                                   Expanded(
                                     child: Builder(
                                       builder: (context) {
-                                        final day = first.add(
-                                          Duration(days: row * 7 + col - lead),
-                                        );
+                                        final day = layout.dayOfCell(row, col);
                                         final enabled =
                                             (firstDate == null ||
                                                 !day.isBefore(firstDate!)) &&
@@ -216,9 +279,9 @@ class MonthGrid extends StatelessWidget {
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

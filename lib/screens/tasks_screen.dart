@@ -7,6 +7,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/carry.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/reorderable_task_list.dart';
 import '../widgets/screen_header.dart';
@@ -156,6 +157,7 @@ class _TasksScreenState extends State<TasksScreen> {
                     ground: p.bg,
                     entry: entry,
                     onReorder: provider.reorder,
+                    onMove: provider.moveToDay,
                     head: hasAnything
                         ? null
                         : const Padding(
@@ -192,6 +194,7 @@ class _TasksScreenState extends State<TasksScreen> {
                             color: AppColors.overdue,
                           ),
                           tasks: overdue,
+                          takesDrops: false,
                         ),
                       for (final day in days)
                         _Run(
@@ -202,6 +205,7 @@ class _TasksScreenState extends State<TasksScreen> {
                           ),
                           holidays: holidays[day] ?? const <Holiday>[],
                           tasks: byDay[day]!,
+                          day: day,
                         ),
                       if (undated.isNotEmpty)
                         _Run(
@@ -353,13 +357,25 @@ class _Run {
   final List<Holiday> holidays;
   final List<Task> tasks;
 
+  /// The day a card dropped into this run moves to — null for No date.
+  final DateTime? day;
+
+  /// Whether a card from another run can be dropped into this one. Not the
+  /// backlog: it holds many dates, so there is no one date to give a card.
+  final bool takesDrops;
+
   const _Run({
     required this.id,
     required this.heading,
     required this.tasks,
     this.holidays = const [],
+    this.day,
+    this.takesDrops = true,
   });
 }
+
+/// Where in which run a carried card would be put down.
+typedef _Slot = ({String run, int index});
 
 /// The run of days: a heading and a reorderable list per run, not one list
 /// with headings scattered through it.
@@ -380,6 +396,11 @@ class _RunOfDays extends StatefulWidget {
   final Color ground;
   final Widget Function(Task) entry;
   final ValueChanged<List<Task>> onReorder;
+
+  /// Moves a task carried out of its run into another — to that run's day,
+  /// in the order the run would then read.
+  final Future<void> Function(Task task, DateTime? day, {List<Task>? among})
+  onMove;
   final Widget? head;
   final Widget? foot;
 
@@ -389,6 +410,7 @@ class _RunOfDays extends StatefulWidget {
     required this.ground,
     required this.entry,
     required this.onReorder,
+    required this.onMove,
     this.head,
     this.foot,
   });
@@ -398,14 +420,102 @@ class _RunOfDays extends StatefulWidget {
 }
 
 class _RunOfDaysState extends State<_RunOfDays> {
-  // A key on each heading, and on the footnote. They are what a card being
-  // carried is penned in by, and they are the only rows that can do the job:
-  // a row that can be dragged is lifted clean out of the list while it is
-  // carried, and takes its key with it. Kept by run and reused, because a key
-  // that is rebuilt is a subtree that is rebuilt.
+  // A key on each heading, and on the footnote. They are how a card being
+  // carried finds which run it is over, and they are the only rows that can
+  // do the job: a row that can be dragged is lifted clean out of the list
+  // while it is carried, and takes its key with it. Kept by run and reused,
+  // because a key that is rebuilt is a subtree that is rebuilt.
   final _anchors = <String, GlobalKey>{};
 
   GlobalKey _anchorOf(String id) => _anchors.putIfAbsent(id, GlobalKey.new);
+
+  // Each run's list, so a card carried out of it can be taken back off it.
+  final _lists = <String, GlobalKey<SliverReorderableListState>>{};
+
+  GlobalKey<SliverReorderableListState> _listOf(String id) =>
+      _lists.putIfAbsent(id, GlobalKey<SliverReorderableListState>.new);
+
+  late final _carry = Carry<_Slot>(resolve: _slotAt);
+
+  @override
+  void dispose() {
+    _carry.dispose();
+    super.dispose();
+  }
+
+  static double? _topOf(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero).dy;
+  }
+
+  static RenderBox? _cardOf(Task task) =>
+      task.id == null ? null : SlideIntoPlace.boxOf('schedule', task.id!);
+
+  /// The run a point on the screen is in, by the headings: each run runs
+  /// from its own heading down to the next one.
+  _Run? _runAt(double y) {
+    _Run? found;
+    for (final run in widget.runs) {
+      final top = _topOf(_anchorOf(run.id));
+      if (top == null) continue;
+      if (top > y) break;
+      found = run;
+    }
+    return found;
+  }
+
+  /// Where a card let go at [global] would go, if into a run other than its
+  /// own: the run, and how many of its cards would be above it. Cards that
+  /// are not built are scrolled off one end or the other, and which end is
+  /// told by whether a built one has been passed yet.
+  _Slot? _slotAt(Task task, Offset global) {
+    final run = _runAt(global.dy);
+    if (run == null || !run.takesDrops) return null;
+    if (run.tasks.any((t) => t.id == task.id)) return null;
+    var index = 0;
+    var seen = false;
+    for (var i = 0; i < run.tasks.length; i++) {
+      final box = _cardOf(run.tasks[i]);
+      if (box == null) {
+        if (seen) break;
+        index = i + 1;
+        continue;
+      }
+      seen = true;
+      final middle = box.localToGlobal(box.size.center(Offset.zero)).dy;
+      if (middle >= global.dy) break;
+      index = i + 1;
+    }
+    return (run: run.id, index: index);
+  }
+
+  /// The rule drawn where a card would be put down: along the top of the card
+  /// it would go above, or the foot of the last one.
+  Rect? _markOf(_Slot slot) {
+    final run = widget.runs.where((r) => r.id == slot.run).firstOrNull;
+    if (run == null || run.tasks.isEmpty) return null;
+    final below = slot.index < run.tasks.length
+        ? _cardOf(run.tasks[slot.index])
+        : null;
+    final box = below ?? _cardOf(run.tasks.last);
+    if (box == null) return null;
+    final card = TaskCard.margin.deflateRect(
+      box.localToGlobal(Offset.zero) & box.size,
+    );
+    final y = below != null
+        ? card.top - TaskCard.margin.top
+        : card.bottom + TaskCard.margin.bottom;
+    return Rect.fromLTRB(card.left + 8, y, card.right - 8, y);
+  }
+
+  void _drop(Task task, _Slot slot) {
+    final run = widget.runs.where((r) => r.id == slot.run).firstOrNull;
+    if (run == null) return;
+    final among = [...run.tasks]
+      ..insert(slot.index.clamp(0, run.tasks.length), task);
+    widget.onMove(task, run.day, among: among);
+  }
 
   void _move(_Run run, int oldIndex, int newIndex) {
     final ordered = [...run.tasks];
@@ -421,7 +531,16 @@ class _RunOfDaysState extends State<_RunOfDays> {
   Widget build(BuildContext context) {
     // The builder is for a context below `DragWithin`, which is where the
     // card being carried finds the box it has to stay inside.
-    return DragWithin(child: Builder(builder: _build));
+    return CarryArea<_Slot>(
+      carry: _carry,
+      onDrop: _drop,
+      child: CarryMark<_Slot>(
+        carry: _carry,
+        mark: _markOf,
+        line: true,
+        child: DragWithin(child: Builder(builder: _build)),
+      ),
+    );
   }
 
   Widget _build(BuildContext context) {
@@ -432,9 +551,6 @@ class _RunOfDaysState extends State<_RunOfDays> {
 
     for (var i = 0; i < widget.runs.length; i++) {
       final run = widget.runs[i];
-      final below = i + 1 < widget.runs.length
-          ? _anchorOf(widget.runs[i + 1].id)
-          : _anchorOf('foot');
       slivers.add(
         SliverToBoxAdapter(
           child: KeyedSubtree(key: _anchorOf(run.id), child: run.heading()),
@@ -450,16 +566,22 @@ class _RunOfDaysState extends State<_RunOfDays> {
       }
       slivers.add(
         SliverReorderableList(
-          key: ValueKey('run-${run.id}'),
+          key: _listOf(run.id),
           itemCount: run.tasks.length,
           onReorder: (from, to) => _move(run, from, to),
+          onReorderStart: (t) => _carry.begin(
+            run.tasks[t],
+            () => _listOf(run.id).currentState?.cancelReorder(),
+          ),
+          onReorderEnd: (_) => _carry.end(),
+          // Held inside the schedule rather than inside its own run: every
+          // other day on it is somewhere the card can be put down.
           proxyDecorator: (child, _, animation) => liftedCard(
             context,
             widget.ground,
             child,
             animation,
-            under: _anchors[run.id],
-            over: below,
+            carry: _carry,
           ),
           itemBuilder: (context, t) {
             final task = run.tasks[t];

@@ -11,6 +11,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/carry.dart';
 import '../widgets/day_sheet.dart';
 import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
@@ -68,6 +69,12 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// The one-line "add a task on this day" field under the list.
   final _quickAdd = TextEditingController();
 
+  /// The grid's box, for finding the day a carried card is held over.
+  final _grid = GlobalKey();
+
+  /// A card carried up out of the day's list, perhaps onto another day.
+  late final _carry = Carry<DateTime>(resolve: _dayUnder);
+
   @override
   void initState() {
     super.initState();
@@ -90,6 +97,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   @override
   void dispose() {
+    _carry.dispose();
     _controller.dispose();
     _dayController.dispose();
     _expansion.dispose();
@@ -363,6 +371,49 @@ class _CalendarScreenState extends State<CalendarScreen>
     _selectDay(today, openSheet: false);
   }
 
+  /// Where the days of the month on show fall in the grid's box, now — the
+  /// grid may be anywhere between its week and its opened month.
+  (MonthLayout, RenderBox)? _gridLayout() {
+    final box = _grid.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    final page = _controller.hasClients
+        ? (_controller.page?.round() ?? _basePage)
+        : _basePage;
+    final t = _expansion.value;
+    final layout = MonthLayout(
+      month: _monthOfPage(page),
+      mondayFirst: context.read<SettingsProvider>().weekStartsMonday,
+      selected: _selected,
+      weekCollapse: t < 0 ? -t : 0,
+      size: box.size,
+    );
+    return (layout, box);
+  }
+
+  /// The day a carried card is held over in the grid, unless it is the day
+  /// the card already belongs to.
+  DateTime? _dayUnder(Task task, Offset global) {
+    final found = _gridLayout();
+    if (found == null) return null;
+    final (layout, box) = found;
+    final day = layout.dayAt(box.globalToLocal(global));
+    return day == null || day == task.dueDay ? null : day;
+  }
+
+  /// The cell of the day a carried card would be put down on, on the screen.
+  Rect? _cellOf(DateTime day) {
+    final found = _gridLayout();
+    if (found == null) return null;
+    final (layout, box) = found;
+    final cell = layout.rectOf(day);
+    if (cell == null) return null;
+    // Clipped to the grid: in the week view the rows above and below are
+    // slid out of its window.
+    final visible = cell.intersect(Offset.zero & box.size);
+    if (visible.isEmpty) return null;
+    return box.localToGlobal(visible.topLeft) & visible.size;
+  }
+
   Future<void> _openEditor([Task? task]) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -414,144 +465,173 @@ class _CalendarScreenState extends State<CalendarScreen>
           Expanded(
             child: Stack(
               children: [
-                LayoutBuilder(
-                  builder: (context, box) {
-                    // Three heights: one week, the compact month, and the month
-                    // opened to the whole area. Whatever the grid leaves goes to the
-                    // selected day's tasks.
-                    final available = box.maxHeight;
-                    // Enough height that a day can show a couple of lines under its
-                    // number, without taking the list's half of the screen.
-                    final month = (available * 0.52).clamp(240.0, 340.0);
-                    final rows = _rowsOf(shownMonth, mondayFirst);
-                    final week = month / rows;
-                    final opened = available - _handleHeight;
-                    _rangeUp = (opened - month).clamp(1.0, double.infinity);
-                    _rangeDown = (month - week).clamp(1.0, double.infinity);
-                    final listHeight = available - month - _handleHeight;
-
-                    return AnimatedBuilder(
-                      animation: _expansion,
-                      // Hoisted out of the rebuild: nothing inside the day
-                      // pager depends on how far the month is open, only the
-                      // box it is given. Left in the builder, every card of
-                      // every day was being rebuilt on every frame of the drag.
-                      child: PageView.builder(
-                        controller: _dayController,
-                        onPageChanged: _onDayPageChanged,
-                        itemBuilder: (context, i) {
-                          final day = _dayOfPage(i);
-                          return _DayPanel(
-                            date: day,
-                            tasks: provider.tasksForDay(day),
-                            holidays:
-                                Holidays.around(country, day)[day] ??
-                                const <Holiday>[],
-                            lists: provider.lists,
-                            onDragStart: _onDragStart,
-                            onDrag: _onDrag,
-                            onDragEnd: _onDragEnd,
-                            onPull: _onPull,
-                            onPullStart: _onPullStart,
-                            onPullEnd: _onPullEnd,
-                            onOpen: _openEditor,
-                            onToggle: (task) => tickOff(context, task),
-                            isLeaving: provider.isLeaving,
-                            isTicking: provider.isTicking,
-                            rearranging: provider.rearranging,
-                            onReorder: provider.reorder,
+                // A card picked up in the day's list can be carried up onto
+                // the month and let go on another day. The calendar is its
+                // box rather than the list, and the day it would land on is
+                // outlined over everything, the card included.
+                CarryArea<DateTime>(
+                  carry: _carry,
+                  onDrop: (task, day) =>
+                      context.read<TaskProvider>().moveToDay(task, day),
+                  child: CarryMark<DateTime>(
+                    carry: _carry,
+                    mark: _cellOf,
+                    line: false,
+                    child: DragWithin(
+                      child: LayoutBuilder(
+                        builder: (context, box) {
+                          // Three heights: one week, the compact month, and the month
+                          // opened to the whole area. Whatever the grid leaves goes to the
+                          // selected day's tasks.
+                          final available = box.maxHeight;
+                          // Enough height that a day can show a couple of lines under its
+                          // number, without taking the list's half of the screen.
+                          final month = (available * 0.52).clamp(240.0, 340.0);
+                          final rows = _rowsOf(shownMonth, mondayFirst);
+                          final week = month / rows;
+                          final opened = available - _handleHeight;
+                          _rangeUp = (opened - month).clamp(
+                            1.0,
+                            double.infinity,
                           );
-                        },
-                      ),
-                      builder: (context, pager) {
-                        final t = _expansion.value;
-                        final gridHeight = t >= 0
-                            ? month + _rangeUp * t
-                            : week + _rangeDown * (1 + t);
-                        final weekCollapse = t < 0 ? -t : 0.0;
-                        final panelVisible =
-                            (available - gridHeight - _handleHeight).clamp(
-                              0.0,
-                              available,
-                            );
-                        final panelLayout = math.max(listHeight, panelVisible);
-                        _panelVisible = panelVisible;
-                        return Column(
-                          children: [
-                            // The grid and its grip share the calendar's own
-                            // ground; the day below sits on a grey of its own,
-                            // so the month and the day it is showing read as
-                            // two surfaces rather than one dark field.
-                            ColoredBox(
-                              color: p.calendar,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                          _rangeDown = (month - week).clamp(
+                            1.0,
+                            double.infinity,
+                          );
+                          final listHeight = available - month - _handleHeight;
+
+                          return AnimatedBuilder(
+                            animation: _expansion,
+                            // Hoisted out of the rebuild: nothing inside the day
+                            // pager depends on how far the month is open, only the
+                            // box it is given. Left in the builder, every card of
+                            // every day was being rebuilt on every frame of the drag.
+                            child: PageView.builder(
+                              controller: _dayController,
+                              onPageChanged: _onDayPageChanged,
+                              itemBuilder: (context, i) {
+                                final day = _dayOfPage(i);
+                                return _DayPanel(
+                                  date: day,
+                                  tasks: provider.tasksForDay(day),
+                                  holidays:
+                                      Holidays.around(country, day)[day] ??
+                                      const <Holiday>[],
+                                  lists: provider.lists,
+                                  onDragStart: _onDragStart,
+                                  onDrag: _onDrag,
+                                  onDragEnd: _onDragEnd,
+                                  onPull: _onPull,
+                                  onPullStart: _onPullStart,
+                                  onPullEnd: _onPullEnd,
+                                  onOpen: _openEditor,
+                                  onToggle: (task) => tickOff(context, task),
+                                  isLeaving: provider.isLeaving,
+                                  isTicking: provider.isTicking,
+                                  rearranging: provider.rearranging,
+                                  onReorder: provider.reorder,
+                                  carry: _carry,
+                                );
+                              },
+                            ),
+                            builder: (context, pager) {
+                              final t = _expansion.value;
+                              final gridHeight = t >= 0
+                                  ? month + _rangeUp * t
+                                  : week + _rangeDown * (1 + t);
+                              final weekCollapse = t < 0 ? -t : 0.0;
+                              final panelVisible =
+                                  (available - gridHeight - _handleHeight)
+                                      .clamp(0.0, available);
+                              final panelLayout = math.max(
+                                listHeight,
+                                panelVisible,
+                              );
+                              _panelVisible = panelVisible;
+                              return Column(
                                 children: [
-                                  SizedBox(
-                                    height: gridHeight,
-                                    child: GestureDetector(
-                                      // Vertical drags open the grid; the PageView keeps
-                                      // the horizontal ones for changing month. Opaque,
-                                      // so a drag that starts on the padding around a day
-                                      // cell is caught too rather than falling through.
-                                      behavior: HitTestBehavior.opaque,
-                                      onVerticalDragStart: _onDragStart,
-                                      onVerticalDragUpdate: _onDrag,
-                                      onVerticalDragEnd: _onDragEnd,
-                                      child: PageView.builder(
-                                        controller: _controller,
-                                        onPageChanged: _onMonthPageChanged,
-                                        itemBuilder: (context, i) => MonthGrid(
-                                          month: _monthOfPage(i),
-                                          selected: _selected,
-                                          mondayFirst: mondayFirst,
-                                          tasksByDay: provider.tasksByDay,
-                                          holidaysByDay: Holidays.around(
-                                            country,
-                                            _monthOfPage(i),
+                                  // The grid and its grip share the calendar's own
+                                  // ground; the day below sits on a grey of its own,
+                                  // so the month and the day it is showing read as
+                                  // two surfaces rather than one dark field.
+                                  ColoredBox(
+                                    color: p.calendar,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          key: _grid,
+                                          height: gridHeight,
+                                          child: GestureDetector(
+                                            // Vertical drags open the grid; the PageView keeps
+                                            // the horizontal ones for changing month. Opaque,
+                                            // so a drag that starts on the padding around a day
+                                            // cell is caught too rather than falling through.
+                                            behavior: HitTestBehavior.opaque,
+                                            onVerticalDragStart: _onDragStart,
+                                            onVerticalDragUpdate: _onDrag,
+                                            onVerticalDragEnd: _onDragEnd,
+                                            child: PageView.builder(
+                                              controller: _controller,
+                                              onPageChanged:
+                                                  _onMonthPageChanged,
+                                              itemBuilder: (context, i) =>
+                                                  MonthGrid(
+                                                    month: _monthOfPage(i),
+                                                    selected: _selected,
+                                                    mondayFirst: mondayFirst,
+                                                    tasksByDay:
+                                                        provider.tasksByDay,
+                                                    holidaysByDay:
+                                                        Holidays.around(
+                                                          country,
+                                                          _monthOfPage(i),
+                                                        ),
+                                                    lists: provider.lists,
+                                                    expansion: math.max(0.0, t),
+                                                    weekCollapse: weekCollapse,
+                                                    onSelect: _selectDay,
+                                                  ),
+                                            ),
                                           ),
-                                          lists: provider.lists,
-                                          expansion: math.max(0.0, t),
-                                          weekCollapse: weekCollapse,
-                                          onSelect: _selectDay,
+                                        ),
+                                        _DragHandle(
+                                          key: calendarHandleKey,
+                                          height: _handleHeight,
+                                          expansion: t.abs(),
+                                          onDragStart: _onDragStart,
+                                          onDrag: _onDrag,
+                                          onDragEnd: _onDragEnd,
+                                          onTap: _toggleExpansion,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Laid out at the larger of its compact and visible
+                                  // sizes, so it fills the extra room a week view leaves
+                                  // and clips away instead of overflowing as it shrinks.
+                                  SizedBox(
+                                    height: panelVisible,
+                                    child: ColoredBox(
+                                      color: p.panel,
+                                      child: ClipRect(
+                                        child: OverflowBox(
+                                          alignment: Alignment.topCenter,
+                                          minHeight: panelLayout,
+                                          maxHeight: panelLayout,
+                                          child: pager,
                                         ),
                                       ),
                                     ),
                                   ),
-                                  _DragHandle(
-                                    key: calendarHandleKey,
-                                    height: _handleHeight,
-                                    expansion: t.abs(),
-                                    onDragStart: _onDragStart,
-                                    onDrag: _onDrag,
-                                    onDragEnd: _onDragEnd,
-                                    onTap: _toggleExpansion,
-                                  ),
                                 ],
-                              ),
-                            ),
-                            // Laid out at the larger of its compact and visible
-                            // sizes, so it fills the extra room a week view leaves
-                            // and clips away instead of overflowing as it shrinks.
-                            SizedBox(
-                              height: panelVisible,
-                              child: ColoredBox(
-                                color: p.panel,
-                                child: ClipRect(
-                                  child: OverflowBox(
-                                    alignment: Alignment.topCenter,
-                                    minHeight: panelLayout,
-                                    maxHeight: panelLayout,
-                                    child: pager,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 ),
                 // Whatever is above the field fades into it rather than being
                 // sliced off square by it — the last card in a full day used
@@ -786,6 +866,7 @@ class _DayPanel extends StatelessWidget {
   final bool Function(Task) isTicking;
   final Listenable rearranging;
   final ValueChanged<List<Task>> onReorder;
+  final Carry<DateTime> carry;
 
   const _DayPanel({
     required this.date,
@@ -804,6 +885,7 @@ class _DayPanel extends StatelessWidget {
     required this.isTicking,
     required this.rearranging,
     required this.onReorder,
+    required this.carry,
   });
 
   TaskList? _listOf(Task task) {
@@ -860,6 +942,10 @@ class _DayPanel extends StatelessWidget {
                     rearranging: rearranging,
                     scope: 'calendar',
                     onReorder: onReorder,
+                    carry: carry,
+                    // Held inside the calendar instead, grid and all: the
+                    // month above is where it can be carried to.
+                    penned: false,
                   ),
           ),
         ),

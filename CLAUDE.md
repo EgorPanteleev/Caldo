@@ -36,7 +36,7 @@ lib/
                          date_time_pickers, day_sheet, menu_button,
                          quick_add_bar, screen_header, selection_bar,
                          theme_switcher, gradient_icon_button,
-                         slide_into_place, tick_off
+                         slide_into_place, tick_off (+ AsShown), carry
 ```
 
 Three destinations — **Schedule**, **Calendar**, **Settings** — in a drawer
@@ -506,10 +506,27 @@ Changing them back will be noticed.
   already does, so nothing was lost. There are no drag handles: the card is
   the handle, and a grip beside every row would be a column of furniture down
   a list whose whole job is to be read.
-- **A task only ever moves within the run it is in.** Let go over another run
-  it lands at the near end of its own, because dragging it from one day to
-  another would be a change of date wearing the clothes of a change of order.
-  Every run can be dragged, the overdue backlog included — it was left out at
+- **A card carried to another day moves to that day** (`Carry`,
+  `CarryArea`, `CarryMark`, `TaskProvider.moveToDay`). This was ruled out
+  once — "a change of date wearing the clothes of a change of order" — and
+  then asked for. On Schedule a card can be let go in any other run, at the
+  place a rule marks between its cards, and moves to that run's day (No
+  date clears the date); the Overdue run takes nothing, since it has no one
+  date to give. On the calendar a card can be carried up out of the day's
+  list onto the month, where the day under the finger is outlined, and goes
+  to the end of that day. Either way it keeps its time of day, and over a
+  target the carried card thins out so the mark under it can be seen. Let
+  go inside its own run, it is the same reorder as ever.
+  The lists' own drag is not touched. A `Listener` around each screen
+  watches where the finger goes, and the pointer's release reaches it
+  before the list's drag hears of it, so a release over another day calls
+  `cancelReorder` — taking the card off the list without the drop it would
+  otherwise animate back into its old place — and hands the task over. A
+  move without a place lets go of the hand placement the task had (its
+  `sort_order` is cleared), so it arrives after whatever the new day has
+  arranged, as a new task would. The grid and the calendar's carry find
+  days through one `MonthLayout`, so the cell outlined and the cell the
+  grid draws cannot come apart. Every run can be dragged, the overdue backlog included — it was left out at
   first on the grounds that the order a backlog wants is how late each thing
   is, which ignored that on most days it is the larger part of what is on the
   screen, so Schedule read as a list that could not be dragged at all.
@@ -522,15 +539,18 @@ Changing them back will be noticed.
   later turn up in the backlog, ahead of ones nobody has touched — which
   settles the moment the backlog itself is dragged, since that writes a
   placement for all of it.
-- **A card being carried is held between the ends of its own run**
+- **A card being carried is held inside the screen it can be dropped on**
   (`DragWithin`, `_KeepInside`). A reorderable list puts the card into an
   `Overlay`, and the nearest one is the app's — the whole screen — so it could
-  be carried up over the calendar's grid or above Schedule's header, somewhere
-  it could never be dropped. Each list gets an overlay of its own, which gives
-  the card a box; clipping it to that box was worse than letting it wander,
-  because it vanished a sliver at a time into the top of the screen. It is
-  penned between the rows on either side of its run instead, which is where it
-  would land anyway — so it stops under the Overdue badge rather than over it.
+  be carried above Schedule's header or over the calendar's month bar,
+  somewhere it could never be dropped. A `DragWithin` gives it a box:
+  Schedule's whole run of days, and on the calendar the grid and the day
+  together (the day's list is `penned: false` so it uses the calendar's).
+  Clipping it to that box was worse than letting it wander, because it
+  vanished a sliver at a time into the top of the screen; it is held against
+  the edge instead. Before cards could change day it was penned inside its
+  own run, between the headings on either side; the day sheet's list, which
+  has nowhere else to go, still is.
   Three details, each of which cost a round: an overlay reads `initialEntries`
   once, so the entry is told to rebuild whenever the list changes; the keys
   belong to the state, not the class, because the day pager has several of
@@ -643,7 +663,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 106 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 115 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

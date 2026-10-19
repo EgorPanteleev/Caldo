@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import 'carry.dart';
 import 'slide_into_place.dart';
 import 'task_card.dart';
 import 'tick_off.dart';
@@ -172,8 +173,9 @@ Widget liftedCard(
   Animation<double> animation, {
   GlobalKey? under,
   GlobalKey? over,
+  Carry<Object>? carry,
 }) {
-  final lifted = AnimatedBuilder(
+  final card = AnimatedBuilder(
     animation: animation,
     builder: (context, inner) => Transform.scale(
       scale: 1 + 0.02 * Curves.easeOut.transform(animation.value),
@@ -199,6 +201,20 @@ Widget liftedCard(
     ),
     child: child,
   );
+  // Held over another day, the card thins out: it is on top of the very spot
+  // it is being carried to, and the mark that says where it will land has to
+  // be seen through it.
+  final lifted = carry == null
+      ? card
+      : ListenableBuilder(
+          listenable: carry,
+          builder: (context, child) => AnimatedOpacity(
+            opacity: carry.target == null ? 1 : 0.45,
+            duration: const Duration(milliseconds: 120),
+            child: child,
+          ),
+          child: card,
+        );
   final bounds = _DragBounds.of(context);
   return bounds == null
       ? lifted
@@ -234,6 +250,14 @@ class ReorderableTaskList extends StatefulWidget {
   /// Which list this is, for [SlideIntoPlace].
   final String scope;
 
+  /// Follows a card carried out of this list, which may be let go over
+  /// another day (`CarryArea`).
+  final Carry<Object>? carry;
+
+  /// Whether a carried card is kept inside this list. A list whose cards can
+  /// be carried elsewhere is put in a box by whoever is around it instead.
+  final bool penned;
+
   /// Hands back the day's tasks in the order they were dragged into.
   final ValueChanged<List<Task>> onReorder;
 
@@ -249,6 +273,8 @@ class ReorderableTaskList extends StatefulWidget {
     this.isTicking,
     this.rearranging,
     this.scope = 'tasks',
+    this.carry,
+    this.penned = true,
     required this.onReorder,
     this.padding = EdgeInsets.zero,
     this.controller,
@@ -265,6 +291,7 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
   // has several of these alive at once, and a key may only be in the tree in
   // one place.
   final _lastHoliday = GlobalKey();
+  final _list = GlobalKey<SliverReorderableListState>();
 
   ReorderableTaskList get w => widget;
 
@@ -283,14 +310,15 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
   Widget build(BuildContext context) {
     // The builder is for a context below `DragWithin`, which is where
     // the card being carried finds the box it has to stay inside.
-    return DragWithin(child: Builder(builder: (context) => _list(context)));
+    if (!w.penned) return _build(context);
+    return DragWithin(child: Builder(builder: (context) => _build(context)));
   }
 
   /// Holidays in a sliver of their own and the tasks in a reorderable one,
   /// rather than both in a single list. A list cannot tell a holiday from a
   /// task, so the gap it opens for the card being carried could land above
   /// the holidays, where the card could never be dropped.
-  Widget _list(BuildContext context) {
+  Widget _build(BuildContext context) {
     return CustomScrollView(
       controller: w.controller,
       shrinkWrap: w.shrinkWrap,
@@ -305,14 +333,23 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
           ),
         ),
         SliverReorderableList(
+          key: _list,
           itemCount: w.tasks.length,
           onReorder: _reorder,
+          onReorderStart: (i) => w.carry?.begin(
+            w.tasks[i],
+            () => _list.currentState?.cancelReorder(),
+          ),
+          onReorderEnd: (_) => w.carry?.end(),
           proxyDecorator: (child, _, animation) => liftedCard(
             context,
             w.ground,
             child,
             animation,
-            under: w.holidays.isEmpty ? null : _lastHoliday,
+            // A card that can leave the list is not held below its
+            // holidays: up past them is the way to the month.
+            under: w.holidays.isEmpty || !w.penned ? null : _lastHoliday,
+            carry: w.carry,
           ),
           itemBuilder: (context, i) {
             final task = w.tasks[i];
