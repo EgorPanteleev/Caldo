@@ -60,17 +60,21 @@ class _QuickAddBarState extends State<QuickAddBar> {
   /// point, so leaving the keyboard up over a day whose list has just changed
   /// hides the very thing the tap was meant to produce.
   ///
-  /// The keyboard is told to go before the field lets go of it, the way it
-  /// is when the field is cancelled. Letting go first leaves the keyboard on
-  /// screen with nothing typing into it — on a phone it stayed up for half a
-  /// second after the tick, then Android took it down on its own, and the
-  /// next time the field was opened the keyboard slid up reporting itself a
-  /// strip taller than it was, carrying the field clear of the keys for the
-  /// length of the slide. Cancelling never did it; only the tick did.
+  /// With nothing typed there is nothing to file, and the tick does exactly
+  /// what cancelling does: the keyboard goes, and the field keeps hold of
+  /// it. On a phone, the opening after a tick on an empty field came up with
+  /// the field a strip above the keys, every time, and the opening after a
+  /// cancel never did. Telling the keyboard to go first (1.3.12) changed
+  /// nothing, so the hiding was not the difference. Letting go of the field
+  /// was: it closes the field's connection to the keyboard, the next tap opens
+  /// a new one, and Android brings the keyboard up from scratch — the only
+  /// opening that ever went wrong. Back leaves the connection open, and so
+  /// now does an empty tick.
   void _submit() {
+    final filing = widget.controller.text.trim().isNotEmpty;
     widget.onSubmit();
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    _focus.unfocus();
+    if (filing) _focus.unfocus();
   }
 
   /// A plus opens the form; a tick files what has been typed.

@@ -709,6 +709,27 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('a tick on an empty field keeps hold of it, as cancel does', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const TasksScreen());
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+
+    // Nothing typed, nothing to file. Letting go of the field here closed its
+    // connection to the keyboard, and the next opening — a keyboard brought
+    // up from scratch — was the one that rode a strip above the keys on a
+    // phone. Cancelling never let go, and never did that.
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pump();
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.focusNode!.hasFocus, isTrue);
+    expect(find.text('New task'), findsNothing, reason: 'not the full form');
+    await drainDatabase(tester);
+  });
+
   testWidgets('the app opens on the screen settings names', (tester) async {
     await pumpScreen(tester, const HomeScreen());
     // Out of the box: Schedule, the screen that answers "what now".
