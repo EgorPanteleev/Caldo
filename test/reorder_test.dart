@@ -32,41 +32,95 @@ void main() {
     for (final task in p.tasksForDay(day)) task.title,
   ];
 
-  test('a ticked task is seen done before it leaves its place', () async {
+  /// Just past the moment a ticked card is crossed out, before the run is
+  /// read back.
+  Future<void> untilCrossedOut() => Future<void>.delayed(
+    TaskProvider.settle +
+        TaskProvider.linger +
+        const Duration(milliseconds: 80),
+  );
+
+  test(
+    'a ticked task is crossed out a beat after its tick, and stays put',
+    () async {
+      final p = await provider();
+      final first = p.tasksForDay(day).first;
+
+      // Not awaited: what is being pinned is what the run looks like while it
+      // plays out, which is before this returns.
+      final ticking = p.toggleDone(first);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      // Ticked at once, where it stands — but not crossed out yet.
+      expect(titles(p).first, first.title);
+      expect(p.tasksForDay(day).first.done, isTrue);
+      expect(p.isTicking(first), isTrue);
+
+      // A beat later it is crossed out, and it is not leaving: a day's done
+      // tasks are still listed, and fading this one out only for the reload to
+      // put it back was a card disappearing and reappearing.
+      await untilCrossedOut();
+      expect(p.isTicking(first), isFalse);
+      expect(p.isLeaving(first), isFalse);
+
+      // Read back, it is exactly where it was. Done tasks used to sort to the
+      // end of their day, which made it reappear somewhere else.
+      await ticking;
+      expect(titles(p).first, first.title);
+      expect(p.tasksForDay(day).first.done, isTrue);
+    },
+  );
+
+  test(
+    'a ticked overdue task fades out of the backlog, and only there',
+    () async {
+      final p = await provider();
+      final yesterday = dayOf(DateTime.now().subtract(const Duration(days: 1)));
+      await p.add(
+        Task(
+          listId: p.lists.first.id!,
+          title: 'late',
+          dueAt: yesterday.millisecondsSinceEpoch,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+      await p.loadTasks();
+      final late = p.overdue.single;
+
+      final ticking = p.toggleDone(late);
+      await untilCrossedOut();
+      // Done, it is not overdue any more, so the backlog loses it…
+      expect(p.isLeaving(late, fromOverdue: true), isTrue);
+      // …while its own day, which still lists done tasks, keeps it.
+      expect(p.isLeaving(late), isFalse);
+      await ticking;
+      expect(p.overdue, isEmpty);
+    },
+  );
+
+  test('a ticked repeating task leaves wherever it is', () async {
     final p = await provider();
-    final first = p.tasksForDay(day).first;
-
-    // Not awaited: what is being pinned is what the run looks like while it
-    // plays out, which is before this returns.
-    final ticking = p.toggleDone(first);
-    await Future<void>.delayed(const Duration(milliseconds: 40));
-
-    // Shown as done, and still where it was — the card the finger is on has
-    // to stand still long enough for the tick to be worth watching.
-    expect(titles(p).first, first.title);
-    expect(p.tasksForDay(day).first.done, isTrue);
-    expect(p.isLeaving(first), isFalse);
-
-    // Still there once the tick has been drawn: it stays a moment, done,
-    // before it goes. It used to be gone the instant the mark was finished.
-    await Future<void>.delayed(
-      TaskProvider.settle +
-          TaskProvider.linger -
-          const Duration(milliseconds: 120),
+    await p.add(
+      Task(
+        listId: p.lists.first.id!,
+        title: 'daily',
+        dueAt: day.millisecondsSinceEpoch,
+        repeat: Repeat.daily,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ),
     );
-    expect(titles(p).first, first.title);
-    expect(p.isLeaving(first), isFalse);
+    await p.loadMonth(day);
+    final daily = p.tasksForDay(day).firstWhere((t) => t.title == 'daily');
 
-    // Then it fades out of its place, and only after that is the run read
-    // back and the card takes its place among the done ones, which sort last.
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    expect(p.isLeaving(first), isTrue);
-    expect(titles(p).first, first.title, reason: 'not moved while fading');
+    final ticking = p.toggleDone(daily);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    // Shown ticked where it stands, though what was written is its next date.
+    expect(p.isTicking(daily), isTrue);
 
+    await untilCrossedOut();
+    expect(p.isLeaving(daily), isTrue, reason: 'it rolls on to tomorrow');
     await ticking;
-    expect(p.isLeaving(first), isFalse);
-    expect(titles(p).last, first.title);
-    expect(p.tasksForDay(day).last.done, isTrue);
+    expect(p.tasksForDay(day).where((t) => t.title == 'daily'), isEmpty);
   });
 
   test('taking a tick back does not linger', () async {

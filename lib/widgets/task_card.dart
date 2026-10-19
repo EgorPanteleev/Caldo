@@ -34,9 +34,15 @@ class TaskCard extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback onToggle;
 
-  /// Set once the card has been ticked and has lingered, done, long enough
-  /// to be seen: it fades, and the gap it leaves closes, before the run it
-  /// is in is rearranged (`TaskProvider.toggleDone`).
+  /// Set while the card's tick has been drawn but the card is not yet
+  /// crossed out: the tick answers the tap at once, and being crossed out
+  /// follows a beat later (`TaskProvider.linger`).
+  final bool ticking;
+
+  /// Set when the card's task is leaving the run it is in — a done task out
+  /// of the overdue backlog, a repeating one on to its next date: it fades,
+  /// and the gap it leaves closes, before the run is read back
+  /// (`TaskProvider.toggleDone`).
   final bool leaving;
 
   const TaskCard({
@@ -46,6 +52,7 @@ class TaskCard extends StatelessWidget {
     required this.onTap,
     this.onLongPress,
     required this.onToggle,
+    this.ticking = false,
     this.leaving = false,
   });
 
@@ -70,7 +77,8 @@ class TaskCard extends StatelessWidget {
       list,
       fallback: AppTheme.accentOf(context).color,
     );
-    final faded = task.done;
+    // Crossed out once the tick has been seen, not with it.
+    final faded = task.done && !ticking;
 
     final card = Padding(
       padding: TaskCard.margin,

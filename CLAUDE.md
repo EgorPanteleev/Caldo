@@ -138,23 +138,22 @@ Changing them back will be noticed.
   navigation bar and never had the padding to lose. The strip stays reserved
   instead, and `KeyboardGap` subtracts it from the lift, since the bar now
   starts that much above the window's edge.
-- **Ticking a task off is drawn, then seen, then taken away**
-  (`CheckMark`, `TaskProvider.settle`/`linger`/`leave`, `TaskCard.leaving`).
-  The mark used to appear whole between two frames while the card left for
-  the done end of the run in the same instant — "too fast", and nothing to
-  see. Then it was drawn over 240ms and the card left the moment the mark
-  was finished, which was still "disappears too fast": an overdue task is
-  not overdue once it is done, so it went from the run altogether, and a
-  repeating one went the instant it was touched. Now the square fills and
-  the stroke runs through it (240ms), the card stays where it was, done, for
-  400ms — 600 was liked but a little slow — and then it fades over the first half of 280ms while the gap it
-  leaves closes over the whole — fading and closing at once read as the card
-  being squashed. The provider writes the database at once and holds the
-  re-read until all of that is over, so nothing in the run moves until the
-  card has gone. A repeating task is shown ticked where it stands too,
-  though what was written is its next date. Taking a tick back goes
-  straight away — undoing is a correction, not a flourish — and a second tap
-  while a card is lingering stops it leaving.
+- **Ticking a task off is drawn at once, crossed out a beat later, and only
+  taken away if it is leaving** (`CheckMark`, `TaskProvider.settle`/`linger`/
+  `leave`, `TaskCard.ticking`/`leaving`, `TaskProvider.isTicking`/`isLeaving`).
+  The tick answers the tap: the square fills and the stroke runs through it
+  (240ms). 400ms after that the card is crossed out and its ink sinks — the
+  same moment a card that is leaving its run starts to go — and a card
+  leaves only if its task will not be in that run once it is read back: a
+  done task leaves the overdue backlog, since it is not overdue any more,
+  and a repeating one rolls on to its next date and leaves every run. Those
+  fade over the first half of 280ms while the gap they leave closes over the
+  whole. Everything else stays where it is, crossed out. Two rounds got here:
+  the card used to leave the instant the tick was drawn ("disappears too
+  fast"), and then every ticked card faded out — including ones the reload
+  put straight back at the end of the day, which was a card disappearing
+  and reappearing ("it's wrong"). Taking a tick back goes at once, and a
+  second tap while a card waits stops it.
 - **The three screens live behind a menu button, not a bottom bar.** The
   hamburger sits at the top left of each of them and carries a dot when
   something is overdue — the one thing worth pulling the user back to a screen
@@ -448,9 +447,12 @@ Changing them back will be noticed.
   purpose: a column of zeros would claim every task had been placed by hand,
   and a day nobody has touched should keep the order it has always had. A task
   that arrives in a day somebody has already arranged goes after the arranged
-  ones. The hand order sits under "open before done" rather than over it —
-  ticking a task off is about whether it is still to be done, not about where
-  in the day it sits.
+  ones. **Done or not is not part of the order** (`TaskProvider._compare`,
+  the database's `_order`): it used to be — open before done — and a ticked
+  task then left its place for the end of its day the moment the list was
+  read back, which looked like the card vanishing and turning up somewhere
+  else. Ticking a task off is about whether it is still to be done, not about
+  where in the day it sits, so it stays where it was.
 - **A long press picks a card up; it used to open the editor**, which a tap
   already does, so nothing was lost. There are no drag handles: the card is
   the handle, and a grip beside every row would be a column of furniture down
@@ -586,7 +588,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 98 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 101 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

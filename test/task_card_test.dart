@@ -125,4 +125,49 @@ void main() {
     // Gone, and the gap it was in closed with it.
     expect(tester.getSize(find.byType(TaskCard)).height, 0);
   });
+
+  testWidgets('the tick answers the tap; the cross-out comes a beat after', (
+    tester,
+  ) async {
+    Future<void> pump({required bool ticking}) => tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(AppAccent.presets.first),
+        home: Scaffold(
+          body: TaskCard(
+            task: Task(
+              id: 1,
+              listId: 1,
+              title: 'Ship',
+              done: true,
+              createdAt: 0,
+            ),
+            list: list,
+            onTap: () {},
+            onToggle: () {},
+            ticking: ticking,
+          ),
+        ),
+      ),
+    );
+    TextDecoration? titleLine() => tester
+        .widget<DefaultTextStyle>(
+          find
+              .ancestor(
+                of: find.text('Ship'),
+                matching: find.byType(DefaultTextStyle),
+              )
+              .first,
+        )
+        .style
+        .decoration;
+
+    await pump(ticking: true);
+    await tester.pumpAndSettle();
+    expect(markDrawn(tester), 1, reason: 'ticked at once');
+    expect(titleLine(), isNot(TextDecoration.lineThrough));
+
+    await pump(ticking: false);
+    await tester.pumpAndSettle();
+    expect(titleLine(), TextDecoration.lineThrough);
+  });
 }

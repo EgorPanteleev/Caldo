@@ -92,12 +92,19 @@ class _TasksScreenState extends State<TasksScreen> {
     // as unfinished beside the filled cards it sat between — and the card
     // already writes the hour where an all-day one writes "All day", so the
     // row was drawing a distinction the card had covered.
+    // A done task is not overdue, so ticking one in the backlog takes it out
+    // of the run; ticked anywhere else it stays where it is, crossed out.
+    final overdueIds = {for (final t in overdue) t.id};
     Widget entry(Task task) => TaskCard(
       task: task,
       list: provider.listById(task.listId),
       onTap: () => _openEditor(task),
       onToggle: () => provider.toggleDone(task),
-      leaving: provider.isLeaving(task),
+      ticking: provider.isTicking(task),
+      leaving: provider.isLeaving(
+        task,
+        fromOverdue: overdueIds.contains(task.id),
+      ),
     );
 
     return Scaffold(

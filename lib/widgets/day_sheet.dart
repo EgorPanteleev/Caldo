@@ -167,6 +167,7 @@ class _DaySheetState extends State<_DaySheet> {
                                 onOpen: _openEditor,
                                 onToggle: provider.toggleDone,
                                 isLeaving: provider.isLeaving,
+                                isTicking: provider.isTicking,
                                 onReorder: provider.reorder,
                               ),
                       ),

@@ -221,6 +221,10 @@ class ReorderableTaskList extends StatefulWidget {
   /// (`TaskProvider.isLeaving`).
   final bool Function(Task)? isLeaving;
 
+  /// Whether a ticked task's tick is drawn but its card not yet crossed out
+  /// (`TaskProvider.isTicking`).
+  final bool Function(Task)? isTicking;
+
   /// Hands back the day's tasks in the order they were dragged into.
   final ValueChanged<List<Task>> onReorder;
 
@@ -233,6 +237,7 @@ class ReorderableTaskList extends StatefulWidget {
     required this.onOpen,
     required this.onToggle,
     this.isLeaving,
+    this.isTicking,
     required this.onReorder,
     this.padding = EdgeInsets.zero,
     this.controller,
@@ -308,6 +313,7 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
                 list: w.listOf(task),
                 onTap: () => w.onOpen(task),
                 onToggle: () => w.onToggle(task),
+                ticking: w.isTicking?.call(task) ?? false,
                 leaving: w.isLeaving?.call(task) ?? false,
               ),
             );
