@@ -39,6 +39,10 @@ lib/
                          slide_into_place, tick_off (+ AsShown), carry
 ```
 
+The launcher icon is drawn in SVG under `assets/icon/src` and turned into
+Android's sizes by `tool/make_icon.sh` (needs `rsvg-convert`); the PNGs it
+writes are checked in.
+
 Three destinations — **Schedule**, **Calendar**, **Settings** — in a drawer
 behind the menu button at the top left of each, and nothing else in it.
 
@@ -664,6 +668,15 @@ Changing them back will be noticed.
   allowed to install, and came back as 1.3.13. It only offers what a GitHub
   release carries — `gh release create` with the three APKs is what makes an
   update appear on the phone.
+- **The icon is Dicty's sibling**: the same graphite rounded square and the
+  same two overlapping tiles, here a white calendar page with its rings and
+  a grid of days, and over its corner the violet tile with a white tick — a
+  done task's filled square. One accent tile and nothing else in colour. It
+  is adaptive with the same 16% inset as Dicty's, so the two stand at one
+  size on a home screen, and it carries a monochrome layer for Android 13's
+  themed icons, with the tick and the seam cut out. On the emulator's dock
+  it wears a lavender ring: that is the launcher marking a suggested app in
+  that slot, not part of the icon — the app drawer shows it without.
 - **The window asks Android for the fastest display mode** (`MainActivity`).
   Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
   The ask is for the fastest mode at the resolution already in use — the

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Android's themed icon: one colour, so the tick and the seam between the
+       tile and the page are cut out rather than drawn. -->
+  <defs>
+    <mask id="cut">
+      <rect width="1024" height="1024" fill="#FFFFFF"/>
+      <rect x="468" y="468" width="366" height="366" rx="84" fill="none" stroke="#000000" stroke-width="34"/>
+      <path d="M563 658 L629 724 L746 585" fill="none" stroke="#000000" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="250" y="440" width="64" height="52" rx="14" fill="#000000"/>
+      <rect x="345" y="440" width="64" height="52" rx="14" fill="#000000"/>
+      <rect x="440" y="440" width="64" height="52" rx="14" fill="#000000"/>
+      <rect x="250" y="530" width="64" height="52" rx="14" fill="#000000"/>
+      <rect x="345" y="530" width="64" height="52" rx="14" fill="#000000"/>
+      <rect x="250" y="620" width="64" height="52" rx="14" fill="#000000"/>
+      <rect x="345" y="620" width="64" height="52" rx="14" fill="#000000"/>
+    </mask>
+  </defs>
+  <g mask="url(#cut)" fill="#FFFFFF">
+    <rect x="190" y="250" width="500" height="500" rx="76"/>
+    <rect x="300" y="196" width="44" height="116" rx="22"/>
+    <rect x="536" y="196" width="44" height="116" rx="22"/>
+    <rect x="468" y="468" width="366" height="366" rx="84"/>
+  </g>
+</svg>
