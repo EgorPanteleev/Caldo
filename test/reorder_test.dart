@@ -41,10 +41,12 @@ void main() {
   );
 
   test(
-    'a ticked task is crossed out a beat after its tick, and stays put',
+    'a ticked task is crossed out a beat after its tick, then moves down',
     () async {
       final p = await provider();
       final first = p.tasksForDay(day).first;
+      var rearranged = 0;
+      p.rearranging.addListener(() => rearranged++);
 
       // Not awaited: what is being pinned is what the run looks like while it
       // plays out, which is before this returns.
@@ -56,20 +58,73 @@ void main() {
       expect(p.tasksForDay(day).first.done, isTrue);
       expect(p.isTicking(first), isTrue);
 
-      // A beat later it is crossed out, and it is not leaving: a day's done
-      // tasks are still listed, and fading this one out only for the reload to
+      // A beat later it is crossed out, still in place, and not fading: a day's
+      // done tasks are still listed, and fading one out only for the reload to
       // put it back was a card disappearing and reappearing.
       await untilCrossedOut();
       expect(p.isTicking(first), isFalse);
       expect(p.isLeaving(first), isFalse);
-
-      // Read back, it is exactly where it was. Done tasks used to sort to the
-      // end of their day, which made it reappear somewhere else.
-      await ticking;
       expect(titles(p).first, first.title);
-      expect(p.tasksForDay(day).first.done, isTrue);
+      expect(rearranged, 0);
+
+      // Then the run is read back with it at the end, under the ones still to
+      // do — and the cards are told first, so they can slide there rather than
+      // jump.
+      await ticking;
+      expect(rearranged, 1);
+      expect(titles(p).last, first.title);
+      expect(p.tasksForDay(day).last.done, isTrue);
     },
   );
+
+  test('an undo puts a ticked task back as it was', () async {
+    final p = await provider();
+    final first = p.tasksForDay(day).first;
+    await p.toggleDone(first);
+    expect(titles(p).last, first.title);
+
+    await p.restore(first);
+    expect(titles(p).first, first.title);
+    expect(p.tasksForDay(day).first.done, isFalse);
+  });
+
+  test('an undo puts a repeating task back on its own date', () async {
+    final p = await provider();
+    await p.add(
+      Task(
+        listId: p.lists.first.id!,
+        title: 'daily',
+        dueAt: day.millisecondsSinceEpoch,
+        repeat: Repeat.daily,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+    await p.loadMonth(day);
+    final daily = p.tasksForDay(day).firstWhere((t) => t.title == 'daily');
+
+    // Ticking rolls it on to tomorrow; ticking it again would only roll it a
+    // second time, which is why the undo writes back the task it was.
+    await p.toggleDone(daily);
+    expect(p.tasksForDay(day).where((t) => t.title == 'daily'), isEmpty);
+
+    await p.restore(daily);
+    await p.loadMonth(day);
+    final back = p.tasksForDay(day).singleWhere((t) => t.title == 'daily');
+    expect(back.done, isFalse);
+    expect(back.dueAt, daily.dueAt);
+  });
+
+  test('an undo during the tick stops it where it is', () async {
+    final p = await provider();
+    final first = p.tasksForDay(day).first;
+    final ticking = p.toggleDone(first);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await p.restore(first);
+    await ticking;
+    expect(titles(p).first, first.title);
+    expect(p.tasksForDay(day).first.done, isFalse);
+    expect(p.isTicking(first), isFalse);
+  });
 
   test(
     'a ticked overdue task fades out of the backlog, and only there',

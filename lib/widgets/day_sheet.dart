@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import 'quick_add_bar.dart';
 import 'reorderable_task_list.dart';
+import 'tick_off.dart';
 import 'screen_header.dart';
 
 /// Identifies the day card, for tests and for the calendar that opens it.
@@ -165,9 +166,11 @@ class _DaySheetState extends State<_DaySheet> {
                                 tasks: tasks,
                                 listOf: (t) => provider.listById(t.listId),
                                 onOpen: _openEditor,
-                                onToggle: provider.toggleDone,
+                                onToggle: (task) => tickOff(context, task),
                                 isLeaving: provider.isLeaving,
                                 isTicking: provider.isTicking,
+                                rearranging: provider.rearranging,
+                                scope: 'sheet',
                                 onReorder: provider.reorder,
                               ),
                       ),

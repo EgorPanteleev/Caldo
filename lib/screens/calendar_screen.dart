@@ -15,6 +15,7 @@ import '../widgets/day_sheet.dart';
 import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
+import '../widgets/tick_off.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/reorderable_task_list.dart';
 import 'search_screen.dart';
@@ -454,9 +455,10 @@ class _CalendarScreenState extends State<CalendarScreen>
                             onPullStart: _onPullStart,
                             onPullEnd: _onPullEnd,
                             onOpen: _openEditor,
-                            onToggle: provider.toggleDone,
+                            onToggle: (task) => tickOff(context, task),
                             isLeaving: provider.isLeaving,
                             isTicking: provider.isTicking,
+                            rearranging: provider.rearranging,
                             onReorder: provider.reorder,
                           );
                         },
@@ -782,6 +784,7 @@ class _DayPanel extends StatelessWidget {
   final ValueChanged<Task> onToggle;
   final bool Function(Task) isLeaving;
   final bool Function(Task) isTicking;
+  final Listenable rearranging;
   final ValueChanged<List<Task>> onReorder;
 
   const _DayPanel({
@@ -799,6 +802,7 @@ class _DayPanel extends StatelessWidget {
     required this.onToggle,
     required this.isLeaving,
     required this.isTicking,
+    required this.rearranging,
     required this.onReorder,
   });
 
@@ -853,6 +857,8 @@ class _DayPanel extends StatelessWidget {
                     onToggle: onToggle,
                     isLeaving: isLeaving,
                     isTicking: isTicking,
+                    rearranging: rearranging,
+                    scope: 'calendar',
                     onReorder: onReorder,
                   ),
           ),

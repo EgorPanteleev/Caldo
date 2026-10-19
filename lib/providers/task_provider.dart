@@ -199,17 +199,19 @@ class TaskProvider extends ChangeNotifier {
     return map;
   }
 
-  /// Where the day was dragged into, then earlier before later and all-day
-  /// before timed. Done or not does not come into it.
+  /// Open before done, then where the day was dragged into, then earlier
+  /// before later and all-day before timed.
   ///
-  /// It did once — open before done — and that meant a ticked task left its
-  /// place for the end of its day the moment the list was read back: a card
-  /// crossed out in one spot, gone from it, and back further down. A task
-  /// being ticked off is about whether it is still to be done, not about
-  /// where in the day it sits, so it now stays where it was. A task with no
-  /// placement of its own goes after the ones that have it — it arrived in a
-  /// day somebody had already arranged.
+  /// A finished task goes to the end of its day, under the ones still to do —
+  /// asked for, once the move was something to watch rather than a jump: the
+  /// list is read back with it in its new place, and every card slides from
+  /// where it was to where it has landed (`SlideIntoPlace`, [rearranging]).
+  /// The hand-placed order sits under "open before done" rather than over it,
+  /// since ticking a task off is about whether it is still to be done. A task
+  /// with no placement of its own goes after the ones that have it — it
+  /// arrived in a day somebody had already arranged.
   static int _compare(Task a, Task b) {
+    if (a.done != b.done) return a.done ? 1 : -1;
     if (a.sortOrder != b.sortOrder) {
       if (a.sortOrder == null) return 1;
       if (b.sortOrder == null) return -1;
@@ -252,6 +254,13 @@ class TaskProvider extends ChangeNotifier {
   /// How long a leaving card takes to fade and close up the gap it leaves.
   /// Matched to the card's own (`TaskCard`).
   static const leave = Duration(milliseconds: 280);
+
+  /// Ticked just before a tick, an untick or an undo has the lists read back
+  /// in a new order. Cards note where they stand when it does, and slide from
+  /// there to wherever the new order puts them (`SlideIntoPlace`): a
+  /// finished task drifts to the end of its day and the ones below it rise,
+  /// rather than the card vanishing from one place and turning up in another.
+  final ValueNotifier<int> rearranging = ValueNotifier<int>(0);
 
   /// Tasks whose tick has been drawn and that are not yet crossed out.
   final Set<int> _ticking = {};
@@ -328,6 +337,7 @@ class TaskProvider extends ChangeNotifier {
     if (!done) {
       notifyListeners();
       await Future<void>.delayed(settle);
+      rearranging.value++;
       await _reloadAll();
       return;
     }
@@ -346,6 +356,23 @@ class TaskProvider extends ChangeNotifier {
       _settled.remove(id);
       _rolling.remove(id);
     }
+    rearranging.value++;
+    await _reloadAll();
+  }
+
+  /// Puts [original] back exactly as it was before it was ticked — not
+  /// ticked off, and on its own date if it was a repeating task that had
+  /// rolled on. What the undo after a tick does. A tick still playing out on
+  /// the task is stopped where it is.
+  Future<void> restore(Task original) async {
+    final id = original.id;
+    if (id == null) return;
+    _ticks[id] = ++_tickCount;
+    _ticking.remove(id);
+    _settled.remove(id);
+    _rolling.remove(id);
+    await _db.update(original);
+    rearranging.value++;
     await _reloadAll();
   }
 

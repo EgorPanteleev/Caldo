@@ -229,11 +229,8 @@ class AppDatabase {
   /// tasks from different days, and sorting by date first would quietly undo
   /// the arranging. A day's own tasks share a date anyway, so nothing changes
   /// for them.
-  ///
-  /// Done or not is not part of it: a ticked task keeps its place rather than
-  /// moving to the end of its run (see `TaskProvider._compare`).
   static const _order =
-      '(sort_order IS NULL) ASC, sort_order ASC, '
+      'done ASC, (sort_order IS NULL) ASC, sort_order ASC, '
       '(due_at IS NULL) ASC, due_at ASC, created_at DESC';
 
   /// Writes the order a day was dragged into: the position of each id in

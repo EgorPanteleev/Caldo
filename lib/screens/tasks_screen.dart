@@ -10,7 +10,9 @@ import '../utils/dates.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/reorderable_task_list.dart';
 import '../widgets/screen_header.dart';
+import '../widgets/slide_into_place.dart';
 import '../widgets/task_card.dart';
+import '../widgets/tick_off.dart';
 import 'search_screen.dart';
 import 'task_edit_screen.dart';
 
@@ -95,15 +97,20 @@ class _TasksScreenState extends State<TasksScreen> {
     // A done task is not overdue, so ticking one in the backlog takes it out
     // of the run; ticked anywhere else it stays where it is, crossed out.
     final overdueIds = {for (final t in overdue) t.id};
-    Widget entry(Task task) => TaskCard(
-      task: task,
-      list: provider.listById(task.listId),
-      onTap: () => _openEditor(task),
-      onToggle: () => provider.toggleDone(task),
-      ticking: provider.isTicking(task),
-      leaving: provider.isLeaving(
-        task,
-        fromOverdue: overdueIds.contains(task.id),
+    Widget entry(Task task) => SlideIntoPlace(
+      scope: 'schedule',
+      id: task.id ?? task,
+      trigger: provider.rearranging,
+      child: TaskCard(
+        task: task,
+        list: provider.listById(task.listId),
+        onTap: () => _openEditor(task),
+        onToggle: () => tickOff(context, task),
+        ticking: provider.isTicking(task),
+        leaving: provider.isLeaving(
+          task,
+          fromOverdue: overdueIds.contains(task.id),
+        ),
       ),
     );
 

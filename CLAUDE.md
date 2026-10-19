@@ -35,7 +35,8 @@ lib/
                          colour_selector,
                          date_time_pickers, day_sheet, menu_button,
                          quick_add_bar, screen_header, selection_bar,
-                         theme_switcher, gradient_icon_button
+                         theme_switcher, gradient_icon_button,
+                         slide_into_place, tick_off
 ```
 
 Three destinations — **Schedule**, **Calendar**, **Settings** — in a drawer
@@ -148,12 +149,30 @@ Changing them back will be noticed.
   done task leaves the overdue backlog, since it is not overdue any more,
   and a repeating one rolls on to its next date and leaves every run. Those
   fade over the first half of 280ms while the gap they leave closes over the
-  whole. Everything else stays where it is, crossed out. Two rounds got here:
-  the card used to leave the instant the tick was drawn ("disappears too
-  fast"), and then every ticked card faded out — including ones the reload
-  put straight back at the end of the day, which was a card disappearing
-  and reappearing ("it's wrong"). Taking a tick back goes at once, and a
-  second tap while a card waits stops it.
+  whole. Everything else is crossed out in place and then **slides** to the
+  end of its day as the run is read back (`SlideIntoPlace`, 320ms), with the
+  cards below it rising into the gap. Three rounds got here: the card used
+  to leave the instant the tick was drawn ("disappears too fast"), then every
+  ticked card faded out — including ones the reload put straight back at the
+  end of the day, which was a card disappearing and reappearing ("it's
+  wrong") — and then it stayed put, which was asked back: "move it to the
+  bottom". Taking a tick back goes at once, and a second tap while a card
+  waits stops it.
+- **A tick off offers Undo for four seconds** (`tickOff`, a SnackBar above
+  the add field). Undo writes back the task as it was before the tap
+  (`TaskProvider.restore`) rather than ticking it again, because a repeating
+  task has already rolled on to its next date and a second tick would only
+  roll it further. The bar needs `persist: false`: a SnackBar with an action
+  otherwise stays until it is dismissed, which on the emulator meant it never
+  went. Every card's tick goes through `tickOff`; untick is already an undo
+  and gets no bar.
+- **A card slides to its new place by task, not by card** (`SlideIntoPlace`).
+  `TaskProvider.rearranging` fires just before a re-read; every card notes
+  where it stands in its scrollable's content space (so a scroll is never
+  taken for a move), and after the new layout each one that moved is drawn
+  back at its old place and eased to the new one. Notes are keyed by
+  (screen, task id): a reorderable list hands card state to a different task
+  when it reorders, and Schedule and Calendar are both alive under the menu.
 - **The three screens live behind a menu button, not a bottom bar.** The
   hamburger sits at the top left of each of them and carries a dot when
   something is overdue — the one thing worth pulling the user back to a screen
@@ -447,12 +466,15 @@ Changing them back will be noticed.
   purpose: a column of zeros would claim every task had been placed by hand,
   and a day nobody has touched should keep the order it has always had. A task
   that arrives in a day somebody has already arranged goes after the arranged
-  ones. **Done or not is not part of the order** (`TaskProvider._compare`,
-  the database's `_order`): it used to be — open before done — and a ticked
-  task then left its place for the end of its day the moment the list was
-  read back, which looked like the card vanishing and turning up somewhere
-  else. Ticking a task off is about whether it is still to be done, not about
-  where in the day it sits, so it stays where it was.
+  ones. **Done tasks go after open ones** (`TaskProvider._compare`, the
+  database's `_order`), and the hand order sits under that. It was taken out
+  once, because a ticked task jumped to the end of its day the moment the
+  list was read back and looked like a card vanishing and turning up
+  somewhere else; it came back once the move could be shown as a slide,
+  since a day's done tasks at the top of it were in the way of what is left.
+  Done tasks are ordered among themselves like any others — by creation, not
+  by when they were ticked — so a newly ticked task is below every open one
+  but not necessarily the very last.
 - **A long press picks a card up; it used to open the editor**, which a tap
   already does, so nothing was lost. There are no drag handles: the card is
   the handle, and a grip beside every row would be a column of furniture down
@@ -588,7 +610,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 101 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 105 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

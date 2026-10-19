@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import 'slide_into_place.dart';
 import 'task_card.dart';
 
 /// One day's holidays and tasks, with the tasks draggable into an order of
@@ -225,6 +226,13 @@ class ReorderableTaskList extends StatefulWidget {
   /// (`TaskProvider.isTicking`).
   final bool Function(Task)? isTicking;
 
+  /// Fires just before the list is read back in a new order, so its cards
+  /// can slide to their new places (`TaskProvider.rearranging`).
+  final Listenable? rearranging;
+
+  /// Which list this is, for [SlideIntoPlace].
+  final String scope;
+
   /// Hands back the day's tasks in the order they were dragged into.
   final ValueChanged<List<Task>> onReorder;
 
@@ -238,6 +246,8 @@ class ReorderableTaskList extends StatefulWidget {
     required this.onToggle,
     this.isLeaving,
     this.isTicking,
+    this.rearranging,
+    this.scope = 'tasks',
     required this.onReorder,
     this.padding = EdgeInsets.zero,
     this.controller,
@@ -308,13 +318,18 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
             return ReorderableDelayedDragStartListener(
               key: ValueKey('task-${task.id}'),
               index: i,
-              child: TaskCard(
-                task: task,
-                list: w.listOf(task),
-                onTap: () => w.onOpen(task),
-                onToggle: () => w.onToggle(task),
-                ticking: w.isTicking?.call(task) ?? false,
-                leaving: w.isLeaving?.call(task) ?? false,
+              child: SlideIntoPlace(
+                scope: w.scope,
+                id: task.id ?? task,
+                trigger: w.rearranging ?? const _Never(),
+                child: TaskCard(
+                  task: task,
+                  list: w.listOf(task),
+                  onTap: () => w.onOpen(task),
+                  onToggle: () => w.onToggle(task),
+                  ticking: w.isTicking?.call(task) ?? false,
+                  leaving: w.isLeaving?.call(task) ?? false,
+                ),
               ),
             );
           },
@@ -323,4 +338,15 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
       ],
     );
   }
+}
+
+/// A listenable that never fires, for a list nobody rearranges.
+class _Never implements Listenable {
+  const _Never();
+
+  @override
+  void addListener(VoidCallback listener) {}
+
+  @override
+  void removeListener(VoidCallback listener) {}
 }

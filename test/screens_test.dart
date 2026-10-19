@@ -14,6 +14,7 @@ import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/menu_button.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
+import 'package:caldo/widgets/task_card.dart';
 import 'package:caldo/widgets/task_row.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
@@ -596,6 +597,63 @@ void main() {
     expect(field.controller?.text, isEmpty);
   });
 
+  testWidgets('ticking a task off offers to take it back', (tester) async {
+    late _CapturingProvider provider;
+    await tester.runAsync(() async {
+      // Seeded for real first: the capturing provider's own add writes
+      // nothing.
+      await seedProvider();
+      provider = _CapturingProvider();
+      await provider.loadLists();
+      await provider.loadTasks();
+    });
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: const TasksScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final ship = find.ancestor(
+      of: find.text('Ship'),
+      matching: find.byType(TaskCard),
+    );
+    await tester.tap(
+      find.descendant(of: ship, matching: find.byKey(taskCardTickKey)),
+    );
+    await tester.pumpAndSettle();
+    expect(provider.toggled?.title, 'Ship');
+    expect(find.text('Undo'), findsOneWidget);
+
+    // The offer does not stand for ever. A bar with an action stays until it
+    // is dismissed unless told otherwise, and tapping Undo dismisses it too,
+    // so this is checked before the tap rather than after it.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+
+    // What is written back is the task as it was before the tap.
+    await tester.tap(
+      find.descendant(of: ship, matching: find.byKey(taskCardTickKey)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    expect(provider.restored?.title, 'Ship');
+    expect(provider.restored?.done, isFalse);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('search finds a task in any list by title or notes', (
     tester,
   ) async {
@@ -794,7 +852,15 @@ void main() {
 /// Records what the UI asks to create instead of writing it.
 class _CapturingProvider extends TaskProvider {
   Task? added;
+  Task? toggled;
+  Task? restored;
 
   @override
   Future<void> add(Task task) async => added = task;
+
+  @override
+  Future<void> toggleDone(Task task) async => toggled = task;
+
+  @override
+  Future<void> restore(Task original) async => restored = original;
 }
