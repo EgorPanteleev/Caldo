@@ -276,9 +276,19 @@ Changing them back will be noticed.
   a step above `panelHi`), with no outline on either and nothing marking the
   focus but the cursor. Outlined on true black the pair read as holes cut in
   the screen, and a neutral ring around half the width was a line nobody read.
-- **The strip the add field sits on follows what is above it** — the calendar's
-  own ground once the month is opened out, the day panel's grey while the
-  day's tasks are still on screen.
+- **The strip the add field sits on, and the fade above it, follow what the
+  field is actually standing over** (`_groundUnderField`, `_fadeStrength`,
+  `_overGrid`). That is the calendar's own black once the month is opened
+  out and the day panel's grey while the day's tasks are on screen — but
+  the keyboard moves the field, and once it has carried the field up past
+  the panel onto the grid, the grid is what is under it. Following only the
+  calendar's state, the field rode up over the month as a grey slab in the
+  compact view, and in the opened one it lost its fade and cut the week
+  under it off square — reported as "no smooth transition between add task
+  and calendar". The day panel's drawn height is kept from the layout so
+  the field can tell where it is: past the top of the panel, the ground
+  turns to the calendar's over one fade's height, and the fade is on
+  whenever the keyboard has lifted the field at all.
 - **Whatever is above the add field fades into the ground it sits on**
   (`GroundFade`, 48 points, on both the calendar and Schedule). Sliced off
   square by the field, the last card in a full day ended in a straight cut
@@ -287,8 +297,8 @@ Changing them back will be noticed.
   finishes, and both read as lines. It is one widget rather than two copies
   because the two screens have to look the same doing it — which is how it
   came to be asked for on Schedule in the first place.
-- **The fade goes as the month opens out** (`GroundFade.strength`, driven by
-  the calendar's expansion). It is for a list that runs under the field, and
+- **The fade goes as the month opens out — while the keyboard is down**
+  (`GroundFade.strength`, driven by the calendar's expansion and the lift). It is for a list that runs under the field, and
   the calendar only has one while the day's tasks are on screen. Opened out,
   what sits above the field is the grid — a fixed layout that ends above the
   field with nothing to soften — so the fade only dimmed the last week of

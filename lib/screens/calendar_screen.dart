@@ -108,11 +108,41 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// commits to the next one.
   double _dragFrom = 0;
 
+  /// How tall the day panel under the grid is drawn this frame. Kept from
+  /// the layout so the add field can tell what it is standing over once the
+  /// keyboard has lifted it out of its own slot.
+  double _panelVisible = 0;
+
+  /// How far the field has climbed past the day panel and over the grid, as
+  /// a fraction of the fade above it: nothing while it is over the panel or
+  /// in its own slot, all of it once the keyboard has carried it a fade's
+  /// height onto the month.
+  double _overGrid(double lift) =>
+      ((lift - _panelVisible) / GroundFade.height).clamp(0.0, 1.0);
+
   /// The ground the add field sits on, and the colour whatever is above it
-  /// fades into: the calendar's own once the month is opened out, the app
-  /// background while the day's tasks still have the lower half of the screen.
-  Color _groundUnderField(AppPalette p) =>
-      Color.lerp(p.panel, p.calendar, math.max(0.0, _expansion.value))!;
+  /// fades into — which is whatever it is actually standing over. The
+  /// calendar's black once the month is opened out, the panel's grey while
+  /// the day's tasks have the lower half of the screen, and the black again
+  /// when the keyboard has lifted the field up past the panel onto the grid:
+  /// it used to keep the panel's grey wherever it went, and rode up over
+  /// the month as a grey slab.
+  Color _groundUnderField(AppPalette p, double lift) => Color.lerp(
+    p.panel,
+    p.calendar,
+    math.max(math.max(0.0, _expansion.value), _overGrid(lift)),
+  )!;
+
+  /// How much of the fade to draw. It is for something running under the
+  /// field: the day's tasks while they are on screen, and the grid itself
+  /// once the keyboard has lifted the field over it. Opened out with the
+  /// keyboard down, the grid ends above the field and there is nothing to
+  /// soften — but with the keyboard up the field sits across the month, and
+  /// without the fade it cut the week under it off square.
+  double _fadeStrength(double lift) => math.max(
+    1 - _expansion.value.clamp(0.0, 1.0),
+    (lift / GroundFade.height).clamp(0.0, 1.0),
+  );
 
   /// Set while a pick is being carried to the two pagers, so the pages their
   /// animations pass through are not mistaken for picks of their own.
@@ -441,6 +471,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                               available,
                             );
                         final panelLayout = math.max(listHeight, panelVisible);
+                        _panelVisible = panelVisible;
                         return Column(
                           children: [
                             // The grid and its grip share the calendar's own
@@ -531,27 +562,35 @@ class _CalendarScreenState extends State<CalendarScreen>
                   bottom: 0,
                   child: KeyboardLift(
                     child: AnimatedBuilder(
-                      animation: _expansion,
-                      // Gone by the time the month is open: see
-                      // GroundFade.strength.
-                      builder: (context, _) => GroundFade(
-                        ground: _groundUnderField(p),
-                        strength: 1 - _expansion.value.clamp(0.0, 1.0),
-                      ),
+                      animation: Listenable.merge([
+                        _expansion,
+                        KeyboardGap.instance.covered,
+                      ]),
+                      builder: (context, _) {
+                        final lift = KeyboardGap.of(context);
+                        return GroundFade(
+                          ground: _groundUnderField(p, lift),
+                          strength: _fadeStrength(lift),
+                        );
+                      },
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          // The strip the field sits on belongs to whatever is above it: the
-          // calendar's own ground once the month is opened out, the list's
-          // background while the day's tasks are still on screen.
+          // The strip the field sits on belongs to whatever it is over: see
+          // _groundUnderField.
           KeyboardLift(
             child: AnimatedBuilder(
-              animation: _expansion,
-              builder: (context, child) =>
-                  ColoredBox(color: _groundUnderField(p), child: child),
+              animation: Listenable.merge([
+                _expansion,
+                KeyboardGap.instance.covered,
+              ]),
+              builder: (context, child) => ColoredBox(
+                color: _groundUnderField(p, KeyboardGap.of(context)),
+                child: child,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
