@@ -59,8 +59,17 @@ class _QuickAddBarState extends State<QuickAddBar> {
   /// Hands the title over and closes the field. The task is filed at that
   /// point, so leaving the keyboard up over a day whose list has just changed
   /// hides the very thing the tap was meant to produce.
+  ///
+  /// The keyboard is told to go before the field lets go of it, the way it
+  /// is when the field is cancelled. Letting go first leaves the keyboard on
+  /// screen with nothing typing into it — on a phone it stayed up for half a
+  /// second after the tick, then Android took it down on its own, and the
+  /// next time the field was opened the keyboard slid up reporting itself a
+  /// strip taller than it was, carrying the field clear of the keys for the
+  /// length of the slide. Cancelling never did it; only the tick did.
   void _submit() {
     widget.onSubmit();
+    SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     _focus.unfocus();
   }
 

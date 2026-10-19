@@ -364,6 +364,15 @@ Changing them back will be noticed.
   to within a point at every moment; on a bad one it was a constant 29
   points — two of that phone's 14.9-point bars — too tall from the first
   frame to the last.
+- **The tick tells the keyboard to go before the field lets go of it**
+  (`QuickAddBar._submit`, `TextInput.hide` then `unfocus`). Letting go
+  first left the keyboard on screen with nothing typing into it: in the
+  recording, the button had already turned back into a plus while the keys
+  stayed up for another half second, and then Android took them down on its
+  own. The next opening after that is the one that came up reporting the
+  keyboard a strip taller than it was. Cancelling asks the keyboard to go
+  and never did it, which is how the user narrowed it to the checkbox — and
+  why every fix aimed at the keyboard arithmetic missed.
 - **Long-pressing the Settings title puts the keyboard's numbers on screen**
   (`KeyboardGap.showNumbers`, drawn by `KeyboardNumbers` above the add
   field): the inset Flutter reports, what Android says, the strip the layout
