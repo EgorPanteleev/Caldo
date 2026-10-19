@@ -144,7 +144,8 @@ class _CarryMarkState<T extends Object> extends State<CarryMark<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = AppTheme.accentOf(context).color;
+    // The neutral, like every other mark of where something is.
+    final accent = AppTheme.of(context).text;
     return CustomPaint(
       key: _box,
       foregroundPainter: _MarkPainter<T>(

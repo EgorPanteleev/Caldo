@@ -233,8 +233,7 @@ Changing them back will be noticed.
   looking for its text and reads the screen's offset instead. Back closes it
   (`PopScope`), as does a tap or a leftward swipe on the screen.
 - **Today is a badge, the selected day a thin neutral outline.** Accent on
-  either was "too much"; the accent survives on the add buttons, the TODAY
-  label and the menu's current entry. The badge takes the colour the day's own
+  either was "too much". The badge takes the colour the day's own
   number would have had — red on a Sunday, light on every other day — since a
   light badge on a red date was the one place the red stopped halfway. The
   number on the red badge is black; on the light one it is the ground itself.
@@ -468,6 +467,19 @@ Changing them back will be noticed.
   background a shade lighter put a seam down the screen — and on the OLED panels
   this is built for, black is black rather than a very dark grey. Everything
   above it is a raised grey instead.
+- **The controls are neutral; the accent is kept for what is rare**
+  (`AppTheme._build`'s switch, segmented, text-button, filled-button,
+  input-focus and selection themes; the menu's current entry; the carry
+  marks). Switches are a light track with a dark thumb, the selected
+  segment and the open screen in the menu are lifted in `field` grey, a
+  focused field is outlined in `muted`, and a dialog's buttons are plain
+  text beside a light filled one. Every one of those was the accent, and on
+  a dark screen they added up to most of the colour there was — "too many
+  accent colours … all app". What keeps the accent: Undo, the update banner,
+  a clock wheel under the finger, and the accent and colour pickers in
+  Settings, which are choosing a colour. Tasks wear their own colour, not
+  the accent; that the default list is violet, the same hue as the default
+  accent, is why the calendar still reads purple when nothing else does.
 - **The greys are neutral.** Every surface used to carry a few points of extra
   blue, which over a whole screen read as a violet wash instead of as grey. The
   accent and the list swatches came off the bright web palette they were taken

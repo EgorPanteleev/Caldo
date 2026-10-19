@@ -365,7 +365,6 @@ class _Menu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context);
     // The count and nothing else: watching the whole provider rebuilt the
     // menu on every change to every task.
     final overdue = context.select<TaskProvider, int>((p) => p.overdue.length);
@@ -410,7 +409,6 @@ class _Menu extends StatelessWidget {
                 // The overdue backlog is what the dot on the button stands
                 // for, so the menu says how much of it there is.
                 badge: i == 0 && overdue > 0 ? overdue : null,
-                accent: accent.color,
                 onTap: () => onSelected(i),
               ),
           ],
@@ -424,25 +422,25 @@ class _MenuItem extends StatelessWidget {
   final _TabItem item;
   final bool selected;
   final int? badge;
-  final Color accent;
   final VoidCallback onTap;
 
   const _MenuItem({
     required this.item,
     required this.selected,
     required this.badge,
-    required this.accent,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final color = selected ? accent : p.muted;
+    // The screen that is open is the one lifted out in the neutral; it was
+    // the accent, icon and row both, on a panel of otherwise quiet greys.
+    final color = selected ? p.text : p.muted;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: Material(
-        color: selected ? accent.withValues(alpha: 0.14) : Colors.transparent,
+        color: selected ? p.field : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: () {

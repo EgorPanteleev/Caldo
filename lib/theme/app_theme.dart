@@ -361,15 +361,59 @@ class AppTheme {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: p.border),
         ),
+        // Focus is said in the neutral, a step up from the resting outline.
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: accent.color, width: 1.5),
+          borderSide: BorderSide(color: p.muted, width: 1.5),
         ),
+        floatingLabelStyle: TextStyle(color: p.muted),
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: p.text,
+        selectionColor: p.text.withValues(alpha: 0.25),
+        selectionHandleColor: p.text,
+      ),
+      // The controls are neutral. The accent was on every switch, every
+      // selected segment, every focused field and both buttons of every
+      // dialog, and on a dark screen that was most of the colour there was —
+      // "too many accent colours". It is kept for the few things that are an
+      // action to take (Undo, Update) or a thing being touched (a clock
+      // wheel under the finger), where it means something by being rare.
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? p.bg : p.faint,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? p.text : p.panelHi,
+        ),
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.transparent
+              : p.border,
+        ),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? p.field
+                : Colors.transparent,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) =>
+                states.contains(WidgetState.selected) ? p.text : p.muted,
+          ),
+          side: WidgetStatePropertyAll(BorderSide(color: p.border)),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: p.text),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: accent.color,
-          foregroundColor: Colors.white,
+          backgroundColor: p.text,
+          foregroundColor: p.bg,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
