@@ -34,6 +34,11 @@ class TaskCard extends StatelessWidget {
   final VoidCallback? onLongPress;
   final VoidCallback onToggle;
 
+  /// Set once the card has been ticked and has lingered, done, long enough
+  /// to be seen: it fades, and the gap it leaves closes, before the run it
+  /// is in is rearranged (`TaskProvider.toggleDone`).
+  final bool leaving;
+
   const TaskCard({
     super.key,
     required this.task,
@@ -41,6 +46,7 @@ class TaskCard extends StatelessWidget {
     required this.onTap,
     this.onLongPress,
     required this.onToggle,
+    this.leaving = false,
   });
 
   /// "All day", or the time it is due, and the repeat rule if it has one. Not
@@ -66,7 +72,7 @@ class TaskCard extends StatelessWidget {
     );
     final faded = task.done;
 
-    return Padding(
+    final card = Padding(
       padding: TaskCard.margin,
       child: Material(
         color: Colors.transparent,
@@ -138,6 +144,23 @@ class TaskCard extends StatelessWidget {
         ),
       ),
     );
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: leaving ? 0.0 : 1.0),
+      duration: _leave,
+      curve: Curves.easeInOutCubic,
+      child: card,
+      // The card goes first and the gap after it: faded out over the first
+      // half, while its height only closes over the whole. Both at once
+      // read as the card being squashed rather than taken away.
+      builder: (context, t, card) => ClipRect(
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: t,
+          child: Opacity(opacity: (t * 2 - 1).clamp(0.0, 1.0), child: card),
+        ),
+      ),
+    );
   }
 
   static Color _priorityColor(Priority priority) => switch (priority) {
@@ -154,6 +177,11 @@ class TaskCard extends StatelessWidget {
 /// the same stretch, so the card is still under the finger that ticked it
 /// while the tick is being drawn (`TaskProvider.toggleDone`).
 const _settle = Duration(milliseconds: 240);
+
+/// How long a ticked card takes to fade and close up the gap it leaves.
+/// Matched to `TaskProvider.leave`, which waits that long before the run is
+/// read back.
+const _leave = Duration(milliseconds: 280);
 
 /// The tappable tick on a card.
 ///

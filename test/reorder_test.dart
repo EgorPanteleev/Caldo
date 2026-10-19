@@ -32,12 +32,12 @@ void main() {
     for (final task in p.tasksForDay(day)) task.title,
   ];
 
-  test('a ticked task keeps its place until the tick has been drawn', () async {
+  test('a ticked task is seen done before it leaves its place', () async {
     final p = await provider();
     final first = p.tasksForDay(day).first;
 
-    // Not awaited: what is being pinned is what the run looks like while the
-    // mark is being drawn on the card, which is before this returns.
+    // Not awaited: what is being pinned is what the run looks like while it
+    // plays out, which is before this returns.
     final ticking = p.toggleDone(first);
     await Future<void>.delayed(const Duration(milliseconds: 40));
 
@@ -45,11 +45,44 @@ void main() {
     // to stand still long enough for the tick to be worth watching.
     expect(titles(p).first, first.title);
     expect(p.tasksForDay(day).first.done, isTrue);
+    expect(p.isLeaving(first), isFalse);
+
+    // Still there once the tick has been drawn: it stays a moment, done,
+    // before it goes. It used to be gone the instant the mark was finished.
+    await Future<void>.delayed(
+      TaskProvider.settle +
+          TaskProvider.linger -
+          const Duration(milliseconds: 120),
+    );
+    expect(titles(p).first, first.title);
+    expect(p.isLeaving(first), isFalse);
+
+    // Then it fades out of its place, and only after that is the run read
+    // back and the card takes its place among the done ones, which sort last.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(p.isLeaving(first), isTrue);
+    expect(titles(p).first, first.title, reason: 'not moved while fading');
 
     await ticking;
-    // And then it takes its place among the done ones, which sort last.
+    expect(p.isLeaving(first), isFalse);
     expect(titles(p).last, first.title);
     expect(p.tasksForDay(day).last.done, isTrue);
+  });
+
+  test('taking a tick back does not linger', () async {
+    final p = await provider();
+    final first = p.tasksForDay(day).first;
+    await p.toggleDone(first);
+    final done = p.tasksForDay(day).firstWhere((t) => t.id == first.id);
+
+    final undoing = p.toggleDone(done);
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(p.isLeaving(done), isFalse, reason: 'a correction is no flourish');
+    await undoing.timeout(TaskProvider.settle * 4);
+    expect(
+      p.tasksForDay(day).firstWhere((t) => t.id == first.id).done,
+      isFalse,
+    );
   });
 
   test('a day keeps the order it was dragged into', () async {

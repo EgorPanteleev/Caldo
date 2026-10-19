@@ -166,6 +166,7 @@ class _DaySheetState extends State<_DaySheet> {
                                 listOf: (t) => provider.listById(t.listId),
                                 onOpen: _openEditor,
                                 onToggle: provider.toggleDone,
+                                isLeaving: provider.isLeaving,
                                 onReorder: provider.reorder,
                               ),
                       ),

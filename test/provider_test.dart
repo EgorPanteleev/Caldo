@@ -35,19 +35,21 @@ void main() {
     expect(after.openCount, 2);
   });
 
-  test('completing a repeating task rolls it forward instead of closing it',
-      () async {
-    final provider = await seedProvider();
-    final task = provider.tasks.firstWhere((t) => t.title == 'Water');
-    final before = task.due!;
+  test(
+    'completing a repeating task rolls it forward instead of closing it',
+    () async {
+      final provider = await seedProvider();
+      final task = provider.tasks.firstWhere((t) => t.title == 'Water');
+      final before = task.due!;
 
-    await provider.toggleDone(task);
+      await provider.toggleDone(task);
 
-    final after = provider.tasks.firstWhere((t) => t.title == 'Water');
-    expect(after.done, isFalse);
-    expect(after.due, before.add(const Duration(days: 7)));
-    expect(after.completedAt, isNotNull);
-  });
+      final after = provider.tasks.firstWhere((t) => t.title == 'Water');
+      expect(after.done, isFalse);
+      expect(after.due, before.add(const Duration(days: 7)));
+      expect(after.completedAt, isNotNull);
+    },
+  );
 
   test('a one-off task is closed and can be reopened', () async {
     final provider = await seedProvider();
@@ -147,10 +149,7 @@ void main() {
     await provider.update(task.copyWith(listId: personal.id));
 
     expect(provider.tasks.any((t) => t.title == 'Ship'), isFalse);
-    expect(
-      provider.lists.firstWhere((l) => l.name == 'Personal').taskCount,
-      1,
-    );
+    expect(provider.lists.firstWhere((l) => l.name == 'Personal').taskCount, 1);
   });
 
   test('a task can carry its own colour, overriding its list', () async {
@@ -162,35 +161,43 @@ void main() {
 
     final stored = provider.tasks.firstWhere((t) => t.title == 'Ship');
     expect(stored.styleId, 'pink');
-    expect(colorOfTask(stored, work, fallback: const Color(0xFF000000)),
-        ListStyle.byId('pink').color);
+    expect(
+      colorOfTask(stored, work, fallback: const Color(0xFF000000)),
+      ListStyle.byId('pink').color,
+    );
 
     // Cleared, it falls back to the colour of its list.
     await provider.update(stored.copyWith(clearStyleId: true));
     final plain = provider.tasks.firstWhere((t) => t.title == 'Ship');
     expect(plain.styleId, isNull);
-    expect(colorOfTask(plain, work, fallback: const Color(0xFF000000)),
-        work.style.color);
+    expect(
+      colorOfTask(plain, work, fallback: const Color(0xFF000000)),
+      work.style.color,
+    );
   });
 
   test('a new list starts empty and can be opened', () async {
     final provider = TaskProvider();
     await provider.loadLists();
-    final created = await provider.addList(TaskList(
-      name: 'Errands',
-      styleId: 'green',
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-    ));
+    final created = await provider.addList(
+      TaskList(
+        name: 'Errands',
+        styleId: 'green',
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
     await provider.openList(created.id!);
 
     expect(provider.currentList?.name, 'Errands');
     expect(provider.tasks, isEmpty);
 
-    await provider.add(Task(
-      listId: created.id!,
-      title: 'Post the parcel',
-      createdAt: DateTime.now().millisecondsSinceEpoch,
-    ));
+    await provider.add(
+      Task(
+        listId: created.id!,
+        title: 'Post the parcel',
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
     expect(provider.tasks.single.title, 'Post the parcel');
   });
 }

@@ -13,19 +13,21 @@ void main() {
     Task task, {
     VoidCallback? onToggle,
   }) {
-    return tester.pumpWidget(MaterialApp(
-      theme: AppTheme.dark(AppAccent.presets.first),
-      home: Scaffold(
-        body: TaskRow(
-          task: task,
-          list: list,
-          showList: true,
-          onTap: () {},
-          onLongPress: () {},
-          onToggle: onToggle ?? () {},
+    return tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(AppAccent.presets.first),
+        home: Scaffold(
+          body: TaskRow(
+            task: task,
+            list: list,
+            showList: true,
+            onTap: () {},
+            onLongPress: () {},
+            onToggle: onToggle ?? () {},
+          ),
         ),
       ),
-    ));
+    );
   }
 
   testWidgets('shows the title, the list and the repeat rule', (tester) async {
@@ -49,8 +51,13 @@ void main() {
   testWidgets('strikes through a completed task', (tester) async {
     await pumpRow(
       tester,
-      const Task(id: 2, listId: 1, title: 'Done thing', done: true,
-          createdAt: 0),
+      const Task(
+        id: 2,
+        listId: 1,
+        title: 'Done thing',
+        done: true,
+        createdAt: 0,
+      ),
     );
     final text = tester.widget<Text>(find.text('Done thing'));
     expect(text.style?.decoration, TextDecoration.lineThrough);
@@ -76,8 +83,13 @@ void main() {
 
     await pumpRow(
       tester,
-      const Task(id: 5, listId: 1, title: 'Urgent', priority: Priority.high,
-          createdAt: 0),
+      const Task(
+        id: 5,
+        listId: 1,
+        title: 'Urgent',
+        priority: Priority.high,
+        createdAt: 0,
+      ),
     );
     expect(find.byType(PriorityFlag), findsOneWidget);
   });

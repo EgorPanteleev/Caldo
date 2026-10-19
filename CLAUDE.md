@@ -138,18 +138,23 @@ Changing them back will be noticed.
   navigation bar and never had the padding to lose. The strip stays reserved
   instead, and `KeyboardGap` subtracts it from the lift, since the bar now
   starts that much above the window's edge.
-- **Ticking a task off is drawn, and the run waits for it** (`CheckMark`,
-  `TaskProvider.settle`). The mark used to appear whole between two frames
-  while the card left for the done end of the run in the same instant, so
-  the gesture had no moment at all — "too fast", and nothing to see. Now the
-  square fills, the stroke runs through it a quarter of the way in, and the
-  card's ink sinks to its done shade, all over 240ms; the provider writes the
-  database at once but holds the re-read for the same stretch, so the card
-  under the finger stands still while its tick is being drawn and the run
-  rearranges itself afterwards. Coming off, the mark goes in half the time
-  and without the drawing: undoing is a correction, not a flourish. A task
-  that rolls forward on a repeat skips all of this — it is leaving the run
-  whatever happens.
+- **Ticking a task off is drawn, then seen, then taken away**
+  (`CheckMark`, `TaskProvider.settle`/`linger`/`leave`, `TaskCard.leaving`).
+  The mark used to appear whole between two frames while the card left for
+  the done end of the run in the same instant — "too fast", and nothing to
+  see. Then it was drawn over 240ms and the card left the moment the mark
+  was finished, which was still "disappears too fast": an overdue task is
+  not overdue once it is done, so it went from the run altogether, and a
+  repeating one went the instant it was touched. Now the square fills and
+  the stroke runs through it (240ms), the card stays where it was, done, for
+  600ms, and then it fades over the first half of 280ms while the gap it
+  leaves closes over the whole — fading and closing at once read as the card
+  being squashed. The provider writes the database at once and holds the
+  re-read until all of that is over, so nothing in the run moves until the
+  card has gone. A repeating task is shown ticked where it stands too,
+  though what was written is its next date. Taking a tick back goes
+  straight away — undoing is a correction, not a flourish — and a second tap
+  while a card is lingering stops it leaving.
 - **The three screens live behind a menu button, not a bottom bar.** The
   hamburger sits at the top left of each of them and carries a dot when
   something is overdue — the one thing worth pulling the user back to a screen
@@ -581,7 +586,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 96 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 98 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

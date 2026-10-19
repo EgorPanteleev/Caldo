@@ -6,13 +6,13 @@ void main() {
   int ms(DateTime d) => d.millisecondsSinceEpoch;
 
   Task taskDue(DateTime due, {bool hasTime = false, bool done = false}) => Task(
-        listId: 1,
-        title: 'Test',
-        dueAt: ms(due),
-        hasTime: hasTime,
-        done: done,
-        createdAt: 0,
-      );
+    listId: 1,
+    title: 'Test',
+    dueAt: ms(due),
+    hasTime: hasTime,
+    done: done,
+    createdAt: 0,
+  );
 
   group('Repeat.next', () {
     test('adds a day, a week', () {
@@ -34,8 +34,10 @@ void main() {
     });
 
     test('rolls over the year boundary', () {
-      expect(Repeat.monthly.next(DateTime(2026, 12, 15)),
-          DateTime(2027, 1, 15));
+      expect(
+        Repeat.monthly.next(DateTime(2026, 12, 15)),
+        DateTime(2027, 1, 15),
+      );
     });
 
     test('never returns a date when the task does not repeat', () {
@@ -102,8 +104,12 @@ void main() {
     });
 
     test('copyWith can clear the colour a task was given', () {
-      final task = const Task(listId: 1, title: 'x', styleId: 'pink',
-          createdAt: 0);
+      final task = const Task(
+        listId: 1,
+        title: 'x',
+        styleId: 'pink',
+        createdAt: 0,
+      );
       expect(task.copyWith(styleId: 'blue').styleId, 'blue');
       expect(task.copyWith(clearStyleId: true).styleId, isNull);
     });
@@ -113,8 +119,10 @@ void main() {
       expect(Task.fromMap(placed.toMap()).sortOrder, 2);
       expect(placed.copyWith(clearSortOrder: true).sortOrder, isNull);
       // Null is "never dragged", which is not the same as "first".
-      expect(Task.fromMap(taskDue(DateTime(2026, 5, 4)).toMap()).sortOrder,
-          isNull);
+      expect(
+        Task.fromMap(taskDue(DateTime(2026, 5, 4)).toMap()).sortOrder,
+        isNull,
+      );
     });
 
     test('copyWith can clear the due date and the completion', () {
@@ -141,35 +149,34 @@ void main() {
 
     test('an all-day task is announced at the hour settings names', () {
       final task = taskDue(DateTime(2026, 5, 4)).copyWith(id: 1);
-      expect(
-        Reminders.whenToAnnounce(task, nine),
-        DateTime(2026, 5, 4, 9),
-      );
+      expect(Reminders.whenToAnnounce(task, nine), DateTime(2026, 5, 4, 9));
       expect(
         Reminders.whenToAnnounce(task, 7 * 60 + 45),
         DateTime(2026, 5, 4, 7, 45),
       );
     });
 
-    test('nothing is announced for a task that is done, undated or unsaved',
-        () {
-      final due = DateTime(2026, 5, 4);
-      expect(
-        Reminders.whenToAnnounce(
-          taskDue(due, done: true).copyWith(id: 1),
-          nine,
-        ),
-        isNull,
-      );
-      expect(
-        Reminders.whenToAnnounce(
-          const Task(listId: 1, title: 'x', createdAt: 0).copyWith(id: 1),
-          nine,
-        ),
-        isNull,
-      );
-      // No id means no alarm to hang it on: the row has not been written yet.
-      expect(Reminders.whenToAnnounce(taskDue(due), nine), isNull);
-    });
+    test(
+      'nothing is announced for a task that is done, undated or unsaved',
+      () {
+        final due = DateTime(2026, 5, 4);
+        expect(
+          Reminders.whenToAnnounce(
+            taskDue(due, done: true).copyWith(id: 1),
+            nine,
+          ),
+          isNull,
+        );
+        expect(
+          Reminders.whenToAnnounce(
+            const Task(listId: 1, title: 'x', createdAt: 0).copyWith(id: 1),
+            nine,
+          ),
+          isNull,
+        );
+        // No id means no alarm to hang it on: the row has not been written yet.
+        expect(Reminders.whenToAnnounce(taskDue(due), nine), isNull);
+      },
+    );
   });
 }

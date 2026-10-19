@@ -31,33 +31,41 @@ Future<TaskProvider> seedProvider() async {
   final today = dayOf(now);
   final provider = TaskProvider();
   await provider.loadLists();
-  final work = await provider.addList(TaskList(
-    name: 'Work',
-    styleId: 'blue',
-    createdAt: now.millisecondsSinceEpoch,
-  ));
+  final work = await provider.addList(
+    TaskList(
+      name: 'Work',
+      styleId: 'blue',
+      createdAt: now.millisecondsSinceEpoch,
+    ),
+  );
   await provider.openList(work.id!);
-  await provider.add(Task(
-    listId: work.id!,
-    title: 'Ship',
-    notes: 'tag it first',
-    dueAt: today.add(const Duration(hours: 15)).millisecondsSinceEpoch,
-    hasTime: true,
-    priority: Priority.high,
-    createdAt: now.millisecondsSinceEpoch,
-  ));
-  await provider.add(Task(
-    listId: work.id!,
-    title: 'Water',
-    dueAt: today.subtract(const Duration(days: 2)).millisecondsSinceEpoch,
-    repeat: Repeat.weekly,
-    createdAt: now.millisecondsSinceEpoch,
-  ));
-  await provider.add(Task(
-    listId: work.id!,
-    title: 'Someday idea',
-    createdAt: now.millisecondsSinceEpoch,
-  ));
+  await provider.add(
+    Task(
+      listId: work.id!,
+      title: 'Ship',
+      notes: 'tag it first',
+      dueAt: today.add(const Duration(hours: 15)).millisecondsSinceEpoch,
+      hasTime: true,
+      priority: Priority.high,
+      createdAt: now.millisecondsSinceEpoch,
+    ),
+  );
+  await provider.add(
+    Task(
+      listId: work.id!,
+      title: 'Water',
+      dueAt: today.subtract(const Duration(days: 2)).millisecondsSinceEpoch,
+      repeat: Repeat.weekly,
+      createdAt: now.millisecondsSinceEpoch,
+    ),
+  );
+  await provider.add(
+    Task(
+      listId: work.id!,
+      title: 'Someday idea',
+      createdAt: now.millisecondsSinceEpoch,
+    ),
+  );
   await provider.loadTasks();
   await provider.loadMonth(today);
   return provider;

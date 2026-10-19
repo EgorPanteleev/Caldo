@@ -455,6 +455,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                             onPullEnd: _onPullEnd,
                             onOpen: _openEditor,
                             onToggle: provider.toggleDone,
+                            isLeaving: provider.isLeaving,
                             onReorder: provider.reorder,
                           );
                         },
@@ -778,6 +779,7 @@ class _DayPanel extends StatelessWidget {
   final VoidCallback onPullEnd;
   final ValueChanged<Task> onOpen;
   final ValueChanged<Task> onToggle;
+  final bool Function(Task) isLeaving;
   final ValueChanged<List<Task>> onReorder;
 
   const _DayPanel({
@@ -793,6 +795,7 @@ class _DayPanel extends StatelessWidget {
     required this.onPullEnd,
     required this.onOpen,
     required this.onToggle,
+    required this.isLeaving,
     required this.onReorder,
   });
 
@@ -845,6 +848,7 @@ class _DayPanel extends StatelessWidget {
                     listOf: _listOf,
                     onOpen: onOpen,
                     onToggle: onToggle,
+                    isLeaving: isLeaving,
                     onReorder: onReorder,
                   ),
           ),

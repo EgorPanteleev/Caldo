@@ -97,6 +97,7 @@ class _TasksScreenState extends State<TasksScreen> {
       list: provider.listById(task.listId),
       onTap: () => _openEditor(task),
       onToggle: () => provider.toggleDone(task),
+      leaving: provider.isLeaving(task),
     );
 
     return Scaffold(

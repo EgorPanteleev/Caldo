@@ -244,13 +244,39 @@ class TaskProvider extends ChangeNotifier {
   /// jumping somewhere else. Matched to the card's own settle.
   static const settle = Duration(milliseconds: 240);
 
+  /// How long a ticked card stays where it was, done, once its tick has
+  /// been drawn. Without it the card left the moment the mark was finished —
+  /// an overdue task is not overdue once it is done, so it went from the run
+  /// altogether, and a repeating one went the instant it was touched — and
+  /// what the gesture looked like was the thing disappearing rather than
+  /// the thing being done.
+  static const linger = Duration(milliseconds: 600);
+
+  /// How long a card takes to fade and close up the gap it leaves, after
+  /// [linger]. Matched to the card's own (`TaskCard`).
+  static const leave = Duration(milliseconds: 280);
+
+  /// Cards fading out of their run, by task id. The card reads it to know to
+  /// go; the run is only re-read once they have.
+  final Set<int> _leaving = {};
+
+  /// The latest tick on each task, so a second tap while a card is lingering
+  /// — taking it back — stops the first one from carrying it off.
+  final Map<int, int> _ticks = {};
+  int _tickCount = 0;
+
+  /// Whether [task]'s card is on its way out of the run.
+  bool isLeaving(Task task) => task.id != null && _leaving.contains(task.id);
+
   /// Ticks a task off. A repeating task with a due date is not closed: it
   /// rolls forward to its next occurrence instead, which is what makes a
   /// recurring chore behave like one.
   ///
   /// The database is written at once; only the re-read waits. The card is
   /// shown as done where it already is, so the tick is drawn on a card that
-  /// is standing still, and the run rearranges itself once that is over.
+  /// is standing still; it stays a moment, done; then it fades and the gap
+  /// it leaves closes; and only then is the run rearranged. Taken back, a
+  /// tick goes straight away — undoing is a correction, not a flourish.
   Future<void> toggleDone(Task task) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final due = task.due;
@@ -269,15 +295,32 @@ class TaskProvider extends ChangeNotifier {
             : task.copyWith(done: true, completedAt: now),
       );
     }
-    // A task that rolls forward to another day has nowhere to be ticked: it
-    // is leaving this run whatever happens, so it goes straight away.
-    if (rolls) {
+
+    final id = task.id;
+    final tick = ++_tickCount;
+    if (id != null) {
+      _ticks[id] = tick;
+      _leaving.remove(id);
+    }
+    // A repeating task is shown ticked too, where it stands, even though
+    // what was written is its next date: it is being done today, and that
+    // is what the tap should be seen to do.
+    final done = rolls || !task.done;
+    _showAsDone(task, done);
+    notifyListeners();
+
+    if (!done) {
+      await Future<void>.delayed(settle);
       await _reloadAll();
       return;
     }
-    _showAsDone(task, !task.done);
-    notifyListeners();
-    await Future<void>.delayed(settle);
+    await Future<void>.delayed(settle + linger);
+    if (id != null && _ticks[id] == tick) {
+      _leaving.add(id);
+      notifyListeners();
+      await Future<void>.delayed(leave);
+      _leaving.remove(id);
+    }
     await _reloadAll();
   }
 
