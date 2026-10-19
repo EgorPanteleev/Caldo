@@ -83,8 +83,8 @@ class _Swatch extends StatelessWidget {
         child: icon != null
             ? Icon(icon, size: 17, color: Colors.white)
             : (selected
-                ? const Icon(Icons.check, size: 18, color: Colors.white)
-                : null),
+                  ? const Icon(Icons.check, size: 18, color: Colors.white)
+                  : null),
       ),
     );
   }

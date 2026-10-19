@@ -64,9 +64,9 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _openEditor(Task task) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TaskEditScreen(task: task)),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => TaskEditScreen(task: task)));
     if (mounted) await _search(_controller.text);
   }
 

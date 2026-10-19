@@ -39,11 +39,13 @@ class _ListEditScreenState extends State<ListEditScreen> {
     final provider = context.read<TaskProvider>();
     final existing = widget.list;
     if (existing == null) {
-      await provider.addList(TaskList(
-        name: _name.text.trim(),
-        styleId: _styleId,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-      ));
+      await provider.addList(
+        TaskList(
+          name: _name.text.trim(),
+          styleId: _styleId,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
     } else {
       await provider.updateList(
         existing.copyWith(name: _name.text.trim(), styleId: _styleId),
@@ -118,7 +120,8 @@ class _StylePicker extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: style.color.withValues(
-                    alpha: style.id == selectedId ? 0.24 : 0.12),
+                  alpha: style.id == selectedId ? 0.24 : 0.12,
+                ),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: style.id == selectedId ? style.color : p.border,

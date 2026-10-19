@@ -58,10 +58,8 @@ class AppDatabase {
             sort_order INTEGER
           )
         ''');
-        await db.execute(
-            'CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
-        await db.execute(
-            'CREATE INDEX idx_tasks_list ON $_tasks (list_id)');
+        await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
+        await db.execute('CREATE INDEX idx_tasks_list ON $_tasks (list_id)');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -101,8 +99,12 @@ class AppDatabase {
 
   Future<void> updateList(TaskList list) async {
     final db = await database;
-    await db.update(_lists, list.toMap(),
-        where: 'id = ?', whereArgs: [list.id]);
+    await db.update(
+      _lists,
+      list.toMap(),
+      where: 'id = ?',
+      whereArgs: [list.id],
+    );
   }
 
   /// Deletes a list and all of its tasks.
@@ -128,7 +130,9 @@ class AppDatabase {
     if (!includeDone) where.write(' AND done = 0');
     if (query.isNotEmpty) {
       where.write(' AND (title LIKE ? OR notes LIKE ?)');
-      args..add('%$query%')..add('%$query%');
+      args
+        ..add('%$query%')
+        ..add('%$query%');
     }
     final rows = await db.query(
       _tasks,
@@ -154,8 +158,11 @@ class AppDatabase {
   /// Tasks with no due date at all — they belong to their list only.
   Future<List<Task>> getUndated() async {
     final db = await database;
-    final rows = await db.query(_tasks, where: 'due_at IS NULL',
-        orderBy: _order);
+    final rows = await db.query(
+      _tasks,
+      where: 'due_at IS NULL',
+      orderBy: _order,
+    );
     return rows.map(Task.fromMap).toList();
   }
 
@@ -199,8 +206,11 @@ class AppDatabase {
     final db = await database;
     return listId == null
         ? db.delete(_tasks, where: 'done = 1')
-        : db.delete(_tasks,
-            where: 'done = 1 AND list_id = ?', whereArgs: [listId]);
+        : db.delete(
+            _tasks,
+            where: 'done = 1 AND list_id = ?',
+            whereArgs: [listId],
+          );
   }
 
   /// Closes the connection, so the next access reopens the file. Used by

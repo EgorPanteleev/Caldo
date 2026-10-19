@@ -42,8 +42,9 @@ class ThemeSwitcherState extends State<ThemeSwitcher>
       applyChange();
       return;
     }
-    final boundary = _boundaryKey.currentContext?.findRenderObject()
-        as RenderRepaintBoundary?;
+    final boundary =
+        _boundaryKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
     if (boundary == null || !mounted) {
       applyChange();
       return;
@@ -51,7 +52,8 @@ class ThemeSwitcherState extends State<ThemeSwitcher>
     ui.Image image;
     try {
       image = await boundary.toImage(
-          pixelRatio: MediaQuery.of(context).devicePixelRatio);
+        pixelRatio: MediaQuery.of(context).devicePixelRatio,
+      );
     } catch (_) {
       applyChange();
       return;

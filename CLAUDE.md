@@ -12,6 +12,8 @@ Flutter 3.38.6 / Dart 3.10.7. `provider` (state), `sqflite` (storage),
 `flutter_local_notifications` + `timezone` + `flutter_timezone` (reminders).
 The type is the platform's own font — see the decision below.
 Dev-only: `sqflite_common_ffi`, so widget tests run against a real database.
+The app is local-only except for one thing: asking GitHub whether a newer
+release is out, and fetching it — see the decision below.
 
 ## Layout
 
@@ -23,6 +25,7 @@ lib/
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
   services/reminders.dart  the notification each dated task gets
+  services/updates.dart  the newer-release check, download and install
   screens/               home (shell + menu), tasks (Schedule), calendar,
                          search,
                          lists, task_list, task_edit, list_edit, settings
@@ -539,6 +542,27 @@ Changing them back will be noticed.
   that is granted on install) and fall back to inexact if a device refuses —
   a reminder that arrives whenever the system next wakes up is worth having,
   but only as a fallback.
+- **A newer release is offered in a banner, fetched in the app, and handed
+  to Android's installer** (`services/updates.dart`, `_UpdateBanner`, the
+  `caldo/updates` channel in `MainActivity`). On opening, the app asks the
+  GitHub API for the latest release; if its tag is newer than the installed
+  version, a banner sits above whichever screen is open. Tapping it downloads
+  the APK built for the phone's processor into the app's cache, with
+  progress, and opens the system installer on it through a `FileProvider`.
+  The first time, Android wants Caldo allowed to install apps; the settings
+  page for that is opened instead and the banner says to tap again. Closing
+  the banner hides it until the next opening and no longer — an update put
+  off is not one refused, and nothing else anywhere says one is waiting.
+  **The repository is public so that this needs no account**: reading a
+  private repo's releases takes a token, and a token inside an APK is one
+  anyone holding the APK can take out. Versions are compared as dotted
+  numbers, since as text 1.3.10 sorts before 1.3.9. Nothing checks until
+  `main` calls `Updates.enable`, so the widget tests never go online.
+  Measured end to end on the emulator: a build labelled 1.3.12 offered
+  1.3.13, downloaded the universal APK with progress, asked once to be
+  allowed to install, and came back as 1.3.13. It only offers what a GitHub
+  release carries — `gh release create` with the three APKs is what makes an
+  update appear on the phone.
 - **The window asks Android for the fastest display mode** (`MainActivity`).
   Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
   The ask is for the fastest mode at the resolution already in use — the
@@ -547,7 +571,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 93 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 96 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

@@ -29,9 +29,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
     // Honour the "show completed" preference for this list's query.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context
-          .read<TaskProvider>()
-          .setShowCompleted(context.read<SettingsProvider>().showCompleted);
+      context.read<TaskProvider>().setShowCompleted(
+        context.read<SettingsProvider>().showCompleted,
+      );
     });
   }
 
@@ -78,16 +78,20 @@ class _TaskListScreenState extends State<TaskListScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(n == 1 ? 'Delete task?' : 'Delete $n tasks?'),
-        content: Text(n == 1
-            ? 'This task will be removed.'
-            : 'These $n tasks will be removed.'),
+        content: Text(
+          n == 1
+              ? 'This task will be removed.'
+              : 'These $n tasks will be removed.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -105,26 +109,35 @@ class _TaskListScreenState extends State<TaskListScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Clear completed?'),
-        content: Text('$count completed '
-            '${count == 1 ? "task" : "tasks"} will be removed from this list.'),
+        content: Text(
+          '$count completed '
+          '${count == 1 ? "task" : "tasks"} will be removed from this list.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Clear')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear'),
+          ),
         ],
       ),
     );
     if (ok != true || !mounted) return;
     final provider = context.read<TaskProvider>();
-    final removed =
-        await provider.clearCompleted(listId: provider.currentListId);
+    final removed = await provider.clearCompleted(
+      listId: provider.currentListId,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Removed $removed completed '
-            '${removed == 1 ? "task" : "tasks"}')),
+        SnackBar(
+          content: Text(
+            'Removed $removed completed '
+            '${removed == 1 ? "task" : "tasks"}',
+          ),
+        ),
       );
     }
   }
@@ -163,8 +176,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       actions: [
                         if (done.isNotEmpty)
                           IconButton(
-                            icon: Icon(Icons.cleaning_services_outlined,
-                                color: p.muted),
+                            icon: Icon(
+                              Icons.cleaning_services_outlined,
+                              color: p.muted,
+                            ),
                             tooltip: 'Clear completed',
                             onPressed: () => _clearCompleted(done.length),
                           ),
@@ -203,51 +218,49 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 child: provider.loading && tasks.isEmpty
                     ? const Center(child: CircularProgressIndicator())
                     : tasks.isEmpty
-                        ? EmptyState(
-                            icon: provider.query.isEmpty
-                                ? Icons.task_alt
-                                : Icons.search_off,
-                            title: provider.query.isEmpty
-                                ? 'Nothing here yet'
-                                : 'No matching tasks',
-                            message: provider.query.isEmpty
-                                ? 'Tap + to add the first task to this list.'
-                                : 'Try a different search.',
-                          )
-                        : ListView(
-                            padding: const EdgeInsets.only(bottom: 90),
-                            children: [
-                              for (final task in open)
-                                TaskRow(
-                                  task: task,
-                                  list: list,
-                                  selected: _selected.contains(task.id),
-                                  onTap: () => selecting
-                                      ? _toggle(task.id!)
-                                      : _openEditor(task),
-                                  onLongPress: () => _toggle(task.id!),
-                                  onToggle: () => provider.toggleDone(task),
-                                ),
-                              if (done.isNotEmpty)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                                  child: SectionLabel(
-                                      'COMPLETED · ${done.length}'),
-                                ),
-                              for (final task in done)
-                                TaskRow(
-                                  task: task,
-                                  list: list,
-                                  selected: _selected.contains(task.id),
-                                  onTap: () => selecting
-                                      ? _toggle(task.id!)
-                                      : _openEditor(task),
-                                  onLongPress: () => _toggle(task.id!),
-                                  onToggle: () => provider.toggleDone(task),
-                                ),
-                            ],
-                          ),
+                    ? EmptyState(
+                        icon: provider.query.isEmpty
+                            ? Icons.task_alt
+                            : Icons.search_off,
+                        title: provider.query.isEmpty
+                            ? 'Nothing here yet'
+                            : 'No matching tasks',
+                        message: provider.query.isEmpty
+                            ? 'Tap + to add the first task to this list.'
+                            : 'Try a different search.',
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.only(bottom: 90),
+                        children: [
+                          for (final task in open)
+                            TaskRow(
+                              task: task,
+                              list: list,
+                              selected: _selected.contains(task.id),
+                              onTap: () => selecting
+                                  ? _toggle(task.id!)
+                                  : _openEditor(task),
+                              onLongPress: () => _toggle(task.id!),
+                              onToggle: () => provider.toggleDone(task),
+                            ),
+                          if (done.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                              child: SectionLabel('COMPLETED · ${done.length}'),
+                            ),
+                          for (final task in done)
+                            TaskRow(
+                              task: task,
+                              list: list,
+                              selected: _selected.contains(task.id),
+                              onTap: () => selecting
+                                  ? _toggle(task.id!)
+                                  : _openEditor(task),
+                              onLongPress: () => _toggle(task.id!),
+                              onToggle: () => provider.toggleDone(task),
+                            ),
+                        ],
+                      ),
               ),
             ],
           ),

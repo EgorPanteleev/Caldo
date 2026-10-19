@@ -118,19 +118,18 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? muted,
     Color? faint,
     Color? calendar,
-  }) =>
-      AppPalette(
-        bg: bg ?? this.bg,
-        sidebar: sidebar ?? this.sidebar,
-        panel: panel ?? this.panel,
-        panelHi: panelHi ?? this.panelHi,
-        field: field ?? this.field,
-        border: border ?? this.border,
-        text: text ?? this.text,
-        muted: muted ?? this.muted,
-        faint: faint ?? this.faint,
-        calendar: calendar ?? this.calendar,
-      );
+  }) => AppPalette(
+    bg: bg ?? this.bg,
+    sidebar: sidebar ?? this.sidebar,
+    panel: panel ?? this.panel,
+    panelHi: panelHi ?? this.panelHi,
+    field: field ?? this.field,
+    border: border ?? this.border,
+    text: text ?? this.text,
+    muted: muted ?? this.muted,
+    faint: faint ?? this.faint,
+    calendar: calendar ?? this.calendar,
+  );
 
   @override
   AppPalette lerp(ThemeExtension<AppPalette>? other, double t) {
@@ -168,10 +167,10 @@ class AppAccent {
   });
 
   LinearGradient get gradient => LinearGradient(
-        colors: [color, gradientEnd],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
+    colors: [color, gradientEnd],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
   /// Available accent choices shown in Settings.
   static const presets = <AppAccent>[
@@ -230,8 +229,11 @@ class AccentColors extends ThemeExtension<AccentColors> {
   final Color soft;
   final Gradient gradient;
 
-  const AccentColors(
-      {required this.color, required this.soft, required this.gradient});
+  const AccentColors({
+    required this.color,
+    required this.soft,
+    required this.gradient,
+  });
 
   factory AccentColors.from(AppAccent a) =>
       AccentColors(color: a.color, soft: a.soft, gradient: a.gradient);
@@ -276,16 +278,20 @@ class AppTheme {
       _build(Brightness.light, AppPalette.light, accent);
 
   static ThemeData _build(
-      Brightness brightness, AppPalette p, AppAccent accent) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: accent.color,
-      brightness: brightness,
-    ).copyWith(
-      primary: accent.color,
-      surface: p.bg,
-      onSurface: p.text,
-      outline: p.border,
-    );
+    Brightness brightness,
+    AppPalette p,
+    AppAccent accent,
+  ) {
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: accent.color,
+          brightness: brightness,
+        ).copyWith(
+          primary: accent.color,
+          surface: p.bg,
+          onSurface: p.text,
+          outline: p.border,
+        );
 
     // The platform's own font, not one of our own.
     //
@@ -343,8 +349,10 @@ class AppTheme {
         filled: true,
         fillColor: p.panel,
         hintStyle: TextStyle(color: p.faint),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: p.border),
@@ -385,9 +393,7 @@ class AppTheme {
         backgroundColor: p.panelHi,
         contentTextStyle: TextStyle(color: p.text),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }

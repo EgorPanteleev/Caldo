@@ -22,12 +22,7 @@ class TaskEditScreen extends StatefulWidget {
   /// Pre-selected due date for a task created from the calendar.
   final DateTime? initialDate;
 
-  const TaskEditScreen({
-    super.key,
-    this.task,
-    this.listId,
-    this.initialDate,
-  });
+  const TaskEditScreen({super.key, this.task, this.listId, this.initialDate});
 
   @override
   State<TaskEditScreen> createState() => _TaskEditScreenState();
@@ -82,7 +77,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     }
 
     final lists = context.read<TaskProvider>().lists;
-    _selectedListId = task?.listId ??
+    _selectedListId =
+        task?.listId ??
         widget.listId ??
         (lists.isNotEmpty ? lists.first.id : null);
   }
@@ -116,10 +112,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   }
 
   Future<void> _pickTime() async {
-    final picked = await showAppTimePicker(
-      context: context,
-      initial: _time,
-    );
+    final picked = await showAppTimePicker(context: context, initial: _time);
     if (picked != null) {
       _touched();
       setState(() {
@@ -135,36 +128,40 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final lists = provider.lists;
     final listId =
         (_selectedListId != null && lists.any((l) => l.id == _selectedListId))
-            ? _selectedListId!
-            : (lists.isNotEmpty ? lists.first.id! : 1);
+        ? _selectedListId!
+        : (lists.isNotEmpty ? lists.first.id! : 1);
     final due = _due;
     final existing = widget.task;
 
     if (existing == null) {
-      await provider.add(Task(
-        listId: listId,
-        title: _title.text.trim(),
-        notes: _notes.text.trim(),
-        dueAt: due?.millisecondsSinceEpoch,
-        hasTime: _time != null,
-        priority: _priority,
-        repeat: due == null ? Repeat.none : _repeat,
-        styleId: _styleId,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-      ));
+      await provider.add(
+        Task(
+          listId: listId,
+          title: _title.text.trim(),
+          notes: _notes.text.trim(),
+          dueAt: due?.millisecondsSinceEpoch,
+          hasTime: _time != null,
+          priority: _priority,
+          repeat: due == null ? Repeat.none : _repeat,
+          styleId: _styleId,
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
     } else {
-      await provider.update(existing.copyWith(
-        listId: listId,
-        title: _title.text.trim(),
-        notes: _notes.text.trim(),
-        dueAt: due?.millisecondsSinceEpoch,
-        clearDueAt: due == null,
-        hasTime: _time != null,
-        priority: _priority,
-        repeat: due == null ? Repeat.none : _repeat,
-        styleId: _styleId,
-        clearStyleId: _styleId == null,
-      ));
+      await provider.update(
+        existing.copyWith(
+          listId: listId,
+          title: _title.text.trim(),
+          notes: _notes.text.trim(),
+          dueAt: due?.millisecondsSinceEpoch,
+          clearDueAt: due == null,
+          hasTime: _time != null,
+          priority: _priority,
+          repeat: due == null ? Repeat.none : _repeat,
+          styleId: _styleId,
+          clearStyleId: _styleId == null,
+        ),
+      );
     }
     if (mounted) Navigator.of(context).pop();
   }
@@ -179,11 +176,13 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         content: Text('"${task!.title}" will be removed.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -237,9 +236,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               minLines: 2,
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Notes (optional)',
-              ),
+              decoration: const InputDecoration(labelText: 'Notes (optional)'),
             ),
             const SizedBox(height: 20),
             _FieldTile(
@@ -262,9 +259,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             _FieldTile(
               icon: Icons.schedule,
               label: 'Time',
-              value: _time == null
-                  ? 'All day'
-                  : Dates.formatTimeOfDay(_time!),
+              value: _time == null ? 'All day' : Dates.formatTimeOfDay(_time!),
               onTap: _pickTime,
               onClear: _time == null
                   ? null
@@ -283,13 +278,15 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               },
             ),
             const SizedBox(height: 22),
-            Text('PRIORITY',
-                style: TextStyle(
-                  color: p.faint,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                )),
+            Text(
+              'PRIORITY',
+              style: TextStyle(
+                color: p.faint,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
+            ),
             const SizedBox(height: 10),
             _PrioritySelector(
               value: _priority,
@@ -299,17 +296,20 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               },
             ),
             const SizedBox(height: 22),
-            Text('COLOUR',
-                style: TextStyle(
-                  color: p.faint,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                )),
+            Text(
+              'COLOUR',
+              style: TextStyle(
+                color: p.faint,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
+            ),
             const SizedBox(height: 10),
             ColourSelector(
               value: _styleId,
-              listColor: lists
+              listColor:
+                  lists
                       .where((l) => l.id == validId)
                       .map((l) => l.style.color)
                       .firstOrNull ??
@@ -325,18 +325,19 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                 initialValue: validId,
                 decoration: const InputDecoration(labelText: 'List'),
                 items: lists
-                    .map((l) => DropdownMenuItem(
-                          value: l.id,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.circle,
-                                  size: 10, color: l.style.color),
-                              const SizedBox(width: 8),
-                              Text(l.name),
-                            ],
-                          ),
-                        ))
+                    .map(
+                      (l) => DropdownMenuItem(
+                        value: l.id,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, size: 10, color: l.style.color),
+                            const SizedBox(width: 8),
+                            Text(l.name),
+                          ],
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (v) {
                   _touched();
@@ -406,14 +407,16 @@ class _FieldTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label,
-                        style: TextStyle(color: p.faint, fontSize: 12)),
+                    Text(label, style: TextStyle(color: p.faint, fontSize: 12)),
                     const SizedBox(height: 3),
-                    Text(value,
-                        style: TextStyle(
-                            color: p.text,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600)),
+                    Text(
+                      value,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -474,10 +477,12 @@ class _RepeatField extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                   items: Repeat.values
-                      .map((r) => DropdownMenuItem(
-                            value: r,
-                            child: Text('Repeat: ${r.label.toLowerCase()}'),
-                          ))
+                      .map(
+                        (r) => DropdownMenuItem(
+                          value: r,
+                          child: Text('Repeat: ${r.label.toLowerCase()}'),
+                        ),
+                      )
                       .toList(),
                   onChanged: enabled
                       ? (v) => onChanged(v ?? Repeat.none)
@@ -545,9 +550,7 @@ class _PriorityChip extends StatelessWidget {
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: selected
-              ? color.withValues(alpha: 0.18)
-              : palette.panel,
+          color: selected ? color.withValues(alpha: 0.18) : palette.panel,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected ? color : palette.border,

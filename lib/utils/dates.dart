@@ -9,10 +9,9 @@ import '../providers/task_provider.dart' show dayOf;
 class Dates {
   /// The calendar's month header: "Oct" while browsing the current year,
   /// "Oct 2027" once the year is no longer this one.
-  static String monthTitle(DateTime month) =>
-      month.year == DateTime.now().year
-          ? DateFormat('MMM').format(month)
-          : DateFormat('MMM yyyy').format(month);
+  static String monthTitle(DateTime month) => month.year == DateTime.now().year
+      ? DateFormat('MMM').format(month)
+      : DateFormat('MMM yyyy').format(month);
 
   /// "M", "T", "W", … starting on Monday or Sunday, for the calendar header.
   static List<String> weekdayLabels({required bool mondayFirst}) {
@@ -74,8 +73,9 @@ class Dates {
   /// A longer form for headers: "Saturday, 4 October".
   static String longDay(DateTime date) {
     final today = dayOf(DateTime.now());
-    final pattern =
-        date.year == today.year ? 'EEEE, d MMMM' : 'EEEE, d MMMM yyyy';
+    final pattern = date.year == today.year
+        ? 'EEEE, d MMMM'
+        : 'EEEE, d MMMM yyyy';
     return DateFormat(pattern).format(date);
   }
 

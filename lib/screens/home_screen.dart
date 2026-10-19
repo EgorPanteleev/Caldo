@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import 'calendar_screen.dart';
@@ -67,6 +68,20 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _isOpen => _menu.value > 0.5;
 
+  /// A release newer than this one, once the check on opening has found it.
+  Update? _update;
+
+  @override
+  void initState() {
+    super.initState();
+    // After the first frame rather than before it: the answer comes off the
+    // network, and nothing on screen should wait for it.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final update = await Updates.instance.check();
+      if (mounted && update != null) setState(() => _update = update);
+    });
+  }
+
   @override
   void dispose() {
     _menu.dispose();
@@ -125,7 +140,26 @@ class _HomeScreenState extends State<HomeScreen>
                   // should move when the keyboard does; only the field rides
                   // it up.
                   maintainBottomViewPadding: true,
-                  child: IndexedStack(index: _index, children: _pages),
+                  child: Column(
+                    children: [
+                      // Above whichever screen is open rather than inside
+                      // one of them: it is about the app, not about a day.
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.topCenter,
+                        child: _update == null
+                            ? const SizedBox(width: double.infinity)
+                            : _UpdateBanner(
+                                update: _update!,
+                                onDismiss: () => setState(() => _update = null),
+                              ),
+                      ),
+                      Expanded(
+                        child: IndexedStack(index: _index, children: _pages),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -147,6 +181,118 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Says a newer Caldo is out, and fetches and installs it on a tap.
+///
+/// Closing it hides it until the app is next opened, and no longer than
+/// that: an update put off is not an update refused, and a banner that could
+/// be closed for good would leave nothing anywhere to say one was waiting.
+class _UpdateBanner extends StatefulWidget {
+  final Update update;
+  final VoidCallback onDismiss;
+
+  const _UpdateBanner({required this.update, required this.onDismiss});
+
+  @override
+  State<_UpdateBanner> createState() => _UpdateBannerState();
+}
+
+class _UpdateBannerState extends State<_UpdateBanner> {
+  /// Said in place of the usual line when the last tap did not end in the
+  /// installer — why not, and what to do about it.
+  String? _note;
+
+  Future<void> _install() async {
+    setState(() => _note = null);
+    try {
+      final started = await Updates.instance.install(widget.update);
+      if (!mounted) return;
+      if (!started) {
+        setState(
+          () => _note = 'Allow Caldo to install apps, then tap Update again',
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _note = 'Download failed — tap to try again');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final accent = AppTheme.accentOf(context).color;
+    return ValueListenableBuilder<DownloadProgress>(
+      valueListenable: Updates.instance.progress,
+      builder: (context, progress, _) {
+        final downloading = progress != null;
+        final line = downloading
+            ? 'Downloading ${widget.update.version} — '
+                  '${(progress * 100).round()}%'
+            : _note ?? 'Caldo ${widget.update.version} is out';
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+          decoration: BoxDecoration(
+            color: p.panel,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.system_update_alt_rounded,
+                    size: 20,
+                    color: accent,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      line,
+                      style: TextStyle(color: p.text, fontSize: 14),
+                    ),
+                  ),
+                  if (!downloading) ...[
+                    TextButton(
+                      onPressed: _install,
+                      child: Text(
+                        'Update',
+                        style: TextStyle(
+                          color: accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Not now',
+                      icon: Icon(Icons.close_rounded, color: p.muted, size: 20),
+                      onPressed: widget.onDismiss,
+                    ),
+                  ] else
+                    const SizedBox(height: 48),
+                ],
+              ),
+              if (downloading)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 0, 12, 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 3,
+                      color: accent,
+                      backgroundColor: p.field,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

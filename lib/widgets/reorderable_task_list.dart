@@ -311,5 +311,4 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
       ],
     );
   }
-
 }

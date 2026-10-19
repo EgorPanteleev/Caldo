@@ -5,6 +5,7 @@ import 'providers/settings_provider.dart';
 import 'providers/task_provider.dart';
 import 'screens/home_screen.dart';
 import 'services/reminders.dart';
+import 'services/updates.dart';
 import 'theme/app_theme.dart';
 import 'widgets/quick_add_bar.dart';
 import 'widgets/theme_switcher.dart';
@@ -18,6 +19,9 @@ void main() async {
   // see KeyboardGap. Nothing reads it until a field is tapped, but the
   // channel has to be listening before that.
   KeyboardGap.instance.listen();
+  // Checking for a newer release is switched on here and nowhere else, so
+  // the widget tests — which drive the real shell — never go online.
+  Updates.instance.enable();
   // Read before the first frame: the app has to open on the right screen,
   // not open on Schedule and swap a frame later. It is one small read, and
   // the provider reads the rest for itself once it is up.

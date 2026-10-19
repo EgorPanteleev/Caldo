@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where a downloaded update is written, and the only place the installer is
+     let into. -->
+<paths>
+    <cache-path name="updates" path="updates/"/>
+</paths>

@@ -10,8 +10,10 @@ enum Repeat {
 
   final String label;
 
-  static Repeat byName(String? name) =>
-      Repeat.values.firstWhere((r) => r.name == name, orElse: () => Repeat.none);
+  static Repeat byName(String? name) => Repeat.values.firstWhere(
+    (r) => r.name == name,
+    orElse: () => Repeat.none,
+  );
 
   /// The next due date after [from], or null when the task does not repeat.
   DateTime? next(DateTime from) {
@@ -30,8 +32,13 @@ enum Repeat {
     final year = from.year + total ~/ 12;
     final month = total % 12 + 1;
     final lastDay = DateTime(year, month + 1, 0).day;
-    return DateTime(year, month, from.day.clamp(1, lastDay), from.hour,
-        from.minute);
+    return DateTime(
+      year,
+      month,
+      from.day.clamp(1, lastDay),
+      from.hour,
+      from.minute,
+    );
   }
 }
 
@@ -48,8 +55,8 @@ enum Priority {
 
   static Priority byIndex(int? index) =>
       index == null || index < 0 || index >= Priority.values.length
-          ? Priority.none
-          : Priority.values[index];
+      ? Priority.none
+      : Priority.values[index];
 }
 
 /// A single to-do item: a title, optional notes, an optional due date (with or
@@ -124,8 +131,11 @@ class Task {
     if (done || d == null) return false;
     final now = DateTime.now();
     if (!hasTime) {
-      return DateTime(d.year, d.month, d.day)
-          .isBefore(DateTime(now.year, now.month, now.day));
+      return DateTime(
+        d.year,
+        d.month,
+        d.day,
+      ).isBefore(DateTime(now.year, now.month, now.day));
     }
     return d.isBefore(now);
   }

@@ -8,6 +8,14 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <!-- The one thing the app goes online for: asking GitHub whether a newer
+         release than the installed one exists, and downloading its APK when
+         the banner that says so is tapped. Everything else stays on the
+         device. Installing it is Android's own installer, which an app may
+         only open for an APK if it says so here — and the user still has to
+         allow Caldo to install apps, once, in settings. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <application
         android:label="Caldo"
@@ -35,6 +43,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Hands a downloaded update to the system installer. The file sits
+             in the app's own cache, which nothing else can read, so it is
+             shared through a content URI for the length of the install. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths"/>
+        </provider>
         <!-- Shows a reminder when its alarm goes off, and puts the alarms
              back after a reboot or an update — a scheduled notification is
              held by the system, and the system forgets them both times. -->

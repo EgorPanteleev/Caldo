@@ -53,11 +53,12 @@ class SelectionBar extends StatelessWidget {
             tooltip: 'Cancel',
             onPressed: onClose,
           ),
-          Text('$count selected',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w700)),
+          Text(
+            '$count selected',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
           const Spacer(),
           if (onEdit != null)
             IconButton(

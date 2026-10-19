@@ -46,33 +46,37 @@ class TaskRow extends StatelessWidget {
     final meta = <Widget>[];
 
     if (!hideDate && task.dueAt != null) {
-      meta.add(_MetaChip(
-        icon: task.hasTime ? Icons.schedule : Icons.event_outlined,
-        label: Dates.due(task),
-        color: overdue ? AppColors.overdue : p.muted,
-      ));
+      meta.add(
+        _MetaChip(
+          icon: task.hasTime ? Icons.schedule : Icons.event_outlined,
+          label: Dates.due(task),
+          color: overdue ? AppColors.overdue : p.muted,
+        ),
+      );
     }
     if (task.repeat != Repeat.none) {
-      meta.add(_MetaChip(
-        icon: Icons.repeat,
-        label: task.repeat.label,
-        color: p.faint,
-      ));
+      meta.add(
+        _MetaChip(icon: Icons.repeat, label: task.repeat.label, color: p.faint),
+      );
     }
     if (task.notes.trim().isNotEmpty) {
-      meta.add(_MetaChip(
-        icon: Icons.notes,
-        label: task.notes.trim().split('\n').first,
-        color: p.faint,
-      ));
+      meta.add(
+        _MetaChip(
+          icon: Icons.notes,
+          label: task.notes.trim().split('\n').first,
+          color: p.faint,
+        ),
+      );
     }
     if (showList && list != null) {
-      meta.add(_MetaChip(
-        icon: Icons.circle,
-        iconSize: 8,
-        label: list!.name,
-        color: color,
-      ));
+      meta.add(
+        _MetaChip(
+          icon: Icons.circle,
+          iconSize: 8,
+          label: list!.name,
+          color: color,
+        ),
+      );
     }
 
     return Material(
@@ -92,14 +96,13 @@ class TaskRow extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  _CheckCircle(
-                    done: task.done,
-                    color: color,
-                    onTap: onToggle,
-                  ),
+                  _CheckCircle(done: task.done, color: color, onTap: onToggle),
                   if (selected)
                     const Positioned(
-                        right: -6, bottom: -6, child: SelectionCheck()),
+                      right: -6,
+                      bottom: -6,
+                      child: SelectionCheck(),
+                    ),
                 ],
               ),
               const SizedBox(width: 14),
@@ -113,8 +116,9 @@ class TaskRow extends StatelessWidget {
                         color: task.done ? p.faint : p.text,
                         fontSize: 15.5,
                         fontWeight: FontWeight.w600,
-                        decoration:
-                            task.done ? TextDecoration.lineThrough : null,
+                        decoration: task.done
+                            ? TextDecoration.lineThrough
+                            : null,
                         decorationColor: p.faint,
                       ),
                     ),
@@ -175,10 +179,7 @@ class _CheckCircle extends StatelessWidget {
           decoration: BoxDecoration(
             color: done ? color : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: done ? color : p.faint,
-              width: 1.8,
-            ),
+            border: Border.all(color: done ? color : p.faint, width: 1.8),
           ),
           child: done
               ? const Icon(Icons.check, color: Colors.white, size: 15)

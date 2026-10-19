@@ -1,14 +1,20 @@
 package com.igor.caldo
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsAnimation
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.annotation.RequiresApi
+import androidx.core.content.FileProvider
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 /**
  * Two things Flutter's stock activity does not do for us.
@@ -64,6 +70,58 @@ class MainActivity : FlutterActivity() {
                 },
             )
         watchIme()
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATES_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "info" -> result.success(updateInfo())
+                    "install" -> result.success(install(call.argument<String>("path")!!))
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * What Dart needs to decide whether a release is newer and which of its
+     * files to fetch: the installed version, the processor the files are
+     * built for, and the private directory the download is written to.
+     */
+    private fun updateInfo(): Map<String, Any> {
+        val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+        val dir = File(cacheDir, "updates").apply { mkdirs() }
+        return mapOf(
+            "version" to version,
+            "abi" to (Build.SUPPORTED_ABIS.firstOrNull() ?: ""),
+            "dir" to dir.absolutePath,
+        )
+    }
+
+    /**
+     * Opens the system installer on a downloaded APK. Android lets an app do
+     * that only once the user has said it may install apps; until then the
+     * settings page for exactly that is opened instead, and Dart is told so
+     * it can say why nothing was installed.
+     */
+    private fun install(path: String): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !packageManager.canRequestPackageInstalls()
+        ) {
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                ),
+            )
+            return "needs-permission"
+        }
+        val uri = FileProvider.getUriForFile(this, "$packageName.updates", File(path))
+        startActivity(
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+        )
+        return "started"
     }
 
     /**
@@ -207,6 +265,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val IME_CHANNEL = "caldo/ime"
+        const val UPDATES_CHANNEL = "caldo/updates"
 
         /** What a measurement may be out by and still be believed. */
         const val SLACK = 2

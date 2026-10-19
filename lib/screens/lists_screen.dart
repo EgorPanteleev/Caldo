@@ -39,15 +39,15 @@ class _ListsScreenState extends State<ListsScreen> {
   void _clearSelection() => setState(_selected.clear);
 
   Future<void> _create() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ListEditScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ListEditScreen()));
   }
 
   Future<void> _edit(TaskList list) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ListEditScreen(list: list)),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ListEditScreen(list: list)));
   }
 
   Future<void> _editSelected() async {
@@ -58,28 +58,34 @@ class _ListsScreenState extends State<ListsScreen> {
 
   Future<void> _deleteSelected() async {
     final provider = context.read<TaskProvider>();
-    final lists =
-        _selected.map(provider.listById).whereType<TaskList>().toList();
+    final lists = _selected
+        .map(provider.listById)
+        .whereType<TaskList>()
+        .toList();
     final taskTotal = lists.fold<int>(0, (s, l) => s + l.taskCount);
     final n = lists.length;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(n == 1 ? 'Delete list?' : 'Delete $n lists?'),
-        content: Text(taskTotal == 0
-            ? (n == 1
-                ? '"${lists.first.name}" will be removed.'
-                : 'These lists will be removed.')
-            : 'This also removes $taskTotal '
-                '${taskTotal == 1 ? "task" : "tasks"} inside '
-                '${n == 1 ? "it" : "them"}.'),
+        content: Text(
+          taskTotal == 0
+              ? (n == 1
+                    ? '"${lists.first.name}" will be removed.'
+                    : 'These lists will be removed.')
+              : 'This also removes $taskTotal '
+                    '${taskTotal == 1 ? "task" : "tasks"} inside '
+                    '${n == 1 ? "it" : "them"}.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Delete')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -94,9 +100,9 @@ class _ListsScreenState extends State<ListsScreen> {
   Future<void> _open(TaskList list) async {
     await context.read<TaskProvider>().openList(list.id!);
     if (mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const TaskListScreen()),
-      );
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const TaskListScreen()));
     }
   }
 
@@ -166,33 +172,34 @@ class _ListsScreenState extends State<ListsScreen> {
               child: provider.listsLoading && all.isEmpty
                   ? const Center(child: CircularProgressIndicator())
                   : all.isEmpty
-                      ? EmptyState(
-                          icon: Icons.list_alt_outlined,
-                          title: 'No lists yet',
-                          message: 'Create a list to group your tasks — '
-                              'Work, Errands, anything.',
-                        )
-                      : lists.isEmpty
-                          ? Center(
-                              child: Text('No matching lists',
-                                  style:
-                                      TextStyle(color: p.muted, fontSize: 14)),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.only(bottom: 90),
-                              itemCount: lists.length,
-                              itemBuilder: (context, i) {
-                                final list = lists[i];
-                                return _ListRow(
-                                  list: list,
-                                  selected: _selected.contains(list.id),
-                                  onTap: () => selecting
-                                      ? _toggle(list.id!)
-                                      : _open(list),
-                                  onLongPress: () => _toggle(list.id!),
-                                );
-                              },
-                            ),
+                  ? EmptyState(
+                      icon: Icons.list_alt_outlined,
+                      title: 'No lists yet',
+                      message:
+                          'Create a list to group your tasks — '
+                          'Work, Errands, anything.',
+                    )
+                  : lists.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No matching lists',
+                        style: TextStyle(color: p.muted, fontSize: 14),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 90),
+                      itemCount: lists.length,
+                      itemBuilder: (context, i) {
+                        final list = lists[i];
+                        return _ListRow(
+                          list: list,
+                          selected: _selected.contains(list.id),
+                          onTap: () =>
+                              selecting ? _toggle(list.id!) : _open(list),
+                          onLongPress: () => _toggle(list.id!),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -245,14 +252,18 @@ class _ListRow extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: style.color.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: style.color.withValues(alpha: 0.35)),
+                      border: Border.all(
+                        color: style.color.withValues(alpha: 0.35),
+                      ),
                     ),
                     child: Icon(style.icon, color: style.color, size: 22),
                   ),
                   if (selected)
                     const Positioned(
-                        right: -4, bottom: -4, child: SelectionCheck()),
+                      right: -4,
+                      bottom: -4,
+                      child: SelectionCheck(),
+                    ),
                 ],
               ),
               const SizedBox(width: 14),
@@ -285,8 +296,9 @@ class _ListRow extends StatelessWidget {
                           value: progress,
                           minHeight: 4,
                           backgroundColor: p.panelHi,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(style.color),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            style.color,
+                          ),
                         ),
                       ),
                     ],

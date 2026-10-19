@@ -51,9 +51,7 @@ class Holidays {
   static List<Holiday> forYear(String? country, int year) {
     final rules = _tables[country];
     if (rules == null) return const [];
-    return [
-      for (final rule in rules) Holiday(rule.on(year), rule.name),
-    ];
+    return [for (final rule in rules) Holiday(rule.on(year), rule.name)];
   }
 
   /// The holidays of one month, keyed by day.
@@ -99,18 +97,17 @@ class Holidays {
       (year) => DateTime(year, month, day);
 
   /// The [n]th [weekday] of [month]; n = 1 is the first.
-  static DateTime Function(int) _nth(int month, int weekday, int n) =>
-      (year) {
-        final first = DateTime(year, month, 1);
-        final shift = (weekday - first.weekday + 7) % 7;
-        return DateTime(year, month, 1 + shift + (n - 1) * 7);
-      };
+  static DateTime Function(int) _nth(int month, int weekday, int n) => (year) {
+    final first = DateTime(year, month, 1);
+    final shift = (weekday - first.weekday + 7) % 7;
+    return DateTime(year, month, 1 + shift + (n - 1) * 7);
+  };
 
   static DateTime Function(int) _last(int month, int weekday) => (year) {
-        final last = DateTime(year, month + 1, 0);
-        final shift = (last.weekday - weekday + 7) % 7;
-        return DateTime(year, month, last.day - shift);
-      };
+    final last = DateTime(year, month + 1, 0);
+    final shift = (last.weekday - weekday + 7) % 7;
+    return DateTime(year, month, last.day - shift);
+  };
 
   static DateTime Function(int) _easter(int offsetDays) =>
       (year) => gregorianEaster(year).add(Duration(days: offsetDays));
