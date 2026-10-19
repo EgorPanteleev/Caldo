@@ -468,14 +468,15 @@ Changing them back will be noticed.
   this is built for, black is black rather than a very dark grey. Everything
   above it is a raised grey instead.
 - **The controls are neutral; the accent is kept for what is rare**
-  (`AppTheme._build`'s switch, segmented, text-button, filled-button,
-  input-focus and selection themes; the menu's current entry; the carry
-  marks). Switches are a light track with a dark thumb, the selected
-  segment and the open screen in the menu are lifted in `field` grey, a
+  (`AppTheme._build`'s segmented, text-button, filled-button, input-focus
+  and selection themes; the menu's current entry; the carry marks). The
+  selected segment and the open screen in the menu are lifted in `field` grey, a
   focused field is outlined in `muted`, and a dialog's buttons are plain
   text beside a light filled one. Every one of those was the accent, and on
   a dark screen they added up to most of the colour there was — "too many
-  accent colours … all app". What keeps the accent: Undo, the update banner,
+  accent colours … all app". What keeps the accent: the switches in
+  Settings (made neutral with the rest, and asked back), Undo, the update
+  banner,
   a clock wheel under the finger, and the accent and colour pickers in
   Settings, which are choosing a colour. Tasks wear their own colour, not
   the accent; that the default list is violet, the same hue as the default
