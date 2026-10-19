@@ -50,13 +50,17 @@ void tickOff(BuildContext context, Task task) {
 
 const _undoFor = Duration(seconds: 4);
 
-/// What a tick off leaves on screen for a moment: the task, wearing the same
-/// filled tick its card now does, and a way to take it back.
+/// What a tick off leaves on screen for a moment: the task, ticked, and a way
+/// to take it back.
 ///
 /// It is in the add field's grey and lifted off the cards with a shadow,
 /// rather than the flat slab a snack bar is by default, which sat on a list of
 /// cards like one more of them. Along its foot a line runs down over the four
 /// seconds it stays, so the offer says how long it is open.
+///
+/// Undo is the only thing on it in the accent. The tick was a filled accent
+/// square and the line an accent rule as well, and with the button that made
+/// three purple things on one small bar — "too many accent colours".
 class _UndoBar extends StatelessWidget {
   final Task task;
   final VoidCallback onUndo;
@@ -89,14 +93,14 @@ class _UndoBar extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
                 child: Row(
                   children: [
-                    Container(
+                    // A plain tick in the quiet grey: the accent is kept for
+                    // the one thing on the bar there is to press.
+                    SizedBox(
                       width: 22,
                       height: 22,
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: BorderRadius.circular(6),
+                      child: CustomPaint(
+                        painter: CheckMark(progress: 1, color: p.muted),
                       ),
-                      child: const CustomPaint(painter: CheckMark(progress: 1)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -158,8 +162,8 @@ class _UndoBar extends StatelessWidget {
                     child: FractionallySizedBox(
                       widthFactor: left,
                       child: Container(
-                        height: 2.5,
-                        color: accent.withValues(alpha: 0.8),
+                        height: 2,
+                        color: p.muted.withValues(alpha: 0.35),
                       ),
                     ),
                   ),

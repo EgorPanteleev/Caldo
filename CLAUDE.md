@@ -173,13 +173,14 @@ Changing them back will be noticed.
   went. Every card's tick goes through `tickOff`; untick is already an undo
   and gets no bar.
   The bar draws itself (`_UndoBar`): the add field's grey, lifted off the
-  cards with a shadow, the same filled tick a done card wears beside the
-  task's name, a bold accent "↶ Undo" (the arrow drawn, `_UndoArrow`, in the tick's round-ended
-  stroke — the stock icon was a filled hook of another weight), and a line
-  along its foot that runs
-  down over the four seconds. The stock snack bar was a flat slab with the
-  action in a dim accent, which on a list of cards read as one more card —
-  "make undo look better".
+  cards with a shadow, a plain grey tick beside the task's name, "↶ Undo"
+  (the arrow drawn, `_UndoArrow`, in the tick's round-ended stroke — the
+  stock icon was a filled hook of another weight), and a faint line along
+  its foot that runs down over the four seconds. Undo is the only thing on
+  it in the accent: a filled accent tick and an accent countdown beside it
+  made three purple things on one small bar — "too many accent colours".
+  The stock snack bar before that was a flat slab that read as one more
+  card on the list — "make undo look better".
 - **A card slides to its new place by task, not by card** (`SlideIntoPlace`).
   `TaskProvider.rearranging` fires just before a re-read; every card notes
   where it stands in its scrollable's content space (so a scroll is never
