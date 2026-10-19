@@ -250,7 +250,7 @@ class TaskProvider extends ChangeNotifier {
   /// altogether, and a repeating one went the instant it was touched — and
   /// what the gesture looked like was the thing disappearing rather than
   /// the thing being done.
-  static const linger = Duration(milliseconds: 600);
+  static const linger = Duration(milliseconds: 400);
 
   /// How long a card takes to fade and close up the gap it leaves, after
   /// [linger]. Matched to the card's own (`TaskCard`).

@@ -147,7 +147,7 @@ Changing them back will be noticed.
   not overdue once it is done, so it went from the run altogether, and a
   repeating one went the instant it was touched. Now the square fills and
   the stroke runs through it (240ms), the card stays where it was, done, for
-  600ms, and then it fades over the first half of 280ms while the gap it
+  400ms — 600 was liked but a little slow — and then it fades over the first half of 280ms while the gap it
   leaves closes over the whole — fading and closing at once read as the card
   being squashed. The provider writes the database at once and holds the
   re-read until all of that is over, so nothing in the run moves until the
@@ -628,11 +628,14 @@ flutter build apk --release --split-per-abi --target-platform android-arm,androi
 (cd android && ./gradlew --stop)
 ```
 
-`release/` is gitignored and holds `Caldo-arm64.apk`, `Caldo-armv7.apk`,
-`Caldo-universal.apk`, refreshed after each change. **A release means both**:
-the three files staged there and a GitHub release carrying the same three,
-`gh release create vX.Y.Z release/*.apk`. There was a stretch of local-only
-builds in the middle of this; that is over.
+**Releases are made when the user asks for one, and not otherwise.** Commit
+each change as it is made, but do not bump the version, build, or publish
+unprompted — since 1.3.14 the in-app updater offers whatever the latest GitHub
+release is, so publishing one puts it on the user's phone, and that is theirs to
+decide. When a release is asked for, it means both: the three APKs staged in
+`release/` (gitignored; `Caldo-arm64.apk`, `Caldo-armv7.apk`,
+`Caldo-universal.apk`) and a GitHub release carrying the same three,
+`gh release create vX.Y.Z release/*.apk`, built from the latest commit.
 
 ## Running on the emulator
 
