@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../theme/app_theme.dart';
+import 'task_card.dart';
 
 /// Ticks [task] off, or takes its tick back, from a card — and when it was
 /// ticked off, offers a moment to take that back.
@@ -23,12 +25,11 @@ void tickOff(BuildContext context, Task task) {
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(
-          'Done — ${task.title}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        duration: const Duration(seconds: 4),
+        // The bar draws itself; the snack bar only carries it in and out.
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        padding: EdgeInsets.zero,
+        duration: _undoFor,
         // A bar with an action otherwise stays until it is dismissed, and an
         // offer to take a tick back is only worth making for a moment.
         persist: false,
@@ -36,12 +37,134 @@ void tickOff(BuildContext context, Task task) {
         // most often reached for, and a bar sitting on it for four seconds
         // would be in the way of exactly that.
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 78),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () => provider.restore(task),
+        content: _UndoBar(
+          task: task,
+          onUndo: () {
+            messenger.hideCurrentSnackBar();
+            provider.restore(task);
+          },
         ),
       ),
     );
+}
+
+const _undoFor = Duration(seconds: 4);
+
+/// What a tick off leaves on screen for a moment: the task, wearing the same
+/// filled tick its card now does, and a way to take it back.
+///
+/// It is in the add field's grey and lifted off the cards with a shadow,
+/// rather than the flat slab a snack bar is by default, which sat on a list of
+/// cards like one more of them. Along its foot a line runs down over the four
+/// seconds it stays, so the offer says how long it is open.
+class _UndoBar extends StatelessWidget {
+  final Task task;
+  final VoidCallback onUndo;
+
+  const _UndoBar({required this.task, required this.onUndo});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final accent = AppTheme.accentOf(context).color;
+    final radius = BorderRadius.circular(16);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Material(
+          color: p.field,
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const CustomPaint(painter: CheckMark(progress: 1)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        task.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: p.text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: onUndo,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.undo_rounded, size: 19, color: accent),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Undo',
+                              style: TextStyle(
+                                color: accent,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 1, end: 0),
+                  duration: _undoFor,
+                  builder: (context, left, _) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: left,
+                      child: Container(
+                        height: 2.5,
+                        color: accent.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Builds a task's card from [task] as it is shown right now
