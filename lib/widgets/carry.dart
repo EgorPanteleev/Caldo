@@ -17,12 +17,19 @@ class Carry<T extends Object> extends ChangeNotifier {
   /// nowhere new — its own run, or somewhere it cannot go.
   final T? Function(Task task, Offset global) resolve;
 
-  Carry({required this.resolve});
+  /// Where on the screen the carried card is drawn, shrunk, over a point
+  /// where it should not be a card — over the month it is the day under the
+  /// finger, so it reads as something going into that day. Null elsewhere,
+  /// and null throughout for a screen that never shrinks it.
+  final Rect? Function(Offset global)? shrinkTo;
+
+  Carry({required this.resolve, this.shrinkTo});
 
   Task? _task;
   VoidCallback? _cancel;
   Offset? _pointer;
   T? _target;
+  Rect? _shrink;
 
   /// The task being carried, or null when nothing is.
   Task? get task => _task;
@@ -32,6 +39,9 @@ class Carry<T extends Object> extends ChangeNotifier {
 
   /// What the card would land on if it were let go now.
   T? get target => _target;
+
+  /// Where the carried card should be drawn shrunk now (see [shrinkTo]).
+  Rect? get shrink => _shrink;
 
   bool get active => _task != null;
 
@@ -49,6 +59,7 @@ class Carry<T extends Object> extends ChangeNotifier {
     _task = null;
     _cancel = null;
     _target = null;
+    _shrink = null;
     notifyListeners();
   }
 
@@ -60,6 +71,7 @@ class Carry<T extends Object> extends ChangeNotifier {
   void _aim() {
     final at = _pointer;
     _target = at == null ? null : resolve(_task!, at);
+    _shrink = at == null ? null : shrinkTo?.call(at);
     // Every move, not only every change of target: what is drawn to show
     // where the card will land follows the finger within a target too.
     notifyListeners();

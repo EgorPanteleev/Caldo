@@ -119,6 +119,9 @@ class MonthLayout {
 
   double get _cellWidth => (size.width - 2 * inset) / 7;
 
+  /// The size of one day's cell.
+  Size get cellSize => Size(_cellWidth, rowHeight);
+
   DateTime dayOfCell(int row, int col) =>
       first.add(Duration(days: row * 7 + col - lead));
 

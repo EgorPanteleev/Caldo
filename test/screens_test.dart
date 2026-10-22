@@ -768,6 +768,45 @@ void main() {
     expect(provider.moved, isNull);
   });
 
+  testWidgets('a card held over the month shrinks into the day under it', (
+    tester,
+  ) async {
+    await pumpCapturing(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    final other = today.day > 1
+        ? today.subtract(const Duration(days: 1))
+        : today.add(const Duration(days: 1));
+    final grid = tester.getRect(find.byType(MonthGrid));
+    final cell = MonthLayout(
+      month: DateTime(today.year, today.month),
+      mondayFirst: true,
+      selected: today,
+      weekCollapse: 0,
+      size: grid.size,
+    ).rectOf(other)!.shift(grid.topLeft);
+
+    final from = tester.getCenter(find.text('Ship'));
+    final finger = await tester.startGesture(from);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    for (var i = 1; i <= 10; i++) {
+      await finger.moveTo(Offset.lerp(from, cell.center, i / 10)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // The title is written in a tile inside the day's cell — not on a card
+    // the width of the screen.
+    final inside = find.text('Ship').evaluate().where((e) {
+      final box = e.renderObject! as RenderBox;
+      final rect = box.localToGlobal(Offset.zero) & box.size;
+      return cell.contains(rect.center) && rect.width < cell.width;
+    });
+    expect(inside, isNotEmpty);
+
+    await finger.up();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('a card carried up onto the month moves to that day', (
     tester,
   ) async {

@@ -540,9 +540,24 @@ Changing them back will be noticed.
   date clears the date); the Overdue run takes nothing, since it has no one
   date to give. On the calendar a card can be carried up out of the day's
   list onto the month, where the day under the finger is outlined, and goes
-  to the end of that day. Either way it keeps its time of day, and over a
-  target the carried card thins out so the mark under it can be seen. Let
-  go inside its own run, it is the same reorder as ever.
+  to the end of that day. Either way it keeps its time of day. Let go
+  inside its own run, it is the same reorder as ever.
+  **Over the month the card turns into a tile the size of a day**
+  (`_ShrinkingCard`, `Carry.shrinkTo`): the card fades while a tile draws
+  in from its outline into the cell under the finger, inside the outline
+  marking that day, with the title on the task's colour mixed as an opened
+  month's chips are — asked for as "transform into smaller rect like day of
+  calendar". Off the month it grows back into the card. On Schedule, which
+  has no days to shrink into, the card instead thins out over another run
+  so the rule under it shows. Two details cost a round each: a reorderable
+  list moves its carried card along its own axis only, so a tile placed
+  relative to the card stayed behind when the finger went sideways — it is
+  placed on the screen, in paint (`_AtFinger`); and a `LayoutBuilder`
+  inside the proxy is handed an unbounded height, which made the tile's
+  rectangle NaN and pinned it to the left edge, so the card's outline is
+  read from the render box's own laid-out size instead. The tile sits in the
+  cell rather than centred on the finger: centred, it straddled two days
+  half the time.
   The lists' own drag is not touched. A `Listener` around each screen
   watches where the finger goes, and the pointer's release reaches it
   before the list's drag hears of it, so a release over another day calls
@@ -704,7 +719,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 116 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 117 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

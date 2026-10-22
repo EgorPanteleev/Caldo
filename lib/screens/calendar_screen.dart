@@ -73,7 +73,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   final _grid = GlobalKey();
 
   /// A card carried up out of the day's list, perhaps onto another day.
-  late final _carry = Carry<DateTime>(resolve: _dayUnder);
+  late final _carry = Carry<DateTime>(resolve: _dayUnder, shrinkTo: _dayTile);
 
   @override
   void initState() {
@@ -398,6 +398,23 @@ class _CalendarScreenState extends State<CalendarScreen>
     final (layout, box) = found;
     final day = layout.dayAt(box.globalToLocal(global));
     return day == null || day == task.dueDay ? null : day;
+  }
+
+  /// Over the grid, a carried card is drawn as a tile in the day under the
+  /// finger — a little inside the cell, so the outline round the day shows.
+  Rect? _dayTile(Offset global) {
+    final found = _gridLayout();
+    if (found == null) return null;
+    final (layout, box) = found;
+    final day = layout.dayAt(box.globalToLocal(global));
+    final cell = day == null ? null : layout.rectOf(day);
+    if (cell == null) return null;
+    // Held to a day's shape where the rows are tall — the week view's single
+    // row is most of the grid — and to the top of the cell, under its number.
+    final width = cell.width - 10;
+    final height = math.min(cell.height, cell.width * 1.2) - 10;
+    final tile = Rect.fromLTWH(cell.left + 5, cell.top + 5, width, height);
+    return box.localToGlobal(tile.topLeft) & tile.size;
   }
 
   /// The cell of the day a carried card would be put down on, on the screen.

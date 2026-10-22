@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -6,7 +7,9 @@ import 'package:flutter/rendering.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../theme/app_theme.dart';
 import 'carry.dart';
+import 'month_grid.dart' show dayChipColour;
 import 'slide_into_place.dart';
 import 'task_card.dart';
 import 'tick_off.dart';
@@ -99,32 +102,40 @@ class _KeepInside extends SingleChildRenderObjectWidget {
   final GlobalKey? under;
   final GlobalKey? over;
 
+  /// While this says the card is shrunk to a day, it is not held: the tile
+  /// is under the finger and inside the month, and holding the full card's
+  /// box against an edge would pull the tile off the finger with it.
+  final Carry<Object>? carry;
+
   const _KeepInside({
     required this.bounds,
     required Widget super.child,
     this.under,
     this.over,
+    this.carry,
   });
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderKeepInside(bounds, under, over);
+      _RenderKeepInside(bounds, under, over, carry);
 
   @override
   void updateRenderObject(BuildContext context, _RenderKeepInside render) {
     render
       ..bounds = bounds
       ..under = under
-      ..over = over;
+      ..over = over
+      ..carry = carry;
   }
 }
 
 class _RenderKeepInside extends RenderProxyBox {
-  _RenderKeepInside(this.bounds, this.under, this.over);
+  _RenderKeepInside(this.bounds, this.under, this.over, this.carry);
 
   GlobalKey bounds;
   GlobalKey? under;
   GlobalKey? over;
+  Carry<Object>? carry;
 
   static RenderBox? _boxOf(GlobalKey? key) {
     final render = key?.currentContext?.findRenderObject();
@@ -134,7 +145,9 @@ class _RenderKeepInside extends RenderProxyBox {
   @override
   void paint(PaintingContext context, Offset offset) {
     final whole = _boxOf(bounds);
-    if (whole == null || !hasSize) return super.paint(context, offset);
+    if (whole == null || !hasSize || carry?.shrink != null) {
+      return super.paint(context, offset);
+    }
 
     // A row scrolled out of the list has nothing to measure, so the list
     // itself stands in for whichever end of the pen is missing.
@@ -174,8 +187,9 @@ Widget liftedCard(
   GlobalKey? under,
   GlobalKey? over,
   Carry<Object>? carry,
+  ({String title, Color colour})? chip,
 }) {
-  final card = AnimatedBuilder(
+  final whole = AnimatedBuilder(
     animation: animation,
     builder: (context, inner) => Transform.scale(
       scale: 1 + 0.02 * Curves.easeOut.transform(animation.value),
@@ -201,15 +215,25 @@ Widget liftedCard(
     ),
     child: child,
   );
+  final card = carry == null || chip == null
+      ? whole
+      : _ShrinkingCard(
+          carry: carry,
+          title: chip.title,
+          colour: chip.colour,
+          ground: ground,
+          child: whole,
+        );
   // Held over another day, the card thins out: it is on top of the very spot
   // it is being carried to, and the mark that says where it will land has to
-  // be seen through it.
+  // be seen through it. Not once it has shrunk to a day's size — then the
+  // mark shows round it.
   final lifted = carry == null
       ? card
       : ListenableBuilder(
           listenable: carry,
           builder: (context, child) => AnimatedOpacity(
-            opacity: carry.target == null ? 1 : 0.45,
+            opacity: carry.target == null || carry.shrink != null ? 1 : 0.45,
             duration: const Duration(milliseconds: 120),
             child: child,
           ),
@@ -218,7 +242,240 @@ Widget liftedCard(
   final bounds = _DragBounds.of(context);
   return bounds == null
       ? lifted
-      : _KeepInside(bounds: bounds, under: under, over: over, child: lifted);
+      : _KeepInside(
+          bounds: bounds,
+          under: under,
+          over: over,
+          carry: carry,
+          child: lifted,
+        );
+}
+
+/// A carried card that turns into a tile the size of a day while it is over
+/// the month, and back into the card when it leaves it.
+///
+/// A full-width card held over a grid of days covers a week of them and
+/// says nothing about which one it is going to; a tile the size of one, under
+/// the finger, reads as something being put into a day. It is the task's
+/// title on the task's colour mixed the way an opened month's chips are, so
+/// what is carried in looks like what will be there once it is let go. The
+/// card fades out over the first part of the change while the tile draws in
+/// from the card's own outline into the day under the finger, inside the
+/// outline that marks it, and goes from day to day with the finger.
+class _ShrinkingCard extends StatefulWidget {
+  final Carry<Object> carry;
+  final String title;
+  final Color colour;
+
+  /// What the card is standing on, which its ink is mixed into.
+  final Color ground;
+  final Widget child;
+
+  const _ShrinkingCard({
+    required this.carry,
+    required this.title,
+    required this.colour,
+    required this.ground,
+    required this.child,
+  });
+
+  @override
+  State<_ShrinkingCard> createState() => _ShrinkingCardState();
+}
+
+class _ShrinkingCardState extends State<_ShrinkingCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _morph = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 180),
+  );
+
+  /// Where it last shrank to, on the screen, kept for the way back.
+  Rect _tile = Rect.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.carry.addListener(_follow);
+  }
+
+  @override
+  void dispose() {
+    widget.carry.removeListener(_follow);
+    _morph.dispose();
+    super.dispose();
+  }
+
+  void _follow() {
+    final shrink = widget.carry.shrink;
+    if (shrink != null) {
+      if (shrink != _tile) setState(() => _tile = shrink);
+      if (_morph.status != AnimationStatus.forward &&
+          _morph.status != AnimationStatus.completed) {
+        _morph.forward();
+      }
+    } else if (_morph.status != AnimationStatus.reverse &&
+        _morph.status != AnimationStatus.dismissed) {
+      _morph.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final cardInk = Color.alphaBlend(
+      widget.colour.withValues(alpha: 0.25),
+      widget.ground,
+    );
+    final tileInk = dayChipColour(widget.colour, p.calendar);
+    return AnimatedBuilder(
+      animation: _morph,
+      child: widget.child,
+      builder: (context, card) {
+        final t = Curves.easeOutCubic.transform(_morph.value);
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Opacity(opacity: (1 - t * 2.5).clamp(0.0, 1.0), child: card),
+            if (t > 0)
+              Positioned.fill(
+                child: _AtFinger(
+                  carry: widget.carry,
+                  tile: _tile,
+                  t: t,
+                  child: Opacity(
+                    opacity: (t * 3).clamp(0.0, 1.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(
+                        lerpDouble(TaskCard.radius, 6, t)!,
+                      ),
+                      child: ColoredBox(
+                        color: Color.lerp(cardInk, tileInk, t)!,
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Opacity(
+                            opacity: t,
+                            child: Text(
+                              widget.title,
+                              maxLines: 3,
+                              overflow: TextOverflow.fade,
+                              style: TextStyle(
+                                color: p.text,
+                                fontSize: 10,
+                                height: 1.15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Lays the tile out at its size and paints it in the day it is over.
+///
+/// Placed on the screen rather than relative to the card, and while
+/// painting, when this frame's positions are known. A reorderable list moves
+/// the card it carries along its own axis only, so a finger moving sideways
+/// across the month left the card — and a tile placed relative to it —
+/// behind, over the days already passed. The tile starts out over the card's
+/// own outline and moves into [tile], a place on the screen, as it shrinks
+/// ([t]). It sits in the day rather than centred on the finger: centred, it
+/// straddled two days half the time, and a day is what it is turning into.
+///
+/// The card's outline is read from this box's own size, which is the card's
+/// once laid out. A `LayoutBuilder` round it was handed the proxy's open
+/// height instead — infinite — and the tile worked out from that was NaN,
+/// which Flutter drew pinned to the left edge whatever the finger did.
+class _AtFinger extends SingleChildRenderObjectWidget {
+  final Carry<Object> carry;
+  final Rect tile;
+  final double t;
+
+  const _AtFinger({
+    required this.carry,
+    required this.tile,
+    required this.t,
+    required Widget super.child,
+  });
+
+  @override
+  _RenderAtFinger createRenderObject(BuildContext context) =>
+      _RenderAtFinger(carry, tile, t);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderAtFinger render) {
+    render
+      ..carry = carry
+      ..tile = tile
+      ..t = t
+      ..markNeedsLayout();
+  }
+}
+
+class _RenderAtFinger extends RenderProxyBox {
+  _RenderAtFinger(this._carry, this.tile, this.t);
+
+  Carry<Object> _carry;
+  set carry(Carry<Object> value) {
+    if (value == _carry) return;
+    if (attached) _carry.removeListener(markNeedsPaint);
+    _carry = value;
+    if (attached) _carry.addListener(markNeedsPaint);
+  }
+
+  Rect tile;
+  double t;
+
+  Rect get _from => TaskCard.margin.deflateRect(Offset.zero & size);
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _carry.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _carry.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
+  @override
+  void performLayout() {
+    size = constraints.biggest;
+    child?.layout(BoxConstraints.tight(Size.lerp(_from.size, tile.size, t)!));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final child = this.child;
+    if (child == null) return;
+    final from = _from;
+    _at = Offset.lerp(from.topLeft, globalToLocal(tile.topLeft), t)!;
+    context.paintChild(child, offset + _at);
+  }
+
+  /// Where the tile was last painted, so anything asking where it is on the
+  /// screen is told where it was drawn rather than where it was laid out.
+  Offset _at = Offset.zero;
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    transform.translateByDouble(_at.dx, _at.dy, 0, 1);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      false;
 }
 
 class ReorderableTaskList extends StatefulWidget {
@@ -341,7 +598,7 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
             () => _list.currentState?.cancelReorder(),
           ),
           onReorderEnd: (_) => w.carry?.end(),
-          proxyDecorator: (child, _, animation) => liftedCard(
+          proxyDecorator: (child, index, animation) => liftedCard(
             context,
             w.ground,
             child,
@@ -350,6 +607,14 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
             // holidays: up past them is the way to the month.
             under: w.holidays.isEmpty || !w.penned ? null : _lastHoliday,
             carry: w.carry,
+            chip: (
+              title: w.tasks[index].title,
+              colour: colorOfTask(
+                w.tasks[index],
+                w.listOf(w.tasks[index]),
+                fallback: AppTheme.accentOf(context).color,
+              ),
+            ),
           ),
           itemBuilder: (context, i) {
             final task = w.tasks[i];
