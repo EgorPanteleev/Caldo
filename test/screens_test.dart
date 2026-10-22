@@ -768,7 +768,7 @@ void main() {
     expect(provider.moved, isNull);
   });
 
-  testWidgets('a card held over the month shrinks into the day under it', (
+  testWidgets('a card held over the month shrinks to the size of a day', (
     tester,
   ) async {
     await pumpCapturing(tester, const CalendarScreen());
@@ -794,8 +794,8 @@ void main() {
     }
     await tester.pump(const Duration(milliseconds: 300));
 
-    // The title is written in a tile inside the day's cell — not on a card
-    // the width of the screen.
+    // The title is written in a tile the size of a day, under the finger —
+    // not on a card the width of the screen.
     final inside = find.text('Ship').evaluate().where((e) {
       final box = e.renderObject! as RenderBox;
       final rect = box.localToGlobal(Offset.zero) & box.size;

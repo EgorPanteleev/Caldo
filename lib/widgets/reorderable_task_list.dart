@@ -260,8 +260,9 @@ Widget liftedCard(
 /// title on the task's colour mixed the way an opened month's chips are, so
 /// what is carried in looks like what will be there once it is let go. The
 /// card fades out over the first part of the change while the tile draws in
-/// from the card's own outline into the day under the finger, inside the
-/// outline that marks it, and goes from day to day with the finger.
+/// from the card's own outline to the finger, and then goes wherever the
+/// finger does — the day it would land on is marked by its outline, not by
+/// where the tile sits.
 class _ShrinkingCard extends StatefulWidget {
   final Carry<Object> carry;
   final String title;
@@ -380,7 +381,8 @@ class _ShrinkingCardState extends State<_ShrinkingCard>
   }
 }
 
-/// Lays the tile out at its size and paints it in the day it is over.
+/// Lays the tile out at its size and paints it where it is told, under the
+/// finger.
 ///
 /// Placed on the screen rather than relative to the card, and while
 /// painting, when this frame's positions are known. A reorderable list moves
@@ -388,8 +390,8 @@ class _ShrinkingCardState extends State<_ShrinkingCard>
 /// across the month left the card — and a tile placed relative to it —
 /// behind, over the days already passed. The tile starts out over the card's
 /// own outline and moves into [tile], a place on the screen, as it shrinks
-/// ([t]). It sits in the day rather than centred on the finger: centred, it
-/// straddled two days half the time, and a day is what it is turning into.
+/// ([t]). It once snapped into the cell under the finger instead; that was
+/// asked back — the tile is to move freely, and the outline to say the day.
 ///
 /// The card's outline is read from this box's own size, which is the card's
 /// once laid out. A `LayoutBuilder` round it was handed the proxy's open

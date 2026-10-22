@@ -544,8 +544,8 @@ Changing them back will be noticed.
   inside its own run, it is the same reorder as ever.
   **Over the month the card turns into a tile the size of a day**
   (`_ShrinkingCard`, `Carry.shrinkTo`): the card fades while a tile draws
-  in from its outline into the cell under the finger, inside the outline
-  marking that day, with the title on the task's colour mixed as an opened
+  in from its outline to the finger and then moves freely with it, with
+  the day it would land on marked by the outline as before, and the title on the task's colour mixed as an opened
   month's chips are — asked for as "transform into smaller rect like day of
   calendar". Off the month it grows back into the card. On Schedule, which
   has no days to shrink into, the card instead thins out over another run
@@ -555,9 +555,10 @@ Changing them back will be noticed.
   placed on the screen, in paint (`_AtFinger`); and a `LayoutBuilder`
   inside the proxy is handed an unbounded height, which made the tile's
   rectangle NaN and pinned it to the left edge, so the card's outline is
-  read from the render box's own laid-out size instead. The tile sits in the
-  cell rather than centred on the finger: centred, it straddled two days
-  half the time.
+  read from the render box's own laid-out size instead. The tile was once
+  snapped into the cell under the finger, inside the outline; that was
+  asked back — "it should not stick to date … must move freely" — so the
+  tile follows the finger and the outline alone says which day.
   The lists' own drag is not touched. A `Listener` around each screen
   watches where the finger goes, and the pointer's release reaches it
   before the list's drag hears of it, so a release over another day calls

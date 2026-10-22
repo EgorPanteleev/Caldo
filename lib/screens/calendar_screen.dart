@@ -400,21 +400,25 @@ class _CalendarScreenState extends State<CalendarScreen>
     return day == null || day == task.dueDay ? null : day;
   }
 
-  /// Over the grid, a carried card is drawn as a tile in the day under the
-  /// finger — a little inside the cell, so the outline round the day shows.
+  /// Over the grid, a carried card is drawn as a tile the size of a day,
+  /// under the finger and moving with it. Not in the day: the day it would
+  /// land on is the outline's to say, and a tile that jumped from cell to
+  /// cell was asked to "move freely without sticking".
   Rect? _dayTile(Offset global) {
     final found = _gridLayout();
     if (found == null) return null;
     final (layout, box) = found;
-    final day = layout.dayAt(box.globalToLocal(global));
-    final cell = day == null ? null : layout.rectOf(day);
-    if (cell == null) return null;
+    if (!(Offset.zero & box.size).contains(box.globalToLocal(global))) {
+      return null;
+    }
     // Held to a day's shape where the rows are tall — the week view's single
-    // row is most of the grid — and to the top of the cell, under its number.
-    final width = cell.width - 10;
-    final height = math.min(cell.height, cell.width * 1.2) - 10;
-    final tile = Rect.fromLTWH(cell.left + 5, cell.top + 5, width, height);
-    return box.localToGlobal(tile.topLeft) & tile.size;
+    // row is most of the grid.
+    final cell = layout.cellSize;
+    return Rect.fromCenter(
+      center: global,
+      width: cell.width - 10,
+      height: math.min(cell.height, cell.width * 1.2) - 10,
+    );
   }
 
   /// The cell of the day a carried card would be put down on, on the screen.
