@@ -1188,14 +1188,18 @@ class _DayBar extends StatelessWidget {
   }
 }
 
-/// What says a carried task can be taken to another month: a strip down
-/// each side of the grid with a chevron in it.
+/// What says a carried task can be taken to another month: a small tab at
+/// the middle of each side of the grid, with a chevron in it.
 ///
-/// Both show, faintly, the moment a task is carried over the month — the
-/// turning is otherwise invisible until it happens, and nobody holds a card
-/// against the edge of the screen on the off chance. The side the finger is
-/// at lights up and fills inwards over the hold ([hold]), its chevron
-/// nudging outwards, so waiting there reads as the month being about to go.
+/// Both show the moment a task is carried over the month — the turning is
+/// otherwise invisible until it happens, and nobody holds a card against the
+/// edge of the screen on the off chance. The side the finger is at widens a
+/// little and fills from the bottom over the hold ([hold]), its chevron
+/// brightening and nudging outwards, so waiting there reads as the month
+/// being about to go. They are in the carried tile's own terms — the add
+/// field's grey, a light rim, round corners — where the first try, a
+/// gradient down the whole height of each side, read as a shadow fallen
+/// across the days.
 class _EdgeHints extends StatelessWidget {
   final Carry<DateTime> carry;
   final ValueListenable<int> edge;
@@ -1218,44 +1222,70 @@ class _EdgeHints extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         child: AnimatedBuilder(
           animation: hold,
-          builder: (context, _) =>
-              Row(children: [_side(p, -1), const Spacer(), _side(p, 1)]),
+          builder: (context, _) => Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [_tab(p, -1), const Spacer(), _tab(p, 1)],
+          ),
         ),
       ),
     );
   }
 
-  Widget _side(AppPalette p, int side) {
+  Widget _tab(AppPalette p, int side) {
     final held = edge.value == side;
     final fill = held ? Curves.easeOut.transform(hold.value) : 0.0;
-    final towards = side < 0 ? Alignment.centerLeft : Alignment.centerRight;
-    final away = side < 0 ? Alignment.centerRight : Alignment.centerLeft;
-    return SizedBox(
-      width: 34,
-      child: DecoratedBox(
+    const height = 58.0;
+    final radius = BorderRadius.circular(12);
+    return Padding(
+      // Narrow and close to the edge, so it stays clear of the numbers of the
+      // outer days even widened — held, it covered the 18 beside it.
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        width: held ? 24 : 20,
+        height: height,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: towards,
-            end: away,
-            colors: [
-              p.text.withValues(alpha: held ? 0.10 + 0.22 * fill : 0.06),
-              p.text.withValues(alpha: 0),
-            ],
+          color: p.field,
+          borderRadius: radius,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: held ? 0.4 : 0.16),
+            width: 1.2,
           ),
-        ),
-        child: Align(
-          alignment: towards,
-          child: Transform.translate(
-            // Out towards the month it will turn to, a little further the
-            // longer it is held.
-            offset: Offset(side * 4 * fill, 0),
-            child: Icon(
-              side < 0
-                  ? Icons.chevron_left_rounded
-                  : Icons.chevron_right_rounded,
-              size: 26,
-              color: p.text.withValues(alpha: held ? 0.55 + 0.45 * fill : 0.3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // The hold, filling from the bottom: full is the month turning.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: height * fill,
+                child: ColoredBox(color: p.text.withValues(alpha: 0.18)),
+              ),
+              Transform.translate(
+                // Out towards the month it will turn to, a little further the
+                // longer it is held.
+                offset: Offset(side * 2.5 * fill, 0),
+                child: Icon(
+                  side < 0
+                      ? Icons.chevron_left_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 20,
+                  color: held ? p.text : p.muted,
+                ),
+              ),
+            ],
           ),
         ),
       ),

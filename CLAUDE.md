@@ -567,10 +567,13 @@ Changing them back will be noticed.
   `_turn`): after 600ms within 24 points of the side, then every 900ms
   while it stays there. Held rather than touched, because the outer
   columns are days too. **The sides say so** (`_EdgeHints`): while a task
-  is over the month, a faint strip with a chevron shows at each side, and
-  the side being held lights up and fills over the hold, its chevron
-  nudging outwards — without them, "user mb cant realize that he can move
-  to another month". Neutral, not accent. While a card is carried the turning month does not
+  is over the month, a small rounded tab with a chevron shows at the
+  middle of each side, in the tile's own terms (the field's grey, a light
+  rim), and the side being held widens and fills from the bottom over the
+  hold, its chevron nudging outwards — without them, "user mb cant realize
+  that he can move to another month". Neutral, not accent. The first try
+  was a gradient down the whole height of each side, which read as a
+  shadow across the days: "very bad". While a card is carried the turning month does not
   pick a new day below the grid — that would page the day's list, and the
   card with it, out from under the finger — and `loadMonth(keep:)` holds on
   to the day it came from even when the new month's range does not reach
