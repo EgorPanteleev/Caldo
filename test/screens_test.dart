@@ -813,6 +813,20 @@ void main() {
     final next = DateTime(today.year, today.month + 1);
     final grid = tester.getRect(find.byType(MonthGrid));
 
+    // The hints at the sides that say the month can be turned are there
+    // only while a task is carried over it.
+    double hints() => tester
+        .widget<AnimatedOpacity>(
+          find
+              .ancestor(
+                of: find.byIcon(Icons.chevron_right_rounded),
+                matching: find.byType(AnimatedOpacity),
+              )
+              .first,
+        )
+        .opacity;
+    expect(hints(), 0);
+
     final from = tester.getCenter(find.text('Ship'));
     final side = Offset(grid.right - 4, grid.center.dy);
     final finger = await tester.startGesture(from);
@@ -821,6 +835,7 @@ void main() {
       await finger.moveTo(Offset.lerp(from, side, i / 10)!);
       await tester.pump(const Duration(milliseconds: 16));
     }
+    expect(hints(), 1);
     // Passing through the outer column does nothing; holding there turns.
     expect(
       tester.widget<Text>(find.byKey(monthTitleKey)).data,

@@ -334,7 +334,7 @@ class _ShrinkingCardState extends State<_ShrinkingCard>
       widget.colour.withValues(alpha: 0.55),
       p.field,
     );
-    final rim = Color.alphaBlend(Colors.white.withValues(alpha: 0.18), tileInk);
+    final rim = Color.alphaBlend(Colors.white.withValues(alpha: 0.38), tileInk);
     return AnimatedBuilder(
       animation: _morph,
       child: widget.child,
@@ -356,11 +356,11 @@ class _ShrinkingCardState extends State<_ShrinkingCard>
                       decoration: BoxDecoration(
                         color: Color.lerp(cardInk, tileInk, t),
                         borderRadius: BorderRadius.circular(
-                          lerpDouble(TaskCard.radius, 10, t)!,
+                          lerpDouble(TaskCard.radius, 14, t)!,
                         ),
                         border: Border.all(
                           color: Color.lerp(cardInk, rim, t)!,
-                          width: 1,
+                          width: 1.5,
                         ),
                         // Lifted off the month: it is being carried over the
                         // days, not lying in one of them.

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
@@ -37,7 +38,7 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// Middle of the page range; page [_basePage] shows [_baseMonth].
   static const _basePage = 6000;
 
@@ -100,6 +101,8 @@ class _CalendarScreenState extends State<CalendarScreen>
   @override
   void dispose() {
     _turning?.cancel();
+    _hold.dispose();
+    _edgeShown.dispose();
     _carry.dispose();
     _controller.dispose();
     _dayController.dispose();
@@ -396,6 +399,18 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   /// Which way the month is about to turn while a card is held at a side.
   int _edge = 0;
+
+  /// The same, for the hints drawn at the sides, which only need to hear
+  /// when it changes.
+  final _edgeShown = ValueNotifier<int>(0);
+
+  /// How far into the hold before the next turn: the side being held fills
+  /// over it, so the wait is something to watch rather than a pause that
+  /// looks like nothing happening.
+  late final AnimationController _hold = AnimationController(
+    vsync: this,
+    duration: _edgeHold,
+  );
   Timer? _turning;
   bool _carrying = false;
 
@@ -406,6 +421,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     if (_carrying && !active) {
       _carrying = false;
       _edge = 0;
+      _edgeShown.value = 0;
+      _hold.value = 0;
       _turning?.cancel();
       // Turned to another month and let go without a drop: show a day of
       // the month on show, as turning it would have without a card.
@@ -432,8 +449,16 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
     if (edge == _edge) return;
     _edge = edge;
+    _edgeShown.value = edge;
     _turning?.cancel();
-    if (edge != 0) _turning = Timer(_edgeHold, _turn);
+    if (edge != 0) {
+      _turning = Timer(_edgeHold, _turn);
+      _hold
+        ..duration = _edgeHold
+        ..forward(from: 0);
+    } else {
+      _hold.value = 0;
+    }
   }
 
   void _turn() {
@@ -449,6 +474,9 @@ class _CalendarScreenState extends State<CalendarScreen>
         )
         .then((_) => _carry.refresh());
     _turning = Timer(_edgeRepeat, _turn);
+    _hold
+      ..duration = _edgeRepeat
+      ..forward(from: 0);
   }
 
   /// Where the days of the month on show fall in the grid's box, now — the
@@ -681,41 +709,62 @@ class _CalendarScreenState extends State<CalendarScreen>
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        SizedBox(
-                                          key: _grid,
-                                          height: gridHeight,
-                                          child: GestureDetector(
-                                            // Vertical drags open the grid; the PageView keeps
-                                            // the horizontal ones for changing month. Opaque,
-                                            // so a drag that starts on the padding around a day
-                                            // cell is caught too rather than falling through.
-                                            behavior: HitTestBehavior.opaque,
-                                            onVerticalDragStart: _onDragStart,
-                                            onVerticalDragUpdate: _onDrag,
-                                            onVerticalDragEnd: _onDragEnd,
-                                            child: PageView.builder(
-                                              controller: _controller,
-                                              onPageChanged:
-                                                  _onMonthPageChanged,
-                                              itemBuilder: (context, i) =>
-                                                  MonthGrid(
-                                                    month: _monthOfPage(i),
-                                                    selected: _selected,
-                                                    mondayFirst: mondayFirst,
-                                                    tasksByDay:
-                                                        provider.tasksByDay,
-                                                    holidaysByDay:
-                                                        Holidays.around(
-                                                          country,
-                                                          _monthOfPage(i),
+                                        Stack(
+                                          children: [
+                                            SizedBox(
+                                              key: _grid,
+                                              height: gridHeight,
+                                              child: GestureDetector(
+                                                // Vertical drags open the grid; the PageView keeps
+                                                // the horizontal ones for changing month. Opaque,
+                                                // so a drag that starts on the padding around a day
+                                                // cell is caught too rather than falling through.
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onVerticalDragStart:
+                                                    _onDragStart,
+                                                onVerticalDragUpdate: _onDrag,
+                                                onVerticalDragEnd: _onDragEnd,
+                                                child: PageView.builder(
+                                                  controller: _controller,
+                                                  onPageChanged:
+                                                      _onMonthPageChanged,
+                                                  itemBuilder: (context, i) =>
+                                                      MonthGrid(
+                                                        month: _monthOfPage(i),
+                                                        selected: _selected,
+                                                        mondayFirst:
+                                                            mondayFirst,
+                                                        tasksByDay:
+                                                            provider.tasksByDay,
+                                                        holidaysByDay:
+                                                            Holidays.around(
+                                                              country,
+                                                              _monthOfPage(i),
+                                                            ),
+                                                        lists: provider.lists,
+                                                        expansion: math.max(
+                                                          0.0,
+                                                          t,
                                                         ),
-                                                    lists: provider.lists,
-                                                    expansion: math.max(0.0, t),
-                                                    weekCollapse: weekCollapse,
-                                                    onSelect: _selectDay,
-                                                  ),
+                                                        weekCollapse:
+                                                            weekCollapse,
+                                                        onSelect: _selectDay,
+                                                      ),
+                                                ),
+                                              ),
                                             ),
-                                          ),
+                                            // Where holding a carried task turns the month.
+                                            Positioned.fill(
+                                              child: IgnorePointer(
+                                                child: _EdgeHints(
+                                                  carry: _carry,
+                                                  edge: _edgeShown,
+                                                  hold: _hold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                         _DragHandle(
                                           key: calendarHandleKey,
@@ -1134,6 +1183,81 @@ class _DayBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// What says a carried task can be taken to another month: a strip down
+/// each side of the grid with a chevron in it.
+///
+/// Both show, faintly, the moment a task is carried over the month — the
+/// turning is otherwise invisible until it happens, and nobody holds a card
+/// against the edge of the screen on the off chance. The side the finger is
+/// at lights up and fills inwards over the hold ([hold]), its chevron
+/// nudging outwards, so waiting there reads as the month being about to go.
+class _EdgeHints extends StatelessWidget {
+  final Carry<DateTime> carry;
+  final ValueListenable<int> edge;
+  final Animation<double> hold;
+
+  const _EdgeHints({
+    required this.carry,
+    required this.edge,
+    required this.hold,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([carry, edge]),
+      builder: (context, _) => AnimatedOpacity(
+        // Only while the card is over the month, which is when it is a tile.
+        opacity: carry.shrink == null ? 0 : 1,
+        duration: const Duration(milliseconds: 160),
+        child: AnimatedBuilder(
+          animation: hold,
+          builder: (context, _) =>
+              Row(children: [_side(p, -1), const Spacer(), _side(p, 1)]),
+        ),
+      ),
+    );
+  }
+
+  Widget _side(AppPalette p, int side) {
+    final held = edge.value == side;
+    final fill = held ? Curves.easeOut.transform(hold.value) : 0.0;
+    final towards = side < 0 ? Alignment.centerLeft : Alignment.centerRight;
+    final away = side < 0 ? Alignment.centerRight : Alignment.centerLeft;
+    return SizedBox(
+      width: 34,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: towards,
+            end: away,
+            colors: [
+              p.text.withValues(alpha: held ? 0.10 + 0.22 * fill : 0.06),
+              p.text.withValues(alpha: 0),
+            ],
+          ),
+        ),
+        child: Align(
+          alignment: towards,
+          child: Transform.translate(
+            // Out towards the month it will turn to, a little further the
+            // longer it is held.
+            offset: Offset(side * 4 * fill, 0),
+            child: Icon(
+              side < 0
+                  ? Icons.chevron_left_rounded
+                  : Icons.chevron_right_rounded,
+              size: 26,
+              color: p.text.withValues(alpha: held ? 0.55 + 0.45 * fill : 0.3),
+            ),
+          ),
+        ),
       ),
     );
   }

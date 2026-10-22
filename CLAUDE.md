@@ -547,7 +547,8 @@ Changing them back will be noticed.
   in from its outline to the finger and then moves freely with it, with
   the day it would land on marked by the outline as before — asked for as
   "transform into smaller rect like day of calendar". The tile is a rounded
-  square in a clear fill of the task's colour, with a light rim, a shadow
+  square (corners 14) in a clear fill of the task's colour, with a 1.5pt
+  light rim — asked for "more rounded" and "more outlined" — a shadow
   under it, and the title centred on two lines ending in an ellipsis; its
   first form, a chip's dim ink with three lines of small type cut off at
   the bottom, was "ugly". It is kept on the grid at the sides. Off the month it grows back into the card. On Schedule, which
@@ -565,7 +566,11 @@ Changing them back will be noticed.
   **Held at either side of the grid, the month turns** (`_watchEdges`,
   `_turn`): after 600ms within 24 points of the side, then every 900ms
   while it stays there. Held rather than touched, because the outer
-  columns are days too. While a card is carried the turning month does not
+  columns are days too. **The sides say so** (`_EdgeHints`): while a task
+  is over the month, a faint strip with a chevron shows at each side, and
+  the side being held lights up and fills over the hold, its chevron
+  nudging outwards — without them, "user mb cant realize that he can move
+  to another month". Neutral, not accent. While a card is carried the turning month does not
   pick a new day below the grid — that would page the day's list, and the
   card with it, out from under the finger — and `loadMonth(keep:)` holds on
   to the day it came from even when the new month's range does not reach
