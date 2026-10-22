@@ -923,11 +923,23 @@ class _DayPanel extends StatelessWidget {
               }
               return false;
             },
+            // An empty day has no list to pull past its ends, so the whole
+            // panel takes the drag itself, as the bar above it does. Before,
+            // only the placeholder's own little scroll view answered — most
+            // of the panel did nothing, and a drag on the words moved the
+            // grid a few points and left it stuck between states.
             child: tasks.isEmpty && holidays.isEmpty
-                ? const EmptyState(
-                    icon: Icons.event_available_outlined,
-                    title: 'Nothing on this day',
-                    message: 'Add one in the field below.',
+                ? GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragStart: onDragStart,
+                    onVerticalDragUpdate: onDrag,
+                    onVerticalDragEnd: onDragEnd,
+                    child: const EmptyState(
+                      icon: Icons.event_available_outlined,
+                      title: 'Nothing on this day',
+                      message: 'Add one in the field below.',
+                      scrolls: false,
+                    ),
                   )
                 : ReorderableTaskList(
                     padding: const EdgeInsets.only(top: 4, bottom: 8),

@@ -124,44 +124,57 @@ class EmptyState extends StatelessWidget {
   final String title;
   final String message;
 
+  /// Whether a placeholder taller than its space scrolls, or is shrunk to fit.
+  /// Where the space around it takes drags of its own — the calendar's day
+  /// panel, which opens and closes the month — a scroll view in the middle of
+  /// it would take them instead.
+  final bool scrolls;
+
   const EmptyState({
     super.key,
     required this.icon,
     required this.title,
     required this.message,
+    this.scrolls = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    // Scrollable so it still fits when the space left under a calendar grid
-    // or a header is shorter than the placeholder itself.
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 52, color: p.faint),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: p.muted,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: p.faint, fontSize: 13, height: 1.4),
-            ),
-          ],
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 52, color: p.faint),
+        const SizedBox(height: 14),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: p.muted,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
+        const SizedBox(height: 6),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: p.faint, fontSize: 13, height: 1.4),
+        ),
+      ],
+    );
+    // Scrollable, or shrunk, so it still fits when the space left under a
+    // calendar grid or a header is shorter than the placeholder itself.
+    return Center(
+      child: scrolls
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(32),
+              child: content,
+            )
+          : FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Padding(padding: const EdgeInsets.all(32), child: content),
+            ),
     );
   }
 }

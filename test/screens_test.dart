@@ -483,6 +483,41 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('an empty day can be pulled on anywhere to move the month', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    // Tomorrow has nothing on it in the seeded data.
+    await tester.drag(
+      find.text(Dates.weekdayShort(today)),
+      const Offset(-400, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing on this day'), findsOneWidget);
+
+    final month = tester.getSize(find.byType(MonthGrid).first).height;
+    // Up, from the panel's edge rather than the placeholder's words — most
+    // of an empty panel is space around them, and it used to take no drag.
+    final words = tester.getCenter(find.text('Nothing on this day'));
+    await tester.dragFrom(Offset(24, words.dy), const Offset(0, -90));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byType(MonthGrid).first).height,
+      lessThan(month * 0.5),
+      reason: 'squeezed to the week',
+    );
+
+    // And back down, from on the words themselves.
+    await tester.drag(find.text('Nothing on this day'), const Offset(0, 90));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byType(MonthGrid).first).height,
+      closeTo(month, 1),
+    );
+    await drainDatabase(tester);
+  });
+
   testWidgets('the days below the grid are a row that can be swiped', (
     tester,
   ) async {

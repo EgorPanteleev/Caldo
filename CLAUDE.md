@@ -606,6 +606,12 @@ Changing them back will be noticed.
   of the screen; a swipe on it that had nowhere else to go used to do nothing.
   A short day's list cannot scroll at all, so every drag on it arrives as
   overscroll; a long one arrives only once it has run out of list.
+  A day with nothing on it has no list at all, so the whole panel takes the
+  drag directly, as the day bar does, and its placeholder is shrunk to fit
+  rather than scrolled (`EmptyState.scrolls`). It used to be the
+  placeholder's own small scroll view that answered: everywhere around the
+  words did nothing, and a drag on the words moved the grid a few points
+  and left it stuck between states.
 - **Schedule is a heading and a reorderable list per run, not one list with
   headings scattered through it** (`_RunOfDays`, `_Run`). One list cannot tell
   a heading from a task, so the gap it opens for the card being carried could
@@ -698,7 +704,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 115 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 116 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
