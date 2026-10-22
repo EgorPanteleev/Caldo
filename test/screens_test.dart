@@ -807,6 +807,52 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a card held at the side of the month turns it', (tester) async {
+    final provider = await pumpCapturing(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    final next = DateTime(today.year, today.month + 1);
+    final grid = tester.getRect(find.byType(MonthGrid));
+
+    final from = tester.getCenter(find.text('Ship'));
+    final side = Offset(grid.right - 4, grid.center.dy);
+    final finger = await tester.startGesture(from);
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    for (var i = 1; i <= 10; i++) {
+      await finger.moveTo(Offset.lerp(from, side, i / 10)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    // Passing through the outer column does nothing; holding there turns.
+    expect(
+      tester.widget<Text>(find.byKey(monthTitleKey)).data,
+      Dates.monthTitle(DateTime(today.year, today.month)),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      tester.widget<Text>(find.byKey(monthTitleKey)).data,
+      Dates.monthTitle(next),
+    );
+
+    // Let go on a day of the month it turned to.
+    final layout = MonthLayout(
+      month: next,
+      mondayFirst: true,
+      selected: today,
+      weekCollapse: 0,
+      size: grid.size,
+    );
+    final target = DateTime(next.year, next.month, 15);
+    await finger.moveTo(layout.rectOf(target)!.shift(grid.topLeft).center);
+    await tester.pump(const Duration(milliseconds: 16));
+    await finger.up();
+    await tester.pumpAndSettle();
+    expect(provider.moved?.title, 'Ship');
+    expect(provider.movedTo, target);
+    // And the day below the grid is the one it went to.
+    expect(find.text('Add task on ${Dates.shortDay(target)}'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
   testWidgets('a card carried up onto the month moves to that day', (
     tester,
   ) async {

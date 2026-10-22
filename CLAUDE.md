@@ -545,9 +545,12 @@ Changing them back will be noticed.
   **Over the month the card turns into a tile the size of a day**
   (`_ShrinkingCard`, `Carry.shrinkTo`): the card fades while a tile draws
   in from its outline to the finger and then moves freely with it, with
-  the day it would land on marked by the outline as before, and the title on the task's colour mixed as an opened
-  month's chips are — asked for as "transform into smaller rect like day of
-  calendar". Off the month it grows back into the card. On Schedule, which
+  the day it would land on marked by the outline as before — asked for as
+  "transform into smaller rect like day of calendar". The tile is a rounded
+  square in a clear fill of the task's colour, with a light rim, a shadow
+  under it, and the title centred on two lines ending in an ellipsis; its
+  first form, a chip's dim ink with three lines of small type cut off at
+  the bottom, was "ugly". It is kept on the grid at the sides. Off the month it grows back into the card. On Schedule, which
   has no days to shrink into, the card instead thins out over another run
   so the rule under it shows. Two details cost a round each: a reorderable
   list moves its carried card along its own axis only, so a tile placed
@@ -559,6 +562,15 @@ Changing them back will be noticed.
   snapped into the cell under the finger, inside the outline; that was
   asked back — "it should not stick to date … must move freely" — so the
   tile follows the finger and the outline alone says which day.
+  **Held at either side of the grid, the month turns** (`_watchEdges`,
+  `_turn`): after 600ms within 24 points of the side, then every 900ms
+  while it stays there. Held rather than touched, because the outer
+  columns are days too. While a card is carried the turning month does not
+  pick a new day below the grid — that would page the day's list, and the
+  card with it, out from under the finger — and `loadMonth(keep:)` holds on
+  to the day it came from even when the new month's range does not reach
+  it. Put down in another month, the day it went to becomes the day shown;
+  let go without a drop, the month on show picks its day as a swipe would.
   The lists' own drag is not touched. A `Listener` around each screen
   watches where the finger goes, and the pointer's release reaches it
   before the list's drag hears of it, so a release over another day calls
@@ -720,7 +732,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 117 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 118 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

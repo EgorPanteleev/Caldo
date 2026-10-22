@@ -53,6 +53,13 @@ class Carry<T extends Object> extends ChangeNotifier {
     _aim();
   }
 
+  /// Works out again what the card is over, with the finger where it is —
+  /// for when what is under the finger changes without the finger moving,
+  /// as when the month turns under it.
+  void refresh() {
+    if (active) _aim();
+  }
+
   /// Called by a list when its card has been put down in it.
   void end() {
     if (_task == null) return;

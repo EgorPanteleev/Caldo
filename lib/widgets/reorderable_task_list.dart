@@ -9,7 +9,6 @@ import '../models/task.dart';
 import '../models/task_list.dart';
 import '../theme/app_theme.dart';
 import 'carry.dart';
-import 'month_grid.dart' show dayChipColour;
 import 'slide_into_place.dart';
 import 'task_card.dart';
 import 'tick_off.dart';
@@ -328,7 +327,14 @@ class _ShrinkingCardState extends State<_ShrinkingCard>
       widget.colour.withValues(alpha: 0.25),
       widget.ground,
     );
-    final tileInk = dayChipColour(widget.colour, p.calendar);
+    // Clearer than a card's ink or a chip's: the tile is small, lifted, and
+    // the one thing moving on the screen, so it carries its colour rather
+    // than a hint of it.
+    final tileInk = Color.alphaBlend(
+      widget.colour.withValues(alpha: 0.55),
+      p.field,
+    );
+    final rim = Color.alphaBlend(Colors.white.withValues(alpha: 0.18), tileInk);
     return AnimatedBuilder(
       animation: _morph,
       child: widget.child,
@@ -346,24 +352,46 @@ class _ShrinkingCardState extends State<_ShrinkingCard>
                   t: t,
                   child: Opacity(
                     opacity: (t * 3).clamp(0.0, 1.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(
-                        lerpDouble(TaskCard.radius, 6, t)!,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Color.lerp(cardInk, tileInk, t),
+                        borderRadius: BorderRadius.circular(
+                          lerpDouble(TaskCard.radius, 10, t)!,
+                        ),
+                        border: Border.all(
+                          color: Color.lerp(cardInk, rim, t)!,
+                          width: 1,
+                        ),
+                        // Lifted off the month: it is being carried over the
+                        // days, not lying in one of them.
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.45 * t),
+                            blurRadius: 14,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
                       ),
-                      child: ColoredBox(
-                        color: Color.lerp(cardInk, tileInk, t)!,
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 4,
+                        ),
+                        child: Center(
                           child: Opacity(
                             opacity: t,
+                            // Two lines, ended with an ellipsis: three in a
+                            // box this size ran off the bottom and cut the
+                            // last one through the middle of its letters.
                             child: Text(
                               widget.title,
-                              maxLines: 3,
-                              overflow: TextOverflow.fade,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: p.text,
-                                fontSize: 10,
-                                height: 1.15,
+                                fontSize: 10.5,
+                                height: 1.2,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

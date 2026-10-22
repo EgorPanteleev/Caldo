@@ -152,8 +152,15 @@ class TaskProvider extends ChangeNotifier {
 
   /// Loads the dated tasks of the month containing [date] (plus a little
   /// padding, so days of adjacent months shown in the grid are populated too).
-  Future<void> loadMonth(DateTime date) async {
+  ///
+  /// With [keep], that day's tasks stay as they were even if the new month's
+  /// range does not reach it: a task being carried across months is still a
+  /// card in that day's list, and the list must not lose it from under the
+  /// finger.
+  Future<void> loadMonth(DateTime date, {DateTime? keep}) async {
+    final kept = keep == null ? null : _byDay[dayOf(keep)];
     await _readMonth(date);
+    if (kept != null) _byDay.putIfAbsent(dayOf(keep!), () => kept);
     notifyListeners();
   }
 

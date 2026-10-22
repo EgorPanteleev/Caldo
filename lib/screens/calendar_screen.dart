@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -90,6 +91,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       value: 0,
       duration: const Duration(milliseconds: 280),
     );
+    _carry.addListener(_watchEdges);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<TaskProvider>().loadMonth(_baseMonth);
     });
@@ -97,6 +99,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   @override
   void dispose() {
+    _turning?.cancel();
     _carry.dispose();
     _controller.dispose();
     _dayController.dispose();
@@ -340,12 +343,21 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// brings the month with it, and must not have the month answer back.
   void _onMonthPageChanged(int i) {
     final month = _monthOfPage(i);
-    context.read<TaskProvider>().loadMonth(month);
+    final carried = _carry.task;
+    context.read<TaskProvider>().loadMonth(month, keep: carried?.dueDay);
     // The header reads its month off the controller, so every page change
     // owes it a frame — including the ones we drove ourselves, which take no
     // other path back into build.
     setState(() {});
-    if (_driving) return;
+    // A task carried across months: the day it was picked up from is still
+    // the day below the grid, holding its list, until the carry is over.
+    if (_driving || carried != null) return;
+    _followMonth(month);
+  }
+
+  /// Picks the day to show for a month the grid has been turned to: today
+  /// if it is in it, its first otherwise.
+  void _followMonth(DateTime month) {
     if (_selected.year == month.year && _selected.month == month.month) return;
     final today = dayOf(DateTime.now());
     final day = (today.year == month.year && today.month == month.month)
@@ -369,6 +381,74 @@ class _CalendarScreenState extends State<CalendarScreen>
       return;
     }
     _selectDay(today, openSheet: false);
+  }
+
+  /// How long a carried card has to be held at the side of the grid before
+  /// the month turns, and how long between turns after that. Held, not
+  /// touched: the outer columns are days too, and a card passing through
+  /// one on its way to be dropped there must not set the month going.
+  static const _edgeHold = Duration(milliseconds: 600);
+  static const _edgeRepeat = Duration(milliseconds: 900);
+
+  /// How close to the side of the grid counts as at it — under half a day's
+  /// width, so the outer days can still be aimed at.
+  static const _edgeWidth = 24.0;
+
+  /// Which way the month is about to turn while a card is held at a side.
+  int _edge = 0;
+  Timer? _turning;
+  bool _carrying = false;
+
+  /// Turns the month under a card held at either side of the grid, and puts
+  /// the day below the grid back in step once the carry is over.
+  void _watchEdges() {
+    final active = _carry.active;
+    if (_carrying && !active) {
+      _carrying = false;
+      _edge = 0;
+      _turning?.cancel();
+      // Turned to another month and let go without a drop: show a day of
+      // the month on show, as turning it would have without a card.
+      final page = _controller.hasClients
+          ? (_controller.page?.round() ?? _basePage)
+          : _basePage;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_carry.active) _followMonth(_monthOfPage(page));
+      });
+      return;
+    }
+    _carrying = active;
+    if (!active) return;
+
+    var edge = 0;
+    final pointer = _carry.pointer;
+    final box = _grid.currentContext?.findRenderObject() as RenderBox?;
+    if (pointer != null && box != null && box.attached && box.hasSize) {
+      final local = box.globalToLocal(pointer);
+      if (local.dy >= 0 && local.dy < box.size.height) {
+        if (local.dx < _edgeWidth) edge = -1;
+        if (local.dx > box.size.width - _edgeWidth) edge = 1;
+      }
+    }
+    if (edge == _edge) return;
+    _edge = edge;
+    _turning?.cancel();
+    if (edge != 0) _turning = Timer(_edgeHold, _turn);
+  }
+
+  void _turn() {
+    if (!mounted || !_carry.active || _edge == 0 || !_controller.hasClients) {
+      return;
+    }
+    final page = _controller.page?.round() ?? _basePage;
+    _controller
+        .animateToPage(
+          page + _edge,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        )
+        .then((_) => _carry.refresh());
+    _turning = Timer(_edgeRepeat, _turn);
   }
 
   /// Where the days of the month on show fall in the grid's box, now — the
@@ -414,10 +494,23 @@ class _CalendarScreenState extends State<CalendarScreen>
     // Held to a day's shape where the rows are tall — the week view's single
     // row is most of the grid.
     final cell = layout.cellSize;
-    return Rect.fromCenter(
+    final tile = Rect.fromCenter(
       center: global,
-      width: cell.width - 10,
-      height: math.min(cell.height, cell.width * 1.2) - 10,
+      width: cell.width - 4,
+      height: math.min(cell.height, cell.width) - 6,
+    );
+    // Kept on the grid: held at a side to turn the month, a tile centred on
+    // the finger was half off the screen.
+    final grid = box.localToGlobal(Offset.zero) & box.size;
+    return tile.shift(
+      Offset(
+        tile.left < grid.left
+            ? grid.left - tile.left
+            : math.min(0, grid.right - tile.right),
+        tile.top < grid.top
+            ? grid.top - tile.top
+            : math.min(0, grid.bottom - tile.bottom),
+      ),
     );
   }
 
@@ -492,8 +585,16 @@ class _CalendarScreenState extends State<CalendarScreen>
                 // outlined over everything, the card included.
                 CarryArea<DateTime>(
                   carry: _carry,
-                  onDrop: (task, day) =>
-                      context.read<TaskProvider>().moveToDay(task, day),
+                  onDrop: (task, day) {
+                    // Put down in another month, the day it went to is the
+                    // one shown — the day it came from is a turn or more away
+                    // and no longer loaded.
+                    if (day.year != _selected.year ||
+                        day.month != _selected.month) {
+                      _selectDay(day, openSheet: false);
+                    }
+                    context.read<TaskProvider>().moveToDay(task, day);
+                  },
                   child: CarryMark<DateTime>(
                     carry: _carry,
                     mark: _cellOf,
