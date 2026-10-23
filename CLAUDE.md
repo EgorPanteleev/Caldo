@@ -68,6 +68,8 @@ Changing them back will be noticed.
 - **A drag a fifth of the way towards the next state commits to it**, and the
   snap runs on a critically damped spring carrying the drag's own speed, not a
   fixed ease from a standstill. Pulling the whole way was never the point.
+  The spring's stiffness is 200, settling in about 0.35s; it was 340 (about
+  0.27s) until asked to be "a little bit slower".
 - **Day numbers sit at a fixed offset from the top of their cell.** This is
   why the first week never moves as the grid grows. An earlier version
   cross-faded a centred layout with a top-aligned one and the numbers visibly
