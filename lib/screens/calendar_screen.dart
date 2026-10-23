@@ -169,12 +169,12 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   /// Snapping between states runs on a critically damped spring rather than a
   /// fixed curve: it carries the speed the finger left behind and settles
-  /// without the small stop a timed ease ends on. Stiffness 200 settles in
-  /// about 0.35s; at 340 it took about 0.27s, which was asked to be "a little
-  /// bit slower".
+  /// without the small stop a timed ease ends on. Stiffness 120 settles in
+  /// about 0.45s. It was 340 (about 0.27s), then 200 (about 0.35s), each
+  /// asked to be slower.
   static final _snapSpring = SpringDescription.withDampingRatio(
     mass: 1,
-    stiffness: 200,
+    stiffness: 120,
   );
 
   void _onDragStart(DragStartDetails details) {
