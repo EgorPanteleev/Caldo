@@ -225,8 +225,16 @@ class _TimeSheetState extends State<_TimeSheet> {
   int get _hour12 => _hour % 12 == 0 ? 12 : _hour % 12;
   bool get _isPm => _hour >= 12;
 
+  /// On a 24-hour clock there is no AM/PM wheel, and the hour wheel runs
+  /// 00 to 23 — the same clock every other time in the app is written on.
+  late final bool _h24 = MediaQuery.alwaysUse24HourFormatOf(context);
+
+  /// The row of the hour wheel [hour] is on.
+  int _hourItem(int hour) =>
+      _h24 ? hour : (hour % 12 == 0 ? 12 : hour % 12) - 1;
+
   late final FixedExtentScrollController _hours = FixedExtentScrollController(
-    initialItem: _hour12 - 1,
+    initialItem: _hourItem(_hour),
   );
   late final FixedExtentScrollController _minutes = FixedExtentScrollController(
     initialItem: _minute,
@@ -267,16 +275,18 @@ class _TimeSheetState extends State<_TimeSheet> {
     });
     const duration = Duration(milliseconds: 240);
     _hours.animateToItem(
-      _hour12 - 1,
+      _hourItem(_hour),
       duration: duration,
       curve: Curves.easeOut,
     );
     _minutes.animateToItem(_minute, duration: duration, curve: Curves.easeOut);
-    _meridiem.animateToItem(
-      _isPm ? 1 : 0,
-      duration: duration,
-      curve: Curves.easeOut,
-    );
+    if (!_h24) {
+      _meridiem.animateToItem(
+        _isPm ? 1 : 0,
+        duration: duration,
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
@@ -336,10 +346,12 @@ class _TimeSheetState extends State<_TimeSheet> {
               children: [
                 _Wheel(
                   controller: _hours,
-                  count: 12,
+                  count: _h24 ? 24 : 12,
                   width: 62,
-                  label: (i) => '${i + 1}',
-                  onChanged: (i) => _set(hour12: i + 1),
+                  label: (i) =>
+                      _h24 ? i.toString().padLeft(2, '0') : '${i + 1}',
+                  onChanged: (i) =>
+                      _h24 ? setState(() => _hour = i) : _set(hour12: i + 1),
                 ),
                 SizedBox(
                   width: 24,
@@ -360,15 +372,17 @@ class _TimeSheetState extends State<_TimeSheet> {
                   label: (i) => i.toString().padLeft(2, '0'),
                   onChanged: (i) => _set(minute: i),
                 ),
-                const SizedBox(width: 10),
-                _Wheel(
-                  controller: _meridiem,
-                  count: 2,
-                  width: 64,
-                  looping: false,
-                  label: (i) => i == 0 ? 'AM' : 'PM',
-                  onChanged: (i) => _set(pm: i == 1),
-                ),
+                if (!_h24) ...[
+                  const SizedBox(width: 10),
+                  _Wheel(
+                    controller: _meridiem,
+                    count: 2,
+                    width: 64,
+                    looping: false,
+                    label: (i) => i == 0 ? 'AM' : 'PM',
+                    onChanged: (i) => _set(pm: i == 1),
+                  ),
+                ],
               ],
             ),
           ),
@@ -382,7 +396,7 @@ class _TimeSheetState extends State<_TimeSheet> {
             children: [
               for (final preset in _presets)
                 _QuickChip(
-                  label: Dates.clock(preset),
+                  label: Dates.clock(preset, h24: _h24),
                   selected: preset.hour == _hour && preset.minute == _minute,
                   onTap: () => _apply(preset),
                 ),

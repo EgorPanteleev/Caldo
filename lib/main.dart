@@ -59,7 +59,14 @@ class CaldoApp extends StatelessWidget {
           // Theme changes apply instantly; ThemeSwitcher animates the switch
           // as a cross-fade for a perfectly smooth transition.
           themeAnimationDuration: Duration.zero,
-          builder: (context, child) => ThemeSwitcher(child: child!),
+          // The clock Settings names goes in where every widget can read it,
+          // and where reading it has the widget redrawn when it changes.
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
+            child: ThemeSwitcher(child: child!),
+          ),
           home: HomeScreen(start: start),
         ),
       ),

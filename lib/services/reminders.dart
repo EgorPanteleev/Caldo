@@ -127,6 +127,13 @@ class Reminders {
   /// there first, every alarm was worked out against the default hour, and an
   /// all-day task would have gone on announcing itself at nine however many
   /// times the hour had been changed in Settings.
+  /// Sets the alarms again from the tasks they were last set from — for a
+  /// change in how they are worded rather than in when they go off, such as
+  /// the clock times are written on.
+  Future<void> refresh() async {
+    if (_synced) await sync(_last);
+  }
+
   Future<void> configure({
     required bool enabled,
     required int allDayMinutes,

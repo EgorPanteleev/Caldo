@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/holidays.dart';
 import '../services/reminders.dart';
 import '../theme/app_theme.dart';
+import '../utils/dates.dart';
 
 /// Which of the two task screens the app opens on.
 enum StartScreen { schedule, calendar }
@@ -23,6 +24,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kDefaultStyle = 'default_task_style';
   static const _kReminders = 'reminders_enabled';
   static const _kReminderAt = 'reminder_minutes';
+  static const _kClock = 'use_24_hour';
 
   /// The screen the app opens on. Schedule out of the box: it is the one
   /// that answers "what now", which is what opening a to-do list is usually
@@ -57,6 +59,15 @@ class SettingsProvider extends ChangeNotifier {
   /// announced at its own time; one with no time still has to be said at some
   /// point in the day, and nine in the morning is the least of the evils.
   int _reminderMinutes = 9 * 60;
+
+  /// Whether times are written on a 24-hour clock, or null for as the phone
+  /// does until a choice is made here.
+  bool? _use24Hour;
+
+  /// Whether times are written on a 24-hour clock: the choice made here, or
+  /// the phone's own until there is one.
+  bool get use24Hour =>
+      _use24Hour ?? PlatformDispatcher.instance.alwaysUse24HourFormat;
 
   StartScreen get startScreen => _startScreen;
   ThemeMode get themeMode => _themeMode;
@@ -103,6 +114,8 @@ class SettingsProvider extends ChangeNotifier {
     _defaultTaskStyleId = prefs.getString(_kDefaultStyle);
     _reminders = prefs.getBool(_kReminders) ?? _reminders;
     _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
+    _use24Hour = prefs.getBool(_kClock);
+    Dates.use24Hour = use24Hour;
     await _tellReminders();
     // Reminders are on out of the box, so the first run is where Android has
     // to be asked — nothing else in the app would ever ask, and a permission
@@ -122,6 +135,7 @@ class SettingsProvider extends ChangeNotifier {
     String? defaultTaskStyleId,
     bool? reminders,
     int? reminderMinutes,
+    bool? use24Hour,
 
     /// Go back to following the device's country.
     bool clearHolidayCountry = false,
@@ -167,6 +181,14 @@ class SettingsProvider extends ChangeNotifier {
     } else if (defaultTaskStyleId != null) {
       _defaultTaskStyleId = defaultTaskStyleId;
       await prefs.setString(_kDefaultStyle, defaultTaskStyleId);
+    }
+    if (use24Hour != null && use24Hour != this.use24Hour) {
+      _use24Hour = use24Hour;
+      await prefs.setBool(_kClock, use24Hour);
+      Dates.use24Hour = use24Hour;
+      // A notification already set says its time in the words it was set
+      // with; set again, it says it the new way.
+      await Reminders.instance.refresh();
     }
     if (reminders != null) {
       _reminders = reminders;

@@ -295,9 +295,18 @@ Changing them back will be noticed.
   does this on its own, so turning the hour leaves the other two alone.
 - The drum is flat (`diameterRatio: 100`): a curve pulls the numbers away from
   the eye, and the band is already saying which of them is the one.
-- **The clock is 12-hour with its own AM/PM wheel**, and the shortcuts under it
-  are written the same way (`Dates.clock`). Note that the rest of the app still
-  shows times on a 24-hour clock (`Dates.time`); pick one if it starts to jar.
+- **Every time in the app is written on one clock, which Settings chooses**
+  ("Times are written": 3:00 PM or 15:00; until it is chosen, the phone's
+  own). It was a 12-hour picker over cards that wrote 24-hour times, so a
+  task picked as 6:00 PM read 18:00 — "make it consistent for both".
+  `Dates.time`/`Dates.clock` are the only places a time is formatted, and
+  take `h24`; widgets pass `MediaQuery.alwaysUse24HourFormatOf(context)`,
+  which `CaldoApp`'s builder sets from the setting, so a change redraws
+  every time on screen at once. A notification has no screen to read, so it
+  uses `Dates.use24Hour`, kept in step by `SettingsProvider`, and changing
+  the clock re-sets the alarms already standing (`Reminders.refresh`) so
+  their text follows. On a 24-hour clock the picker's hour wheel runs 00 to
+  23 and the AM/PM wheel goes; the shortcuts under it follow suit.
 - **The task form hides its way back once anything is changed**, and puts
   Cancel and Save at the foot instead. An arrow beside unsaved edits is an
   invitation to lose them. Untouched, the arrow is there and there is nothing
@@ -742,7 +751,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 118 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 122 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

@@ -338,7 +338,29 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
+    // Written on the same clock it was picked on. The form used to write
+    // what the 12-hour picker had set as 18:00.
     expect(find.text('All day'), findsNothing);
+    expect(find.text('6:00 PM'), findsOneWidget);
+  });
+
+  testWidgets('on a 24-hour clock the wheel and the form both say 18:00', (
+    tester,
+  ) async {
+    tester.platformDispatcher.alwaysUse24HourFormatTestValue = true;
+    addTearDown(tester.platformDispatcher.clearAlwaysUse24HourTestValue);
+    await pumpEditor(tester);
+
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    // Hours run round the whole day, with no AM/PM wheel beside them.
+    expect(find.text('PM'), findsNothing);
+    expect(find.text('AM'), findsNothing);
+
+    await tester.tap(find.text('18:00').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
     expect(find.text('18:00'), findsOneWidget);
   });
 

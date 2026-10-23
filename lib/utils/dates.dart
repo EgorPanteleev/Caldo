@@ -79,7 +79,21 @@ class Dates {
     return DateFormat(pattern).format(date);
   }
 
-  static String time(DateTime date) => DateFormat('HH:mm').format(date);
+  /// Whether times are written on a 24-hour clock — what Settings says, or
+  /// until it says anything, what the phone does (`SettingsProvider`).
+  ///
+  /// Read directly only by what is written away from any screen, which is a
+  /// notification. A widget passes [time]'s `h24` from
+  /// `MediaQuery.alwaysUse24HourFormatOf`, which the app sets from the same
+  /// choice: reading it there is what has the widget redrawn when it changes.
+  static bool use24Hour = false;
+
+  /// "15:00" or "3:00 PM", as [use24Hour] — or [h24], where given — says.
+  /// The one place a time of day is written, so the cards, the picker, its
+  /// shortcuts and the notifications cannot disagree; they did, a 12-hour
+  /// picker over 24-hour cards, until there was a setting for it.
+  static String time(DateTime date, {bool? h24}) =>
+      DateFormat((h24 ?? use24Hour) ? 'HH:mm' : 'h:mm a').format(date);
 
   /// "Sep 23" — compact enough for a hint or a chip.
   static String shortDay(DateTime date) => DateFormat('MMM d').format(date);
@@ -91,23 +105,14 @@ class Dates {
   static String weekdayShort(DateTime date) =>
       DateFormat('EEE').format(date).toUpperCase();
 
-  /// "9:00 AM" — how the time picker's own wheels read, so the shortcuts
-  /// beneath them are written the same way.
-  static String clock(TimeOfDay time) {
-    final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute ${time.hour >= 12 ? 'PM' : 'AM'}';
-  }
-
-  /// The same 24-hour clock as [time], for a time with no date attached.
-  static String formatTimeOfDay(TimeOfDay time) =>
-      '${time.hour.toString().padLeft(2, '0')}:'
-      '${time.minute.toString().padLeft(2, '0')}';
+  /// [time], for a time with no date attached.
+  static String clock(TimeOfDay time, {bool? h24}) =>
+      Dates.time(DateTime(2000, 1, 1, time.hour, time.minute), h24: h24);
 
   /// How a task's due date reads on its row: "Today 18:30", "Yesterday", "".
-  static String due(Task task) {
+  static String due(Task task, {bool? h24}) {
     final d = task.due;
     if (d == null) return '';
-    return task.hasTime ? '${day(d)} ${time(d)}' : day(d);
+    return task.hasTime ? '${day(d)} ${time(d, h24: h24)}' : day(d);
   }
 }

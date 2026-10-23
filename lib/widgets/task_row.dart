@@ -49,7 +49,10 @@ class TaskRow extends StatelessWidget {
       meta.add(
         _MetaChip(
           icon: task.hasTime ? Icons.schedule : Icons.event_outlined,
-          label: Dates.due(task),
+          label: Dates.due(
+            task,
+            h24: MediaQuery.alwaysUse24HourFormatOf(context),
+          ),
           color: overdue ? AppColors.overdue : p.muted,
         ),
       );

@@ -141,6 +141,19 @@ class SettingsScreen extends StatelessWidget {
                       .read<SettingsProvider>()
                       .update(startScreen: screen),
                 ),
+                const SizedBox(height: 18),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'Times are written',
+                    style: TextStyle(color: p.muted, fontSize: 14),
+                  ),
+                ),
+                _ClockSelector(
+                  use24Hour: settings.use24Hour,
+                  onChanged: (h24) =>
+                      context.read<SettingsProvider>().update(use24Hour: h24),
+                ),
                 const SizedBox(height: 28),
                 const SectionLabel('APPEARANCE'),
                 _ThemeModeSelector(
@@ -252,7 +265,7 @@ class SettingsScreen extends StatelessWidget {
                     icon: Icons.schedule,
                     title:
                         'All-day tasks at '
-                        '${Dates.clock(settings.reminderTime)}',
+                        '${Dates.clock(settings.reminderTime, h24: settings.use24Hour)}',
                     subtitle: 'A task with no time of day is announced then',
                     onTap: () => _pickReminderTime(context),
                   ),
@@ -302,6 +315,42 @@ class _StartScreenSelector extends StatelessWidget {
           ),
         ],
         selected: {value},
+        onSelectionChanged: (s) => onChanged(s.first),
+      ),
+    );
+  }
+}
+
+/// 12-hour or 24-hour, each shown the way a time will read in it. The same
+/// choice writes every time in the app — the cards, the time picker and its
+/// shortcuts, the notifications — which used to disagree: a 12-hour picker
+/// set times the cards then wrote on a 24-hour clock.
+class _ClockSelector extends StatelessWidget {
+  final bool use24Hour;
+  final ValueChanged<bool> onChanged;
+
+  const _ClockSelector({required this.use24Hour, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<bool>(
+        showSelectedIcon: false,
+        style: SegmentedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        ),
+        segments: const [
+          ButtonSegment(
+            value: false,
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text('3:00 PM')),
+          ),
+          ButtonSegment(
+            value: true,
+            label: FittedBox(fit: BoxFit.scaleDown, child: Text('15:00')),
+          ),
+        ],
+        selected: {use24Hour},
         onSelectionChanged: (s) => onChanged(s.first),
       ),
     );

@@ -60,11 +60,11 @@ class TaskCard extends StatelessWidget {
   /// the list it belongs to: the tick already wears that list's colour, and
   /// under the calendar a day's tasks are usually all from the same one, so
   /// the name was the same word under every card.
-  String _subtitle() {
+  String _subtitle(bool h24) {
     final due = task.due;
     final when = due == null
         ? 'No date'
-        : (task.hasTime ? Dates.time(due) : 'All day');
+        : (task.hasTime ? Dates.time(due, h24: h24) : 'All day');
     final parts = [when, if (task.repeat != Repeat.none) task.repeat.label];
     return parts.join(' · ');
   }
@@ -127,7 +127,7 @@ class TaskCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        _subtitle(),
+                        _subtitle(MediaQuery.alwaysUse24HourFormatOf(context)),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

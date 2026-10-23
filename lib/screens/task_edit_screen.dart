@@ -259,7 +259,12 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             _FieldTile(
               icon: Icons.schedule,
               label: 'Time',
-              value: _time == null ? 'All day' : Dates.formatTimeOfDay(_time!),
+              value: _time == null
+                  ? 'All day'
+                  : Dates.clock(
+                      _time!,
+                      h24: MediaQuery.alwaysUse24HourFormatOf(context),
+                    ),
               onTap: _pickTime,
               onClear: _time == null
                   ? null
