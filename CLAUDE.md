@@ -66,10 +66,18 @@ Changing them back will be noticed.
   — month, opened, month, week. It used to toggle between two of the three, so
   the week could only be reached by dragging.
 - **A drag a fifth of the way towards the next state commits to it**, and the
-  snap runs on a critically damped spring carrying the drag's own speed, not a
-  fixed ease from a standstill. Pulling the whole way was never the point.
-  The spring's stiffness is 120, settling in about 0.45s; it was 340 (about
-  0.27s), then 200 (about 0.35s), and was asked to be slower each time.
+  snap carries the drag's own speed, not a fixed ease from a standstill.
+  Pulling the whole way was never the point. **The snap is a glide, not a
+  spring** (`_Glide`): a cubic that starts at the finger's speed and stops
+  dead on the state at a set time — 420ms for a whole step from rest, less
+  for less distance, less again for a fast flick — and never overshoots. It
+  was a critically damped spring, softened twice to be "a little bit
+  slower" (stiffness 340, then 200, then 120), and the softest was "not
+  smooth": it crept its last few points for most of a second (60 frames
+  for one snap) and a flick carried it past the state and back, which at
+  the open and week ends was cut off at the controller's bound. A slower
+  spring is a longer tail and an easier overshoot; slow it here by
+  lengthening `_snap`.
 - **Day numbers sit at a fixed offset from the top of their cell.** This is
   why the first week never moves as the grid grows. An earlier version
   cross-faded a centred layout with a top-aligned one and the numbers visibly

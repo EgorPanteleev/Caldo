@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
 
 import '../data/holidays.dart';
@@ -167,15 +166,13 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// so tapping repeatedly walks the grid open and back down again.
   int _tapDirection = 1;
 
-  /// Snapping between states runs on a critically damped spring rather than a
-  /// fixed curve: it carries the speed the finger left behind and settles
-  /// without the small stop a timed ease ends on. Stiffness 120 settles in
-  /// about 0.45s. It was 340 (about 0.27s), then 200 (about 0.35s), each
-  /// asked to be slower.
-  static final _snapSpring = SpringDescription.withDampingRatio(
-    mass: 1,
-    stiffness: 120,
-  );
+  /// How long a snap from one state to the next takes from a standstill. It
+  /// was a spring, made softer twice on request ("a little bit slower"),
+  /// and softer was worse: a soft spring crept the last few points for most
+  /// of a second, and a flick carried it past the state and back, which at
+  /// either end was cut off at the bound — reported as "not smooth". See
+  /// [_Glide].
+  static const _snap = Duration(milliseconds: 420);
 
   void _onDragStart(DragStartDetails details) {
     _dragFrom = _expansion.value.roundToDouble();
@@ -236,13 +233,13 @@ class _CalendarScreenState extends State<CalendarScreen>
     _settleTo(target, velocity: velocity);
   }
 
-  /// Runs the grid to [target] on the snap spring, keeping whatever speed the
-  /// gesture ended with so the hand-off is invisible.
+  /// Runs the grid to [target], keeping whatever speed the gesture ended
+  /// with so the hand-off is invisible.
   void _settleTo(double target, {double velocity = 0}) {
     final to = target.clamp(-1.0, 1.0);
-    if (_expansion.value == to && velocity == 0) return;
+    if (_expansion.value == to) return;
     _expansion.animateWith(
-      SpringSimulation(_snapSpring, _expansion.value, to, velocity),
+      _Glide(from: _expansion.value, to: to, velocity: velocity, full: _snap),
     );
   }
 
@@ -869,6 +866,61 @@ class _CalendarScreenState extends State<CalendarScreen>
 }
 
 /// Identifies the calendar's expand/collapse grip.
+/// A snap from where the grid is to [to] that starts at the speed the finger
+/// left it with and comes to rest exactly at [to], at a set time.
+///
+/// A cubic with the starting speed and a stop at the end: from a standstill
+/// it is an ease in and out, from a flick an ease out. The starting speed is
+/// capped at three times the average — the slope at which the curve only just
+/// stays short of the target — and a flick faster than that shortens the
+/// glide to match it instead, so nothing ever overshoots. A short distance is
+/// covered in less time than a whole one, as a spring would.
+class _Glide extends Simulation {
+  final double from;
+  final double to;
+  late final double _seconds;
+  late final double _slope;
+
+  _Glide({
+    required this.from,
+    required this.to,
+    required double velocity,
+    required Duration full,
+  }) {
+    final distance = (to - from).abs();
+    final towards = velocity * (to - from).sign;
+    var seconds =
+        full.inMicroseconds /
+        Duration.microsecondsPerSecond *
+        math.sqrt(distance);
+    if (towards * seconds > 3 * distance) {
+      seconds = math.max(0.2, 3 * distance / towards);
+    }
+    _seconds = seconds;
+    _slope = (towards * seconds / distance).clamp(0.0, 3.0);
+  }
+
+  double _s(double time) => (time / _seconds).clamp(0.0, 1.0);
+
+  @override
+  double x(double time) {
+    final s = _s(time);
+    final eased =
+        _slope * (s * s * s - 2 * s * s + s) + (3 * s * s - 2 * s * s * s);
+    return from + (to - from) * eased;
+  }
+
+  @override
+  double dx(double time) {
+    final s = _s(time);
+    final slope = _slope * (3 * s * s - 4 * s + 1) + (6 * s - 6 * s * s);
+    return (to - from) * slope / _seconds;
+  }
+
+  @override
+  bool isDone(double time) => time >= _seconds;
+}
+
 const calendarHandleKey = Key('calendar-handle');
 
 /// The strip between the grid and the day's tasks. It draws nothing — the
