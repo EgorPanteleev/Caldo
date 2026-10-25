@@ -27,16 +27,15 @@ lib/
   services/reminders.dart  the notification each dated task gets
   services/updates.dart  the newer-release check, download and install
   screens/               home (shell + menu), tasks (Schedule), calendar,
-                         search,
-                         lists, task_list, task_edit, list_edit, settings
+                         search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
                          colour_selector,
                          date_time_pickers, day_sheet, menu_button,
                          quick_add_bar, screen_header, selection_bar,
-                         theme_switcher, gradient_icon_button,
-                         slide_into_place, tick_off (+ AsShown), carry
+                         theme_switcher, slide_into_place,
+                         tick_off (+ AsShown), carry
 ```
 
 The launcher icon is drawn in SVG under `assets/icon/src` and turned into
@@ -46,12 +45,19 @@ writes are checked in.
 Three destinations — **Schedule**, **Calendar**, **Settings** — in a drawer
 behind the menu button at the top left of each, and nothing else in it.
 
-`lists_screen.dart` and `list_edit_screen.dart` are **unreachable**: the folder
-button that opened them went with the Schedule header, and Lists was taken back
-out of the menu. The lists themselves are still real — every task carries a
-`list_id`, and a list's colour is what tints its tasks — so the screens are left
-in place rather than deleted. Delete them, or give them a way in again, but do
-not leave it undecided for long.
+**There are no list screens.** The Lists, list and list-edit screens had been
+unreachable since the folder button went with the Schedule header and Lists
+came back out of the menu, and they were deleted rather than given a way in
+again: the app is three destinations, a task wears a colour of its own, and
+new tasks start in the colour Settings names, which covers what a list was
+mostly for here. The lists themselves are still real underneath — every task
+carries a `list_id`, the default list is "Personal", and a task with no colour
+of its own takes its list's — so `TaskList`, `addList` and the form's List
+field (shown only when there is more than one list) stay. What went with the
+screens: the provider's "open list" (`openList`, `tasks`, `search`), renaming
+and deleting lists, `GradientIconButton` and `SelectionBar`. Tests that need
+a task by name read it from the database (`taskNamed` in
+`test/support/test_db.dart`).
 
 ## Decisions worth keeping
 
@@ -814,7 +820,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 130 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 122 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

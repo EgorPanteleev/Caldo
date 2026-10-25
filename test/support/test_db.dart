@@ -38,7 +38,6 @@ Future<TaskProvider> seedProvider() async {
       createdAt: now.millisecondsSinceEpoch,
     ),
   );
-  await provider.openList(work.id!);
   await provider.add(
     Task(
       listId: work.id!,
@@ -70,3 +69,10 @@ Future<TaskProvider> seedProvider() async {
   await provider.loadMonth(today);
   return provider;
 }
+
+/// The stored task called [title], read straight from the database.
+Future<Task> taskNamed(String title) async =>
+    (await AppDatabase.instance.getTasks()).firstWhere((t) => t.title == title);
+
+/// Every stored task.
+Future<List<Task>> allTasks() => AppDatabase.instance.getTasks();

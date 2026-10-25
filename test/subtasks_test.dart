@@ -113,7 +113,7 @@ void main() {
     'a repeating task comes round again with its checklist unticked',
     () async {
       final provider = await seedProvider();
-      final water = provider.tasks.firstWhere((t) => t.title == 'Water');
+      final water = await taskNamed('Water');
       await provider.update(
         water.copyWith(
           subtasks: const [
@@ -123,11 +123,9 @@ void main() {
         ),
       );
 
-      await provider.toggleDone(
-        provider.tasks.firstWhere((t) => t.title == 'Water'),
-      );
+      await provider.toggleDone(await taskNamed('Water'));
 
-      final after = provider.tasks.firstWhere((t) => t.title == 'Water');
+      final after = await taskNamed('Water');
       expect(after.subtasks.map((s) => s.title), ['Kitchen', 'Balcony']);
       expect(after.subtasksDone, 0);
     },

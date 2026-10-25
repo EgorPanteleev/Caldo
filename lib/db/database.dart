@@ -104,36 +104,18 @@ class AppDatabase {
     return list.copyWith(id: id);
   }
 
-  Future<void> updateList(TaskList list) async {
-    final db = await database;
-    await db.update(
-      _lists,
-      list.toMap(),
-      where: 'id = ?',
-      whereArgs: [list.id],
-    );
-  }
-
-  /// Deletes a list and all of its tasks.
-  Future<void> deleteList(int id) async {
-    final db = await database;
-    await db.delete(_tasks, where: 'list_id = ?', whereArgs: [id]);
-    await db.delete(_lists, where: 'id = ?', whereArgs: [id]);
-  }
-
   // ---- Tasks --------------------------------------------------------------
 
-  /// Tasks of one list, or of every list when [listId] is null — which is what
-  /// the search screen asks for. [query] matches the title, the notes or a
-  /// subtask; when [includeDone] is false only open tasks come back.
+  /// Every task, which is what the search screen asks for. [query] matches
+  /// the title, the notes or a subtask; when [includeDone] is false only open
+  /// tasks come back.
   Future<List<Task>> getTasks({
-    int? listId,
     String query = '',
     bool includeDone = true,
   }) async {
     final db = await database;
-    final where = StringBuffer(listId == null ? '1 = 1' : 'list_id = ?');
-    final args = <Object?>[?listId];
+    final where = StringBuffer('1 = 1');
+    final args = <Object?>[];
     if (!includeDone) where.write(' AND done = 0');
     if (query.isNotEmpty) {
       where.write(' AND (title LIKE ? OR notes LIKE ? OR subtasks LIKE ?)');
@@ -220,16 +202,10 @@ class AppDatabase {
     await db.delete(_tasks, where: 'id = ?', whereArgs: [id]);
   }
 
-  /// Removes every completed task of a list, or of all lists when null.
-  Future<int> clearCompleted({int? listId}) async {
+  /// Removes every completed task.
+  Future<int> clearCompleted() async {
     final db = await database;
-    return listId == null
-        ? db.delete(_tasks, where: 'done = 1')
-        : db.delete(
-            _tasks,
-            where: 'done = 1 AND list_id = ?',
-            whereArgs: [listId],
-          );
+    return db.delete(_tasks, where: 'done = 1');
   }
 
   /// Closes the connection, so the next access reopens the file. Used by

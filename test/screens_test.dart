@@ -4,11 +4,9 @@ import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/tasks_screen.dart';
 import 'package:caldo/screens/calendar_screen.dart';
 import 'package:caldo/screens/home_screen.dart';
-import 'package:caldo/screens/lists_screen.dart';
 import 'package:caldo/screens/search_screen.dart';
 import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
-import 'package:caldo/screens/task_list_screen.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
@@ -82,7 +80,11 @@ void main() {
   /// "Ship" task.
   Future<void> pumpEditor(WidgetTester tester, {bool existing = false}) async {
     late TaskProvider provider;
-    await tester.runAsync(() async => provider = await seedProvider());
+    Task? ship;
+    await tester.runAsync(() async {
+      provider = await seedProvider();
+      if (existing) ship = await taskNamed('Ship');
+    });
 
     tester.view.physicalSize = narrow;
     tester.view.devicePixelRatio = 3;
@@ -96,10 +98,8 @@ void main() {
         child: MaterialApp(
           theme: AppTheme.dark(AppAccent.presets.first),
           home: TaskEditScreen(
-            task: existing
-                ? provider.tasks.firstWhere((t) => t.title == 'Ship')
-                : null,
-            listId: provider.currentListId,
+            task: ship,
+            listId: provider.lists.firstWhere((l) => l.name == 'Work').id,
           ),
         ),
       ),
@@ -150,24 +150,6 @@ void main() {
     expect(find.textContaining('open'), findsNothing);
   });
 
-  testWidgets('a list screen shows its tasks and its name', (tester) async {
-    await pumpScreen(tester, const TaskListScreen());
-
-    expect(find.text('Work'), findsOneWidget);
-    expect(find.text('Ship'), findsOneWidget);
-    expect(find.text('Water'), findsOneWidget);
-    expect(find.text('Someday idea'), findsOneWidget);
-  });
-
-  testWidgets('the lists screen counts each list', (tester) async {
-    await pumpScreen(tester, const ListsScreen());
-
-    expect(find.text('Work'), findsOneWidget);
-    expect(find.text('3 open · 0 done'), findsOneWidget);
-    expect(find.text('Personal'), findsOneWidget); // created on first run
-    expect(find.text('Empty'), findsOneWidget);
-  });
-
   testWidgets('the screens hold up on a narrow phone in light mode', (
     tester,
   ) async {
@@ -179,14 +161,6 @@ void main() {
       theme: light,
     );
     expect(find.text('Ship'), findsOneWidget);
-
-    await pumpScreen(
-      tester,
-      const TaskListScreen(),
-      size: narrow,
-      theme: light,
-    );
-    expect(find.text('Someday idea'), findsOneWidget);
 
     await pumpScreen(tester, const TasksScreen(), size: narrow, theme: light);
     expect(find.text('Overdue'), findsOneWidget);
@@ -229,32 +203,6 @@ void main() {
     expect(find.text('Cancel'), findsOneWidget);
   });
 
-  /// Asserts a header title is either drawn in full or given every pixel the
-  /// controls beside it leave — never squeezed into a share of the free width,
-  /// which is what truncates long names. Glyph widths are not compared
-  /// directly: the test font draws every character as a full em square.
-  void expectTitleGetsTheRoom(
-    WidgetTester tester,
-    Finder title, {
-    required double controlsWidth,
-  }) {
-    final text = tester.widget<Text>(title);
-    final painter = TextPainter(
-      text: TextSpan(text: text.data, style: text.style),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    )..layout();
-    final screen = tester.getSize(find.byType(MaterialApp)).width;
-    final deserved = painter.width < screen - controlsWidth
-        ? painter.width
-        : screen - controlsWidth;
-    expect(
-      tester.getSize(title).width,
-      greaterThanOrEqualTo(deserved - 1),
-      reason: '"${text.data}" is squeezed by the controls beside it',
-    );
-  }
-
   testWidgets('the month name is centred and never clipped', (tester) async {
     await pumpScreen(tester, const CalendarScreen(), size: narrow);
 
@@ -293,17 +241,6 @@ void main() {
     final nextYear = DateTime(DateTime.now().year + 1, 6);
     expect(Dates.monthTitle(thisYear), 'Jun');
     expect(Dates.monthTitle(nextYear), 'Jun ${nextYear.year}');
-  });
-
-  testWidgets('a long list name gets the whole screen header', (tester) async {
-    await pumpScreen(tester, const TaskListScreen(), size: narrow);
-
-    expectTitleGetsTheRoom(
-      tester,
-      find.byKey(screenTitleKey),
-      // A back arrow and the add button, plus the count pill beside the name.
-      controlsWidth: 160,
-    );
   });
 
   testWidgets('the due date comes from the app calendar sheet', (tester) async {
@@ -1098,17 +1035,6 @@ void main() {
     expect(find.byKey(monthTitleKey), findsOneWidget);
     expect(screenLeft(), lessThan(40), reason: 'and it is back in place');
     await drainDatabase(tester);
-  });
-
-  testWidgets('searching a list narrows it down', (tester) async {
-    final provider = await pumpScreen(tester, const TaskListScreen());
-
-    await tester.enterText(find.byType(TextField), 'ship');
-    await tester.runAsync(() => provider.search('ship'));
-    await tester.pump();
-
-    expect(find.text('Ship'), findsOneWidget);
-    expect(find.text('Water'), findsNothing);
   });
 }
 

@@ -8,18 +8,14 @@ import '../services/reminders.dart';
 /// Strips the time from [date], giving the calendar day it belongs to.
 DateTime dayOf(DateTime date) => DateTime(date.year, date.month, date.day);
 
-/// Owns the user's lists, the tasks of the currently-open list, and the dated
-/// tasks backing the calendar and the agenda, exposing CRUD to the UI.
+/// Owns the user's lists and the dated tasks backing the calendar and the
+/// agenda, exposing CRUD to the UI.
 class TaskProvider extends ChangeNotifier {
   final AppDatabase _db = AppDatabase.instance;
 
   List<TaskList> _lists = [];
-  bool _listsLoading = false;
 
-  int? _currentListId;
-  List<Task> _tasks = [];
-  String _query = '';
-  bool _loading = false;
+  /// Whether search turns up tasks that are already done.
   bool _showCompleted = true;
 
   /// First day of the month the calendar is showing.
@@ -45,23 +41,11 @@ class TaskProvider extends ChangeNotifier {
   List<Task> _undated = [];
 
   List<TaskList> get lists => _lists;
-  bool get listsLoading => _listsLoading;
-  int? get currentListId => _currentListId;
-  List<Task> get tasks => _tasks;
-  String get query => _query;
-  bool get loading => _loading;
   DateTime get month => _month;
   Map<DateTime, List<Task>> get tasksByDay => _byDay;
   List<Task> get overdue => _overdue;
   List<Task> get upcoming => _upcoming;
   List<Task> get undated => _undated;
-
-  TaskList? get currentList {
-    for (final l in _lists) {
-      if (l.id == _currentListId) return l;
-    }
-    return null;
-  }
 
   TaskList? listById(int id) {
     for (final l in _lists) {
@@ -76,10 +60,7 @@ class TaskProvider extends ChangeNotifier {
   // ---- Lists --------------------------------------------------------------
 
   Future<void> loadLists() async {
-    _listsLoading = true;
-    notifyListeners();
     _lists = await _db.getLists();
-    _listsLoading = false;
     notifyListeners();
   }
 
@@ -89,59 +70,8 @@ class TaskProvider extends ChangeNotifier {
     return created;
   }
 
-  Future<void> updateList(TaskList list) async {
-    await _db.updateList(list);
-    await loadLists();
-  }
-
-  Future<void> removeList(int id) async {
-    await _db.deleteList(id);
-    if (_currentListId == id) {
-      _currentListId = null;
-      _tasks = [];
-    }
-    await _reloadAll();
-  }
-
-  // ---- Tasks in the open list --------------------------------------------
-
-  /// Opens [id] as the current list and loads its tasks.
-  Future<void> openList(int id) async {
-    _currentListId = id;
-    _query = '';
-    await _loadListTasks();
-  }
-
-  Future<void> search(String query) async {
-    _query = query;
-    await _loadListTasks();
-  }
-
-  /// Mirrors the "show completed" setting into the list query.
-  Future<void> setShowCompleted(bool value) async {
-    if (_showCompleted == value) return;
-    _showCompleted = value;
-    await _loadListTasks();
-  }
-
-  /// Reloads the open list's tasks for the current query.
-  Future<void> _loadListTasks() async {
-    final id = _currentListId;
-    if (id == null) {
-      _tasks = [];
-      notifyListeners();
-      return;
-    }
-    _loading = true;
-    notifyListeners();
-    _tasks = await _db.getTasks(
-      listId: id,
-      query: _query,
-      includeDone: _showCompleted,
-    );
-    _loading = false;
-    notifyListeners();
-  }
+  /// Mirrors the "show completed" setting into search.
+  void setShowCompleted(bool value) => _showCompleted = value;
 
   /// Every task whose title or notes match [query], across all lists. Returned
   /// rather than held, since the search screen is the only thing that wants it.
@@ -511,9 +441,9 @@ class TaskProvider extends ChangeNotifier {
     await _reloadAll();
   }
 
-  /// Deletes every completed task of [listId], or of all lists when null.
-  Future<int> clearCompleted({int? listId}) async {
-    final removed = await _db.clearCompleted(listId: listId);
+  /// Deletes every completed task.
+  Future<int> clearCompleted() async {
+    final removed = await _db.clearCompleted();
     await _reloadAll();
     return removed;
   }
@@ -521,13 +451,6 @@ class TaskProvider extends ChangeNotifier {
   /// Reloads whatever the UI currently has on screen after a mutation.
   Future<void> _reloadAll() async {
     _lists = await _db.getLists();
-    if (_currentListId != null) {
-      _tasks = await _db.getTasks(
-        listId: _currentListId!,
-        query: _query,
-        includeDone: _showCompleted,
-      );
-    }
     // One notify for the lot. It was one for the month and another for the
     // agenda, three queries later — each a rebuild of both screens, and on a
     // phone the second one landed a frame or two into the slide it started.
