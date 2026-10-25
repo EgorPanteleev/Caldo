@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
+import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/task_row.dart' show PriorityFlag;
 
 /// Add a new task or edit an existing one. When [task] is null this is a
@@ -42,6 +43,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   /// Null means the task keeps its list's colour.
   String? _styleId;
 
+  /// The checklist as it is being edited, and the field that adds to it.
+  final List<_Draft> _steps = [];
+  final _newStep = TextEditingController();
+  final _newStepFocus = FocusNode();
+
   /// Whether anything has been touched since the form opened. Until it has,
   /// the back arrow is the only way out and there is nothing to save; once it
   /// has, the arrow goes and the two words at the foot take over — leaving by
@@ -62,6 +68,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       ..addListener(_touched);
     _priority = task?.priority ?? Priority.none;
     _repeat = task?.repeat ?? Repeat.none;
+    for (final step in task?.subtasks ?? const <Subtask>[]) {
+      _steps.add(_Draft(step.title, done: step.done, onEdit: _touched));
+    }
+    _newStep.addListener(_touched);
     // A new task starts in the colour Settings says new tasks start in; an
     // existing one keeps whatever it was given.
     _styleId = task == null
@@ -87,8 +97,45 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   void dispose() {
     _title.dispose();
     _notes.dispose();
+    for (final step in _steps) {
+      step.dispose();
+    }
+    _newStep.dispose();
+    _newStepFocus.dispose();
     super.dispose();
   }
+
+  /// Files what is in the add field as a step and leaves the field ready for
+  /// the next one, keyboard up: a checklist is written several lines at once.
+  void _addStep() {
+    final title = _newStep.text.trim();
+    if (title.isEmpty) return;
+    setState(() => _steps.add(_Draft(title, onEdit: _touched)));
+    _newStep.clear();
+    _newStepFocus.requestFocus();
+    // The new line pushes the field down a row each time, and nothing else
+    // scrolls it back out from under the keyboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final field = _newStepFocus.context;
+      if (field == null || !field.mounted) return;
+      Scrollable.ensureVisible(
+        field,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+    });
+  }
+
+  /// The checklist to save: every step with words in it, and whatever was
+  /// left typed in the add field without Enter being pressed, since that was
+  /// meant as a step too.
+  List<Subtask> get _subtasks => [
+    for (final step in _steps)
+      if (step.title.text.trim().isNotEmpty)
+        Subtask(step.title.text.trim(), done: step.done),
+    if (_newStep.text.trim().isNotEmpty) Subtask(_newStep.text.trim()),
+  ];
 
   /// The chosen date merged with the chosen time, or null for an undated task.
   DateTime? get _due {
@@ -145,6 +192,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           repeat: due == null ? Repeat.none : _repeat,
           styleId: _styleId,
           createdAt: DateTime.now().millisecondsSinceEpoch,
+          subtasks: _subtasks,
         ),
       );
     } else {
@@ -160,6 +208,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           repeat: due == null ? Repeat.none : _repeat,
           styleId: _styleId,
           clearStyleId: _styleId == null,
+          subtasks: _subtasks,
         ),
       );
     }
@@ -237,6 +286,32 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(labelText: 'Notes (optional)'),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'SUBTASKS',
+              style: TextStyle(
+                color: p.faint,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _Checklist(
+              steps: _steps,
+              newStep: _newStep,
+              newStepFocus: _newStepFocus,
+              onAdd: _addStep,
+              onToggle: (step) {
+                _touched();
+                setState(() => step.done = !step.done);
+              },
+              onRemove: (step) {
+                _touched();
+                setState(() => _steps.remove(step));
+                step.dispose();
+              },
             ),
             const SizedBox(height: 20),
             _FieldTile(
@@ -372,6 +447,139 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     );
   }
 }
+
+/// A step of the checklist while the form is open.
+class _Draft {
+  final TextEditingController title;
+  bool done;
+
+  _Draft(String text, {this.done = false, required VoidCallback onEdit})
+    : title = TextEditingController(text: text)..addListener(onEdit);
+
+  void dispose() => title.dispose();
+}
+
+/// The checklist in the form: each step with its tick, its words, which can
+/// be edited where they stand, and a way to take it out; and under them a
+/// line to add the next. One panel, in the same grey as the fields around
+/// it, rather than a field per step.
+class _Checklist extends StatelessWidget {
+  final List<_Draft> steps;
+  final TextEditingController newStep;
+  final FocusNode newStepFocus;
+  final VoidCallback onAdd;
+  final ValueChanged<_Draft> onToggle;
+  final ValueChanged<_Draft> onRemove;
+
+  const _Checklist({
+    required this.steps,
+    required this.newStep,
+    required this.newStepFocus,
+    required this.onAdd,
+    required this.onToggle,
+    required this.onRemove,
+  });
+
+  static const _bare = InputDecoration(
+    isDense: true,
+    filled: false,
+    border: InputBorder.none,
+    enabledBorder: InputBorder.none,
+    focusedBorder: InputBorder.none,
+    contentPadding: EdgeInsets.symmetric(vertical: 12),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Container(
+      padding: const EdgeInsets.only(left: 14, right: 4),
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(
+        children: [
+          for (final step in steps)
+            Row(
+              key: ObjectKey(step),
+              children: [
+                GestureDetector(
+                  onTap: () => onToggle(step),
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: step.done ? p.muted : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: p.muted, width: 1.6),
+                      ),
+                      child: CustomPaint(
+                        painter: CheckMark(
+                          progress: step.done ? 1 : 0,
+                          color: p.panel,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: step.title,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: _bare,
+                    style: TextStyle(
+                      color: step.done ? p.faint : p.text,
+                      fontSize: 15,
+                      decoration: step.done ? TextDecoration.lineThrough : null,
+                      decorationColor: p.faint,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close, size: 18, color: p.faint),
+                  tooltip: 'Remove',
+                  onPressed: () => onRemove(step),
+                ),
+              ],
+            ),
+          Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(Icons.add, size: 20, color: p.faint),
+              ),
+              Expanded(
+                child: TextField(
+                  key: newSubtaskFieldKey,
+                  controller: newStep,
+                  focusNode: newStepFocus,
+                  textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.done,
+                  decoration: _bare.copyWith(hintText: 'Add a subtask'),
+                  style: TextStyle(color: p.text, fontSize: 15),
+                  // Enter on a step adds it and stays for the next; on an empty line
+                  // it is the way out, and the keyboard goes.
+                  onEditingComplete: () => newStep.text.trim().isEmpty
+                      ? newStepFocus.unfocus()
+                      : onAdd(),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The field at the foot of the form's checklist that adds a step.
+const newSubtaskFieldKey = Key('new-subtask-field');
 
 /// A tappable settings-style row: icon, label, current value, optional clear.
 class _FieldTile extends StatelessWidget {

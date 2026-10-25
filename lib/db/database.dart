@@ -11,7 +11,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 3;
+  static const _dbVersion = 4;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
 
@@ -55,7 +55,8 @@ class AppDatabase {
             style_id TEXT,
             created_at INTEGER NOT NULL,
             completed_at INTEGER,
-            sort_order INTEGER
+            sort_order INTEGER,
+            subtasks TEXT NOT NULL DEFAULT '[]'
           )
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
@@ -71,6 +72,12 @@ class AppDatabase {
           // one is, so every day that has never been dragged keeps the
           // ordering it has always had.
           await db.execute('ALTER TABLE $_tasks ADD COLUMN sort_order INTEGER');
+        }
+        if (oldVersion < 4) {
+          // v3 -> a task can carry a checklist, as JSON beside it.
+          await db.execute(
+            "ALTER TABLE $_tasks ADD COLUMN subtasks TEXT NOT NULL DEFAULT '[]'",
+          );
         }
       },
     );
@@ -117,8 +124,8 @@ class AppDatabase {
   // ---- Tasks --------------------------------------------------------------
 
   /// Tasks of one list, or of every list when [listId] is null — which is what
-  /// the search screen asks for. [query] matches the title or notes; when
-  /// [includeDone] is false only open tasks come back.
+  /// the search screen asks for. [query] matches the title, the notes or a
+  /// subtask; when [includeDone] is false only open tasks come back.
   Future<List<Task>> getTasks({
     int? listId,
     String query = '',
@@ -129,8 +136,9 @@ class AppDatabase {
     final args = <Object?>[?listId];
     if (!includeDone) where.write(' AND done = 0');
     if (query.isNotEmpty) {
-      where.write(' AND (title LIKE ? OR notes LIKE ?)');
+      where.write(' AND (title LIKE ? OR notes LIKE ? OR subtasks LIKE ?)');
       args
+        ..add('%$query%')
         ..add('%$query%')
         ..add('%$query%');
     }
@@ -140,7 +148,18 @@ class AppDatabase {
       whereArgs: args,
       orderBy: _order,
     );
-    return rows.map(Task.fromMap).toList();
+    final tasks = rows.map(Task.fromMap).toList();
+    if (query.isEmpty) return tasks;
+    // The checklist is stored as JSON, so a search for "done" or "title"
+    // matches every task that has one. Those are let through the query and
+    // only kept here if a subtask's own title has the words in it.
+    final needle = query.toLowerCase();
+    bool has(String text) => text.toLowerCase().contains(needle);
+    return [
+      for (final t in tasks)
+        if (has(t.title) || has(t.notes) || t.subtasks.any((s) => has(s.title)))
+          t,
+    ];
   }
 
   /// Every dated task falling inside `[fromMs, toMs)` — the calendar's window.

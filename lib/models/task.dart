@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// How often a task comes back after it is completed.
 enum Repeat {
   none('Never'),
@@ -59,6 +61,35 @@ enum Priority {
       : Priority.values[index];
 }
 
+/// One step of a task's checklist. Kept with the task rather than in a table
+/// of its own: a task is written back whole — by Undo, and by a repeating
+/// task rolling on — and its checklist has to go with it every time.
+class Subtask {
+  final String title;
+  final bool done;
+
+  const Subtask(this.title, {this.done = false});
+
+  Subtask copyWith({String? title, bool? done}) =>
+      Subtask(title ?? this.title, done: done ?? this.done);
+
+  Map<String, Object?> toJson() => {'title': title, 'done': done};
+
+  static Subtask? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final title = json['title'];
+    if (title is! String) return null;
+    return Subtask(title, done: json['done'] == true);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is Subtask && other.title == title && other.done == done;
+
+  @override
+  int get hashCode => Object.hash(title, done);
+}
+
 /// A single to-do item: a title, optional notes, an optional due date (with or
 /// without a time of day) and a repeat rule.
 class Task {
@@ -98,6 +129,9 @@ class Task {
   /// of zeros would claim every task had been placed by hand.
   final int? sortOrder;
 
+  /// The task's checklist, in the order it was written.
+  final List<Subtask> subtasks;
+
   const Task({
     this.id,
     required this.listId,
@@ -112,7 +146,11 @@ class Task {
     required this.createdAt,
     this.completedAt,
     this.sortOrder,
+    this.subtasks = const [],
   });
+
+  /// How many of the checklist's steps are ticked.
+  int get subtasksDone => subtasks.where((s) => s.done).length;
 
   /// The due moment, or null for an undated task.
   DateTime? get due =>
@@ -158,6 +196,7 @@ class Task {
     bool clearCompletedAt = false,
     int? sortOrder,
     bool clearSortOrder = false,
+    List<Subtask>? subtasks,
   }) {
     return Task(
       id: id ?? this.id,
@@ -173,6 +212,7 @@ class Task {
       createdAt: createdAt ?? this.createdAt,
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       sortOrder: clearSortOrder ? null : (sortOrder ?? this.sortOrder),
+      subtasks: subtasks ?? this.subtasks,
     );
   }
 
@@ -191,6 +231,7 @@ class Task {
       'created_at': createdAt,
       'completed_at': completedAt,
       'sort_order': sortOrder,
+      'subtasks': jsonEncode([for (final s in subtasks) s.toJson()]),
     };
   }
 
@@ -209,6 +250,20 @@ class Task {
       createdAt: map['created_at'] as int? ?? 0,
       completedAt: map['completed_at'] as int?,
       sortOrder: map['sort_order'] as int?,
+      subtasks: _subtasksFrom(map['subtasks'] as String?),
     );
+  }
+
+  /// The stored checklist, or none if there is none or it cannot be read — a
+  /// task is worth more than a checklist that will not parse.
+  static List<Subtask> _subtasksFrom(String? text) {
+    if (text == null || text.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is! List) return const [];
+      return [for (final item in decoded) ?Subtask.fromJson(item)];
+    } on FormatException {
+      return const [];
+    }
   }
 }

@@ -373,6 +373,8 @@ class TaskProvider extends ChangeNotifier {
         task.copyWith(
           dueAt: task.repeat.next(due)!.millisecondsSinceEpoch,
           completedAt: now,
+          // Its next time round starts with nothing on the checklist done.
+          subtasks: [for (final s in task.subtasks) s.copyWith(done: false)],
         ),
       );
     } else {

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 
@@ -100,53 +102,77 @@ class TaskCard extends StatelessWidget {
               color: color.withValues(alpha: faded ? 0.07 : 0.24),
               borderRadius: BorderRadius.circular(TaskCard.radius),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _Tick(done: task.done, color: color, onTap: onToggle),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedDefaultTextStyle(
-                        duration: _settle,
-                        curve: Curves.easeOut,
-                        style: TextStyle(
-                          color: faded ? p.faint : p.text,
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w500,
-                          decoration: faded ? TextDecoration.lineThrough : null,
-                          decorationColor: p.faint,
+            child: _WithChecklist(
+              // Keyed by task: a reorderable list hands a card's state to
+              // another task when it reorders, and a checklist left open
+              // belongs to the task it was opened on.
+              key: ValueKey(('checklist', task.id)),
+              task: task,
+              color: color,
+              head: (count) => Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _Tick(done: task.done, color: color, onTap: onToggle),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedDefaultTextStyle(
+                          duration: _settle,
+                          curve: Curves.easeOut,
+                          style: TextStyle(
+                            color: faded ? p.faint : p.text,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w500,
+                            decoration: faded
+                                ? TextDecoration.lineThrough
+                                : null,
+                            decorationColor: p.faint,
+                          ),
+                          child: Text(
+                            task.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        child: Text(
-                          task.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                _subtitle(
+                                  MediaQuery.alwaysUse24HourFormatOf(context),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: task.isOverdue
+                                      ? AppColors.overdue
+                                      : p.muted,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ),
+                            if (count != null) ...[
+                              const SizedBox(width: 10),
+                              count,
+                            ],
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _subtitle(MediaQuery.alwaysUse24HourFormatOf(context)),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: task.isOverdue ? AppColors.overdue : p.muted,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                if (task.priority != Priority.none) ...[
-                  const SizedBox(width: 10),
-                  Icon(
-                    Icons.flag,
-                    size: 16,
-                    color: _priorityColor(task.priority),
-                  ),
+                  if (task.priority != Priority.none) ...[
+                    const SizedBox(width: 10),
+                    Icon(
+                      Icons.flag,
+                      size: 16,
+                      color: _priorityColor(task.priority),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -178,6 +204,166 @@ class TaskCard extends StatelessWidget {
     Priority.none => const Color(0xFF9394A1),
   };
 }
+
+/// A card's checklist, when its task has one: how far through it is
+/// ("2/5"), handed to [head] to put beside the line under the title, and the
+/// list itself, opened under the title when the count is tapped — so a step
+/// can be ticked without opening the task. Under the row rather than in it,
+/// so the card's own tick stays beside the title instead of sinking to the
+/// middle of a taller card.
+class _WithChecklist extends StatefulWidget {
+  final Task task;
+  final Color color;
+  final Widget Function(Widget? count) head;
+
+  const _WithChecklist({
+    super.key,
+    required this.task,
+    required this.color,
+    required this.head,
+  });
+
+  @override
+  State<_WithChecklist> createState() => _WithChecklistState();
+}
+
+class _WithChecklistState extends State<_WithChecklist> {
+  bool _open = false;
+
+  void _toggle(int index) {
+    HapticFeedback.selectionClick();
+    final task = widget.task;
+    final steps = [
+      for (var i = 0; i < task.subtasks.length; i++)
+        i == index
+            ? task.subtasks[i].copyWith(done: !task.subtasks[i].done)
+            : task.subtasks[i],
+    ];
+    context.read<TaskProvider>().update(task.copyWith(subtasks: steps));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final steps = widget.task.subtasks;
+    if (steps.isEmpty) return widget.head(null);
+
+    final count = GestureDetector(
+      key: subtaskCountKey,
+      onTap: () => setState(() => _open = !_open),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        // A larger target than the few characters it is.
+        padding: const EdgeInsets.all(2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.checklist_rounded, size: 14, color: p.muted),
+            const SizedBox(width: 3),
+            Text(
+              '${widget.task.subtasksDone}/${steps.length}',
+              style: TextStyle(
+                color: p.muted,
+                fontSize: 12.5,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            AnimatedRotation(
+              turns: _open ? 0.5 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(Icons.expand_more, size: 16, color: p.muted),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        widget.head(count),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: !_open
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  // Lined up with the title: past the tick and its gap.
+                  padding: const EdgeInsets.only(left: 24 + 14, top: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var i = 0; i < steps.length; i++)
+                        _Step(
+                          step: steps[i],
+                          color: widget.color,
+                          onTap: () => _toggle(i),
+                        ),
+                    ],
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One line of a checklist opened in its card: a small tick in the task's
+/// colour, the way the card's own tick is, and the step.
+class _Step extends StatelessWidget {
+  final Subtask step;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _Step({required this.step, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 17,
+              height: 17,
+              margin: const EdgeInsets.only(top: 1),
+              decoration: BoxDecoration(
+                color: step.done ? color : Colors.transparent,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: color, width: 1.5),
+              ),
+              child: CustomPaint(
+                painter: CheckMark(progress: step.done ? 1 : 0),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                step.title,
+                style: TextStyle(
+                  color: step.done ? p.faint : p.text,
+                  fontSize: 14,
+                  decoration: step.done ? TextDecoration.lineThrough : null,
+                  decorationColor: p.faint,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The checklist count on a card, which opens and closes its list.
+const subtaskCountKey = Key('subtask-count');
 
 /// How long a card takes to settle into its new state once it is ticked —
 /// long enough to be seen as something happening, short enough that the run

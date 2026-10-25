@@ -62,6 +62,15 @@ class TaskRow extends StatelessWidget {
         _MetaChip(icon: Icons.repeat, label: task.repeat.label, color: p.faint),
       );
     }
+    if (task.subtasks.isNotEmpty) {
+      meta.add(
+        _MetaChip(
+          icon: Icons.checklist_rounded,
+          label: '${task.subtasksDone}/${task.subtasks.length}',
+          color: p.faint,
+        ),
+      );
+    }
     if (task.notes.trim().isNotEmpty) {
       meta.add(
         _MetaChip(

@@ -20,7 +20,7 @@ release is out, and fetching it — see the decision below.
 ```
 lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
-  db/database.dart       schema v3: lists, tasks (+ migrations)
+  db/database.dart       schema v4: lists, tasks (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
@@ -552,6 +552,23 @@ Changing them back will be noticed.
   Done tasks are ordered among themselves like any others — by creation, not
   by when they were ticked — so a newly ticked task is below every open one
   but not necessarily the very last.
+- **A task can carry a checklist** (`Subtask`, `Task.subtasks`, schema v4).
+  It is stored as JSON in a column of the task's own row, not in a table of
+  its own, because a task is written back whole — by Undo
+  (`TaskProvider.restore`) and by a repeating task rolling on — and the
+  checklist has to go with it every time; a repeating task comes round
+  again with every step unticked. The form has a Subtasks panel under the
+  notes: each step is ticked, edited or removed where it stands, and the
+  line at its foot adds one on Enter and keeps the keyboard for the next
+  (Enter on an empty line closes it); a line left typed without Enter is
+  saved as a step too. A card shows how far through it is ("☑ 2/5") beside
+  its time, and tapping that opens the steps **under the title row**, where
+  each can be ticked without opening the task — in the row, the card's own
+  tick sank to the middle of the taller card. The steps are ticked in the
+  task's colour, as the card's tick is; in the form they are neutral, like
+  its other controls. Search matches a step's words, but the JSON is
+  filtered in Dart afterwards: a search for "done" or "title" would
+  otherwise find every task with a checklist.
 - **A long press picks a card up; it used to open the editor**, which a tap
   already does, so nothing was lost. There are no drag handles: the card is
   the handle, and a grip beside every row would be a column of furniture down
@@ -793,7 +810,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 122 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 129 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
