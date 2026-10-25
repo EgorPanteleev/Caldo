@@ -759,6 +759,18 @@ Changing them back will be noticed.
   anyone holding the APK can take out. Versions are compared as dotted
   numbers, since as text 1.3.10 sorts before 1.3.9. Nothing checks until
   `main` calls `Updates.enable`, so the widget tests never go online.
+  **An update leaves one Caldo in the recent apps.** The activity has no
+  `taskAffinity=""`, though Flutter's template sets one: an empty affinity
+  matches no task, so the installer's "Open" started a second Caldo beside
+  the one the update was tapped in — "after update i have 2 same apps
+  opened". The installer is started in a task of its own marked
+  `FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS`, which otherwise outlived the install
+  as a blank card. Started inside Caldo's task instead, it lost that task to
+  the update and "Open" landed on the home screen. Checked end to end with
+  two builds served from the host (the URL pointed at `10.0.2.2` and
+  cleartext allowed, in the test builds only): one task after "Open".
+  The version doing the updating decides this, so the first update away
+  from a build without the fix still shows the old behaviour once.
   Measured end to end on the emulator: a build labelled 1.3.12 offered
   1.3.13, downloaded the universal APK with progress, asked once to be
   allowed to install, and came back as 1.3.13. It only offers what a GitHub

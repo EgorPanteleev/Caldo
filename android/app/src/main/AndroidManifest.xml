@@ -21,11 +21,14 @@
         android:label="Caldo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- No taskAffinity="" here, though Flutter's template has one. An
+             empty affinity matches no task, so the installer's "Open" after
+             an update started a second Caldo beside the one the update was
+             tapped in, and the recent apps showed the app twice. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"

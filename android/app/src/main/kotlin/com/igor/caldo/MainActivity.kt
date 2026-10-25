@@ -114,11 +114,16 @@ class MainActivity : FlutterActivity() {
             return "needs-permission"
         }
         val uri = FileProvider.getUriForFile(this, "$packageName.updates", File(path))
+        // A task of its own, kept out of the recent apps: left in them, it
+        // outlived the install as a blank card beside Caldo. Not in Caldo's
+        // own task either — the update clears that task out from under it,
+        // and its "Open" then landed on the home screen.
         startActivity(
             Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
             },
         )
         return "started"
