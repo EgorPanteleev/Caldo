@@ -549,9 +549,13 @@ Changing them back will be noticed.
   list was read back and looked like a card vanishing and turning up
   somewhere else; it came back once the move could be shown as a slide,
   since a day's done tasks at the top of it were in the way of what is left.
-  Done tasks are ordered among themselves like any others — by creation, not
-  by when they were ticked — so a newly ticked task is below every open one
-  but not necessarily the very last.
+  Done tasks are in the order they were ticked, the latest last, ahead of
+  any hand placement (`completed_at`, in both orderings), so the card just
+  ticked slides to the very end of its day. They used to be ordered by
+  creation like any others, which put a newly ticked task below every open
+  one but somewhere among the done ones. The cost: a done task dragged
+  among other done ones goes back to its place by tick when the day is read
+  back.
 - **A task can carry a checklist** (`Subtask`, `Task.subtasks`, schema v4).
   It is stored as JSON in a column of the task's own row, not in a table of
   its own, because a task is written back whole — by Undo
@@ -810,7 +814,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 129 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 130 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

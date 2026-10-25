@@ -243,8 +243,17 @@ class TaskProvider extends ChangeNotifier {
   /// since ticking a task off is about whether it is still to be done. A task
   /// with no placement of its own goes after the ones that have it — it
   /// arrived in a day somebody had already arranged.
+  ///
+  /// Done tasks are in the order they were ticked, the latest last, ahead
+  /// of any hand placement: the one just ticked off is the one that slides
+  /// to the very end, rather than to wherever its creation date put it among
+  /// the others already done.
   static int _compare(Task a, Task b) {
     if (a.done != b.done) return a.done ? 1 : -1;
+    if (a.done) {
+      final byTick = (a.completedAt ?? 0).compareTo(b.completedAt ?? 0);
+      if (byTick != 0) return byTick;
+    }
     if (a.sortOrder != b.sortOrder) {
       if (a.sortOrder == null) return 1;
       if (b.sortOrder == null) return -1;
