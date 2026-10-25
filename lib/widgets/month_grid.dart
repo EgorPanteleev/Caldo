@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../data/holidays.dart';
 import '../models/task.dart';
@@ -149,7 +152,7 @@ class MonthLayout {
 
 /// One month of day cells. Shared by the Calendar tab and the date picker, so
 /// picking a date looks exactly like reading the calendar.
-class MonthGrid extends StatelessWidget {
+class MonthGrid extends StatefulWidget {
   final DateTime month;
   final DateTime? selected;
   final bool mondayFirst;
@@ -173,6 +176,18 @@ class MonthGrid extends StatelessWidget {
   /// 0 (the whole month) to 1 (that single row).
   final double weekCollapse;
 
+  /// The calendar's own state, -1 (the week) through 0 (the month) to 1
+  /// (opened), followed frame by frame in place of [expansion] and
+  /// [weekCollapse]. Given this, the grid is never rebuilt or laid out again
+  /// while it moves — see [_RenderRows].
+  final Animation<double>? animation;
+
+  /// With [animation]: the grid's height opened out, which every week row is
+  /// laid out at, and its height as a compact month, which is the room a
+  /// day's marks have.
+  final double? openHeight;
+  final double? compactHeight;
+
   /// Days outside this range are shown but cannot be picked.
   final DateTime? firstDate;
   final DateTime? lastDate;
@@ -188,117 +203,445 @@ class MonthGrid extends StatelessWidget {
     this.holidaysByDay = const {},
     this.expansion = 0,
     this.weekCollapse = 0,
+    this.animation,
+    this.openHeight,
+    this.compactHeight,
     this.firstDate,
     this.lastDate,
-  });
+  }) : assert(
+         animation == null || (openHeight != null && compactHeight != null),
+       );
+
+  @override
+  State<MonthGrid> createState() => _MonthGridState();
+}
+
+/// How strongly a day's marks show at [state] (as [MonthGrid.animation]):
+/// they are gone before the titles have properly arrived.
+double _markerOpacity(double state) =>
+    (1 - math.max(0.0, state) * 2.2).clamp(0.0, 1.0);
+
+double _titleOpacity(double state) =>
+    ((math.max(0.0, state) - 0.3) * 2.4).clamp(0.0, 1.0);
+
+class _MonthGridState extends State<MonthGrid>
+    with SingleTickerProviderStateMixin {
+  /// The day the outline is leaving, while [_fade] carries it across.
+  DateTime? _was;
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 160),
+    value: 1,
+  );
+
+  late bool _markers;
+  late bool _titles;
+
+  Animation<double> get _state =>
+      widget.animation ??
+      AlwaysStoppedAnimation(
+        widget.weekCollapse > 0 ? -widget.weekCollapse : widget.expansion,
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    widget.animation?.addListener(_follow);
+    _markers = _markerOpacity(_state.value) > 0;
+    _titles = _titleOpacity(_state.value) > 0;
+  }
+
+  @override
+  void didUpdateWidget(MonthGrid old) {
+    super.didUpdateWidget(old);
+    if (old.animation != widget.animation) {
+      old.animation?.removeListener(_follow);
+      widget.animation?.addListener(_follow);
+    }
+    _markers = _markerOpacity(_state.value) > 0;
+    _titles = _titleOpacity(_state.value) > 0;
+    if (old.selected != widget.selected) {
+      _was = old.selected;
+      _fade.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.animation?.removeListener(_follow);
+    _fade.dispose();
+    super.dispose();
+  }
+
+  /// The only rebuilds the moving grid gets: when its marks or titles come
+  /// into being or go. Built while invisible they would cost nothing to
+  /// show, but they would be in the tree — titles read out, found by tests,
+  /// and on every day of the month.
+  void _follow() {
+    final markers = _markerOpacity(_state.value) > 0;
+    final titles = _titleOpacity(_state.value) > 0;
+    if (markers != _markers || titles != _titles) {
+      setState(() {
+        _markers = markers;
+        _titles = titles;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final today = dayOf(DateTime.now());
+    final state = _state;
+    final markers = _Mapped(state, _markerOpacity);
+    final titles = _Mapped(state, _titleOpacity);
+    final layout = MonthLayout(
+      month: widget.month,
+      mondayFirst: widget.mondayFirst,
+      selected: widget.selected,
+      weekCollapse: 0,
+      size: Size.zero,
+    );
+    final rows = layout.rows;
+    // The room under a day's number its marks may fill, which is the compact
+    // cell's: a row laid out opened has far more, and marks stacked into it
+    // would be cut through by the compact row's edge.
+    final markerRoom = widget.compactHeight == null
+        ? null
+        : widget.compactHeight! / rows -
+              2 * (_DayCell.padding + _DayCell.outline) -
+              _DayCell.contentTop -
+              2;
 
-    return LayoutBuilder(
-      builder: (context, box) {
-        final layout = MonthLayout(
-          month: month,
-          mondayFirst: mondayFirst,
-          selected: selected,
-          weekCollapse: weekCollapse,
-          size: box.biggest,
-        );
-        // Squeezing the month down to a week slides the whole grid past a
-        // shrinking window instead of squashing the rows: every week keeps
-        // the height it has in the full month, so the numbers travel
-        // together the way a list does, and the selected week is the one
-        // the window is left sitting on. Shrinking the rows themselves made
-        // the numbers close in on each other and read as a glitch.
-        final rows = layout.rows;
-        final rowHeight = layout.rowHeight;
-        final travel = layout.travel;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: MonthLayout.inset),
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topCenter,
-              minHeight: rowHeight * rows,
-              maxHeight: rowHeight * rows,
-              child: Transform.translate(
-                offset: Offset(0, -travel),
-                child: Column(
-                  children: [
-                    for (var row = 0; row < rows; row++)
-                      SizedBox(
-                        height: rowHeight,
-                        child: ClipRect(
-                          // Rules between the weeks, drawn in as the month opens.
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: row == 0
-                                  ? null
-                                  : Border(
-                                      top: BorderSide(
-                                        color: p.border.withValues(
-                                          alpha: weekRuleAlpha(expansion),
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                            child: Row(
-                              children: [
-                                for (var col = 0; col < 7; col++)
-                                  Expanded(
-                                    child: Builder(
-                                      builder: (context) {
-                                        final day = layout.dayOfCell(row, col);
-                                        final enabled =
-                                            (firstDate == null ||
-                                                !day.isBefore(firstDate!)) &&
-                                            (lastDate == null ||
-                                                !day.isAfter(lastDate!));
-                                        return _DayCell(
-                                          day: day,
-                                          inMonth: day.month == month.month,
-                                          isToday: day == today,
-                                          isSelected: day == selected,
-                                          enabled: enabled,
-                                          expansion: expansion,
-                                          tasks: tasksByDay[day] ?? const [],
-                                          holidays:
-                                              holidaysByDay[day] ?? const [],
-                                          lists: lists,
-                                          onTap: enabled
-                                              ? () => onSelect(day)
-                                              : null,
-                                        );
-                                      },
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: MonthLayout.inset),
+      child: _Rows(
+        month: widget.month,
+        mondayFirst: widget.mondayFirst,
+        selected: widget.selected,
+        was: _was,
+        state: state,
+        fade: _fade,
+        rowExtent: widget.openHeight == null ? null : widget.openHeight! / rows,
+        rule: p.border,
+        outline: p.muted,
+        children: [
+          // Each week painted once and kept: a frame of the calendar moving
+          // only places and clips them again, without drawing a day.
+          for (var row = 0; row < rows; row++)
+            RepaintBoundary(
+              child: Row(
+                children: [
+                  for (var col = 0; col < 7; col++)
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final day = layout.dayOfCell(row, col);
+                          final enabled =
+                              (widget.firstDate == null ||
+                                  !day.isBefore(widget.firstDate!)) &&
+                              (widget.lastDate == null ||
+                                  !day.isAfter(widget.lastDate!));
+                          return _DayCell(
+                            day: day,
+                            inMonth: day.month == widget.month.month,
+                            isToday: day == today,
+                            enabled: enabled,
+                            markers: _markers ? markers : null,
+                            titles: _titles ? titles : null,
+                            markerRoom: markerRoom,
+                            tasks: widget.tasksByDay[day] ?? const [],
+                            holidays: widget.holidaysByDay[day] ?? const [],
+                            lists: widget.lists,
+                            onTap: enabled ? () => widget.onSelect(day) : null,
+                          );
+                        },
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
 
-/// A single day: its number, a filled badge when it is today, an outline when
-/// it is the selected day, and its tasks — shown as lines under the number
-/// when the grid is compact and as titles once it is pulled open.
+/// [parent]'s value passed through [map] — a fade that follows the calendar
+/// without anything being rebuilt to follow it.
+class _Mapped extends Animation<double> with AnimationWithParentMixin<double> {
+  @override
+  final Animation<double> parent;
+  final double Function(double) map;
+
+  _Mapped(this.parent, this.map);
+
+  @override
+  double get value => map(parent.value);
+}
+
+/// The weeks of a month, each laid out once and then only moved and clipped
+/// as the calendar changes state.
+///
+/// The grid used to be rebuilt and laid out afresh on every frame of opening
+/// and closing — every day, its number, marks and titles, forty-two times
+/// over — because a day's cell was as tall as the row it sat in. Measured on
+/// the emulator that was most of a frame's work, and a phone at 120Hz has
+/// eight milliseconds for all of it: "laggy". Laid out at the opened height
+/// instead and clipped to the row's height now, a cell never changes size,
+/// so a frame is a few clips and translations. What did depend on the
+/// height is drawn here instead: the selected day's outline, which has to
+/// be the cell's height now, and the rules between the weeks.
+class _Rows extends MultiChildRenderObjectWidget {
+  final DateTime month;
+  final bool mondayFirst;
+  final DateTime? selected;
+  final DateTime? was;
+  final Animation<double> state;
+  final Animation<double> fade;
+
+  /// The height every row is laid out at, or null for the height it is shown
+  /// at — a grid that never moves.
+  final double? rowExtent;
+  final Color rule;
+  final Color outline;
+
+  const _Rows({
+    required this.month,
+    required this.mondayFirst,
+    required this.selected,
+    required this.was,
+    required this.state,
+    required this.fade,
+    required this.rowExtent,
+    required this.rule,
+    required this.outline,
+    required super.children,
+  });
+
+  @override
+  _RenderRows createRenderObject(BuildContext context) => _RenderRows(this);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderRows render) {
+    render.widget = this;
+  }
+}
+
+class _RowData extends ContainerBoxParentData<RenderBox> {
+  int row = 0;
+}
+
+class _RenderRows extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _RowData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _RowData> {
+  _RenderRows(this._widget);
+
+  _Rows _widget;
+  set widget(_Rows value) {
+    final old = _widget;
+    _widget = value;
+    if (attached) {
+      if (old.state != value.state) {
+        old.state.removeListener(markNeedsPaint);
+        value.state.addListener(markNeedsPaint);
+      }
+      if (old.fade != value.fade) {
+        old.fade.removeListener(markNeedsPaint);
+        value.fade.addListener(markNeedsPaint);
+      }
+    }
+    if (old.rowExtent != value.rowExtent ||
+        old.month != value.month ||
+        old.mondayFirst != value.mondayFirst ||
+        old.selected != value.selected) {
+      markNeedsLayout();
+    } else {
+      markNeedsPaint();
+    }
+  }
+
+  final _clips = <LayerHandle<ClipRectLayer>>[];
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _widget.state.addListener(markNeedsPaint);
+    _widget.fade.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _widget.state.removeListener(markNeedsPaint);
+    _widget.fade.removeListener(markNeedsPaint);
+    super.detach();
+  }
+
+  @override
+  void dispose() {
+    for (final clip in _clips) {
+      clip.layer = null;
+    }
+    super.dispose();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _RowData) child.parentData = _RowData();
+  }
+
+  /// Where the days fall now, in the same terms the calendar's carry finds
+  /// them in.
+  MonthLayout _layout() {
+    final state = _widget.state.value;
+    return MonthLayout(
+      month: _widget.month,
+      mondayFirst: _widget.mondayFirst,
+      selected: _widget.selected,
+      weekCollapse: state < 0 ? -state : 0,
+      size: Size(size.width + 2 * MonthLayout.inset, size.height),
+    );
+  }
+
+  double _top(MonthLayout layout, int row) =>
+      row * layout.rowHeight - layout.travel;
+
+  @override
+  void performLayout() {
+    size = constraints.biggest;
+    final extent = _widget.rowExtent ?? _layout().rowHeight;
+    var child = firstChild;
+    var row = 0;
+    while (child != null) {
+      final data = child.parentData! as _RowData;
+      data.row = row++;
+      child.layout(BoxConstraints.tightFor(width: size.width, height: extent));
+      child = data.nextSibling;
+    }
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final layout = _layout();
+    final bounds = Offset.zero & size;
+    var child = firstChild;
+    while (child != null) {
+      final data = child.parentData! as _RowData;
+      while (_clips.length <= data.row) {
+        _clips.add(LayerHandle<ClipRectLayer>());
+      }
+      final top = _top(layout, data.row);
+      final clip = Rect.fromLTWH(
+        0,
+        top,
+        size.width,
+        layout.rowHeight,
+      ).intersect(bounds);
+      final handle = _clips[data.row];
+      if (clip.width > 0 && clip.height > 0) {
+        final painted = child;
+        handle.layer = context.pushClipRect(
+          needsCompositing,
+          offset,
+          clip,
+          (context, offset) =>
+              context.paintChild(painted, offset + Offset(0, top)),
+          oldLayer: handle.layer,
+        );
+      } else {
+        handle.layer = null;
+      }
+      child = data.nextSibling;
+    }
+
+    final canvas = context.canvas;
+    canvas.save();
+    canvas.clipRect(bounds.shift(offset));
+
+    // The rules between the weeks, arriving as the month finishes opening.
+    final alpha = weekRuleAlpha(math.max(0.0, _widget.state.value));
+    if (alpha > 0) {
+      final paint = Paint()..color = _widget.rule.withValues(alpha: alpha);
+      for (var row = 1; row < layout.rows; row++) {
+        canvas.drawRect(
+          Rect.fromLTWH(0, _top(layout, row), size.width, 1).shift(offset),
+          paint,
+        );
+      }
+    }
+
+    // The selected day's outline, the height its row is now, crossing from
+    // the day it was on over a short fade.
+    final fade = Curves.easeOut.transform(_widget.fade.value);
+    void outline(DateTime? day, double strength) {
+      if (day == null || strength <= 0) return;
+      final cell = layout.rectOf(day);
+      if (cell == null) return;
+      final outer = RRect.fromRectAndRadius(
+        cell
+            .shift(Offset(-MonthLayout.inset, 0))
+            .deflate(_DayCell.padding)
+            .shift(offset),
+        const Radius.circular(7),
+      );
+      canvas.drawDRRect(
+        outer,
+        outer.deflate(_DayCell.outline),
+        Paint()..color = _widget.outline.withValues(alpha: strength),
+      );
+    }
+
+    if (_widget.was != _widget.selected) outline(_widget.was, 1 - fade);
+    outline(_widget.selected, fade);
+    canvas.restore();
+  }
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    final row = (child.parentData! as _RowData).row;
+    transform.translateByDouble(0, _top(_layout(), row), 0, 1);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    final layout = _layout();
+    var child = lastChild;
+    while (child != null) {
+      final data = child.parentData! as _RowData;
+      final top = _top(layout, data.row);
+      if (position.dy >= top && position.dy < top + layout.rowHeight) {
+        final hit = child;
+        if (result.addWithPaintOffset(
+          offset: Offset(0, top),
+          position: position,
+          hitTest: (result, position) =>
+              hit.hitTest(result, position: position),
+        )) {
+          return true;
+        }
+      }
+      child = data.previousSibling;
+    }
+    return false;
+  }
+}
+
+/// A single day: its number, a filled badge when it is today, and its tasks
+/// — shown as lines under the number when the grid is compact and as titles
+/// once it is pulled open. The selected day's outline is the grid's to draw.
 class _DayCell extends StatelessWidget {
   final DateTime day;
   final bool inMonth;
   final bool isToday;
-  final bool isSelected;
   final bool enabled;
-  final double expansion;
+
+  /// How strongly the marks and the titles show, or null for not at all.
+  final Animation<double>? markers;
+  final Animation<double>? titles;
+
+  /// The height the marks may take, or null for whatever the cell has.
+  final double? markerRoom;
   final List<Task> tasks;
   final List<Holiday> holidays;
   final List<TaskList> lists;
@@ -308,14 +651,32 @@ class _DayCell extends StatelessWidget {
     required this.day,
     required this.inMonth,
     required this.isToday,
-    required this.isSelected,
     required this.enabled,
-    required this.expansion,
+    required this.markers,
+    required this.titles,
+    required this.markerRoom,
     required this.tasks,
     required this.holidays,
     required this.lists,
     required this.onTap,
   });
+
+  /// Air around the cell, inside which the selected day's outline is drawn.
+  static const padding = 2.0;
+
+  /// The outline's width, which the cell's contents stand inside whether it
+  /// is drawn or not — as they did when the outline was the cell's own
+  /// border, and a border insets what it surrounds.
+  static const outline = 1.4;
+
+  // Everything is positioned from the top of the cell: the number keeps its
+  // place whatever the grid height, so the first week never moves as the
+  // month opens — only what sits under the number changes. Centring it in a
+  // compact cell was tried, and slid to the top as the month opened; it was
+  // asked for and then asked back.
+  static const numberTop = 5.0;
+  static const numberHeight = 16.0;
+  static const contentTop = numberTop + numberHeight + 2;
 
   TaskList? _listOf(Task task) {
     for (final list in lists) {
@@ -413,95 +774,82 @@ class _DayCell extends StatelessWidget {
       ),
     );
 
+    final markerColours = [
+      for (final _ in holidays) AppColors.holiday,
+      for (final task in tasks) taskColor(task),
+    ];
+    final markerBars = _MarkerBars(colors: markerColours);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.all(2),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(7),
-            border: Border.all(
-              color: isSelected ? p.muted : Colors.transparent,
-              width: 1.4,
-            ),
-          ),
-          child: LayoutBuilder(
-            builder: (context, box) {
-              // Everything is positioned from the top of the cell: the number
-              // keeps its place whatever the grid height, so the first week
-              // never moves as the month opens — only what sits under the
-              // number changes. Centring it in a compact cell was tried, and
-              // slid to the top as the month opened; it was asked for and then
-              // asked back. Positioned children are bounded, so a cell too
-              // short for its content drops it rather than overflowing.
-              const numberTop = 5.0;
-              const numberHeight = 16.0;
-              const contentTop = numberTop + numberHeight + 2;
-              final markerOpacity = (1 - expansion * 2.2).clamp(0.0, 1.0);
-              final titleOpacity = ((expansion - 0.3) * 2.4).clamp(0.0, 1.0);
-
-              return Stack(
-                children: [
+        padding: const EdgeInsets.all(padding + outline),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // Positioned children are bounded, so a cell too short for its
+            // content drops it rather than overflowing.
+            return Stack(
+              children: [
+                Positioned(
+                  top: numberTop,
+                  left: 0,
+                  right: 0,
+                  child: Center(child: number),
+                ),
+                if (box.maxHeight > contentTop + 2)
                   Positioned(
-                    top: numberTop,
+                    top: contentTop,
                     left: 0,
                     right: 0,
-                    child: Center(child: number),
-                  ),
-                  if (box.maxHeight > contentTop + 2)
-                    Positioned(
-                      top: contentTop,
-                      left: 0,
-                      right: 0,
-                      bottom: 2,
-                      child: Stack(
-                        children: [
-                          if (markerOpacity > 0)
-                            Align(
-                              alignment: Alignment.topCenter,
-                              child: Opacity(
-                                opacity: markerOpacity,
-                                child: _MarkerBars(
-                                  colors: [
-                                    for (final _ in holidays) AppColors.holiday,
-                                    for (final task in tasks) taskColor(task),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          if (titleOpacity > 0)
-                            Opacity(
-                              opacity: titleOpacity,
-                              child: _DayTitles(
-                                entries: [
-                                  for (final holiday in holidays)
-                                    (
-                                      label: holiday.name,
-                                      color: AppColors.holiday,
-                                      done: false,
+                    bottom: 2,
+                    child: Stack(
+                      children: [
+                        if (markers != null && markerColours.isNotEmpty)
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: FadeTransition(
+                              opacity: markers!,
+                              child: markerRoom == null
+                                  ? markerBars
+                                  : SizedBox(
+                                      height: math.max(0.0, markerRoom!),
+                                      child: Align(
+                                        alignment: Alignment.topCenter,
+                                        child: markerBars,
+                                      ),
                                     ),
-                                  for (final task in tasks)
-                                    (
-                                      label: task.title,
-                                      color: taskColor(task),
-                                      done: task.done,
-                                    ),
-                                ],
-                                muted: p.faint,
-                                text: p.text,
-                                ground: p.calendar,
-                              ),
                             ),
-                        ],
-                      ),
+                          ),
+                        if (titles != null)
+                          FadeTransition(
+                            opacity: titles!,
+                            child: _DayTitles(
+                              entries: [
+                                for (final holiday in holidays)
+                                  (
+                                    label: holiday.name,
+                                    color: AppColors.holiday,
+                                    done: false,
+                                  ),
+                                for (final task in tasks)
+                                  (
+                                    label: task.title,
+                                    color: taskColor(task),
+                                    done: task.done,
+                                  ),
+                              ],
+                              muted: p.faint,
+                              text: p.text,
+                              ground: p.calendar,
+                            ),
+                          ),
+                      ],
                     ),
-                ],
-              );
-            },
-          ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );

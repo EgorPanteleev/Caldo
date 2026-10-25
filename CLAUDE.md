@@ -69,8 +69,13 @@ Changing them back will be noticed.
   snap carries the drag's own speed, not a fixed ease from a standstill.
   Pulling the whole way was never the point. **The snap is a glide, not a
   spring** (`_Glide`): a cubic that starts at the finger's speed and stops
-  dead on the state at a set time — 420ms for a whole step from rest, less
-  for less distance, less again for a fast flick — and never overshoots. It
+  dead on the state at a set time — 460ms for a whole step, down to half
+  that for a short remainder — and never overshoots. A flick sets its
+  starting speed (up to three times the average, beyond which it is eased
+  down from) but does not shorten it: letting it do so, at 420ms, was "too
+  fast", since most snaps follow a flick and those took a quarter second.
+  A tap sets off at the average speed rather than easing in, which read as
+  a pause before anything moved. It
   was a critically damped spring, softened twice to be "a little bit
   slower" (stiffness 340, then 200, then 120), and the softest was "not
   smooth": it crept its last few points for most of a second (60 frames
@@ -683,6 +688,23 @@ Changing them back will be noticed.
   has, and its quick-add field at the foot files on today. Today is a scroll
   home here, since today is the top of the run.
 
+- **The month is laid out once and only moved while the calendar changes
+  state** (`MonthGrid.animation`, `_RenderRows`). Every week row is laid out
+  at its opened height and clipped to the height it has now, each behind a
+  repaint boundary, so a frame of opening or closing places and clips six
+  pictures and draws no day. It used to be rebuilt and laid out from scratch
+  on every frame — forty-two cells, their numbers, marks and titles —
+  because a cell was as tall as its row; on the emulator that was 3ms of
+  every frame's UI work (now 1.3ms), and a 120Hz phone has 8ms for all of
+  it: "laggy", once the snap was slowed enough to show it. What did depend
+  on the row's height is drawn by the rows' render object: the selected
+  day's outline (with its 160ms fade from the day before) and the week
+  rules. The marks are still sized to the compact cell (`markerRoom`), and
+  the cells keep the outline's 1.4 points of inset, which a `Container`
+  border used to give them — without it the whole month sat that much
+  higher. The fades follow the animation (`FadeTransition`), and the grid
+  is rebuilt only when the marks or titles come or go. The month pager is
+  built outside the calendar's `AnimatedBuilder` for the same reason.
 - **The calendar's drag is kept cheap rather than kept short.** It rebuilds on
   every frame, so anything expensive in that subtree shows up as judder:
   `Holidays.around` was running three full years of rules per frame per page

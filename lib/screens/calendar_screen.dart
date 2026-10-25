@@ -171,8 +171,10 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// and softer was worse: a soft spring crept the last few points for most
   /// of a second, and a flick carried it past the state and back, which at
   /// either end was cut off at the bound — reported as "not smooth". See
-  /// [_Glide].
-  static const _snap = Duration(milliseconds: 420);
+  /// [_Glide]. 420ms, with a flick allowed to shorten it to match the
+  /// finger, still came out as "too fast": most snaps follow a flick, and
+  /// those were over in a quarter of a second.
+  static const _snap = Duration(milliseconds: 460);
 
   void _onDragStart(DragStartDetails details) {
     _dragFrom = _expansion.value.roundToDouble();
@@ -649,6 +651,40 @@ class _CalendarScreenState extends State<CalendarScreen>
                           );
                           final listHeight = available - month - _handleHeight;
 
+                          // Built here rather than in the builder below, so
+                          // the same widget is handed back on every frame and
+                          // the month is never rebuilt to follow the drag: it
+                          // follows `_expansion` itself (see MonthGrid).
+                          final monthPager = GestureDetector(
+                            // Vertical drags open the grid; the PageView keeps
+                            // the horizontal ones for changing month. Opaque,
+                            // so a drag that starts on the padding around a day
+                            // cell is caught too rather than falling through.
+                            behavior: HitTestBehavior.opaque,
+                            onVerticalDragStart: _onDragStart,
+                            onVerticalDragUpdate: _onDrag,
+                            onVerticalDragEnd: _onDragEnd,
+                            child: PageView.builder(
+                              controller: _controller,
+                              onPageChanged: _onMonthPageChanged,
+                              itemBuilder: (context, i) => MonthGrid(
+                                month: _monthOfPage(i),
+                                selected: _selected,
+                                mondayFirst: mondayFirst,
+                                tasksByDay: provider.tasksByDay,
+                                holidaysByDay: Holidays.around(
+                                  country,
+                                  _monthOfPage(i),
+                                ),
+                                lists: provider.lists,
+                                animation: _expansion,
+                                openHeight: opened,
+                                compactHeight: month,
+                                onSelect: _selectDay,
+                              ),
+                            ),
+                          );
+
                           return AnimatedBuilder(
                             animation: _expansion,
                             // Hoisted out of the rebuild: nothing inside the day
@@ -688,7 +724,6 @@ class _CalendarScreenState extends State<CalendarScreen>
                               final gridHeight = t >= 0
                                   ? month + _rangeUp * t
                                   : week + _rangeDown * (1 + t);
-                              final weekCollapse = t < 0 ? -t : 0.0;
                               final panelVisible =
                                   (available - gridHeight - _handleHeight)
                                       .clamp(0.0, available);
@@ -713,45 +748,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                             SizedBox(
                                               key: _grid,
                                               height: gridHeight,
-                                              child: GestureDetector(
-                                                // Vertical drags open the grid; the PageView keeps
-                                                // the horizontal ones for changing month. Opaque,
-                                                // so a drag that starts on the padding around a day
-                                                // cell is caught too rather than falling through.
-                                                behavior:
-                                                    HitTestBehavior.opaque,
-                                                onVerticalDragStart:
-                                                    _onDragStart,
-                                                onVerticalDragUpdate: _onDrag,
-                                                onVerticalDragEnd: _onDragEnd,
-                                                child: PageView.builder(
-                                                  controller: _controller,
-                                                  onPageChanged:
-                                                      _onMonthPageChanged,
-                                                  itemBuilder: (context, i) =>
-                                                      MonthGrid(
-                                                        month: _monthOfPage(i),
-                                                        selected: _selected,
-                                                        mondayFirst:
-                                                            mondayFirst,
-                                                        tasksByDay:
-                                                            provider.tasksByDay,
-                                                        holidaysByDay:
-                                                            Holidays.around(
-                                                              country,
-                                                              _monthOfPage(i),
-                                                            ),
-                                                        lists: provider.lists,
-                                                        expansion: math.max(
-                                                          0.0,
-                                                          t,
-                                                        ),
-                                                        weekCollapse:
-                                                            weekCollapse,
-                                                        onSelect: _selectDay,
-                                                      ),
-                                                ),
-                                              ),
+                                              child: monthPager,
                                             ),
                                             // Where holding a carried task turns the month.
                                             Positioned.fill(
@@ -869,12 +866,14 @@ class _CalendarScreenState extends State<CalendarScreen>
 /// A snap from where the grid is to [to] that starts at the speed the finger
 /// left it with and comes to rest exactly at [to], at a set time.
 ///
-/// A cubic with the starting speed and a stop at the end: from a standstill
-/// it is an ease in and out, from a flick an ease out. The starting speed is
-/// capped at three times the average — the slope at which the curve only just
-/// stays short of the target — and a flick faster than that shortens the
-/// glide to match it instead, so nothing ever overshoots. A short distance is
-/// covered in less time than a whole one, as a spring would.
+/// A cubic with the starting speed and a stop at the end. The starting speed
+/// is held between the average and three times it: three is the slope at
+/// which the curve only just stays short of the target, so nothing ever
+/// overshoots, and a faster flick is eased down from rather than let
+/// shorten the glide. At least the average so a tap, which has no speed of
+/// its own, sets off at once — an ease in from a standstill reads as a
+/// pause before anything happens. A short distance takes a little less time
+/// than a whole step, never under half of it.
 class _Glide extends Simulation {
   final double from;
   final double to;
@@ -889,15 +888,11 @@ class _Glide extends Simulation {
   }) {
     final distance = (to - from).abs();
     final towards = velocity * (to - from).sign;
-    var seconds =
+    _seconds =
         full.inMicroseconds /
         Duration.microsecondsPerSecond *
-        math.sqrt(distance);
-    if (towards * seconds > 3 * distance) {
-      seconds = math.max(0.2, 3 * distance / towards);
-    }
-    _seconds = seconds;
-    _slope = (towards * seconds / distance).clamp(0.0, 3.0);
+        (0.5 + 0.5 * math.min(1.0, distance));
+    _slope = (towards * _seconds / distance).clamp(1.0, 3.0);
   }
 
   double _s(double time) => (time / _seconds).clamp(0.0, 1.0);
