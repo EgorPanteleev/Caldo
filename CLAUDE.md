@@ -951,6 +951,18 @@ Three things that look like bugs and are not:
   code — three rounds went into the lift when the lift was not what was
   wrong. The emulator's window on the host can resample again on top of
   that; a phone is the only place to settle how it feels.
+- **The first opening of the month after a cold start draws slowly on the
+  emulator** — about 16ms of raster a frame, where every later opening takes
+  2ms — in most launches but not all, and not because of anything the grid
+  draws. Measured with frame timings from a release build: the slow frames
+  begin a few frames into the opening, before any task title is on the
+  screen, and four fixes each looked right on one run and failed on the
+  next few — rows placed on whole pixels, a startup warm-up drawing faded
+  text, titles faded through their colours instead of a layer, and the
+  titles not faded at all. It is the emulator's GL translation warming up
+  (this AVD runs Impeller on OpenGL ES; phones run it on Vulkan). Nothing
+  was kept. If it is ever seen on a phone, measure there first; take
+  several cold starts per build, since one run proves nothing either way.
 - **`screenrecord` drops frames**, and more of them the more the host is
   doing. Frame-by-frame measurements off a recording show the *shape* of a
   movement — whether it builds and decays, or jumps and catches — which is
