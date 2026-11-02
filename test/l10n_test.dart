@@ -1,4 +1,5 @@
 import 'package:caldo/l10n/strings.dart';
+import 'package:caldo/l10n/words_en.dart';
 import 'package:caldo/models/task.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,5 +56,52 @@ void main() {
     expect(s.repeatField(Repeat.weekly), 'Repeat: every week');
     expect(Dates.lead(60), '1 hour before');
     expect(Dates.monthTitle(DateTime(DateTime.now().year, 11)), 'Nov');
+  });
+
+  group('every language', () {
+    Set<String> holes(Object text) => {
+      for (final m in RegExp(
+        r'\{(\w+)\}',
+      ).allMatches(text is List ? text.join() : text as String))
+        m.group(1)!,
+    };
+
+    test('has every word, with the same blanks to fill in', () {
+      for (final code in S.names.keys) {
+        S.use(code);
+        for (final key in en.keys) {
+          final own = S.current.hasOwn(key);
+          expect(own, isTrue, reason: '$code is missing $key');
+          expect(
+            holes(S.current.raw(key)),
+            holes(en[key]!),
+            reason: '$code has different blanks in $key',
+          );
+        }
+      }
+    });
+
+    test('counts by its own rule', () {
+      S.use('pl');
+      expect(S.current.daysInARow(1), 'dzień z rzędu');
+      expect(S.current.daysInARow(22), 'dni z rzędu');
+      expect(S.current.hoursBefore(21), '21 godzin wcześniej');
+      S.use('uk');
+      expect(S.current.daysBefore(3), 'за 3 дні');
+      S.use('fr');
+      expect(S.current.daysInARow(0), 'jour d’affilée');
+      expect(S.current.daysInARow(2), 'jours d’affilée');
+      S.use('tr');
+      expect(S.current.daysBefore(5), '5 gün önce');
+      S.use('de');
+      expect(S.current.removedCompleted(3), '3 erledigte Aufgaben entfernt');
+    });
+
+    test('dates follow the language', () {
+      S.use('de');
+      expect(Dates.dayDate(DateTime(2026, 11, 2)), startsWith('Mo., 2. Nov'));
+      S.use('fr');
+      expect(Dates.monthTitle(DateTime(DateTime.now().year, 11)), 'Novembre');
+    });
   });
 }

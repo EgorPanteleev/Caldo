@@ -54,9 +54,9 @@ void main() {
 
     test('Orthodox Easter runs on the Julian reckoning', () {
       expect(Holidays.orthodoxEaster(2026), DateTime(2026, 4, 12));
-      expect(dateOf('UA', 2026, 'Easter'), DateTime(2026, 4, 12));
+      expect(dateOf('UA', 2026, 'Великдень'), DateTime(2026, 4, 12));
       // Trinity Sunday is seven weeks later.
-      expect(dateOf('UA', 2026, 'Trinity Sunday'), DateTime(2026, 5, 31));
+      expect(dateOf('UA', 2026, 'Трійця'), DateTime(2026, 5, 31));
     });
   });
 

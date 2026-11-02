@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Gecikenler ve yaklaşanlar, ana ekrandan işaretlenir</string>
+    <string name="widget_overdue">Gecikmiş</string>
+    <string name="widget_today">Bugün</string>
+    <string name="widget_tomorrow">Yarın</string>
+    <string name="widget_nothing">Planlanmış bir şey yok</string>
+    <string name="widget_all_day">Tüm gün</string>
+    <string name="widget_new_task">Yeni görev</string>
+</resources>

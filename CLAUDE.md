@@ -22,7 +22,8 @@ release is out, and fetching it — see the decision below.
 ```
 lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
-  l10n/strings.dart      every word the app says, in English and Russian
+  l10n/strings.dart      every word the app says; words_*.dart, a table
+                         per language
   db/database.dart       schema v6: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
@@ -914,21 +915,35 @@ Changing them back will be noticed.
   Screens read the provider as nullable, so a test that pumps a screen
   without it still draws. The home-screen widget does not show events.
 
-- **Caldo speaks English and Russian** (`S`, `l10n/strings.dart`), the
-  phone's language by default and either one by choice in Settings. The
-  strings are a hand-written class rather than generated ARB files — two
-  languages do not pay for a build step — read with `S.of(context)` on a
-  screen and `S.current` where there is none: a notification, the widget's
-  copy, the background isolates (`SettingsProvider.prime` sets it there).
-  Russian counts go through `SRu._plural` (1 день, 2 дня, 5 дней). Dates
-  follow `intl`'s locale, which `S.use` keeps in step, and `Dates` gives
-  whatever opens a line a capital, since Russian writes its weekdays and
-  months in lower case. The month header is written in full in Russian
-  ("Ноябрь"): the short form carries a full stop, which on a header alone
-  reads as a typo. Changing the language re-sets the alarms, whose text and
-  buttons are in it, and rewrites the widget's copy, which carries the
-  language because the launcher draws the widget in the phone's. Russia's
-  holidays are named in Russian, as Germany's are in German.
+- **Caldo speaks the language of every country it keeps holidays for**
+  (`S`, `l10n/strings.dart`, `l10n/words_*.dart`): English, Russian,
+  Ukrainian, Belarusian, Kazakh, German, French, Spanish, Italian, Dutch,
+  Polish and Turkish — the phone's by default, any of them by choice in
+  Settings, each named in itself in the list. The words are a table per
+  language, not generated ARB files and not a class each: twelve tables of
+  a couple of hundred strings are data. A key missing from a table falls
+  back to English, and `l10n_test.dart` fails if any table lacks a key or
+  has different `{blanks}` in it than English does. Counted words are lists
+  of forms picked by a rule per family — one/other (English, German,
+  Spanish, Italian, Dutch), French (0 counts as 1), East Slavic (1 день,
+  2 дня, 5 дней), Polish (only 1 itself is singular) and none at all
+  (Turkish, Kazakh: "3 gün"). Read with `S.of(context)` on a screen and
+  `S.current` where there is none — a notification, the widget's copy, the
+  background isolates (`SettingsProvider.prime` sets it there).
+  Dates follow `intl`'s locale, which `S.use` keeps in step. English keeps
+  the patterns it was drawn with ("Sat, 4 Oct", "Oct"); every other
+  language takes `intl`'s skeletons, which know its order and dots ("Mo.,
+  2. Nov."), writes the month header in full (short forms mostly end in a
+  full stop), and gets a capital at the start of a line, since many write
+  weekdays and months in lower case. The widget is the same in Kotlin
+  (`getBestDateTimePattern`, `values-xx/strings.xml`). Changing the language
+  re-sets the alarms, whose text and buttons are in it, and rewrites the
+  widget's copy, which carries the language because the launcher draws the
+  widget in the phone's. `l10n_screens_test.dart` draws Schedule, the
+  calendar, Settings and the form in every language on a small phone;
+  it found Schedule's day heading overflowing, and the date there now
+  fades rather than pushing. The translations were written without a native
+  speaker's review.
 
 - **The icon is Dicty's sibling**: the same graphite rounded square and the
   same two overlapping tiles, here a white calendar page with its rings and
@@ -947,7 +962,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 145 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 160 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1109,8 +1124,8 @@ Three things that look like bugs and are not:
 ## Known gaps
 
 - In week view, swiping sideways still pages by **month**, not by week.
-- Holiday names are in each country's own language where it was natural
-  (DE/FR/ES/IT/PL/NL/TR/RU) and English elsewhere (BY/KZ/UA among them).
+- Holiday names are in each country's own language, except the English-
+  speaking ones and Canada, which is English only.
 - The debug keyboard numbers (long press on the Settings title) are English
   in either language.
 - Signing uses the debug keys (Flutter's default), so installs warn about an

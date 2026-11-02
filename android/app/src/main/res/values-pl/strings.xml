@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Zaległe i nadchodzące — do odhaczenia prosto z ekranu głównego</string>
+    <string name="widget_overdue">Zaległe</string>
+    <string name="widget_today">Dziś</string>
+    <string name="widget_tomorrow">Jutro</string>
+    <string name="widget_nothing">Nic nie zaplanowano</string>
+    <string name="widget_all_day">Cały dzień</string>
+    <string name="widget_new_task">Nowe zadanie</string>
+</resources>

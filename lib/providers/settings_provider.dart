@@ -105,7 +105,7 @@ class SettingsProvider extends ChangeNotifier {
 
   static String get phoneLanguage {
     final phone = PlatformDispatcher.instance.locale.languageCode;
-    return S.supported.any((l) => l.languageCode == phone) ? phone : 'en';
+    return S.supports(phone) ? phone : 'en';
   }
 
   StartScreen get startScreen => _startScreen;

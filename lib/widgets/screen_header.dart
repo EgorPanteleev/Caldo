@@ -225,7 +225,19 @@ class DayHeader extends StatelessWidget {
               ),
             ),
           if (word != null && label != null) const SizedBox(width: 10),
-          if (label != null) Text(label!, style: style),
+          // The date gives way before the word does: in some languages the
+          // pair is longer than a narrow phone, and the word is the part
+          // read first.
+          if (label != null)
+            Flexible(
+              child: Text(
+                label!,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.fade,
+                style: style,
+              ),
+            ),
         ],
       ),
     );

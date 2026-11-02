@@ -109,6 +109,16 @@ class TodayWidget : AppWidgetProvider() {
                 Configuration(context.resources.configuration).apply { setLocale(locale) },
             )
 
+        /**
+         * A date pattern for [skeleton] — which fields, in no order — as
+         * [locale] orders and punctuates them: "d MMMM" is "2 ноября" in
+         * Russian and "2. November" in German. English keeps the order
+         * the app writes it in, day before month.
+         */
+        fun pattern(locale: Locale, skeleton: String, english: String): String =
+            if (locale.language == "en") english
+            else android.text.format.DateFormat.getBestDateTimePattern(locale, skeleton)
+
         /** "понедельник" opens a line as "Понедельник". */
         fun capitalised(text: String, locale: Locale) =
             text.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
@@ -132,7 +142,7 @@ class TodayWidget : AppWidgetProvider() {
             )
             views.setTextViewText(
                 R.id.widget_date,
-                SimpleDateFormat("d MMMM", locale).format(now),
+                SimpleDateFormat(pattern(locale, "dMMMM", "d MMMM"), locale).format(now),
             )
             views.setTextViewText(
                 R.id.widget_empty,

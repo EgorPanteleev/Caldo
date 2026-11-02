@@ -85,7 +85,10 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
             }
         }
 
-        val label = SimpleDateFormat("EEE, d MMM", locale)
+        val label = SimpleDateFormat(
+            TodayWidget.pattern(locale, "EEEdMMM", "EEE, d MMM"),
+            locale,
+        )
         rows = buildList {
             if (overdue.isNotEmpty()) {
                 add(Heading(words.getString(R.string.widget_overdue), overdue = true))

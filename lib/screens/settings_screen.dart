@@ -654,12 +654,11 @@ class _LanguageField extends StatelessWidget {
 
   const _LanguageField({required this.value, required this.onChanged});
 
-  static const _names = {'en': 'English', 'ru': 'Русский'};
-
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final phone = _names[SettingsProvider.phoneLanguage]!;
+    final names = S.names;
+    final phone = names[SettingsProvider.phoneLanguage]!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
@@ -689,7 +688,7 @@ class _LanguageField extends StatelessWidget {
                     value: '',
                     child: Text(S.of(context).followPhone(phone)),
                   ),
-                  for (final MapEntry(key: code, value: name) in _names.entries)
+                  for (final MapEntry(key: code, value: name) in names.entries)
                     DropdownMenuItem(value: code, child: Text(name)),
                 ],
                 onChanged: (v) => onChanged(v == null || v.isEmpty ? null : v),

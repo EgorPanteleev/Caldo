@@ -8,11 +8,15 @@ import '../providers/task_provider.dart' show dayOf;
 
 /// Date/time formatting shared by the calendar, the agenda and task rows.
 ///
-/// In whichever language `S` has in force, which also sets `intl`'s. Russian
-/// writes its weekdays and months in lower case where English capitalises
-/// them, so whatever starts a line is given a capital of its own ([_lead]).
+/// In whichever language `S` has in force, which also sets `intl`'s.
+/// English keeps the patterns it was drawn with — "Sat, 4 Oct", the day
+/// before the month. Every other language takes `intl`'s own pattern for
+/// the same thing, which knows where its language puts the day, the month
+/// and the dots ("Sa., 4. Okt." in German, "sam. 4 oct." in French). Many
+/// write weekdays and months in lower case, so whatever opens a line is
+/// given a capital of its own ([_lead]).
 class Dates {
-  static bool get _ru => S.current.code == 'ru';
+  static bool get _english => S.current.code == 'en';
 
   /// [text] with a capital first letter: "пн, 2 нояб." opens a line as
   /// "Пн, 2 нояб.".
@@ -21,13 +25,14 @@ class Dates {
       : Characters(text).first.toUpperCase() + Characters(text).skip(1).string;
 
   /// The calendar's month header: "Oct" while browsing the current year,
-  /// "Oct 2027" once the year is no longer this one. In Russian the month
-  /// is written in full — "Ноябрь" — since its short form carries a full
-  /// stop, which reads as a typo on a header standing alone.
+  /// "Oct 2027" once the year is no longer this one. In any other language
+  /// the month is written in full — "Ноябрь", "November" — since most short
+  /// forms carry a full stop, which reads as a typo on a header standing
+  /// alone.
   static String monthTitle(DateTime month) {
     final thisYear = month.year == DateTime.now().year;
-    if (_ru) {
-      return _lead(DateFormat(thisYear ? 'LLLL' : 'LLLL yyyy').format(month));
+    if (!_english) {
+      return _lead(DateFormat(thisYear ? 'LLLL' : 'LLLL y').format(month));
     }
     return DateFormat(thisYear ? 'MMM' : 'MMM yyyy').format(month);
   }
@@ -62,10 +67,13 @@ class Dates {
   /// beside it — so a reader never has to work out which day "Today" is.
   static String dayDate(DateTime date) {
     final d = dayOf(date);
-    final pattern = d.year == dayOf(DateTime.now()).year
-        ? 'EEE, d MMM'
-        : 'EEE, d MMM yyyy';
-    return _lead(DateFormat(pattern).format(d));
+    final thisYear = d.year == dayOf(DateTime.now()).year;
+    if (!_english) {
+      return _lead(
+        (thisYear ? DateFormat.MMMEd() : DateFormat.yMMMEd()).format(d),
+      );
+    }
+    return DateFormat(thisYear ? 'EEE, d MMM' : 'EEE, d MMM yyyy').format(d);
   }
 
   /// The word for a day near today — "Today", "Tomorrow", "Yesterday" — or
@@ -82,11 +90,17 @@ class Dates {
 
   /// A longer form for headers: "Saturday, 4 October".
   static String longDay(DateTime date) {
-    final today = dayOf(DateTime.now());
-    final pattern = date.year == today.year
-        ? 'EEEE, d MMMM'
-        : 'EEEE, d MMMM yyyy';
-    return _lead(DateFormat(pattern).format(date));
+    final thisYear = date.year == dayOf(DateTime.now()).year;
+    if (!_english) {
+      return _lead(
+        (thisYear ? DateFormat.MMMMEEEEd() : DateFormat.yMMMMEEEEd()).format(
+          date,
+        ),
+      );
+    }
+    return DateFormat(
+      thisYear ? 'EEEE, d MMMM' : 'EEEE, d MMMM yyyy',
+    ).format(date);
   }
 
   /// Whether times are written on a 24-hour clock — what Settings says, or
@@ -105,10 +119,10 @@ class Dates {
   static String time(DateTime date, {bool? h24}) =>
       DateFormat((h24 ?? use24Hour) ? 'HH:mm' : 'h:mm a').format(date);
 
-  /// "Sep 23" — compact enough for a hint or a chip. "2 нояб." in Russian,
-  /// which puts the day first.
+  /// "Sep 23" — compact enough for a hint or a chip; "2 нояб.", "2. Nov."
+  /// in languages that put the day first.
   static String shortDay(DateTime date) =>
-      DateFormat(_ru ? 'd MMM' : 'MMM d').format(date);
+      (_english ? DateFormat('MMM d') : DateFormat.MMMd()).format(date);
 
   /// "Wednesday" — the weekday spelled out beside a big day number.
   static String weekdayLong(DateTime date) =>
