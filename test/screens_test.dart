@@ -442,6 +442,21 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('one drag goes one state along and no further', (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    double height() => tester.getSize(find.byType(MonthGrid).first).height;
+    final month = height();
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(height(), lessThan(month / 3));
+
+    // From the week, a pull long enough to open the month out stops at it.
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, 900));
+    await tester.pumpAndSettle();
+    expect(height(), closeTo(month, 1));
+    await drainDatabase(tester);
+  });
+
   testWidgets('an empty day can be pulled on anywhere to move the month', (
     tester,
   ) async {

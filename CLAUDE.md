@@ -73,7 +73,9 @@ Changing them back will be noticed.
   the week could only be reached by dragging.
 - **A drag a fifth of the way towards the next state commits to it**, and the
   snap carries the drag's own speed, not a fixed ease from a standstill.
-  Pulling the whole way was never the point. **The snap is a glide, not a
+  Pulling the whole way was never the point. **One drag goes one state along
+  and no further** (`_dragBy` clamps to either side of where it started): a
+  long pull from the week used to run on through the month and open it out. **The snap is a glide, not a
   spring** (`_Glide`): a cubic that starts at the finger's speed and stops
   dead on the state at a set time — 460ms for a whole step, down to half
   that for a short remainder — and never overshoots. A flick sets its
@@ -130,7 +132,18 @@ Changing them back will be noticed.
 - **Collapsing to the week slides the grid past a shrinking window**; every
   week keeps its full-month height and the selected one is where the window is
   left sitting. Shrinking the rows themselves made the numbers close in on each
-  other and read as a glitch.
+  other and read as a glitch. **Each row is carried from its place in the
+  month to its place in the week, and the week's row is a fifth taller than a
+  month's** (`MonthLayout.weekScale`), so the rows below the selected one draw
+  apart from it and stay behind as the day panel comes over them. All of it
+  moving up as one block at a row's height looked, for a week mid-month, as
+  if the grid trailed the panel — "laggy when the date is not in the first or
+  last row" (frame times were the same for every row: it was the motion).
+  Matched to a recording of another calendar the user supplied, measured
+  frame by frame: its week row is 79–82 points to its month rows' 68, and its
+  rows' positions there fit this interpolation. Holding the selected week
+  still until the closing edge reached it, then letting the edge carry it,
+  was tried before this and rejected.
 - **Picking a day in the opened month opens it as a card on top** (`day_sheet`)
   rather than collapsing the calendar to make room — the tap was made from that
   view, so it should still be there underneath. The card gives the keyboard its
@@ -820,7 +833,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 122 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 124 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

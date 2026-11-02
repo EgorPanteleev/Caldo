@@ -183,30 +183,31 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// The day panel pulling past one of its ends, in pixels. Positive means
   /// the finger is going down, which is the direction that opens the month —
   /// the same sign the grid's own drag uses.
-  void _onPull(double delta) {
-    final value = _expansion.value;
-    final range = value > 0 || (value == 0 && delta > 0)
-        ? _rangeUp
-        : _rangeDown;
-    _expansion.value += delta / range;
-  }
+  void _onPull(double delta) => _dragBy(delta);
 
   void _onPullStart() => _dragFrom = _expansion.value.roundToDouble();
 
   void _onPullEnd() => _onDragEnd(DragEndDetails());
 
-  void _onDrag(DragUpdateDetails details) {
+  void _onDrag(DragUpdateDetails details) => _dragBy(details.primaryDelta!);
+
+  /// Moves the grid by [delta] pixels of drag.
+  void _dragBy(double delta) {
     // Pulling down opens the month out, pushing up squeezes it to a week;
     // the two directions cover different distances. Exactly at the compact
     // month it is the direction of travel that says which range applies —
     // reading the value alone made an upward drag from 0 move by the opened
     // month's range and jump.
     final value = _expansion.value;
-    final delta = details.primaryDelta!;
     final range = value > 0 || (value == 0 && delta > 0)
         ? _rangeUp
         : _rangeDown;
-    _expansion.value += delta / range;
+    // One drag reaches the next state and no further: from the week a
+    // single long pull used to run on through the month and open it out.
+    _expansion.value = (value + delta / range).clamp(
+      _dragFrom - 1,
+      _dragFrom + 1,
+    );
   }
 
   /// How far into the next state a drag has to reach before it counts as
@@ -639,7 +640,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                           // number, without taking the list's half of the screen.
                           final month = (available * 0.52).clamp(240.0, 340.0);
                           final rows = _rowsOf(shownMonth, mondayFirst);
-                          final week = month / rows;
+                          final week = month / rows * MonthLayout.weekScale;
                           final opened = available - _handleHeight;
                           _rangeUp = (opened - month).clamp(
                             1.0,

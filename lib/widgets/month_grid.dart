@@ -110,15 +110,31 @@ class MonthLayout {
     return index >= 0 && index < rows * 7 ? index ~/ 7 : 0;
   }();
 
-  // Squeezing the month down to a week slides the whole grid past a
-  // shrinking window instead of squashing the rows, so the row height is
-  // read back out of the window's: at rest that is a rows-th of it, and at
-  // the end of the collapse the whole of it.
-  late final double rowHeight =
-      size.height / (rows - weekCollapse * (rows - 1));
+  /// How much taller the week view's one row is than a row of the compact
+  /// month.
+  ///
+  /// Every row is carried from its place in the month to its place in the
+  /// week, and the week's rows are this much taller, so as the month closes
+  /// the rows below the selected one draw apart from it and stay behind
+  /// while the day panel comes up over them. All moving up as one block at
+  /// one row's height, a week in the middle of the month looked as if it
+  /// were trailing the panel — "laggy when the date is not in the first or
+  /// last row". Measured off the calendar this was matched to: its week row
+  /// is 79–82 points where its month rows are 68.
+  static const weekScale = 1.2;
 
-  /// How far the rows have slid up past the top of the window.
-  late final double travel = selectedRow * rowHeight * weekCollapse;
+  /// A compact month row's height, read back out of the window's: the window
+  /// runs from a rows-th of it to [weekScale] of it as the month closes.
+  late final double _monthRow =
+      size.height / (rows * (1 - weekCollapse) + weekScale * weekCollapse);
+
+  /// Every row's height now, from the month's to the week's.
+  late final double rowHeight =
+      _monthRow * (1 - weekCollapse + weekScale * weekCollapse);
+
+  /// How far the rows have slid up past the top of the window: what puts
+  /// the selected row, at the end, at the top of it.
+  late final double travel = selectedRow * _monthRow * weekScale * weekCollapse;
 
   double get _cellWidth => (size.width - 2 * inset) / 7;
 

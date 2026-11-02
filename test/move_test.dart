@@ -130,5 +130,28 @@ void main() {
       expect(l.rectOf(DateTime(2026, 10, 19))!.top, 0);
       expect(l.rectOf(DateTime(2026, 10, 26))!.top, 250);
     });
+
+    test('closing to the week, each row is carried to its place in it', () {
+      // Five rows of 50 close to one week row a fifth taller, the 19th's.
+      const week = 50 * MonthLayout.weekScale;
+      MonthLayout at(double collapse) => MonthLayout(
+        month: DateTime(2026, 10),
+        mondayFirst: true,
+        selected: DateTime(2026, 10, 19),
+        weekCollapse: collapse,
+        size: Size(316, 250 + (week - 250) * collapse),
+      );
+      double top(MonthLayout l, int day) =>
+          l.rectOf(DateTime(2026, 10, day))!.top;
+      // Halfway, every row is halfway between where it was in the month and
+      // where it goes in the week — so the 26th, below the selected row,
+      // has drawn apart from it.
+      final half = at(0.5);
+      expect(top(half, 19), closeTo(150 / 2, 1e-9));
+      expect(top(half, 26), closeTo((200 + week) / 2, 1e-9));
+      expect(top(half, 26) - top(half, 19), greaterThan(50));
+      expect(at(1).rowHeight, closeTo(week, 1e-9));
+      expect(top(at(1), 19), closeTo(0, 1e-9));
+    });
   });
 }
