@@ -7,4 +7,5 @@
     <string name="widget_nothing">Rien de prévu</string>
     <string name="widget_all_day">Toute la journée</string>
     <string name="widget_new_task">Nouvelle tâche</string>
+    <string name="widget_nothing_today">Rien pour aujourd’hui</string>
 </resources>

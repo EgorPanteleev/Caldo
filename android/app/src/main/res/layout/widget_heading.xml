@@ -3,9 +3,10 @@
     android:id="@+id/widget_heading"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:fontFamily="sans-serif-medium"
+    android:letterSpacing="0.02"
     android:paddingStart="6dp"
-    android:paddingTop="10dp"
+    android:paddingTop="12dp"
     android:paddingBottom="6dp"
     android:textColor="#FF9B9BA1"
-    android:textSize="13sp"
-    android:textStyle="bold"/>
+    android:textSize="12.5sp"/>

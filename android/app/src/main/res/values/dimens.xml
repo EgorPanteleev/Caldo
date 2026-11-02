@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The widget's corners: the launcher's own from Android 12 on, so it
+         sits among the other widgets as one of them. -->
+    <dimen name="widget_radius">24dp</dimen>
+</resources>

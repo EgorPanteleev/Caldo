@@ -2,6 +2,8 @@ package com.igor.caldo
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import android.os.Build
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.format.DateFormat
@@ -28,6 +30,9 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
     private sealed interface Row
 
     private data class Heading(val label: String, val overdue: Boolean) : Row
+
+    /** A quiet line under a day with nothing on it. */
+    private data class Note(val text: String) : Row
 
     private data class Item(
         val id: Long,
@@ -94,6 +99,13 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
                 add(Heading(words.getString(R.string.widget_overdue), overdue = true))
                 addAll(overdue)
             }
+            // Today is said even when it is empty, once there is anything
+            // else to show: a list that opens on Tomorrow under a header
+            // that says Monday leaves today to be guessed at.
+            if (today !in days && (overdue.isNotEmpty() || days.isNotEmpty())) {
+                add(Heading(words.getString(R.string.widget_today), overdue = false))
+                add(Note(words.getString(R.string.widget_nothing_today)))
+            }
             for ((day, items) in days) {
                 val name = when (day) {
                     today -> words.getString(R.string.widget_today)
@@ -114,40 +126,55 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
                 setTextViewText(R.id.widget_heading, row.label)
                 setTextColor(R.id.widget_heading, if (row.overdue) OVERDUE else MUTED)
             }
-            is Item -> item(row)
+            is Note -> RemoteViews(context.packageName, R.layout.widget_note).apply {
+                setTextViewText(R.id.widget_note, row.text)
+            }
+            is Item -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) box(row) else item(row)
             null -> RemoteViews(context.packageName, R.layout.widget_heading)
         }
     }
 
     /**
-     * A task, drawn as the app's card is: inked with its colour over the
-     * ground — a quarter of it, a fourteenth once done — with a tick in the
-     * colour, filled once ticked, and the title crossed out.
+     * A task from Android 12 on, drawn as the app's card is — inked with its
+     * colour, crossed out and sunk once done — with a real checkbox for a
+     * tick. The launcher animates a box's change itself the moment it is
+     * tapped, from the drawable the row carries (`widget_check_*`): the
+     * square fills, then the check is drawn through it. A drawable cannot be
+     * tinted without the check going the same colour, so there is a row
+     * layout per colour, each with its own; `tool/make_widget_ticks.py`
+     * writes them.
      */
-    private fun item(row: Item) = RemoteViews(context.packageName, R.layout.widget_task).apply {
-        setInt(R.id.widget_ink, "setColorFilter", row.colour)
-        setInt(R.id.widget_ink, "setImageAlpha", if (row.done) 18 else 61)
-        setImageViewResource(
+    private fun box(row: Item) = RemoteViews(context.packageName, layoutFor(row.colour)).apply {
+        card(row)
+        setCompoundButtonChecked(R.id.widget_tick, row.done)
+        setOnCheckedChangeResponse(
             R.id.widget_tick,
-            if (row.done) R.drawable.widget_tick_done else R.drawable.widget_tick_open,
+            RemoteViews.RemoteResponse.fromFillInIntent(
+                Intent()
+                    .putExtra(TodayWidget.EXTRA_OP, TodayWidget.OP_TOGGLE)
+                    .putExtra(TodayWidget.EXTRA_TASK, row.id),
+            ),
         )
-        setInt(R.id.widget_tick, "setColorFilter", row.colour)
-        setViewVisibility(R.id.widget_check, if (row.done) View.VISIBLE else View.GONE)
+    }
 
+    /** What every task row has, whichever tick it wears. */
+    private fun RemoteViews.card(row: Item) {
+        setInt(R.id.widget_ink, "setColorFilter", row.colour)
+        setInt(R.id.widget_ink, "setImageAlpha", if (row.done) INK_DONE else INK)
         val title = SpannableString(row.title)
         if (row.done) {
             title.setSpan(StrikethroughSpan(), 0, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         setTextViewText(R.id.widget_title, title)
         setTextColor(R.id.widget_title, if (row.done) FAINT else TEXT)
-        setTextViewText(R.id.widget_time, time(row.minute))
-
-        setOnClickFillInIntent(
-            R.id.widget_tick_area,
-            Intent()
-                .putExtra(TodayWidget.EXTRA_OP, TodayWidget.OP_TOGGLE)
-                .putExtra(TodayWidget.EXTRA_TASK, row.id),
-        )
+        // A time where there is one; "All day" on every untimed card was
+        // the same two words down the whole list.
+        if (row.minute == null) {
+            setViewVisibility(R.id.widget_time, View.GONE)
+        } else {
+            setViewVisibility(R.id.widget_time, View.VISIBLE)
+            setTextViewText(R.id.widget_time, time(row.minute))
+        }
         setOnClickFillInIntent(
             R.id.widget_card,
             Intent()
@@ -156,9 +183,39 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         )
     }
 
+    /** The row layout in the swatch nearest [colour]. */
+    private fun layoutFor(colour: Int): Int {
+        fun distance(a: Int, b: Int): Int {
+            val r = Color.red(a) - Color.red(b)
+            val g = Color.green(a) - Color.green(b)
+            val bl = Color.blue(a) - Color.blue(b)
+            return r * r + g * g + bl * bl
+        }
+        return SWATCHES.minBy { distance(it.key, colour) }.value
+    }
+
+    /**
+     * A task before Android 12, which has no checkbox for a widget: the
+     * tick is an image that changes when the list is next drawn.
+     */
+    private fun item(row: Item) = RemoteViews(context.packageName, R.layout.widget_task).apply {
+        card(row)
+        setImageViewResource(
+            R.id.widget_tick,
+            if (row.done) R.drawable.widget_tick_done else R.drawable.widget_tick_open,
+        )
+        setInt(R.id.widget_tick, "setColorFilter", row.colour)
+        setViewVisibility(R.id.widget_check, if (row.done) View.VISIBLE else View.GONE)
+        setOnClickFillInIntent(
+            R.id.widget_tick_area,
+            Intent()
+                .putExtra(TodayWidget.EXTRA_OP, TodayWidget.OP_TOGGLE)
+                .putExtra(TodayWidget.EXTRA_TASK, row.id),
+        )
+    }
+
     /** On the clock Settings names, or the phone's until one is named. */
-    private fun time(minute: Int?): String {
-        if (minute == null) return words.getString(R.string.widget_all_day)
+    private fun time(minute: Int): String {
         val prefs = TodayWidget.prefs(context)
         val h24 =
             if (prefs.contains(TodayWidget.KEY_24_HOUR)) {
@@ -175,7 +232,8 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
 
     override fun getLoadingView(): RemoteViews? = null
 
-    override fun getViewTypeCount() = 2
+    // A heading, a note, the old tick's row and a row per swatch.
+    override fun getViewTypeCount() = 3 + SWATCHES.size
 
     override fun getItemId(position: Int): Long =
         when (val row = rows.getOrNull(position)) {
@@ -191,5 +249,26 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         const val MUTED = 0xFF9B9BA1.toInt()
         const val FAINT = 0xFF6A6A70.toInt()
         const val OVERDUE = 0xFFE05252.toInt()
+
+        /**
+         * The card's ink, out of 255: a sixth of the task's colour, and a
+         * fifteenth once done. Lighter than the app's quarter — on a
+         * graphite panel rather than true black the same ink came out as
+         * heavy purple bricks.
+         */
+        const val INK = 42
+        const val INK_DONE = 16
+
+        /** `ListStyle`'s swatches, each with its row (see [box]). */
+        val SWATCHES = mapOf(
+            0xFF7B61E8.toInt() to R.layout.widget_task_violet,
+            0xFF3B7DD8.toInt() to R.layout.widget_task_blue,
+            0xFF16A394.toInt() to R.layout.widget_task_teal,
+            0xFF35A06A.toInt() to R.layout.widget_task_green,
+            0xFFD99A2B.toInt() to R.layout.widget_task_amber,
+            0xFFD9528A.toInt() to R.layout.widget_task_pink,
+            0xFF1E94B0.toInt() to R.layout.widget_task_cyan,
+            0xFFDB7A33.toInt() to R.layout.widget_task_orange,
+        )
     }
 }

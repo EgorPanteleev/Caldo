@@ -7,4 +7,5 @@
     <string name="widget_nothing">Niets gepland</string>
     <string name="widget_all_day">Hele dag</string>
     <string name="widget_new_task">Nieuwe taak</string>
+    <string name="widget_nothing_today">Niets meer voor vandaag</string>
 </resources>

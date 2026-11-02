@@ -104,12 +104,19 @@ class Background {
 
   /// A tick on the widget, which takes a tick back as well as making one —
   /// the widget has no Undo, and a second tap is how a slip is put right.
-  static Future<void> toggle(int id) => _change(id, (db, task) async {
-    if (!task.done) return db.complete(task, _now);
-    final reopened = task.reopened();
-    await db.untick(reopened);
-    return reopened;
-  });
+  ///
+  /// [done] is what the widget's box now shows, where it is a box (Android
+  /// 12 on): the task is made to match it rather than turned over, so two
+  /// taps in quick succession end where the box ended, whatever order their
+  /// writes land in.
+  static Future<void> toggle(int id, {bool? done}) =>
+      _change(id, (db, task) async {
+        if (done != null && done == task.done) return task;
+        if (!task.done) return db.complete(task, _now);
+        final reopened = task.reopened();
+        await db.untick(reopened);
+        return reopened;
+      });
 }
 
 /// What a reminder's buttons call, on the notification plugin's own isolate.
@@ -140,8 +147,11 @@ Future<void> widgetMain() async {
   var queue = Future<void>.value();
   channel.setMethodCallHandler((call) {
     final answered = queue.then((_) async {
-      final id = (call.arguments as Map)['id'] as int;
-      if (call.method == 'toggle') await Background.toggle(id);
+      final args = call.arguments as Map;
+      final id = args['id'] as int;
+      if (call.method == 'toggle') {
+        await Background.toggle(id, done: args['done'] as bool?);
+      }
     });
     queue = answered.catchError((Object error, StackTrace stack) {
       debugPrint('Widget ${call.method} failed: $error\n$stack');

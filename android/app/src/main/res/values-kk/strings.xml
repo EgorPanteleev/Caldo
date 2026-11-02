@@ -7,4 +7,5 @@
     <string name="widget_nothing">Ештеңе жоспарланбаған</string>
     <string name="widget_all_day">Күні бойы</string>
     <string name="widget_new_task">Жаңа тапсырма</string>
+    <string name="widget_nothing_today">Бүгінге ештеңе жоқ</string>
 </resources>

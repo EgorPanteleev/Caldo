@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Written by tool/make_widget_ticks.py; edit that, not this. -->
+<!-- A task card in teal: its ink behind, the tick, the title and its time.
+     The outer frame's padding is the gap to the next card. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingBottom="5dp">
+
+    <FrameLayout
+        android:id="@+id/widget_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/widget_ink"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_ink"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="46dp"
+            android:orientation="horizontal"
+            android:paddingEnd="14dp">
+
+            <CheckBox
+                android:id="@+id/widget_tick"
+                android:layout_width="wrap_content"
+                android:layout_height="46dp"
+                android:layout_marginStart="12dp"
+                android:background="@null"
+                android:button="@drawable/widget_check_teal"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingEnd="12dp"/>
+
+            <TextView
+                android:id="@+id/widget_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:paddingTop="9dp"
+                android:paddingBottom="9dp"
+                android:textColor="#FFE9E9EB"
+                android:textSize="14.5sp"/>
+
+            <TextView
+                android:id="@+id/widget_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:textColor="#FF9B9BA1"
+                android:textSize="12.5sp"/>
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

@@ -7,4 +7,5 @@
     <string name="widget_nothing">Нічога не запланавана</string>
     <string name="widget_all_day">Увесь дзень</string>
     <string name="widget_new_task">Новая задача</string>
+    <string name="widget_nothing_today">На сёння нічога</string>
 </resources>

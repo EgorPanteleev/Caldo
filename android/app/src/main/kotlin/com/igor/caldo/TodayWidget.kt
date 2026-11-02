@@ -40,7 +40,17 @@ class TodayWidget : AppWidgetProvider() {
                 val id = intent.getLongExtra(EXTRA_TASK, -1)
                 if (id < 0) return
                 when (intent.getStringExtra(EXTRA_OP)) {
-                    OP_TOGGLE -> toggle(context, id)
+                    // The box says what it now is, where it is a box; an
+                    // older phone's tick is a plain tap, and turns over.
+                    OP_TOGGLE -> tick(
+                        context,
+                        id,
+                        if (intent.hasExtra(RemoteViews.EXTRA_CHECKED)) {
+                            intent.getBooleanExtra(RemoteViews.EXTRA_CHECKED, false)
+                        } else {
+                            null
+                        },
+                    )
                     OP_OPEN -> context.startActivity(openApp(context, id))
                 }
             }
@@ -50,24 +60,39 @@ class TodayWidget : AppWidgetProvider() {
     }
 
     /**
-     * Ticks [id] in the copy first, so the tap is answered in the frame it
-     * was made, and then has Dart do it. The receiver is held open until
-     * Dart has finished, or the process could be let go mid-write.
+     * Ticks [id] — or takes the tick back — as [done] says, or turns it
+     * over when the tap does not say.
+     *
+     * The box has already drawn the tick by the time this runs: from
+     * Android 12 it is a checkbox the launcher animates itself, the square
+     * filling and the check drawn through it. What follows waits until that
+     * has played — the copy is changed after [SETTLE], so the card is
+     * crossed out and dimmed once the tick is drawn, rather than the row
+     * being rebuilt under it mid-stroke — and Dart writes the task. The
+     * receiver is held open until Dart has finished, or the process could
+     * be let go mid-write.
      */
-    private fun toggle(context: Context, id: Long) {
-        val prefs = prefs(context)
-        val copy = prefs.getString(KEY, null)
-        if (copy != null) {
-            val json = JSONObject(copy)
-            val tasks = json.getJSONArray("tasks")
-            for (i in 0 until tasks.length()) {
-                val task = tasks.getJSONObject(i)
-                if (task.getLong("id") == id) task.put("done", !task.getBoolean("done"))
-            }
-            prefs.edit().putString(KEY, json.toString()).apply()
-        }
+    private fun tick(context: Context, id: Long, done: Boolean?) {
         val pending = goAsync()
-        Headless.call(context, "toggle", mapOf("id" to id)) { pending.finish() }
+        Handler(Looper.getMainLooper()).postDelayed({ mark(context, id, done) }, SETTLE)
+        val args = buildMap<String, Any> {
+            put("id", id)
+            if (done != null) put("done", done)
+        }
+        Headless.call(context, "toggle", args) { pending.finish() }
+    }
+
+    /** Shows [id] ticked or not in the copy, ahead of Dart's own. */
+    private fun mark(context: Context, id: Long, done: Boolean?) {
+        val prefs = prefs(context)
+        val copy = prefs.getString(KEY, null) ?: return
+        val json = JSONObject(copy)
+        val tasks = json.getJSONArray("tasks")
+        for (i in 0 until tasks.length()) {
+            val task = tasks.getJSONObject(i)
+            if (task.getLong("id") == id) task.put("done", done ?: !task.getBoolean("done"))
+        }
+        prefs.edit().putString(KEY, json.toString()).apply()
     }
 
     companion object {
@@ -77,6 +102,9 @@ class TodayWidget : AppWidgetProvider() {
         const val EXTRA_TASK = "task"
         const val OP_TOGGLE = "toggle"
         const val OP_OPEN = "open"
+
+        /** How long the tick takes to play: the fill, then the stroke. */
+        const val SETTLE = 320L
 
         /** Read by [MainActivity]: the task a tap asked to have opened. */
         const val EXTRA_OPEN_TASK = "caldo.open_task"
@@ -136,16 +164,23 @@ class TodayWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_today)
             val now = Calendar.getInstance().time
             val locale = language(context)
+            // A calendar's face: the number large, the weekday and the month
+            // beside it — the month standing alone, "November" or "Ноябрь",
+            // not the form it takes after a number.
+            views.setTextViewText(
+                R.id.widget_day,
+                SimpleDateFormat("d", locale).format(now),
+            )
             views.setTextViewText(
                 R.id.widget_weekday,
                 capitalised(SimpleDateFormat("EEEE", locale).format(now), locale),
             )
             views.setTextViewText(
                 R.id.widget_date,
-                SimpleDateFormat(pattern(locale, "dMMMM", "d MMMM"), locale).format(now),
+                capitalised(SimpleDateFormat("LLLL", locale).format(now), locale),
             )
             views.setTextViewText(
-                R.id.widget_empty,
+                R.id.widget_empty_text,
                 speaking(context, locale).getString(R.string.widget_nothing),
             )
             // The data URI tells one widget's list apart from another's;
