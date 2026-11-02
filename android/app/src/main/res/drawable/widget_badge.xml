@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The badge a day's word is written on: the text colour, as a light pill. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFE9E9EB"/>
+    <corners android:radius="9dp"/>
+</shape>

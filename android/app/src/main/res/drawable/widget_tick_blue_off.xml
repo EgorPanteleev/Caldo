@@ -10,17 +10,11 @@
         android:pathData="M7,0.9 H17 A6.1,6.1 0 0 1 23.1,7 V17 A6.1,6.1 0 0 1 17,23.1 H7 A6.1,6.1 0 0 1 0.9,17 V7 A6.1,6.1 0 0 1 7,0.9 Z"
         android:strokeColor="#3B7DD8"
         android:strokeWidth="1.8"/>
-    <group
+    <path
         android:name="fill"
-        android:pivotX="12"
-        android:pivotY="12"
-        android:scaleX="0"
-        android:scaleY="0">
-        <path
-            android:name="box"
-            android:pathData="M7,0 H17 A7,7 0 0 1 24,7 V17 A7,7 0 0 1 17,24 H7 A7,7 0 0 1 0,17 V7 A7,7 0 0 1 7,0 Z"
-            android:fillColor="#3B7DD8"/>
-    </group>
+        android:pathData="M7,0 H17 A7,7 0 0 1 24,7 V17 A7,7 0 0 1 17,24 H7 A7,7 0 0 1 0,17 V7 A7,7 0 0 1 7,0 Z"
+        android:fillAlpha="0"
+        android:fillColor="#3B7DD8"/>
     <path
         android:name="check"
         android:pathData="M6.24,12.48 L10.56,16.8 L18.24,7.68"

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Wat te laat is en wat eraan komt, af te vinken vanaf het startscherm</string>
+    <string name="widget_schedule">Planning</string>
     <string name="widget_overdue">Te laat</string>
     <string name="widget_today">Vandaag</string>
     <string name="widget_tomorrow">Morgen</string>

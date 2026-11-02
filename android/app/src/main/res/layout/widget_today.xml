@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The widget: a calendar's header — the day's number large, its weekday
-     and month beside it — then the runs of days, fading out at the foot as
-     the list runs on under it. -->
+<!-- The widget: Schedule in small — its title and an add button, then the
+     runs of days, fading out at the foot as the list runs on under it. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -10,7 +9,7 @@
     android:clipToOutline="true"
     android:orientation="vertical"
     android:paddingStart="12dp"
-    android:paddingTop="14dp"
+    android:paddingTop="12dp"
     android:paddingEnd="12dp">
 
     <LinearLayout
@@ -19,52 +18,28 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
-        android:paddingEnd="2dp"
-        android:paddingBottom="6dp">
+        android:paddingStart="4dp">
 
         <TextView
-            android:id="@+id/widget_day"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="sans-serif-medium"
-            android:includeFontPadding="false"
-            android:letterSpacing="-0.03"
-            android:textColor="#FFE9E9EB"
-            android:textSize="34sp"/>
-
-        <LinearLayout
+            android:id="@+id/widget_screen"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
             android:layout_weight="1"
-            android:orientation="vertical">
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:maxLines="1"
+            android:textColor="#FFE9E9EB"
+            android:textSize="21sp"
+            android:textStyle="bold"/>
 
-            <TextView
-                android:id="@+id/widget_weekday"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-medium"
-                android:maxLines="1"
-                android:textColor="#FFE9E9EB"
-                android:textSize="15sp"/>
-
-            <TextView
-                android:id="@+id/widget_date"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:maxLines="1"
-                android:textColor="#FF9B9BA1"
-                android:textSize="12.5sp"/>
-        </LinearLayout>
-
+        <!-- The quick-add button: a plus on the field's grey. -->
         <ImageView
             android:id="@+id/widget_add"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="@drawable/widget_add_ground"
             android:contentDescription="@string/widget_new_task"
-            android:padding="8dp"
+            android:padding="9dp"
             android:src="@drawable/widget_add"/>
     </LinearLayout>
 

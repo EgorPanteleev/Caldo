@@ -46,17 +46,11 @@ def vector(colour, fill, check):
         android:pathData="{OUTLINE}"
         android:strokeColor="{colour}"
         android:strokeWidth="1.8"/>
-    <group
+    <path
         android:name="fill"
-        android:pivotX="12"
-        android:pivotY="12"
-        android:scaleX="{fill}"
-        android:scaleY="{fill}">
-        <path
-            android:name="box"
-            android:pathData="{BOX}"
-            android:fillColor="{colour}"/>
-    </group>
+        android:pathData="{BOX}"
+        android:fillAlpha="{fill}"
+        android:fillColor="{colour}"/>
     <path
         android:name="check"
         android:pathData="{CHECK}"
@@ -102,13 +96,46 @@ def selector(name):
 """
 
 
+# The title and, under it, the time or "All day" — the card's (`TaskCard`),
+# and the same in the row before Android 12 (layout/widget_task.xml).
+TEXT = """            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp">
+
+                <TextView
+                    android:id="@+id/widget_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="2"
+                    android:textColor="#FFE9E9EB"
+                    android:textSize="15.5sp"/>
+
+                <TextView
+                    android:id="@+id/widget_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FF9B9BA1"
+                    android:textSize="12.5sp"/>
+            </LinearLayout>"""
+
+
 def row(name):
-    return HEADER + f"""<!-- A task card in {name}: its ink behind, the tick, the title and its time.
-     The outer frame's padding is the gap to the next card. -->
+    return HEADER + f"""<!-- A task card in {name}, as Schedule draws one: its ink behind, the tick,
+     the title and under it the time or "All day". The outer frame's padding
+     is the gap to the next card. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingBottom="5dp">
+    android:paddingBottom="8dp">
 
     <FrameLayout
         android:id="@+id/widget_card"
@@ -126,50 +153,33 @@ def row(name):
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:minHeight="46dp"
             android:orientation="horizontal"
             android:paddingEnd="14dp">
 
+            <!-- As tall as the card, so the tick is easy to hit without the
+                 rest of the card being taken for it. -->
             <CheckBox
                 android:id="@+id/widget_tick"
                 android:layout_width="wrap_content"
-                android:layout_height="46dp"
-                android:layout_marginStart="12dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
                 android:background="@null"
                 android:button="@drawable/widget_check_{name}"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:paddingEnd="12dp"/>
+                android:paddingEnd="14dp"/>
 
-            <TextView
-                android:id="@+id/widget_title"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:paddingTop="9dp"
-                android:paddingBottom="9dp"
-                android:textColor="#FFE9E9EB"
-                android:textSize="14.5sp"/>
-
-            <TextView
-                android:id="@+id/widget_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:textColor="#FF9B9BA1"
-                android:textSize="12.5sp"/>
+{TEXT}
         </LinearLayout>
     </FrameLayout>
 </FrameLayout>
 """
 
 
-def animator(prop, start, end, duration, delay=0):
+def animator(prop, start, end, duration, curve, delay=0):
     return HEADER + f"""<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
     android:duration="{duration}"
-    android:interpolator="@android:interpolator/fast_out_slow_in"
+    android:interpolator="@android:interpolator/{curve}"
     android:propertyName="{prop}"
     android:startOffset="{delay}"
     android:valueFrom="{start}"
@@ -186,22 +196,15 @@ def write(folder, name, text):
 
 
 def main():
-    # The square fills first and the stroke follows it in (`_Tick`): the
-    # fill over 180ms, the check from 70ms for 200ms. Taken back, it goes
-    # quicker, as a correction should.
-    scale = '<set xmlns:android="http://schemas.android.com/apk/res/android">\n{}\n</set>\n'
-
-    def scale_set(start, end, duration):
-        inner = []
-        for axis in ("scaleX", "scaleY"):
-            text = animator(axis, start, end, duration).replace(HEADER, "")
-            inner.append(text.strip())
-        return HEADER + scale.format("\n".join(inner))
-
-    write("animator", "widget_tick_fill_in.xml", scale_set(0, 1, 180))
-    write("animator", "widget_tick_fill_out.xml", scale_set(1, 0, 140))
-    write("animator", "widget_tick_check_in.xml", animator("trimPathEnd", 0, 1, 200, 70))
-    write("animator", "widget_tick_check_out.xml", animator("trimPathEnd", 1, 0, 100))
+    # The card's own timings (`_Tick`, `_settle`): the square's colour comes
+    # up over 240ms, easing out, and the check is drawn through it from a
+    # quarter of the way in, over the rest. It was a fill scaled out from the
+    # middle in 180ms, which was not what the app does and read as a blink.
+    # Taken back, it runs the same backwards in 110ms, as a correction should.
+    write("animator", "widget_tick_fill_in.xml", animator("fillAlpha", 0, 1, 240, "decelerate_quad"))
+    write("animator", "widget_tick_fill_out.xml", animator("fillAlpha", 1, 0, 110, "accelerate_quad"))
+    write("animator", "widget_tick_check_in.xml", animator("trimPathEnd", 0, 1, 180, "decelerate_cubic", 60))
+    write("animator", "widget_tick_check_out.xml", animator("trimPathEnd", 1, 0, 83, "accelerate_cubic"))
 
     for name, colour in SWATCHES.items():
         write("drawable", f"widget_tick_{name}_on.xml", vector(colour, 1, 1))

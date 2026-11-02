@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Пратэрмінаванае і будучае — адзначайце проста з галоўнага экрана</string>
+    <string name="widget_schedule">Расклад</string>
     <string name="widget_overdue">Пратэрмінавана</string>
     <string name="widget_today">Сёння</string>
     <string name="widget_tomorrow">Заўтра</string>

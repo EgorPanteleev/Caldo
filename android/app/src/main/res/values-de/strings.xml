@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Überfälliges und Kommendes – direkt vom Startbildschirm abhaken</string>
+    <string name="widget_schedule">Zeitplan</string>
     <string name="widget_overdue">Überfällig</string>
     <string name="widget_today">Heute</string>
     <string name="widget_tomorrow">Morgen</string>

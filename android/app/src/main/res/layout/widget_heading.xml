@@ -1,12 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_heading"
+<!-- A run's heading, as Schedule writes it (`DayHeader`): a day the reader
+     has a word for wears it on a badge, with the date beside it; Overdue is
+     a red badge alone, and any other day its date alone. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:fontFamily="sans-serif-medium"
-    android:letterSpacing="0.02"
-    android:paddingStart="6dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="6dp"
-    android:textColor="#FF9B9BA1"
-    android:textSize="12.5sp"/>
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="4dp"
+    android:paddingTop="16dp"
+    android:paddingBottom="10dp">
+
+    <TextView
+        android:id="@+id/widget_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/widget_badge"
+        android:fontFamily="sans-serif"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:paddingStart="10dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="5dp"
+        android:textColor="#FF000000"
+        android:textSize="13.5sp"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/widget_heading"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="1"
+        android:textColor="#FFE9E9EB"
+        android:textSize="14.5sp"/>
+</LinearLayout>

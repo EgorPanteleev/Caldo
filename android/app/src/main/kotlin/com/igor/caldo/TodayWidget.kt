@@ -13,7 +13,6 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.RemoteViews
 import org.json.JSONObject
-import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
@@ -63,23 +62,31 @@ class TodayWidget : AppWidgetProvider() {
      * Ticks [id] — or takes the tick back — as [done] says, or turns it
      * over when the tap does not say.
      *
-     * The box has already drawn the tick by the time this runs: from
-     * Android 12 it is a checkbox the launcher animates itself, the square
-     * filling and the check drawn through it. What follows waits until that
-     * has played — the copy is changed after [SETTLE], so the card is
-     * crossed out and dimmed once the tick is drawn, rather than the row
-     * being rebuilt under it mid-stroke — and Dart writes the task. The
+     * Played as the app's card plays it. From Android 12 the box is a
+     * checkbox the launcher animates itself the moment it is tapped, the
+     * square filling and the check drawn through it; [SETTLE] after the tap
+     * — the tick and then a beat — the copy is changed and the card is
+     * crossed out; [HOLD] after that Dart writes the task, and its copy puts
+     * the card at the end of its day. Taking a tick back goes at once.
+     *
+     * Dart is held back as well as the copy: a warm engine wrote the task
+     * and its copy within a few tens of milliseconds, the row was rebuilt
+     * under the tick before its square had filled, and a tick that was a
+     * quarter of a second in the app was a blink on the home screen. The
      * receiver is held open until Dart has finished, or the process could
      * be let go mid-write.
      */
     private fun tick(context: Context, id: Long, done: Boolean?) {
         val pending = goAsync()
-        Handler(Looper.getMainLooper()).postDelayed({ mark(context, id, done) }, SETTLE)
+        val settle = if (done == false) UNSETTLE else SETTLE
+        val hold = if (done == false) 0L else HOLD
+        val main = Handler(Looper.getMainLooper())
+        main.postDelayed({ mark(context, id, done) }, settle)
         val args = buildMap<String, Any> {
             put("id", id)
             if (done != null) put("done", done)
         }
-        Headless.call(context, "toggle", args) { pending.finish() }
+        main.postDelayed({ Headless.call(context, "toggle", args) { pending.finish() } }, settle + hold)
     }
 
     /** Shows [id] ticked or not in the copy, ahead of Dart's own. */
@@ -103,8 +110,17 @@ class TodayWidget : AppWidgetProvider() {
         const val OP_TOGGLE = "toggle"
         const val OP_OPEN = "open"
 
-        /** How long the tick takes to play: the fill, then the stroke. */
-        const val SETTLE = 320L
+        /**
+         * From the tap to the card being crossed out: the tick drawn, then
+         * a beat (`TaskProvider.settle` and `linger`).
+         */
+        const val SETTLE = 490L
+
+        /** How long a tick takes to come off (`_Tick`'s reverse). */
+        const val UNSETTLE = 110L
+
+        /** From crossed out to moving to the end of its day (`TaskProvider.hold`). */
+        const val HOLD = 150L
 
         /** Read by [MainActivity]: the task a tap asked to have opened. */
         const val EXTRA_OPEN_TASK = "caldo.open_task"
@@ -162,27 +178,9 @@ class TodayWidget : AppWidgetProvider() {
 
         private fun views(context: Context, widgetId: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_today)
-            val now = Calendar.getInstance().time
-            val locale = language(context)
-            // A calendar's face: the number large, the weekday and the month
-            // beside it — the month standing alone, "November" or "Ноябрь",
-            // not the form it takes after a number.
-            views.setTextViewText(
-                R.id.widget_day,
-                SimpleDateFormat("d", locale).format(now),
-            )
-            views.setTextViewText(
-                R.id.widget_weekday,
-                capitalised(SimpleDateFormat("EEEE", locale).format(now), locale),
-            )
-            views.setTextViewText(
-                R.id.widget_date,
-                capitalised(SimpleDateFormat("LLLL", locale).format(now), locale),
-            )
-            views.setTextViewText(
-                R.id.widget_empty_text,
-                speaking(context, locale).getString(R.string.widget_nothing),
-            )
+            val words = speaking(context, language(context))
+            views.setTextViewText(R.id.widget_screen, words.getString(R.string.widget_schedule))
+            views.setTextViewText(R.id.widget_empty_text, words.getString(R.string.widget_nothing))
             // The data URI tells one widget's list apart from another's;
             // without it Android hands every widget the first one's factory.
             val adapter = Intent(context, TodayWidgetService::class.java).apply {

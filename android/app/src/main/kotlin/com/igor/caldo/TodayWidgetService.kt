@@ -29,7 +29,11 @@ class TodayWidgetService : RemoteViewsService() {
 private class Rows(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
     private sealed interface Row
 
-    private data class Heading(val label: String, val overdue: Boolean) : Row
+    /**
+     * A run's heading as Schedule writes it (`DayHeader`): [word] on a
+     * badge — Today, Tomorrow, Overdue — and [date] beside it.
+     */
+    private data class Heading(val word: String?, val date: String?, val overdue: Boolean) : Row
 
     /** A quiet line under a day with nothing on it. */
     private data class Note(val text: String) : Row
@@ -40,6 +44,8 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         val minute: Int?,
         val done: Boolean,
         val colour: Int,
+        /** Its time written in red, as the app writes an overdue task's. */
+        val late: Boolean,
     ) : Row
 
     private var rows: List<Row> = emptyList()
@@ -62,7 +68,9 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         words = TodayWidget.speaking(context, locale)
         val showDone = prefs.getBoolean(TodayWidget.KEY_SHOW_DONE, true)
         val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val today = iso.format(Calendar.getInstance().time)
+        val now = Calendar.getInstance()
+        val today = iso.format(now.time)
+        val minuteNow = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         val tomorrow = iso.format(
             Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, 1) }.time,
         )
@@ -75,14 +83,18 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         val tasks = JSONObject(copy).getJSONArray("tasks")
         for (i in 0 until tasks.length()) {
             val task = tasks.getJSONObject(i)
+            val day = task.getString("day")
+            val minute = if (task.isNull("time")) null else task.getInt("time")
+            val done = task.getBoolean("done")
             val item = Item(
                 id = task.getLong("id"),
                 title = task.getString("title"),
-                minute = if (task.isNull("time")) null else task.getInt("time"),
-                done = task.getBoolean("done"),
+                minute = minute,
+                done = done,
                 colour = task.getLong("colour").toInt(),
+                // `Task.isOverdue`: an earlier day, or a time today gone by.
+                late = !done && (day < today || (day == today && minute != null && minute < minuteNow)),
             )
-            val day = task.getString("day")
             when {
                 day < today -> if (!item.done) overdue.add(item)
                 item.done && !showDone -> {}
@@ -90,29 +102,33 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
             }
         }
 
-        val label = SimpleDateFormat(
-            TodayWidget.pattern(locale, "EEEdMMM", "EEE, d MMM"),
+        // "Sat, 4 Oct", and the year as well when it is not this one, as
+        // `Dates.dayDate` writes it.
+        val label = SimpleDateFormat(TodayWidget.pattern(locale, "EEEdMMM", "EEE, d MMM"), locale)
+        val labelYear = SimpleDateFormat(TodayWidget.pattern(locale, "yEEEdMMM", "EEE, d MMM yyyy"), locale)
+        fun date(day: String) = TodayWidget.capitalised(
+            (if (day.take(4) == today.take(4)) label else labelYear).format(iso.parse(day)!!),
             locale,
         )
         rows = buildList {
             if (overdue.isNotEmpty()) {
-                add(Heading(words.getString(R.string.widget_overdue), overdue = true))
+                add(Heading(words.getString(R.string.widget_overdue), null, overdue = true))
                 addAll(overdue)
             }
             // Today is said even when it is empty, once there is anything
-            // else to show: a list that opens on Tomorrow under a header
-            // that says Monday leaves today to be guessed at.
+            // else to show: a list that opens on Tomorrow leaves today to be
+            // guessed at.
             if (today !in days && (overdue.isNotEmpty() || days.isNotEmpty())) {
-                add(Heading(words.getString(R.string.widget_today), overdue = false))
+                add(Heading(words.getString(R.string.widget_today), date(today), overdue = false))
                 add(Note(words.getString(R.string.widget_nothing_today)))
             }
             for ((day, items) in days) {
-                val name = when (day) {
+                val word = when (day) {
                     today -> words.getString(R.string.widget_today)
                     tomorrow -> words.getString(R.string.widget_tomorrow)
-                    else -> TodayWidget.capitalised(label.format(iso.parse(day)!!), locale)
+                    else -> null
                 }
-                add(Heading(name, overdue = false))
+                add(Heading(word, date(day), overdue = false))
                 addAll(items)
             }
         }
@@ -123,8 +139,20 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
     override fun getViewAt(position: Int): RemoteViews {
         return when (val row = rows.getOrNull(position)) {
             is Heading -> RemoteViews(context.packageName, R.layout.widget_heading).apply {
-                setTextViewText(R.id.widget_heading, row.label)
-                setTextColor(R.id.widget_heading, if (row.overdue) OVERDUE else MUTED)
+                if (row.word == null) {
+                    setViewVisibility(R.id.widget_badge, View.GONE)
+                } else {
+                    setViewVisibility(R.id.widget_badge, View.VISIBLE)
+                    setTextViewText(R.id.widget_badge, row.word)
+                    setInt(
+                        R.id.widget_badge,
+                        "setBackgroundResource",
+                        if (row.overdue) R.drawable.widget_badge_overdue else R.drawable.widget_badge,
+                    )
+                    setTextColor(R.id.widget_badge, if (row.overdue) Color.WHITE else Color.BLACK)
+                }
+                setViewVisibility(R.id.widget_heading, if (row.date == null) View.GONE else View.VISIBLE)
+                setTextViewText(R.id.widget_heading, row.date ?: "")
             }
             is Note -> RemoteViews(context.packageName, R.layout.widget_note).apply {
                 setTextViewText(R.id.widget_note, row.text)
@@ -167,14 +195,11 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         }
         setTextViewText(R.id.widget_title, title)
         setTextColor(R.id.widget_title, if (row.done) FAINT else TEXT)
-        // A time where there is one; "All day" on every untimed card was
-        // the same two words down the whole list.
-        if (row.minute == null) {
-            setViewVisibility(R.id.widget_time, View.GONE)
-        } else {
-            setViewVisibility(R.id.widget_time, View.VISIBLE)
-            setTextViewText(R.id.widget_time, time(row.minute))
-        }
+        setTextViewText(
+            R.id.widget_time,
+            if (row.minute == null) words.getString(R.string.widget_all_day) else time(row.minute),
+        )
+        setTextColor(R.id.widget_time, if (row.late) OVERDUE else MUTED)
         setOnClickFillInIntent(
             R.id.widget_card,
             Intent()
@@ -251,13 +276,11 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         const val OVERDUE = 0xFFE05252.toInt()
 
         /**
-         * The card's ink, out of 255: a sixth of the task's colour, and a
-         * fifteenth once done. Lighter than the app's quarter — on a
-         * graphite panel rather than true black the same ink came out as
-         * heavy purple bricks.
+         * The card's ink, out of 255, as the app inks it over the same
+         * black: a quarter of the task's colour, and a fourteenth once done.
          */
-        const val INK = 42
-        const val INK_DONE = 16
+        const val INK = 61
+        const val INK_DONE = 18
 
         /** `ListStyle`'s swatches, each with its row (see [box]). */
         val SWATCHES = mapOf(

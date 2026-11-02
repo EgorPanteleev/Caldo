@@ -879,24 +879,31 @@ Changing them back will be noticed.
   A done task in the overdue run leaves the widget, as it leaves the app's
   backlog; the widget has no Undo, so that tick can only be taken back in
   the app.
-  **It looks like a calendar's widget, not the app's screen**: a graphite
-  panel a little see-through rather than the app's true black (on a
-  wallpaper a black slab read as a hole — "ugly"), the launcher's own corner
-  radius, the day's number large with weekday and month beside it, lighter
-  ink on the cards (a sixth of the colour rather than the app's quarter),
-  no "All day" on every untimed card, Today said even when it is empty
-  ("Nothing left for today"), and the list fading out at its foot.
+  **It looks like Schedule, not like a calendar's widget**: the app's true
+  black under the launcher's corners, "Schedule" and the quick-add plus
+  across the top, each run headed as Schedule heads it (a Today/Tomorrow
+  badge with the date beside it, Overdue a red badge), and cards as the app
+  draws them — a quarter of the colour, the title over its time or "All
+  day", an overdue time in red. Today is said even when it is empty
+  ("Nothing left for today"), and the list fades out at its foot. A face of
+  its own came first — a graphite panel, the day's number large, lighter
+  single-line cards — and was "bad … make it like in app".
   **The tick animates** (asked for): from Android 12 each row's tick is a
   real `CheckBox`, which the launcher toggles and animates itself the
-  moment it is tapped — the square fills from its middle, then the check is
-  drawn through it, as on the app's card — from an `animated-selector` of
-  ours. A widget cannot tint a drawable without tinting the white check
+  moment it is tapped, from an `animated-selector` of ours, on the app
+  card's own timings — the square's colour comes up over 240ms and the
+  check is drawn through it from 60ms; off in 110ms. A widget cannot tint a
+  drawable without tinting the white check
   too, so each of `ListStyle`'s eight swatches has its own drawable and its
   own row layout (`layout-v31/widget_task_<swatch>.xml`), written by
   `tool/make_widget_ticks.py`; the row takes the swatch nearest the task's
-  colour. Change a swatch, run the script. The copy is changed only after
-  the tick has played (`TodayWidget.SETTLE`), so the row is not rebuilt
-  under it mid-stroke, and the box's own state is what Dart writes
+  colour. Change a swatch, run the script. **Nothing rebuilds the row
+  until the tick has played**: the copy is crossed out 490ms after the tap
+  (`TodayWidget.SETTLE`, the tick and the app's beat), and only 150ms after
+  that is Dart even asked to write the task (`HOLD`), whose copy puts the
+  card at the end of its day. Dart used to be called at the tap, and a warm
+  engine's copy landed within ~70ms and rebuilt the row before its square
+  had filled — "too fast". The box's own state is what Dart writes
   (`Background.toggle(done:)`), so two quick taps end where the box ended.
   Before Android 12 the tick is the old image, changed on the next redraw.
 

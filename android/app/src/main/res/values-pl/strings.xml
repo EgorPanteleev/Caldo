@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Zaległe i nadchodzące — do odhaczenia prosto z ekranu głównego</string>
+    <string name="widget_schedule">Plan</string>
     <string name="widget_overdue">Zaległe</string>
     <string name="widget_today">Dziś</string>
     <string name="widget_tomorrow">Jutro</string>

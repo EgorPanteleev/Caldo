@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Written by tool/make_widget_ticks.py; edit that, not this. -->
-<!-- A task card in pink: its ink behind, the tick, the title and its time.
-     The outer frame's padding is the gap to the next card. -->
+<!-- A task card in pink, as Schedule draws one: its ink behind, the tick,
+     the title and under it the time or "All day". The outer frame's padding
+     is the gap to the next card. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingBottom="5dp">
+    android:paddingBottom="8dp">
 
     <FrameLayout
         android:id="@+id/widget_card"
@@ -23,40 +24,50 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:minHeight="46dp"
             android:orientation="horizontal"
             android:paddingEnd="14dp">
 
+            <!-- As tall as the card, so the tick is easy to hit without the
+                 rest of the card being taken for it. -->
             <CheckBox
                 android:id="@+id/widget_tick"
                 android:layout_width="wrap_content"
-                android:layout_height="46dp"
-                android:layout_marginStart="12dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
                 android:background="@null"
                 android:button="@drawable/widget_check_pink"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:paddingEnd="12dp"/>
+                android:paddingEnd="14dp"/>
 
-            <TextView
-                android:id="@+id/widget_title"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:paddingTop="9dp"
-                android:paddingBottom="9dp"
-                android:textColor="#FFE9E9EB"
-                android:textSize="14.5sp"/>
+                android:orientation="vertical"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp">
 
-            <TextView
-                android:id="@+id/widget_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:textColor="#FF9B9BA1"
-                android:textSize="12.5sp"/>
+                <TextView
+                    android:id="@+id/widget_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:maxLines="2"
+                    android:textColor="#FFE9E9EB"
+                    android:textSize="15.5sp"/>
+
+                <TextView
+                    android:id="@+id/widget_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FF9B9BA1"
+                    android:textSize="12.5sp"/>
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 </FrameLayout>

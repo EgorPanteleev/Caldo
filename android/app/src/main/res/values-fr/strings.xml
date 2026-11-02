@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Ce qui est en retard et ce qui arrive, à cocher depuis l’écran d’accueil</string>
+    <string name="widget_schedule">Programme</string>
     <string name="widget_overdue">En retard</string>
     <string name="widget_today">Aujourd’hui</string>
     <string name="widget_tomorrow">Demain</string>

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Мерзімі өткендер мен алдағылар — басты экраннан белгілеңіз</string>
+    <string name="widget_schedule">Кесте</string>
     <string name="widget_overdue">Мерзімі өткен</string>
     <string name="widget_today">Бүгін</string>
     <string name="widget_tomorrow">Ертең</string>

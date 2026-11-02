@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Просроченное и предстоящее — отмечайте прямо с главного экрана</string>
+    <string name="widget_schedule">Расписание</string>
     <string name="widget_overdue">Просрочено</string>
     <string name="widget_today">Сегодня</string>
     <string name="widget_tomorrow">Завтра</string>

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Ciò che è in ritardo e ciò che arriva, da spuntare dalla schermata Home</string>
+    <string name="widget_schedule">Agenda</string>
     <string name="widget_overdue">In ritardo</string>
     <string name="widget_today">Oggi</string>
     <string name="widget_tomorrow">Domani</string>
