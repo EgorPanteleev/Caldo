@@ -118,19 +118,7 @@ class MonthLayout {
       size.height / (rows - weekCollapse * (rows - 1));
 
   /// How far the rows have slid up past the top of the window.
-  ///
-  /// The selected week stays where it is until the window's foot reaches it,
-  /// and from there is pushed up by it. Sliding it up at its own steady pace
-  /// instead — a week in the middle of the month moving at half the speed of
-  /// the edge closing in under it — read as the grid lagging behind the day
-  /// panel: "laggy when the date is not in the first or last row". Those two
-  /// rows were the cases where it never showed, since the first never moves
-  /// and the last is carried by the edge from the start, and this is what
-  /// they both already did.
-  late final double travel = math.max(
-    0.0,
-    (selectedRow + 1) * rowHeight - size.height,
-  );
+  late final double travel = selectedRow * rowHeight * weekCollapse;
 
   double get _cellWidth => (size.width - 2 * inset) / 7;
 

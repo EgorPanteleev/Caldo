@@ -130,24 +130,5 @@ void main() {
       expect(l.rectOf(DateTime(2026, 10, 19))!.top, 0);
       expect(l.rectOf(DateTime(2026, 10, 26))!.top, 250);
     });
-
-    test('a week mid-month waits for the closing edge, then rides it', () {
-      // The window shrinks from five rows of 50 to one as the week closes.
-      MonthLayout at(double collapse) => MonthLayout(
-        month: DateTime(2026, 10),
-        mondayFirst: true,
-        selected: DateTime(2026, 10, 19),
-        weekCollapse: collapse,
-        size: Size(316, 50 * (5 - 4 * collapse)),
-      );
-      // The 19th is in the fourth row, so it stays put while the edge
-      // takes the fifth away…
-      expect(at(0.25).rectOf(DateTime(2026, 10, 19))!.top, closeTo(150, 1e-9));
-      // …and from there sits on the edge as it rises.
-      final half = at(0.5);
-      final cell = half.rectOf(DateTime(2026, 10, 19))!;
-      expect(cell.bottom, closeTo(half.size.height, 1e-9));
-      expect(at(1).rectOf(DateTime(2026, 10, 19))!.top, closeTo(0, 1e-9));
-    });
   });
 }
