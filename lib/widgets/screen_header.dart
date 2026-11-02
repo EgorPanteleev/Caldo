@@ -178,3 +178,56 @@ class EmptyState extends StatelessWidget {
     );
   }
 }
+
+/// The date a run of entries belongs to, on Schedule and in the Done log. Written out plainly — it is a date,
+/// not a section, and the uppercase label with a count beside it made a
+/// heading out of something the eye should pass straight over.
+///
+/// A day the reader has a word for — today, tomorrow, yesterday — wears it on
+/// a badge, with the date itself written beside it. The word alone replaced
+/// the date, so the one day most likely to be looked up was the one day not
+/// written down.
+class DayHeader extends StatelessWidget {
+  final String? word;
+  final String? label;
+  final Color? color;
+
+  const DayHeader({super.key, this.word, this.label, this.color})
+    : assert(word != null || label != null);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final style = TextStyle(
+      color: color ?? p.text,
+      fontSize: 14.5,
+      fontWeight: FontWeight.w600,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+      child: Row(
+        children: [
+          if (word != null)
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 5),
+              decoration: BoxDecoration(
+                color: color ?? p.text,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                word!,
+                style: style.copyWith(
+                  color: color == null ? p.bg : Colors.white,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                ),
+              ),
+            ),
+          if (word != null && label != null) const SizedBox(width: 10),
+          if (label != null) Text(label!, style: style),
+        ],
+      ),
+    );
+  }
+}

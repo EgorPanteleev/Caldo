@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../models/completion.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 
@@ -11,9 +12,10 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 5;
+  static const _dbVersion = 6;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
+  static const _completions = 'completions';
 
   Database? _db;
 
@@ -63,6 +65,7 @@ class AppDatabase {
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
         await db.execute('CREATE INDEX idx_tasks_list ON $_tasks (list_id)');
+        await _createCompletions(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -91,7 +94,35 @@ class AppDatabase {
             'ALTER TABLE $_tasks ADD COLUMN snoozed_until INTEGER',
           );
         }
+        if (oldVersion < 6) {
+          // v5 -> a log of ticks, for the Done screen. Started from the
+          // last tick each task remembers: a repeating task's earlier rounds
+          // were never written down, but its latest one was.
+          await _createCompletions(db);
+          await db.execute('''
+            INSERT INTO $_completions
+              (task_id, title, list_id, style_id, done_at)
+            SELECT id, title, list_id, style_id, completed_at
+            FROM $_tasks WHERE completed_at IS NOT NULL
+          ''');
+        }
       },
+    );
+  }
+
+  static Future<void> _createCompletions(Database db) async {
+    await db.execute('''
+      CREATE TABLE $_completions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER,
+        title TEXT NOT NULL,
+        list_id INTEGER NOT NULL DEFAULT 1,
+        style_id TEXT,
+        done_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_completions_at ON $_completions (done_at)',
     );
   }
 
@@ -220,6 +251,64 @@ class AppDatabase {
   Future<void> delete(int id) async {
     final db = await database;
     await db.delete(_tasks, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ---- Ticks ---------------------------------------------------------------
+
+  /// Ticks [task] off at [now] — written back as `Task.completed` makes it —
+  /// and logs the tick. Every way a task is ticked comes through here, so
+  /// the log and the task cannot disagree.
+  Future<Task> complete(Task task, int now) async {
+    final written = task.completed(now);
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+        _tasks,
+        written.toMap(),
+        where: 'id = ?',
+        whereArgs: [task.id],
+      );
+      await txn.insert(_completions, {
+        'task_id': task.id,
+        'title': task.title,
+        'list_id': task.listId,
+        'style_id': task.styleId,
+        'done_at': now,
+      });
+    });
+    return written;
+  }
+
+  /// Writes [task] back as it is given — not ticked, or as it was before a
+  /// tick — and takes that tick out of the log. For a tick taken back and
+  /// for Undo, both of which say the tick never happened.
+  Future<void> untick(Task task) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+        _tasks,
+        task.toMap(),
+        where: 'id = ?',
+        whereArgs: [task.id],
+      );
+      await txn.rawDelete(
+        'DELETE FROM $_completions WHERE id = '
+        '(SELECT MAX(id) FROM $_completions WHERE task_id = ?)',
+        [task.id],
+      );
+    });
+  }
+
+  /// The ticks made since [sinceMs], latest first.
+  Future<List<Completion>> getCompletions(int sinceMs) async {
+    final db = await database;
+    final rows = await db.query(
+      _completions,
+      where: 'done_at >= ?',
+      whereArgs: [sinceMs],
+      orderBy: 'done_at DESC, id DESC',
+    );
+    return rows.map(Completion.fromMap).toList();
   }
 
   /// Removes every completed task.

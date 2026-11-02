@@ -18,14 +18,14 @@ class Dates {
     // 2024-01-01 was a Monday, giving a stable base to read names off.
     final monday = DateTime(2024, 1, 1);
     final names = [
-      for (var i = 0; i < 7; i++) _narrowWeekday(monday.add(Duration(days: i))),
+      for (var i = 0; i < 7; i++) weekdayNarrow(monday.add(Duration(days: i))),
     ];
     return mondayFirst ? names : [names.last, ...names.take(6)];
   }
 
-  /// The one-letter form, falling back to the first letter of the short name
-  /// for locales where the narrow pattern gives something longer.
-  static String _narrowWeekday(DateTime day) {
+  /// The one-letter form — "M" — falling back to the first letter of the
+  /// short name for locales where the narrow pattern gives something longer.
+  static String weekdayNarrow(DateTime day) {
     final narrow = DateFormat('EEEEE').format(day);
     if (Characters(narrow).length == 1) return narrow.toUpperCase();
     return Characters(DateFormat('EEE').format(day)).first.toUpperCase();

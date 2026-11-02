@@ -22,9 +22,9 @@ release is out, and fetching it — see the decision below.
 ```
 lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
-  db/database.dart       schema v5: lists, tasks (+ migrations)
+  db/database.dart       schema v6: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
-                         (ListStyle, colorOfTask)
+                         (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart
   services/reminders.dart  the notification each dated task gets
   services/background.dart a reminder's buttons and the widget's ticks,
@@ -32,7 +32,7 @@ lib/
   services/today_widget.dart  the copy of the agenda the widget draws from
   services/updates.dart  the newer-release check, download and install
   screens/               home (shell + menu), tasks (Schedule), calendar,
-                         search, task_edit, settings
+                         done, search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
@@ -52,8 +52,9 @@ The launcher icon is drawn in SVG under `assets/icon/src` and turned into
 Android's sizes by `tool/make_icon.sh` (needs `rsvg-convert`); the PNGs it
 writes are checked in.
 
-Three destinations — **Schedule**, **Calendar**, **Settings** — in a drawer
-behind the menu button at the top left of each, and nothing else in it.
+Four destinations — **Schedule**, **Calendar**, **Done**, **Settings** — in
+a drawer behind the menu button at the top left of each, and nothing else in
+it. Done came last, asked for as "a Done log or simple stats".
 
 **There are no list screens.** The Lists, list and list-edit screens had been
 unreachable since the folder button went with the Schedule header and Lists
@@ -874,6 +875,22 @@ Changing them back will be noticed.
   A done task in the overdue run leaves the widget, as it leaves the app's
   backlog; the widget has no Undo, so that tick can only be taken back in
   the app.
+
+- **Done is a log of ticks, not a list of done tasks** (`completions`,
+  schema v6, `Completion`, `DoneScreen`). Every tick writes a row with the
+  task's title and colour as they were (`AppDatabase.complete`), and taking
+  a tick back or undoing it removes the latest row for that task
+  (`AppDatabase.untick`) — every tick path goes through those two, the
+  notification's and the widget's included. Read from the tasks instead, a
+  repeating task would count once however often it was done (it rolls on
+  and is never "done"), and clearing completed tasks would empty the log.
+  The v6 migration starts the log from each task's `completed_at`, which is
+  as much history as there was. The screen is three figures — today, this
+  week (from the day Settings starts it on), days in a row (counted up to
+  yesterday while today has nothing yet) — and the last seven days as
+  bars, all neutral, over the ticks day by day, latest first. Its rows are
+  not crossed out: everything there is done. It reads the log only while it
+  is the screen on show (`shown`), since the shell builds all four at once.
 
 - **The icon is Dicty's sibling**: the same graphite rounded square and the
   same two overlapping tiles, here a white calendar page with its rings and

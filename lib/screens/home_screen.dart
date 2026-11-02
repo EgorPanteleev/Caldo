@@ -10,6 +10,7 @@ import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import 'calendar_screen.dart';
+import 'done_screen.dart';
 import 'settings_screen.dart';
 import 'task_edit_screen.dart';
 import 'tasks_screen.dart';
@@ -66,10 +67,16 @@ class _HomeScreenState extends State<HomeScreen>
   late final List<Widget> _pages = [
     TasksScreen(onMenu: _openMenu),
     CalendarScreen(onMenu: _openMenu),
+    DoneScreen(onMenu: _openMenu, shown: _doneShown),
     SettingsScreen(onMenu: _openMenu),
   ];
 
   bool get _isOpen => _menu.value > 0.5;
+
+  /// Whether Done is the screen on show, which is when it reads its log.
+  late final _doneShown = ValueNotifier<bool>(_index == _done);
+
+  static const _done = 2;
 
   /// A release newer than this one, once the check on opening has found it.
   Update? _update;
@@ -107,6 +114,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _menu.dispose();
+    _doneShown.dispose();
     super.dispose();
   }
 
@@ -119,6 +127,7 @@ class _HomeScreenState extends State<HomeScreen>
     _closeMenu();
     if (i == _index) return;
     setState(() => _index = i);
+    _doneShown.value = i == _done;
     final provider = context.read<TaskProvider>();
     if (i == 0) provider.loadTasks();
     if (i == 1) provider.loadMonth(provider.month);
@@ -368,8 +377,9 @@ class _Screen extends StatelessWidget {
   }
 }
 
-/// The drawer behind the menu button: the three screens, the current one
-/// picked out.
+/// The drawer behind the menu button: the screens, the current one picked
+/// out. Done is the fourth, under the two that are about what is still to
+/// come and above Settings: it is a place to look, not a setting.
 class _Menu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelected;
@@ -381,6 +391,7 @@ class _Menu extends StatelessWidget {
     // is what sits on each of the rows inside it.
     _TabItem(Icons.list_alt_outlined, Icons.list_alt, 'Schedule'),
     _TabItem(Icons.calendar_month_outlined, Icons.calendar_month, 'Calendar'),
+    _TabItem(Icons.task_alt_outlined, Icons.task_alt, 'Done'),
     _TabItem(Icons.settings_outlined, Icons.settings, 'Settings'),
   ];
 

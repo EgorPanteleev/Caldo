@@ -142,7 +142,12 @@ class TaskList {
 
 /// The colour a task is drawn in: its own when it has been given one, its
 /// list's otherwise, and [fallback] when it has neither.
-Color colorOfTask(Task task, TaskList? list, {required Color fallback}) {
-  if (task.styleId != null) return ListStyle.byId(task.styleId).color;
+Color colorOfTask(Task task, TaskList? list, {required Color fallback}) =>
+    colorOfStyle(task.styleId, list, fallback: fallback);
+
+/// [colorOfTask] for something that only carries a task's colour, not the
+/// task — a tick in the Done log.
+Color colorOfStyle(String? styleId, TaskList? list, {required Color fallback}) {
+  if (styleId != null) return ListStyle.byId(styleId).color;
   return list?.style.color ?? fallback;
 }

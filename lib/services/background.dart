@@ -57,19 +57,20 @@ class Background {
     await SettingsProvider.prime();
   }
 
-  /// Writes [change] of the task with [id], when there still is one, and
+  /// Has [change] write the task with [id], when there still is one, and
   /// follows it through: its alarm, the widget, and the app if it is open.
-  /// A change that returns the task as it was writes nothing.
-  static Future<void> _change(int id, Task Function(Task) change) async {
+  /// [change] returns the task as it now stands.
+  static Future<void> _change(
+    int id,
+    Future<Task> Function(AppDatabase db, Task task) change,
+  ) async {
     await _prepare();
     final db = AppDatabase.instance;
     final task = await db.getTask(id);
     if (task == null) {
       await Reminders.instance.dismiss(id);
     } else {
-      final changed = change(task);
-      if (!identical(changed, task)) await db.update(changed);
-      await Reminders.instance.reset(changed);
+      await Reminders.instance.reset(await change(db, task));
     }
     final tasks = TaskProvider();
     await tasks.loadLists();
@@ -78,34 +79,35 @@ class Background {
     IsolateNameServer.lookupPortByName(_port)?.send(null);
   }
 
+  static int get _now => DateTime.now().millisecondsSinceEpoch;
+
   /// A reminder's Done: ticks the task off, unless it already is.
   static Future<void> complete(int id) => _change(
     id,
-    (task) => task.done
-        ? task
-        : task.completed(DateTime.now().millisecondsSinceEpoch),
+    (db, task) async => task.done ? task : db.complete(task, _now),
   );
 
   /// A reminder's Snooze: announces the task again [minutes] from now.
-  static Future<void> snooze(int id, int minutes) => _change(
-    id,
-    (task) => task.done
-        ? task
-        : task.copyWith(
-            snoozedUntil: DateTime.now()
-                .add(Duration(minutes: minutes))
-                .millisecondsSinceEpoch,
-          ),
-  );
+  static Future<void> snooze(int id, int minutes) =>
+      _change(id, (db, task) async {
+        if (task.done) return task;
+        final snoozed = task.copyWith(
+          snoozedUntil: DateTime.now()
+              .add(Duration(minutes: minutes))
+              .millisecondsSinceEpoch,
+        );
+        await db.update(snoozed);
+        return snoozed;
+      });
 
   /// A tick on the widget, which takes a tick back as well as making one —
   /// the widget has no Undo, and a second tap is how a slip is put right.
-  static Future<void> toggle(int id) => _change(
-    id,
-    (task) => task.done
-        ? task.reopened()
-        : task.completed(DateTime.now().millisecondsSinceEpoch),
-  );
+  static Future<void> toggle(int id) => _change(id, (db, task) async {
+    if (!task.done) return db.complete(task, _now);
+    final reopened = task.reopened();
+    await db.untick(reopened);
+    return reopened;
+  });
 }
 
 /// What a reminder's buttons call, on the notification plugin's own isolate.

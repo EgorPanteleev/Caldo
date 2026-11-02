@@ -336,7 +336,11 @@ class TaskProvider extends ChangeNotifier {
   Future<void> toggleDone(Task task) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final rolls = task.rollsOn;
-    await _db.update(task.done ? task.reopened() : task.completed(now));
+    if (task.done) {
+      await _db.untick(task.reopened());
+    } else {
+      await _db.complete(task, now);
+    }
 
     final id = task.id;
     final tick = ++_tickCount;
@@ -403,7 +407,8 @@ class TaskProvider extends ChangeNotifier {
     _rolling.remove(id);
     _shownDone.remove(id);
     ticked.value++;
-    await _db.update(original);
+    // The tick being undone comes out of the Done log with it.
+    await _db.untick(original);
     rearranging.value++;
     await _reloadAll();
   }
