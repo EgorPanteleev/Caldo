@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
@@ -111,7 +112,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
                 isDense: true,
                 filled: true,
                 fillColor: p.field,
-                hintText: 'Add task on ${Dates.shortDay(widget.date)}',
+                hintText: S.of(context).addTaskOn(Dates.shortDay(widget.date)),
                 hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 18,
@@ -130,7 +131,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
           _ConfirmButton(
             key: quickAddButtonKey,
             icon: writing ? Icons.check_rounded : Icons.add,
-            tooltip: writing ? 'Add task' : 'New task',
+            tooltip: writing ? S.of(context).addTask : S.of(context).newTask,
             onTap: _press,
           ),
         ],

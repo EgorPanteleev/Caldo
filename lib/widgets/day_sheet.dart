@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../providers/events_provider.dart';
@@ -136,7 +137,9 @@ class _DaySheetState extends State<_DaySheet> {
                             ),
                             const Spacer(),
                             Text(
-                              open == 0 ? 'All clear' : '$open open',
+                              open == 0
+                                  ? S.of(context).allClear
+                                  : S.of(context).openCount(open),
                               style: TextStyle(color: p.faint, fontSize: 12.5),
                             ),
                           ],
@@ -148,14 +151,12 @@ class _DaySheetState extends State<_DaySheet> {
                             // Held to a height of its own: the card sizes to
                             // what is on the day, and a day with nothing on it
                             // should not open the largest card of all.
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 200,
                                 child: EmptyState(
                                   icon: Icons.event_available_outlined,
-                                  title: 'Nothing on this day',
-                                  message:
-                                      'Add one below, or tap the icon '
-                                      'above for the full form.',
+                                  title: S.of(context).nothingOnDay,
+                                  message: S.of(context).addOneBelowOrForm,
                                 ),
                               )
                             : ReorderableTaskList(
@@ -242,7 +243,7 @@ class _Header extends StatelessWidget {
           const Spacer(),
           IconButton(
             icon: Icon(Icons.pending_actions_outlined, color: p.muted),
-            tooltip: 'Add with a full form',
+            tooltip: S.of(context).addWithForm,
             onPressed: onFullForm,
           ),
         ],

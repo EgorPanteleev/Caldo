@@ -27,7 +27,7 @@
                 android:id="@+id/widget_weekday"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Today"
+                android:text="@string/widget_today"
                 android:textColor="#FFE9E9EB"
                 android:textSize="19sp"
                 android:textStyle="bold"/>
@@ -45,7 +45,7 @@
             android:layout_width="38dp"
             android:layout_height="38dp"
             android:background="@drawable/widget_add_ground"
-            android:contentDescription="New task"
+            android:contentDescription="@string/widget_new_task"
             android:padding="9dp"
             android:src="@drawable/widget_add"/>
     </LinearLayout>
@@ -70,7 +70,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center"
-            android:text="Nothing planned"
+            android:text="@string/widget_nothing"
             android:textColor="#FF6A6A70"
             android:textSize="14sp"/>
     </FrameLayout>

@@ -8,6 +8,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart' show TaskProvider, dayOf;
 import '../utils/dates.dart';
@@ -101,10 +102,10 @@ class Reminders {
             AndroidFlutterLocalNotificationsPlugin
           >();
       await android?.createNotificationChannel(
-        const AndroidNotificationChannel(
+        AndroidNotificationChannel(
           _channelId,
-          'Task reminders',
-          description: 'One notification per task, when it is due.',
+          S.current.reminderChannel,
+          description: S.current.reminderChannelHint,
           importance: Importance.high,
         ),
       );
@@ -195,7 +196,7 @@ class Reminders {
           wanted[task.id!] = (
             at,
             task,
-            '${at.toIso8601String()}|${task.title}|$body|$_exact',
+            '${at.toIso8601String()}|${task.title}|$body|$_exact|${S.current.code}',
           );
         }
       }
@@ -262,17 +263,19 @@ class Reminders {
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
-            'Task reminders',
-            channelDescription: 'One notification per task, when it is due.',
+            S.current.reminderChannel,
+            channelDescription: S.current.reminderChannelHint,
             importance: Importance.high,
             priority: fln.Priority.high,
             category: AndroidNotificationCategory.reminder,
             actions: [
-              const AndroidNotificationAction(done, 'Done'),
+              AndroidNotificationAction(done, S.current.reminderDone),
               for (final MapEntry(key: id, value: minutes) in snoozes.entries)
                 AndroidNotificationAction(
                   id,
-                  minutes < 60 ? 'Snooze $minutes min' : 'Snooze 1 hour',
+                  minutes < 60
+                      ? S.current.snoozeMinutes(minutes)
+                      : S.current.snoozeHour,
                 ),
             ],
           ),
@@ -322,19 +325,18 @@ class Reminders {
   static String _body(Task task, DateTime at) {
     final due = task.due;
     if (due == null) return '';
+    final s = S.current;
     final days = dayOf(due).difference(dayOf(at)).inDays;
     final day = switch (days) {
       0 => null,
-      1 => 'tomorrow',
-      -1 => 'yesterday',
+      1 => s.tomorrowInline,
+      -1 => s.yesterdayInline,
       _ => Dates.dayDate(due),
     };
-    if (task.hasTime) {
-      final time = Dates.time(due);
-      final when = day == null ? 'at $time' : '$day at $time';
-      return due.isBefore(at) ? 'Was due $when' : 'Due $when';
-    }
-    if (day == null) return 'Due today';
-    return days < 0 ? 'Was due $day' : 'Due $day';
+    return s.dueLine(
+      day: day,
+      time: task.hasTime ? Dates.time(due) : null,
+      past: task.hasTime ? due.isBefore(at) : days < 0,
+    );
   }
 }

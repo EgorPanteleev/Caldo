@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../theme/app_theme.dart';
@@ -59,7 +60,11 @@ class TaskRow extends StatelessWidget {
     }
     if (task.repeat != Repeat.none) {
       meta.add(
-        _MetaChip(icon: Icons.repeat, label: task.repeat.label, color: p.faint),
+        _MetaChip(
+          icon: Icons.repeat,
+          label: S.of(context).repeatName(task.repeat),
+          color: p.faint,
+        ),
       );
     }
     if (task.subtasks.isNotEmpty) {

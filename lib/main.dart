@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
+import 'l10n/strings.dart';
 import 'providers/events_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/task_provider.dart';
@@ -16,6 +19,8 @@ import 'widgets/theme_switcher.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Every language's month and weekday names, for the dates in Russian.
+  await initializeDateFormatting();
   // Before the first screen, because the first thing a screen does is load its
   // tasks, and loading tasks is what sets the alarms.
   await Reminders.instance.init();
@@ -75,6 +80,14 @@ class CaldoApp extends StatelessWidget {
           theme: AppTheme.light(settings.accent),
           darkTheme: AppTheme.dark(settings.accent),
           themeMode: settings.themeMode,
+          locale: settings.locale,
+          supportedLocales: S.supported,
+          localizationsDelegates: const [
+            S.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           // Theme changes apply instantly; ThemeSwitcher animates the switch
           // as a cross-fade for a perfectly smooth transition.
           themeAnimationDuration: Duration.zero,

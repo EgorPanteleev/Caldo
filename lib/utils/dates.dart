@@ -2,16 +2,35 @@ import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:flutter/widgets.dart' show Characters;
 import 'package:intl/intl.dart';
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart' show dayOf;
 
 /// Date/time formatting shared by the calendar, the agenda and task rows.
+///
+/// In whichever language `S` has in force, which also sets `intl`'s. Russian
+/// writes its weekdays and months in lower case where English capitalises
+/// them, so whatever starts a line is given a capital of its own ([_lead]).
 class Dates {
+  static bool get _ru => S.current.code == 'ru';
+
+  /// [text] with a capital first letter: "пн, 2 нояб." opens a line as
+  /// "Пн, 2 нояб.".
+  static String _lead(String text) => text.isEmpty
+      ? text
+      : Characters(text).first.toUpperCase() + Characters(text).skip(1).string;
+
   /// The calendar's month header: "Oct" while browsing the current year,
-  /// "Oct 2027" once the year is no longer this one.
-  static String monthTitle(DateTime month) => month.year == DateTime.now().year
-      ? DateFormat('MMM').format(month)
-      : DateFormat('MMM yyyy').format(month);
+  /// "Oct 2027" once the year is no longer this one. In Russian the month
+  /// is written in full — "Ноябрь" — since its short form carries a full
+  /// stop, which reads as a typo on a header standing alone.
+  static String monthTitle(DateTime month) {
+    final thisYear = month.year == DateTime.now().year;
+    if (_ru) {
+      return _lead(DateFormat(thisYear ? 'LLLL' : 'LLLL yyyy').format(month));
+    }
+    return DateFormat(thisYear ? 'MMM' : 'MMM yyyy').format(month);
+  }
 
   /// "M", "T", "W", … starting on Monday or Sunday, for the calendar header.
   static List<String> weekdayLabels({required bool mondayFirst}) {
@@ -36,16 +55,7 @@ class Dates {
 
   /// A day, spoken the way a person would: "Today", "Tomorrow", "Sat, 4 Oct",
   /// and with the year once it is no longer the current one.
-  static String day(DateTime date) {
-    final d = dayOf(date);
-    final today = dayOf(DateTime.now());
-    final diff = d.difference(today).inDays;
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Tomorrow';
-    if (diff == -1) return 'Yesterday';
-    final pattern = d.year == today.year ? 'EEE, d MMM' : 'EEE, d MMM yyyy';
-    return DateFormat(pattern).format(d);
-  }
+  static String day(DateTime date) => dayWord(date) ?? dayDate(date);
 
   /// The date alone, with no "Today" standing in for it: "Sat, 4 Oct". The
   /// run of days in Schedule writes both — the word on a badge, the date
@@ -55,7 +65,7 @@ class Dates {
     final pattern = d.year == dayOf(DateTime.now()).year
         ? 'EEE, d MMM'
         : 'EEE, d MMM yyyy';
-    return DateFormat(pattern).format(d);
+    return _lead(DateFormat(pattern).format(d));
   }
 
   /// The word for a day near today — "Today", "Tomorrow", "Yesterday" — or
@@ -63,9 +73,9 @@ class Dates {
   static String? dayWord(DateTime date) {
     final diff = dayOf(date).difference(dayOf(DateTime.now())).inDays;
     return switch (diff) {
-      0 => 'Today',
-      1 => 'Tomorrow',
-      -1 => 'Yesterday',
+      0 => S.current.today,
+      1 => S.current.tomorrow,
+      -1 => S.current.yesterday,
       _ => null,
     };
   }
@@ -76,7 +86,7 @@ class Dates {
     final pattern = date.year == today.year
         ? 'EEEE, d MMMM'
         : 'EEEE, d MMMM yyyy';
-    return DateFormat(pattern).format(date);
+    return _lead(DateFormat(pattern).format(date));
   }
 
   /// Whether times are written on a 24-hour clock — what Settings says, or
@@ -95,11 +105,14 @@ class Dates {
   static String time(DateTime date, {bool? h24}) =>
       DateFormat((h24 ?? use24Hour) ? 'HH:mm' : 'h:mm a').format(date);
 
-  /// "Sep 23" — compact enough for a hint or a chip.
-  static String shortDay(DateTime date) => DateFormat('MMM d').format(date);
+  /// "Sep 23" — compact enough for a hint or a chip. "2 нояб." in Russian,
+  /// which puts the day first.
+  static String shortDay(DateTime date) =>
+      DateFormat(_ru ? 'd MMM' : 'MMM d').format(date);
 
   /// "Wednesday" — the weekday spelled out beside a big day number.
-  static String weekdayLong(DateTime date) => DateFormat('EEEE').format(date);
+  static String weekdayLong(DateTime date) =>
+      _lead(DateFormat('EEEE').format(date));
 
   /// "WED" — the weekday beside a big day number.
   static String weekdayShort(DateTime date) =>
@@ -112,16 +125,13 @@ class Dates {
   /// How far ahead a reminder comes: "at the time", "15 min before",
   /// "1 hour before", "1 day before".
   static String lead(int minutes) {
-    if (minutes <= 0) return 'at the time';
+    final s = S.current;
+    if (minutes <= 0) return s.atTheTime;
     if (minutes % Duration.minutesPerDay == 0) {
-      final days = minutes ~/ Duration.minutesPerDay;
-      return days == 1 ? '1 day before' : '$days days before';
+      return s.daysBefore(minutes ~/ Duration.minutesPerDay);
     }
-    if (minutes % 60 == 0) {
-      final hours = minutes ~/ 60;
-      return hours == 1 ? '1 hour before' : '$hours hours before';
-    }
-    return '$minutes min before';
+    if (minutes % 60 == 0) return s.hoursBefore(minutes ~/ 60);
+    return s.minutesBefore(minutes);
   }
 
   /// How a task's due date reads on its row: "Today 18:30", "Yesterday", "".

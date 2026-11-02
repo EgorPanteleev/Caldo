@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
@@ -63,12 +64,15 @@ class TaskCard extends StatelessWidget {
   /// the list it belongs to: the tick already wears that list's colour, and
   /// under the calendar a day's tasks are usually all from the same one, so
   /// the name was the same word under every card.
-  String _subtitle(bool h24) {
+  String _subtitle(S s, bool h24) {
     final due = task.due;
     final when = due == null
-        ? 'No date'
-        : (task.hasTime ? Dates.time(due, h24: h24) : 'All day');
-    final parts = [when, if (task.repeat != Repeat.none) task.repeat.label];
+        ? s.noDate
+        : (task.hasTime ? Dates.time(due, h24: h24) : s.allDay);
+    final parts = [
+      when,
+      if (task.repeat != Repeat.none) s.repeatName(task.repeat),
+    ];
     return parts.join(' · ');
   }
 
@@ -143,6 +147,7 @@ class TaskCard extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 _subtitle(
+                                  S.of(context),
                                   MediaQuery.alwaysUse24HourFormatOf(context),
                                 ),
                                 maxLines: 1,
@@ -561,7 +566,7 @@ class HolidayCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Public holiday',
+                    S.of(context).publicHoliday,
                     style: TextStyle(color: p.muted, fontSize: 12.5),
                   ),
                 ],
@@ -587,22 +592,25 @@ class EventCard extends StatelessWidget {
 
   const EventCard({super.key, required this.event, required this.day});
 
-  String _when(bool h24) {
-    if (event.allDay) return 'All day';
+  String _when(S s, bool h24) {
+    if (event.allDay) return s.allDay;
     final starts = dayOf(event.start) == day;
     final ends = dayOf(event.end) == day;
     final from = Dates.time(event.start, h24: h24);
     final to = Dates.time(event.end, h24: h24);
     if (starts && ends) return '$from – $to';
-    if (starts) return 'From $from';
-    if (ends) return 'Until $to';
-    return 'All day';
+    if (starts) return s.eventFrom(from);
+    if (ends) return s.eventUntil(to);
+    return s.allDay;
   }
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final when = _when(MediaQuery.alwaysUse24HourFormatOf(context));
+    final when = _when(
+      S.of(context),
+      MediaQuery.alwaysUse24HourFormatOf(context),
+    );
     return Padding(
       padding: TaskCard.margin,
       child: Material(

@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">What is overdue and what is coming, ticked off from the home screen</string>
+    <string name="widget_overdue">Overdue</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_tomorrow">Tomorrow</string>
+    <string name="widget_nothing">Nothing planned</string>
+    <string name="widget_all_day">All day</string>
+    <string name="widget_new_task">New task</string>
 </resources>

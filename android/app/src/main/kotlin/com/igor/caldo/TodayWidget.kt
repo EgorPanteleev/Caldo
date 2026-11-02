@@ -7,6 +7,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -91,6 +92,27 @@ class TodayWidget : AppWidgetProvider() {
 
         fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+        /**
+         * The language the app is speaking, which the copy carries: the
+         * widget is drawn by the launcher in the phone's language, and the
+         * one chosen in Caldo's Settings need not be that.
+         */
+        fun language(context: Context): Locale {
+            val copy = prefs(context).getString(KEY, null) ?: return Locale.getDefault()
+            val code = runCatching { JSONObject(copy).optString("lang") }.getOrNull()
+            return if (code.isNullOrEmpty()) Locale.getDefault() else Locale(code)
+        }
+
+        /** [context] answering in [locale], for the widget's own words. */
+        fun speaking(context: Context, locale: Locale): Context =
+            context.createConfigurationContext(
+                Configuration(context.resources.configuration).apply { setLocale(locale) },
+            )
+
+        /** "понедельник" opens a line as "Понедельник". */
+        fun capitalised(text: String, locale: Locale) =
+            text.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+
         /** Redraws every copy of the widget on the home screen. */
         fun refresh(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
@@ -103,13 +125,18 @@ class TodayWidget : AppWidgetProvider() {
         private fun views(context: Context, widgetId: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_today)
             val now = Calendar.getInstance().time
+            val locale = language(context)
             views.setTextViewText(
                 R.id.widget_weekday,
-                SimpleDateFormat("EEEE", Locale.ENGLISH).format(now),
+                capitalised(SimpleDateFormat("EEEE", locale).format(now), locale),
             )
             views.setTextViewText(
                 R.id.widget_date,
-                SimpleDateFormat("d MMMM", Locale.ENGLISH).format(now),
+                SimpleDateFormat("d MMMM", locale).format(now),
+            )
+            views.setTextViewText(
+                R.id.widget_empty,
+                speaking(context, locale).getString(R.string.widget_nothing),
             )
             // The data URI tells one widget's list apart from another's;
             // without it Android hands every widget the first one's factory.

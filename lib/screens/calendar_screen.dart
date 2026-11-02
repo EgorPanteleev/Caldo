@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
@@ -959,7 +960,9 @@ class _DragHandle extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Semantics(
         button: true,
-        label: expansion > 0.5 ? 'Collapse the month' : 'Expand the month',
+        label: expansion > 0.5
+            ? S.of(context).collapseMonth
+            : S.of(context).expandMonth,
         child: SizedBox(height: height, width: double.infinity),
       ),
     );
@@ -1002,7 +1005,7 @@ class _MonthBar extends StatelessWidget {
               const Spacer(),
               IconButton(
                 icon: Icon(Icons.search, color: p.muted),
-                tooltip: 'Search',
+                tooltip: S.of(context).search,
                 onPressed: onSearch,
               ),
               _TodayButton(onTap: onToday),
@@ -1038,7 +1041,7 @@ class _TodayButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Tooltip(
-      message: 'Today',
+      message: S.of(context).today,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1166,10 +1169,10 @@ class _DayPanel extends StatelessWidget {
                     onVerticalDragStart: onDragStart,
                     onVerticalDragUpdate: onDrag,
                     onVerticalDragEnd: onDragEnd,
-                    child: const EmptyState(
+                    child: EmptyState(
                       icon: Icons.event_available_outlined,
-                      title: 'Nothing on this day',
-                      message: 'Add one in the field below.',
+                      title: S.of(context).nothingOnDay,
+                      message: S.of(context).addOneBelow,
                       scrolls: false,
                     ),
                   )

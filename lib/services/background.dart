@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     show NotificationResponse;
+import 'package:intl/date_symbol_data_local.dart';
 
 import '../db/database.dart';
 import '../models/task.dart';
@@ -50,6 +51,7 @@ class Background {
     if (!_prepared) {
       WidgetsFlutterBinding.ensureInitialized();
       DartPluginRegistrant.ensureInitialized();
+      await initializeDateFormatting();
       await Reminders.instance.init();
       TodayWidget.enable();
       _prepared = true;

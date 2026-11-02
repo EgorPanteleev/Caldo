@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show ThemeMode, TimeOfDay;
+import 'package:flutter/material.dart' show Locale, ThemeMode, TimeOfDay;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/holidays.dart';
+import '../l10n/strings.dart';
 import '../services/reminders.dart';
+import '../services/today_widget.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 
@@ -28,6 +30,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kClock = 'use_24_hour';
   static const _kDeviceEvents = 'show_device_events';
   static const _kHiddenCalendars = 'hidden_calendars';
+  static const _kLanguage = 'language';
 
   /// The screen the app opens on. Schedule out of the box: it is the one
   /// that answers "what now", which is what opening a to-do list is usually
@@ -83,10 +86,27 @@ class SettingsProvider extends ChangeNotifier {
   /// does until a choice is made here.
   bool? _use24Hour;
 
+  /// The language chosen here, or null for the phone's.
+  String? _language;
+
   /// Whether times are written on a 24-hour clock: the choice made here, or
   /// the phone's own until there is one.
   bool get use24Hour =>
       _use24Hour ?? PlatformDispatcher.instance.alwaysUse24HourFormat;
+
+  String? get language => _language;
+
+  /// The language to hand `MaterialApp`, or null to let it follow the phone.
+  Locale? get locale => _language == null ? null : Locale(_language!);
+
+  /// The language actually in force: the one chosen, or the phone's when
+  /// there is a translation for it, or English.
+  String get languageInForce => _language ?? phoneLanguage;
+
+  static String get phoneLanguage {
+    final phone = PlatformDispatcher.instance.locale.languageCode;
+    return S.supported.any((l) => l.languageCode == phone) ? phone : 'en';
+  }
 
   StartScreen get startScreen => _startScreen;
   ThemeMode get themeMode => _themeMode;
@@ -133,6 +153,7 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     final settings = SettingsProvider().._read(prefs);
+    S.use(settings.languageInForce);
     Dates.use24Hour = settings.use24Hour;
     await settings._tellReminders();
   }
@@ -140,6 +161,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _read(prefs);
+    S.use(languageInForce);
     Dates.use24Hour = use24Hour;
     await _tellReminders();
     // Reminders are on out of the box, so the first run is where Android has
@@ -162,6 +184,7 @@ class SettingsProvider extends ChangeNotifier {
     _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
     _reminderLead = prefs.getInt(_kReminderLead) ?? _reminderLead;
     _use24Hour = prefs.getBool(_kClock);
+    _language = prefs.getString(_kLanguage);
     _showDeviceEvents = prefs.getBool(_kDeviceEvents) ?? _showDeviceEvents;
     _hiddenCalendars = {...?prefs.getStringList(_kHiddenCalendars)};
   }
@@ -179,6 +202,10 @@ class SettingsProvider extends ChangeNotifier {
     int? reminderMinutes,
     int? reminderLead,
     bool? use24Hour,
+    String? language,
+
+    /// Go back to the phone's language.
+    bool clearLanguage = false,
     bool? showDeviceEvents,
     Set<String>? hiddenCalendars,
 
@@ -242,6 +269,19 @@ class SettingsProvider extends ChangeNotifier {
     if (reminderMinutes != null) {
       _reminderMinutes = reminderMinutes;
       await prefs.setInt(_kReminderAt, reminderMinutes);
+    }
+    if (clearLanguage || (language != null && language != _language)) {
+      _language = clearLanguage ? null : language;
+      if (_language == null) {
+        await prefs.remove(_kLanguage);
+      } else {
+        await prefs.setString(_kLanguage, _language!);
+      }
+      // In force at once rather than when the app next draws its words: the
+      // alarms are set again just below, and say what they say in it.
+      S.use(languageInForce);
+      await Reminders.instance.refresh();
+      await TodayWidget.republish();
     }
     if (showDeviceEvents != null) {
       _showDeviceEvents = showDeviceEvents;

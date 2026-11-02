@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
@@ -80,7 +81,7 @@ class _SearchScreenState extends State<SearchScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const ScreenHeader(title: 'Search', showBack: true),
+            ScreenHeader(title: S.of(context).search, showBack: true),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: TextField(
@@ -92,13 +93,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: TextStyle(color: p.text, fontSize: 15),
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: 'Title or notes',
+                  hintText: S.of(context).searchField,
                   prefixIcon: Icon(Icons.search, color: p.faint, size: 21),
                   suffixIcon: _query.isEmpty
                       ? null
                       : IconButton(
                           icon: Icon(Icons.close, color: p.faint, size: 19),
-                          tooltip: 'Clear',
+                          tooltip: S.of(context).clear,
                           onPressed: () {
                             _controller.clear();
                             _search('');
@@ -113,10 +114,10 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             Expanded(
               child: _query.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: Icons.search,
-                      title: 'Search your tasks',
-                      message: 'Matches titles and notes, across every list.',
+                      title: S.of(context).searchYourTasks,
+                      message: S.of(context).searchHint,
                     )
                   : _answered != _query
                   // Nothing said until the query has actually been run: an
@@ -125,8 +126,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   : _results.isEmpty
                   ? EmptyState(
                       icon: Icons.search_off,
-                      title: 'Nothing found',
-                      message: 'No task mentions "$_query".',
+                      title: S.of(context).nothingFound,
+                      message: S.of(context).noTaskMentions(_query),
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.only(bottom: 16),

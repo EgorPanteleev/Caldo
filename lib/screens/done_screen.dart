@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../db/database.dart';
 import '../models/completion.dart';
 import '../models/task_list.dart';
@@ -116,15 +117,13 @@ class _DoneScreenState extends State<DoneScreen> {
     return Scaffold(
       body: Column(
         children: [
-          ScreenHeader(title: 'Done', onMenu: widget.onMenu),
+          ScreenHeader(title: S.of(context).done, onMenu: widget.onMenu),
           Expanded(
             child: _log.isEmpty
-                ? const EmptyState(
+                ? EmptyState(
                     icon: Icons.task_alt,
-                    title: 'Nothing done yet',
-                    message:
-                        'Everything you tick off is kept here, '
-                        'day by day.',
+                    title: S.of(context).nothingDoneYet,
+                    message: S.of(context).doneHint,
                   )
                 : ListView.builder(
                     itemCount: rows.length,
@@ -220,6 +219,7 @@ class _Summary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final s = S.of(context);
     final most = stats.lastSeven.fold<int>(1, (a, b) => a > b ? a : b);
     final today = dayOf(DateTime.now());
     return Container(
@@ -233,12 +233,9 @@ class _Summary extends StatelessWidget {
         children: [
           Row(
             children: [
-              _Figure(value: stats.today, label: 'today'),
-              _Figure(value: stats.week, label: 'this week'),
-              _Figure(
-                value: stats.streak,
-                label: stats.streak == 1 ? 'day in a row' : 'days in a row',
-              ),
+              _Figure(value: stats.today, label: s.figureToday),
+              _Figure(value: stats.week, label: s.figureWeek),
+              _Figure(value: stats.streak, label: s.daysInARow(stats.streak)),
             ],
           ),
           const SizedBox(height: 18),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
@@ -231,19 +232,20 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   Future<void> _delete() async {
     final task = widget.task;
     if (task?.id == null) return;
+    final s = S.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete task?'),
-        content: Text('"${task!.title}" will be removed.'),
+        title: Text(s.deleteTaskQuestion),
+        content: Text(s.willBeRemoved(task!.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            child: Text(s.delete),
           ),
         ],
       ),
@@ -257,6 +259,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final s = S.of(context);
     final isEdit = widget.task != null;
     final lists = context.watch<TaskProvider>().lists;
     final validId = lists.any((l) => l.id == _selectedListId)
@@ -269,12 +272,12 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         // words at the foot: an arrow beside unsaved edits is an invitation
         // to lose them.
         automaticallyImplyLeading: !_dirty,
-        title: Text(isEdit ? 'Edit task' : 'New task'),
+        title: Text(isEdit ? s.editTask : s.newTask),
         actions: [
           if (isEdit)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-              tooltip: 'Delete',
+              tooltip: s.delete,
               onPressed: _delete,
             ),
         ],
@@ -288,9 +291,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               controller: _title,
               autofocus: !isEdit,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Task'),
+              decoration: InputDecoration(labelText: s.taskField),
               validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  (v == null || v.trim().isEmpty) ? s.required : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -298,11 +301,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               minLines: 2,
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Notes (optional)'),
+              decoration: InputDecoration(labelText: s.notesField),
             ),
             const SizedBox(height: 22),
             Text(
-              'SUBTASKS',
+              s.sectionSubtasks,
               style: TextStyle(
                 color: p.faint,
                 fontSize: 11,
@@ -329,8 +332,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             const SizedBox(height: 20),
             _FieldTile(
               icon: Icons.event_outlined,
-              label: 'Due date',
-              value: _date == null ? 'None' : Dates.longDay(_date!),
+              label: s.dueDate,
+              value: _date == null ? s.none : Dates.longDay(_date!),
               onTap: _pickDate,
               onClear: _date == null
                   ? null
@@ -346,9 +349,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             const SizedBox(height: 12),
             _FieldTile(
               icon: Icons.schedule,
-              label: 'Time',
+              label: s.time,
               value: _time == null
-                  ? 'All day'
+                  ? s.allDay
                   : Dates.clock(
                       _time!,
                       h24: MediaQuery.alwaysUse24HourFormatOf(context),
@@ -382,7 +385,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             ),
             const SizedBox(height: 22),
             Text(
-              'PRIORITY',
+              s.sectionPriority,
               style: TextStyle(
                 color: p.faint,
                 fontSize: 11,
@@ -400,7 +403,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
             ),
             const SizedBox(height: 22),
             Text(
-              'COLOUR',
+              s.sectionColour,
               style: TextStyle(
                 color: p.faint,
                 fontSize: 11,
@@ -426,7 +429,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               const SizedBox(height: 22),
               DropdownButtonFormField<int>(
                 initialValue: validId,
-                decoration: const InputDecoration(labelText: 'List'),
+                decoration: InputDecoration(labelText: s.list),
                 items: lists
                     .map(
                       (l) => DropdownMenuItem(
@@ -457,10 +460,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _FootAction(
-                      label: 'Cancel',
+                      label: s.cancel,
                       onTap: () => Navigator.of(context).maybePop(),
                     ),
-                    _FootAction(label: 'Save', onTap: _save),
+                    _FootAction(label: s.save, onTap: _save),
                   ],
                 ),
               ),
@@ -565,7 +568,7 @@ class _Checklist extends StatelessWidget {
                 ),
                 IconButton(
                   icon: Icon(Icons.close, size: 18, color: p.faint),
-                  tooltip: 'Remove',
+                  tooltip: S.of(context).remove,
                   onPressed: () => onRemove(step),
                 ),
               ],
@@ -583,7 +586,9 @@ class _Checklist extends StatelessWidget {
                   focusNode: newStepFocus,
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.done,
-                  decoration: _bare.copyWith(hintText: 'Add a subtask'),
+                  decoration: _bare.copyWith(
+                    hintText: S.of(context).addSubtask,
+                  ),
                   style: TextStyle(color: p.text, fontSize: 15),
                   // Enter on a step adds it and stays for the next; on an empty line
                   // it is the way out, and the keyboard goes.
@@ -659,7 +664,7 @@ class _FieldTile extends StatelessWidget {
               if (onClear != null)
                 IconButton(
                   icon: Icon(Icons.clear, size: 18, color: p.faint),
-                  tooltip: 'Clear',
+                  tooltip: S.of(context).clear,
                   onPressed: onClear,
                 ),
             ],
@@ -716,7 +721,7 @@ class _RepeatField extends StatelessWidget {
                       .map(
                         (r) => DropdownMenuItem(
                           value: r,
-                          child: Text('Repeat: ${r.label.toLowerCase()}'),
+                          child: Text(S.of(context).repeatField(r)),
                         ),
                       )
                       .toList(),
@@ -761,16 +766,17 @@ class _ReminderField extends StatelessWidget {
     final p = AppTheme.of(context);
     final settings = context.watch<SettingsProvider>();
     final h24 = MediaQuery.alwaysUse24HourFormatOf(context);
+    final s = S.of(context);
     final options = <int, String>{
       _followSettings: timed
-          ? 'Remind ${Dates.lead(settings.reminderLead)}'
-          : 'Remind on the day, at '
-                '${Dates.clock(settings.reminderTime, h24: h24)}',
+          ? s.remindLead(Dates.lead(settings.reminderLead))
+          : s.remindOnDayAt(Dates.clock(settings.reminderTime, h24: h24)),
       if (timed)
         for (final lead in [...SettingsProvider.leads, _day])
-          if (lead != settings.reminderLead) lead: 'Remind ${Dates.lead(lead)}',
-      if (!timed) _day: 'Remind the day before',
-      Task.silent: 'No reminder',
+          if (lead != settings.reminderLead)
+            lead: s.remindLead(Dates.lead(lead)),
+      if (!timed) _day: s.remindDayBefore,
+      Task.silent: s.noReminder,
     };
     // A lead chosen for a timed task and kept when its time is taken off
     // reads as the nearest thing an all-day task can do with it.
@@ -904,7 +910,7 @@ class _PriorityChip extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              priority.label,
+              S.of(context).priorityName(priority),
               style: TextStyle(
                 color: selected ? color : palette.muted,
                 fontSize: 13,

@@ -39,6 +39,10 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
 
     private var rows: List<Row> = emptyList()
 
+    /** Words and dates in the language the app is speaking. */
+    private var locale: Locale = Locale.getDefault()
+    private var words: Context = context
+
     override fun onCreate() {}
 
     override fun onDestroy() {}
@@ -49,6 +53,8 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
             rows = emptyList()
             return
         }
+        locale = TodayWidget.language(context)
+        words = TodayWidget.speaking(context, locale)
         val showDone = prefs.getBoolean(TodayWidget.KEY_SHOW_DONE, true)
         val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val today = iso.format(Calendar.getInstance().time)
@@ -79,17 +85,17 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
             }
         }
 
-        val label = SimpleDateFormat("EEE, d MMM", Locale.ENGLISH)
+        val label = SimpleDateFormat("EEE, d MMM", locale)
         rows = buildList {
             if (overdue.isNotEmpty()) {
-                add(Heading("Overdue", overdue = true))
+                add(Heading(words.getString(R.string.widget_overdue), overdue = true))
                 addAll(overdue)
             }
             for ((day, items) in days) {
                 val name = when (day) {
-                    today -> "Today"
-                    tomorrow -> "Tomorrow"
-                    else -> label.format(iso.parse(day)!!)
+                    today -> words.getString(R.string.widget_today)
+                    tomorrow -> words.getString(R.string.widget_tomorrow)
+                    else -> TodayWidget.capitalised(label.format(iso.parse(day)!!), locale)
                 }
                 add(Heading(name, overdue = false))
                 addAll(items)
@@ -149,7 +155,7 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
 
     /** On the clock Settings names, or the phone's until one is named. */
     private fun time(minute: Int?): String {
-        if (minute == null) return "All day"
+        if (minute == null) return words.getString(R.string.widget_all_day)
         val prefs = TodayWidget.prefs(context)
         val h24 =
             if (prefs.contains(TodayWidget.KEY_24_HOUR)) {
@@ -161,7 +167,7 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
             set(Calendar.HOUR_OF_DAY, minute / 60)
             set(Calendar.MINUTE, minute % 60)
         }
-        return SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", Locale.ENGLISH).format(at.time)
+        return SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", locale).format(at.time)
     }
 
     override fun getLoadingView(): RemoteViews? = null

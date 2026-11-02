@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../services/device_calendars.dart';
 import '../models/task.dart';
@@ -1060,7 +1061,7 @@ class _DayTitles extends StatelessWidget {
           fits++;
         }
         if (fits == 0) return const SizedBox.shrink();
-        if (fits == entries.length) return _titles(fits, 0, sizes);
+        if (fits == entries.length) return _titles(context, fits, 0, sizes);
 
         // The rest are counted in a "+N", which needs room of its own, taken
         // from the last titles that fit. With space for only one thing, spend
@@ -1071,14 +1072,15 @@ class _DayTitles extends StatelessWidget {
           used -= heights[--shown] + _gap;
         }
         if (used + _gap + plus > box.maxHeight) {
-          return _titles(shown, 0, sizes);
+          return _titles(context, shown, 0, sizes);
         }
-        return _titles(shown, entries.length - shown, sizes);
+        return _titles(context, shown, entries.length - shown, sizes);
       },
     );
   }
 
   Widget _titles(
+    BuildContext context,
     int shown,
     int hidden,
     List<({double height, bool overran})> sizes,
@@ -1136,7 +1138,7 @@ class _DayTitles extends StatelessWidget {
               // under them — centred, it read as a caption on the day.
               padding: const EdgeInsets.only(left: _sideInset),
               child: Text(
-                '+$hidden more',
+                S.of(context).moreCount(hidden),
                 style: TextStyle(
                   fontSize: _fontSize,
                   height: _lineSpacing,

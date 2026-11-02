@@ -12,9 +12,12 @@ void main() {
   group('fixed dates', () {
     test('Russia keeps its new year run and its national days', () {
       final year = Holidays.forYear('RU', 2026);
-      expect(dateOf('RU', 2026, 'Orthodox Christmas'), DateTime(2026, 1, 7));
-      expect(dateOf('RU', 2026, 'Victory Day'), DateTime(2026, 5, 9));
-      expect(dateOf('RU', 2026, 'Unity Day'), DateTime(2026, 11, 4));
+      expect(dateOf('RU', 2026, 'Рождество Христово'), DateTime(2026, 1, 7));
+      expect(dateOf('RU', 2026, 'День Победы'), DateTime(2026, 5, 9));
+      expect(
+        dateOf('RU', 2026, 'День народного единства'),
+        DateTime(2026, 11, 4),
+      );
       // 1-6 and 8 January, plus Christmas on the 7th.
       final january = year.where((h) => h.date.month == 1).length;
       expect(january, 8);

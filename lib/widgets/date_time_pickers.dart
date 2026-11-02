@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart' show dayOf;
 import '../theme/app_theme.dart';
@@ -175,17 +176,17 @@ class _DateSheetState extends State<_DateSheet> {
             runSpacing: 8,
             children: [
               _QuickChip(
-                label: 'Today',
+                label: S.of(context).today,
                 onTap: () => Navigator.of(context).pop(today),
               ),
               _QuickChip(
-                label: 'Tomorrow',
+                label: S.of(context).tomorrow,
                 onTap: () => Navigator.of(
                   context,
                 ).pop(today.add(const Duration(days: 1))),
               ),
               _QuickChip(
-                label: 'Next week',
+                label: S.of(context).nextWeek,
                 onTap: () => Navigator.of(
                   context,
                 ).pop(today.add(const Duration(days: 7))),
@@ -300,7 +301,7 @@ class _TimeSheetState extends State<_TimeSheet> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
           child: Text(
-            'Select time',
+            S.of(context).selectTime,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
               letterSpacing: 0.1,
@@ -415,11 +416,11 @@ class _TimeSheetState extends State<_TimeSheet> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _SheetAction(
-                label: 'Cancel',
+                label: S.of(context).cancel,
                 onTap: () => Navigator.of(context).pop(),
               ),
               _SheetAction(
-                label: 'Save',
+                label: S.of(context).save,
                 onTap: () => Navigator.of(context).pop(current),
               ),
             ],
@@ -571,7 +572,7 @@ class _SheetHeader extends StatelessWidget {
         children: [
           IconButton(
             icon: Icon(Icons.chevron_left, color: p.muted),
-            tooltip: 'Previous month',
+            tooltip: S.of(context).previousMonth,
             onPressed: onPrevious,
           ),
           Expanded(
@@ -586,7 +587,7 @@ class _SheetHeader extends StatelessWidget {
           ),
           IconButton(
             icon: Icon(Icons.chevron_right, color: p.muted),
-            tooltip: 'Next month',
+            tooltip: S.of(context).nextMonth,
             onPressed: onNext,
           ),
         ],

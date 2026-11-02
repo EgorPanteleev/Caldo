@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
@@ -136,7 +137,7 @@ class _UndoBar extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              'Undo',
+                              S.of(context).undo,
                               style: TextStyle(
                                 color: accent,
                                 fontSize: 15,

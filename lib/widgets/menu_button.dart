@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -25,7 +26,7 @@ class MenuButton extends StatelessWidget {
     );
     return IconButton(
       key: menuButtonKey,
-      tooltip: 'Menu',
+      tooltip: S.of(context).menu,
       onPressed: onTap,
       icon: Stack(
         clipBehavior: Clip.none,

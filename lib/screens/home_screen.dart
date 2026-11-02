@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../db/database.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
@@ -242,12 +243,10 @@ class _UpdateBannerState extends State<_UpdateBanner> {
       final started = await Updates.instance.install(widget.update);
       if (!mounted) return;
       if (!started) {
-        setState(
-          () => _note = 'Allow Caldo to install apps, then tap Update again',
-        );
+        setState(() => _note = S.of(context).allowInstall);
       }
     } catch (_) {
-      if (mounted) setState(() => _note = 'Download failed — tap to try again');
+      if (mounted) setState(() => _note = S.of(context).downloadFailed);
     }
   }
 
@@ -259,10 +258,10 @@ class _UpdateBannerState extends State<_UpdateBanner> {
       valueListenable: Updates.instance.progress,
       builder: (context, progress, _) {
         final downloading = progress != null;
+        final s = S.of(context);
         final line = downloading
-            ? 'Downloading ${widget.update.version} — '
-                  '${(progress * 100).round()}%'
-            : _note ?? 'Caldo ${widget.update.version} is out';
+            ? s.downloading(widget.update.version, (progress * 100).round())
+            : _note ?? s.updateOut(widget.update.version);
         return Container(
           margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
@@ -291,7 +290,7 @@ class _UpdateBannerState extends State<_UpdateBanner> {
                     TextButton(
                       onPressed: _install,
                       child: Text(
-                        'Update',
+                        s.update,
                         style: TextStyle(
                           color: accent,
                           fontWeight: FontWeight.w600,
@@ -299,7 +298,7 @@ class _UpdateBannerState extends State<_UpdateBanner> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Not now',
+                      tooltip: s.notNow,
                       icon: Icon(Icons.close_rounded, color: p.muted, size: 20),
                       onPressed: widget.onDismiss,
                     ),
@@ -386,13 +385,17 @@ class _Menu extends StatelessWidget {
 
   const _Menu({required this.index, required this.onSelected});
 
-  static const _items = [
+  static final _items = [
     // A list, not a tick: the screen is a running order of days, and a tick
     // is what sits on each of the rows inside it.
-    _TabItem(Icons.list_alt_outlined, Icons.list_alt, 'Schedule'),
-    _TabItem(Icons.calendar_month_outlined, Icons.calendar_month, 'Calendar'),
-    _TabItem(Icons.task_alt_outlined, Icons.task_alt, 'Done'),
-    _TabItem(Icons.settings_outlined, Icons.settings, 'Settings'),
+    _TabItem(Icons.list_alt_outlined, Icons.list_alt, (s) => s.schedule),
+    _TabItem(
+      Icons.calendar_month_outlined,
+      Icons.calendar_month,
+      (s) => s.calendar,
+    ),
+    _TabItem(Icons.task_alt_outlined, Icons.task_alt, (s) => s.done),
+    _TabItem(Icons.settings_outlined, Icons.settings, (s) => s.settings),
   ];
 
   @override
@@ -493,7 +496,7 @@ class _MenuItem extends StatelessWidget {
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    item.label,
+                    item.label(S.of(context)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -534,6 +537,6 @@ class _MenuItem extends StatelessWidget {
 class _TabItem {
   final IconData icon;
   final IconData activeIcon;
-  final String label;
+  final String Function(S) label;
   const _TabItem(this.icon, this.activeIcon, this.label);
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../providers/events_provider.dart';
@@ -140,12 +141,12 @@ class _TasksScreenState extends State<TasksScreen> {
       body: Column(
         children: [
           ScreenHeader(
-            title: 'Schedule',
+            title: S.of(context).schedule,
             onMenu: widget.onMenu,
             actions: [
               IconButton(
                 icon: Icon(Icons.search, color: p.muted),
-                tooltip: 'Search',
+                tooltip: S.of(context).search,
                 onPressed: () => Navigator.of(
                   context,
                 ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
@@ -170,14 +171,12 @@ class _TasksScreenState extends State<TasksScreen> {
                     onMove: provider.moveToDay,
                     head: hasAnything
                         ? null
-                        : const Padding(
-                            padding: EdgeInsets.only(top: 40),
+                        : Padding(
+                            padding: const EdgeInsets.only(top: 40),
                             child: EmptyState(
                               icon: Icons.beach_access_outlined,
-                              title: 'Nothing scheduled',
-                              message:
-                                  'Add something below. Anything with a date '
-                                  'on it is listed here, day by day.',
+                              title: S.of(context).nothingScheduled,
+                              message: S.of(context).nothingScheduledHint,
                             ),
                           ),
                     foot: days.isEmpty
@@ -185,8 +184,9 @@ class _TasksScreenState extends State<TasksScreen> {
                         : Padding(
                             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                             child: Text(
-                              'Dated tasks are shown for the next '
-                              '${TaskProvider.agendaDays} days.',
+                              S
+                                  .of(context)
+                                  .shownForNext(TaskProvider.agendaDays),
                               style: TextStyle(color: p.faint, fontSize: 12),
                             ),
                           ),
@@ -199,8 +199,8 @@ class _TasksScreenState extends State<TasksScreen> {
                       if (overdue.isNotEmpty)
                         _Run(
                           id: 'overdue',
-                          heading: () => const DayHeader(
-                            word: 'Overdue',
+                          heading: () => DayHeader(
+                            word: S.of(context).overdue,
                             color: AppColors.overdue,
                           ),
                           tasks: overdue,
@@ -221,7 +221,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       if (undated.isNotEmpty)
                         _Run(
                           id: 'undated',
-                          heading: () => const DayHeader(word: 'No date'),
+                          heading: () => DayHeader(word: S.of(context).noDate),
                           tasks: undated,
                         ),
                     ],
@@ -274,7 +274,7 @@ class _TodayButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Tooltip(
-      message: 'Today',
+      message: S.of(context).today,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

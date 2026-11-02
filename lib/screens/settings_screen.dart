@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
@@ -35,22 +36,20 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Future<void> _clearCompleted(BuildContext context) async {
+    final s = S.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Clear completed tasks?'),
-        content: const Text(
-          'Every completed task in every list will be removed. '
-          'This cannot be undone.',
-        ),
+        title: Text(s.clearCompletedQuestion),
+        content: Text(s.clearCompletedWarning),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(s.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Clear'),
+            child: Text(s.clear),
           ),
         ],
       ),
@@ -61,9 +60,7 @@ class SettingsScreen extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          removed == 0
-              ? 'No completed tasks to clear'
-              : 'Removed $removed completed ${removed == 1 ? "task" : "tasks"}',
+          removed == 0 ? s.nothingToClear : s.removedCompleted(removed),
         ),
       ),
     );
@@ -88,11 +85,9 @@ class SettingsScreen extends StatelessWidget {
     final settings = context.read<SettingsProvider>();
     if (on && !await DeviceCalendars.ask()) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Caldo was not allowed to read your calendars'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(S.of(context).calendarsRefused)));
       return;
     }
     await settings.update(showDeviceEvents: on);
@@ -113,6 +108,7 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final settings = context.watch<SettingsProvider>();
+    final s = S.of(context);
 
     return Scaffold(
       body: ListView(
@@ -138,7 +134,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               );
             },
-            child: ScreenHeader(title: 'Settings', onMenu: onMenu),
+            child: ScreenHeader(title: s.settings, onMenu: onMenu),
           ),
           Divider(height: 1, color: p.border),
           Padding(
@@ -146,11 +142,11 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SectionLabel('GENERAL'),
+                SectionLabel(s.sectionGeneral),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
-                    'Screen the app opens on',
+                    s.startScreen,
                     style: TextStyle(color: p.muted, fontSize: 14),
                   ),
                 ),
@@ -164,7 +160,7 @@ class SettingsScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
-                    'Times are written',
+                    s.timesWritten,
                     style: TextStyle(color: p.muted, fontSize: 14),
                   ),
                 ),
@@ -173,8 +169,23 @@ class SettingsScreen extends StatelessWidget {
                   onChanged: (h24) =>
                       context.read<SettingsProvider>().update(use24Hour: h24),
                 ),
+                const SizedBox(height: 18),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    s.language,
+                    style: TextStyle(color: p.muted, fontSize: 14),
+                  ),
+                ),
+                _LanguageField(
+                  value: settings.language,
+                  onChanged: (code) => context.read<SettingsProvider>().update(
+                    language: code,
+                    clearLanguage: code == null,
+                  ),
+                ),
                 const SizedBox(height: 28),
-                const SectionLabel('APPEARANCE'),
+                SectionLabel(s.sectionAppearance),
                 _ThemeModeSelector(
                   value: settings.themeMode,
                   onChanged: (mode) => _setThemeMode(context, mode),
@@ -186,13 +197,13 @@ class SettingsScreen extends StatelessWidget {
                       context.read<SettingsProvider>().update(accent: accent),
                 ),
                 const SizedBox(height: 28),
-                const SectionLabel('CALENDAR'),
+                SectionLabel(s.sectionCalendar),
                 _SwitchTile(
                   icon: Icons.calendar_view_week_outlined,
-                  title: 'Start week on Monday',
+                  title: s.weekStartsMonday,
                   subtitle: settings.weekStartsMonday
-                      ? 'Weeks run Monday to Sunday'
-                      : 'Weeks run Sunday to Saturday',
+                      ? s.weeksMonSun
+                      : s.weeksSunSat,
                   value: settings.weekStartsMonday,
                   onChanged: (v) => context.read<SettingsProvider>().update(
                     weekStartsMonday: v,
@@ -201,10 +212,10 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 _SwitchTile(
                   icon: Icons.celebration_outlined,
-                  title: 'Show public holidays',
+                  title: s.showHolidays,
                   subtitle: settings.effectiveHolidayCountry == null
-                      ? 'No holidays are marked'
-                      : 'Marked in green on the calendar',
+                      ? s.holidaysOff
+                      : s.holidaysOn,
                   value: settings.showHolidays,
                   onChanged: (v) =>
                       context.read<SettingsProvider>().update(showHolidays: v),
@@ -224,10 +235,10 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 _SwitchTile(
                   icon: Icons.event_outlined,
-                  title: 'Show events from your calendars',
+                  title: s.showEvents,
                   subtitle: settings.showDeviceEvents
-                      ? 'Read from this phone, never changed'
-                      : 'Only what is in Caldo is shown',
+                      ? s.eventsOn
+                      : s.eventsOff,
                   value: settings.showDeviceEvents,
                   onChanged: (v) => _setDeviceEvents(context, v),
                 ),
@@ -241,11 +252,11 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 28),
-                const SectionLabel('TASKS'),
+                SectionLabel(s.sectionTasks),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
-                    'Colour new tasks start in',
+                    s.newTaskColour,
                     style: TextStyle(color: p.muted, fontSize: 14),
                   ),
                 ),
@@ -271,8 +282,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 _SwitchTile(
                   icon: Icons.visibility_outlined,
-                  title: 'Show completed tasks',
-                  subtitle: 'Keep ticked-off tasks listed under the open ones',
+                  title: s.showCompleted,
+                  subtitle: s.showCompletedHint,
                   value: settings.showCompleted,
                   onChanged: (v) {
                     context.read<SettingsProvider>().update(showCompleted: v);
@@ -282,18 +293,16 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 _ActionTile(
                   icon: Icons.cleaning_services_outlined,
-                  title: 'Clear completed tasks',
-                  subtitle: 'Remove every ticked-off task from all lists',
+                  title: s.clearCompleted,
+                  subtitle: s.clearCompletedHint,
                   onTap: () => _clearCompleted(context),
                 ),
                 const SizedBox(height: 28),
-                const SectionLabel('REMINDERS'),
+                SectionLabel(s.sectionReminders),
                 _SwitchTile(
                   icon: Icons.notifications_none,
-                  title: 'Remind me when a task is due',
-                  subtitle: settings.reminders
-                      ? 'A notification for each task with a date'
-                      : 'Nothing is announced',
+                  title: s.remindWhenDue,
+                  subtitle: settings.reminders ? s.remindOn : s.remindOff,
                   value: settings.reminders,
                   onChanged: (v) => _setReminders(context, v),
                 ),
@@ -308,18 +317,20 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   _ActionTile(
                     icon: Icons.schedule,
-                    title:
-                        'All-day tasks at '
-                        '${Dates.clock(settings.reminderTime, h24: settings.use24Hour)}',
-                    subtitle: 'A task with no time of day is announced then',
+                    title: s.allDayAt(
+                      Dates.clock(
+                        settings.reminderTime,
+                        h24: settings.use24Hour,
+                      ),
+                    ),
+                    subtitle: s.allDayAtHint,
                     onTap: () => _pickReminderTime(context),
                   ),
                 ],
                 const SizedBox(height: 28),
-                const SectionLabel('ABOUT'),
+                SectionLabel(s.sectionAbout),
                 Text(
-                  'Caldo keeps your calendar and to-do list in one place, '
-                  'stored on this device only.',
+                  s.about,
                   style: TextStyle(color: p.muted, fontSize: 13, height: 1.45),
                 ),
               ],
@@ -349,14 +360,20 @@ class _StartScreenSelector extends StatelessWidget {
         style: SegmentedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
         ),
-        segments: const [
+        segments: [
           ButtonSegment(
             value: StartScreen.schedule,
-            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Schedule')),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(S.of(context).schedule),
+            ),
           ),
           ButtonSegment(
             value: StartScreen.calendar,
-            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Calendar')),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(S.of(context).calendar),
+            ),
           ),
         ],
         selected: {value},
@@ -419,19 +436,16 @@ class _ThemeModeSelector extends StatelessWidget {
         style: SegmentedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
         ),
-        segments: const [
-          ButtonSegment(
-            value: ThemeMode.dark,
-            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Dark')),
-          ),
-          ButtonSegment(
-            value: ThemeMode.light,
-            label: FittedBox(fit: BoxFit.scaleDown, child: Text('Light')),
-          ),
-          ButtonSegment(
-            value: ThemeMode.system,
-            label: FittedBox(fit: BoxFit.scaleDown, child: Text('System')),
-          ),
+        segments: [
+          for (final (mode, name) in [
+            (ThemeMode.dark, S.of(context).themeDark),
+            (ThemeMode.light, S.of(context).themeLight),
+            (ThemeMode.system, S.of(context).themeSystem),
+          ])
+            ButtonSegment(
+              value: mode,
+              label: FittedBox(fit: BoxFit.scaleDown, child: Text(name)),
+            ),
         ],
         selected: {value},
         onSelectionChanged: (s) => onChanged(s.first),
@@ -631,6 +645,63 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
+/// The language the app speaks: the phone's, or one chosen here. Each is
+/// named in itself, so whichever language is on screen, the way back to
+/// one's own can be read.
+class _LanguageField extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const _LanguageField({required this.value, required this.onChanged});
+
+  static const _names = {'en': 'English', 'ru': 'Русский'};
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final phone = _names[SettingsProvider.phoneLanguage]!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.translate, size: 20, color: p.muted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: value ?? '',
+                isExpanded: true,
+                dropdownColor: p.panel,
+                borderRadius: BorderRadius.circular(10),
+                icon: Icon(Icons.expand_more, color: p.muted),
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: '',
+                    child: Text(S.of(context).followPhone(phone)),
+                  ),
+                  for (final MapEntry(key: code, value: name) in _names.entries)
+                    DropdownMenuItem(value: code, child: Text(name)),
+                ],
+                onChanged: (v) => onChanged(v == null || v.isEmpty ? null : v),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// How far ahead a timed task is announced when it does not say for itself.
 /// A task can still choose its own on the form.
 class _LeadField extends StatelessWidget {
@@ -671,7 +742,9 @@ class _LeadField extends StatelessWidget {
                   for (final lead in leads)
                     DropdownMenuItem(
                       value: lead,
-                      child: Text('Timed tasks ${Dates.lead(lead)}'),
+                      child: Text(
+                        S.of(context).timedTasksLead(Dates.lead(lead)),
+                      ),
                     ),
                 ],
                 onChanged: (v) => onChanged(v ?? 0),
@@ -721,7 +794,7 @@ class _CalendarPickerState extends State<_CalendarPicker> {
                 Padding(
                   padding: const EdgeInsets.all(14),
                   child: Text(
-                    'There are no calendars on this phone',
+                    S.of(context).noCalendars,
                     style: TextStyle(color: p.faint, fontSize: 13),
                   ),
                 ),
@@ -816,9 +889,10 @@ class _CountryField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final s = S.of(context);
     final followLabel = detected == null
-        ? 'Follow device (not supported yet)'
-        : 'Follow device (${Holidays.countries[detected]})';
+        ? s.followDeviceUnsupported
+        : s.followDevice(s.country(detected!, Holidays.countries[detected]!));
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
@@ -848,7 +922,7 @@ class _CountryField extends StatelessWidget {
                   for (final entry in Holidays.countries.entries)
                     DropdownMenuItem(
                       value: entry.key,
-                      child: Text(entry.value),
+                      child: Text(s.country(entry.key, entry.value)),
                     ),
                 ],
                 onChanged: (v) => onChanged(v == null || v.isEmpty ? null : v),

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart';
@@ -26,6 +27,10 @@ class TodayWidget {
   static const key = 'today_widget';
 
   static bool _enabled = false;
+
+  /// What was last published from, so a change of language can write the
+  /// copy again without waiting for the lists to be read.
+  static TaskProvider? _last;
 
   static void enable() => _enabled = true;
 
@@ -55,6 +60,7 @@ class TodayWidget {
   /// stay out — the widget is about what is due.
   static Future<void> publish(TaskProvider tasks) async {
     if (!_enabled) return;
+    _last = tasks;
     try {
       final rows = [
         for (final task in tasks.overdue) _row(task, tasks),
@@ -67,10 +73,22 @@ class TodayWidget {
       // remembered here instead would go stale the moment the widget's own
       // isolate, or its optimistic tick, wrote one.
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(key, jsonEncode({'tasks': rows}));
+      // The language goes with it: the widget is drawn by the launcher, in
+      // the phone's language, which need not be the one chosen here.
+      await prefs.setString(
+        key,
+        jsonEncode({'lang': S.current.code, 'tasks': rows}),
+      );
     } catch (error, stack) {
       debugPrint('Could not update the widget: $error\n$stack');
     }
+  }
+
+  /// Writes the copy again as it was last written — in the language now in
+  /// force, which the widget reads off it.
+  static Future<void> republish() async {
+    final last = _last;
+    if (last != null) await publish(last);
   }
 
   static Map<String, Object?> _row(Task task, TaskProvider tasks) {
