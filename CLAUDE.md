@@ -130,7 +130,15 @@ Changing them back will be noticed.
 - **Collapsing to the week slides the grid past a shrinking window**; every
   week keeps its full-month height and the selected one is where the window is
   left sitting. Shrinking the rows themselves made the numbers close in on each
-  other and read as a glitch.
+  other and read as a glitch. **The selected week stays put until the window's
+  foot reaches it, and is pushed up by it from there** (`MonthLayout.travel`).
+  It used to slide up at a steady pace of its own from the start, which for a
+  week mid-month was half the speed of the edge and the day panel closing in
+  under it, so the grid looked as if it were trailing them — "laggy when the
+  date is not in the first or last row". Measured first: frames cost the same
+  for every row (1.2ms build, 2ms raster on the emulator), so it was the
+  motion, not the frame rate. The first and last rows already behaved this
+  way — one never moves, the other rides the edge throughout.
 - **Picking a day in the opened month opens it as a card on top** (`day_sheet`)
   rather than collapsing the calendar to make room — the tap was made from that
   view, so it should still be there underneath. The card gives the keyboard its
@@ -820,7 +828,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 122 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 123 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
