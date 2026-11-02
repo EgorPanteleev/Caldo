@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/events_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/task_provider.dart';
 import 'screens/home_screen.dart';
 import 'services/background.dart';
+import 'services/device_calendars.dart';
 import 'services/reminders.dart';
 import 'services/today_widget.dart';
 import 'services/updates.dart';
@@ -29,6 +31,7 @@ void main() async {
   // reason the update check is.
   TodayWidget.enable();
   Background.listen();
+  DeviceCalendars.enable();
   // Read before the first frame: the app has to open on the right screen,
   // not open on Schedule and swap a frame later. It is one small read, and
   // the provider reads the rest for itself once it is up.
@@ -54,6 +57,15 @@ class CaldoApp extends StatelessWidget {
           create: (_) => TaskProvider()
             ..loadLists()
             ..loadTasks(),
+        ),
+        // The phone's own calendars, read as Settings says.
+        ChangeNotifierProxyProvider<SettingsProvider, EventsProvider>(
+          create: (_) => EventsProvider(),
+          update: (_, settings, events) => events!
+            ..configure(
+              on: settings.showDeviceEvents,
+              hidden: settings.hiddenCalendars,
+            ),
         ),
       ],
       child: Consumer<SettingsProvider>(

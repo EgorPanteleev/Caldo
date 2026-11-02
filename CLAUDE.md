@@ -25,11 +25,13 @@ lib/
   db/database.dart       schema v6: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
-  providers/             task_provider.dart, settings_provider.dart
+  providers/             task_provider.dart, settings_provider.dart,
+                         events_provider.dart
   services/reminders.dart  the notification each dated task gets
   services/background.dart a reminder's buttons and the widget's ticks,
                          run on isolates of their own
   services/today_widget.dart  the copy of the agenda the widget draws from
+  services/device_calendars.dart  the phone's own calendars, read-only
   services/updates.dart  the newer-release check, download and install
   screens/               home (shell + menu), tasks (Schedule), calendar,
                          done, search, task_edit, settings
@@ -44,7 +46,7 @@ lib/
 ```
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
-widget launches), `TodayWidget.kt` (the widget and the `Headless` engine its
+widget launches, the phone's calendars), `TodayWidget.kt` (the widget and the `Headless` engine its
 ticks run on), `TodayWidgetService.kt` (its rows) and `CaldoApplication.kt`
 (redraws the widget when its copy changes).
 
@@ -891,6 +893,25 @@ Changing them back will be noticed.
   bars, all neutral, over the ticks day by day, latest first. Its rows are
   not crossed out: everything there is done. It reads the log only while it
   is the screen on show (`shown`), since the shell builds all four at once.
+
+- **Events from the phone's own calendars sit beside the tasks the way
+  holidays do** (`EventsProvider`, `DeviceCalendars`, `EventCard`, the
+  `caldo/calendars` channel). Off until Settings is asked ("Show events from
+  your calendars"), which asks Android for `READ_CALENDAR`; nothing is ever
+  written. Each of the phone's calendars can be left out, stored as the ones
+  left out so a calendar added later shows up unasked — a holidays calendar
+  is the one most worth leaving out, since Caldo marks those itself. An
+  event is marked on the grid after the holidays and before the tasks,
+  written out in an opened day, and carded in the day panel, the day card
+  and Schedule, where a day with only an event on it gets a run of its own.
+  It cannot be ticked or dragged; a tap opens it in the calendar app. What
+  is read is the agenda's days plus the month on show (`cover`), again on
+  every return to the app, since the events live in another one. All-day
+  events are stored at midnight UTC, so their dates are read in UTC and set
+  at local midnight — read in the local zone, west of Greenwich, they land
+  a day early (`events_test.dart` passes under `TZ=America/Los_Angeles`).
+  Screens read the provider as nullable, so a test that pumps a screen
+  without it still draws. The home-screen widget does not show events.
 
 - **The icon is Dicty's sibling**: the same graphite rounded square and the
   same two overlapping tiles, here a white calendar page with its rings and

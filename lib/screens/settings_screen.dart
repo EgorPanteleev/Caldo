@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/device_calendars.dart';
 import '../services/reminders.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -11,6 +12,7 @@ import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
+import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/theme_switcher.dart';
 
 /// Appearance, calendar and task preferences. Everything here applies
@@ -77,6 +79,23 @@ class SettingsScreen extends StatelessWidget {
     // Saving is all that is needed: the scheduler re-sets what is standing
     // against the settings it is handed.
     await settings.update(reminders: on);
+  }
+
+  /// Shows the phone's own calendars, asking Android first: without the
+  /// permission there is nothing to show, and a switch that stayed on over
+  /// nothing would look broken.
+  Future<void> _setDeviceEvents(BuildContext context, bool on) async {
+    final settings = context.read<SettingsProvider>();
+    if (on && !await DeviceCalendars.ask()) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Caldo was not allowed to read your calendars'),
+        ),
+      );
+      return;
+    }
+    await settings.update(showDeviceEvents: on);
   }
 
   /// Picks the hour an all-day task is announced at.
@@ -200,6 +219,25 @@ class SettingsScreen extends StatelessWidget {
                           holidayCountry: code,
                           clearHolidayCountry: code == null,
                         ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _SwitchTile(
+                  icon: Icons.event_outlined,
+                  title: 'Show events from your calendars',
+                  subtitle: settings.showDeviceEvents
+                      ? 'Read from this phone, never changed'
+                      : 'Only what is in Caldo is shown',
+                  value: settings.showDeviceEvents,
+                  onChanged: (v) => _setDeviceEvents(context, v),
+                ),
+                if (settings.showDeviceEvents) ...[
+                  const SizedBox(height: 12),
+                  _CalendarPicker(
+                    hidden: settings.hiddenCalendars,
+                    onChanged: (hidden) => context
+                        .read<SettingsProvider>()
+                        .update(hiddenCalendars: hidden),
                   ),
                 ],
                 const SizedBox(height: 28),
@@ -642,6 +680,122 @@ class _LeadField extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The phone's calendars, each ticked to have its events shown. A holidays
+/// calendar is the one most worth unticking: Caldo marks those itself.
+class _CalendarPicker extends StatefulWidget {
+  final Set<String> hidden;
+  final ValueChanged<Set<String>> onChanged;
+
+  const _CalendarPicker({required this.hidden, required this.onChanged});
+
+  @override
+  State<_CalendarPicker> createState() => _CalendarPickerState();
+}
+
+class _CalendarPickerState extends State<_CalendarPicker> {
+  late final Future<List<DeviceCalendar>> _calendars =
+      DeviceCalendars.calendars();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return FutureBuilder<List<DeviceCalendar>>(
+      future: _calendars,
+      builder: (context, snapshot) {
+        final calendars = snapshot.data ?? const <DeviceCalendar>[];
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          decoration: BoxDecoration(
+            color: p.panel,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: p.border),
+          ),
+          child: Column(
+            children: [
+              if (snapshot.connectionState == ConnectionState.done &&
+                  calendars.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Text(
+                    'There are no calendars on this phone',
+                    style: TextStyle(color: p.faint, fontSize: 13),
+                  ),
+                ),
+              for (final calendar in calendars)
+                InkWell(
+                  onTap: () {
+                    final hidden = {...widget.hidden};
+                    if (!hidden.remove(calendar.id)) hidden.add(calendar.id);
+                    widget.onChanged(hidden);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                    child: Row(
+                      children: [
+                        _CalendarTick(
+                          color: calendar.color,
+                          on: !widget.hidden.contains(calendar.id),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                calendar.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: p.text, fontSize: 14.5),
+                              ),
+                              if (calendar.account.isNotEmpty &&
+                                  calendar.account != calendar.name)
+                                Text(
+                                  calendar.account,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: p.faint,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A calendar's tick, in the calendar's own colour, as a task's tick is in
+/// the task's.
+class _CalendarTick extends StatelessWidget {
+  final Color color;
+  final bool on;
+
+  const _CalendarTick({required this.color, required this.on});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: on ? color : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color, width: 1.6),
+      ),
+      child: on ? const CustomPaint(painter: CheckMark(progress: 1)) : null,
     );
   }
 }

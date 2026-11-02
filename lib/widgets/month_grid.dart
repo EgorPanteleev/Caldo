@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../data/holidays.dart';
+import '../services/device_calendars.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart' show dayOf;
@@ -182,6 +183,9 @@ class MonthGrid extends StatefulWidget {
   /// Public holidays of the month, keyed by day.
   final Map<DateTime, List<Holiday>> holidaysByDay;
 
+  /// Events from the phone's calendars, keyed by day.
+  final Map<DateTime, List<CalendarEvent>> eventsByDay;
+
   final ValueChanged<DateTime> onSelect;
 
   /// How far the grid is pulled open, 0 (compact: a marker per task) to 1
@@ -217,6 +221,7 @@ class MonthGrid extends StatefulWidget {
     this.tasksByDay = const {},
     this.lists = const [],
     this.holidaysByDay = const {},
+    this.eventsByDay = const {},
     this.expansion = 0,
     this.weekCollapse = 0,
     this.animation,
@@ -368,6 +373,7 @@ class _MonthGridState extends State<MonthGrid>
                             markerRoom: markerRoom,
                             tasks: widget.tasksByDay[day] ?? const [],
                             holidays: widget.holidaysByDay[day] ?? const [],
+                            events: widget.eventsByDay[day] ?? const [],
                             lists: widget.lists,
                             onTap: enabled ? () => widget.onSelect(day) : null,
                           );
@@ -660,6 +666,7 @@ class _DayCell extends StatelessWidget {
   final double? markerRoom;
   final List<Task> tasks;
   final List<Holiday> holidays;
+  final List<CalendarEvent> events;
   final List<TaskList> lists;
   final VoidCallback? onTap;
 
@@ -673,6 +680,7 @@ class _DayCell extends StatelessWidget {
     required this.markerRoom,
     required this.tasks,
     required this.holidays,
+    required this.events,
     required this.lists,
     required this.onTap,
   });
@@ -792,6 +800,7 @@ class _DayCell extends StatelessWidget {
 
     final markerColours = [
       for (final _ in holidays) AppColors.holiday,
+      for (final event in events) event.color,
       for (final task in tasks) taskColor(task),
     ];
     final markerBars = _MarkerBars(colors: markerColours);
@@ -848,6 +857,12 @@ class _DayCell extends StatelessWidget {
                                     color: AppColors.holiday,
                                     done: false,
                                   ),
+                                for (final event in events)
+                                  (
+                                    label: event.title,
+                                    color: event.color,
+                                    done: false,
+                                  ),
                                 for (final task in tasks)
                                   (
                                     label: task.title,
@@ -873,7 +888,7 @@ class _DayCell extends StatelessWidget {
 }
 
 /// The compact marker for a day's tasks: a line per task, the width of the
-/// day, stacked under its number.
+/// day, stacked under its number — after one per holiday and per event.
 class _MarkerBars extends StatelessWidget {
   /// One colour per thing happening that day, holidays first.
   final List<Color> colors;

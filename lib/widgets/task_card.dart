@@ -6,6 +6,7 @@ import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart';
+import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 
@@ -572,3 +573,92 @@ class HolidayCard extends StatelessWidget {
     );
   }
 }
+
+/// An event from the phone's own calendars beside a day's tasks: the same
+/// card again, inked in the event's colour, with a calendar where the tick
+/// would be. Nothing on it can be ticked or dragged — it belongs to the
+/// calendar app, which a tap opens it in.
+class EventCard extends StatelessWidget {
+  final CalendarEvent event;
+
+  /// The day it is shown on, which an event of several days needs to say
+  /// which of them this is.
+  final DateTime day;
+
+  const EventCard({super.key, required this.event, required this.day});
+
+  String _when(bool h24) {
+    if (event.allDay) return 'All day';
+    final starts = dayOf(event.start) == day;
+    final ends = dayOf(event.end) == day;
+    final from = Dates.time(event.start, h24: h24);
+    final to = Dates.time(event.end, h24: h24);
+    if (starts && ends) return '$from – $to';
+    if (starts) return 'From $from';
+    if (ends) return 'Until $to';
+    return 'All day';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final when = _when(MediaQuery.alwaysUse24HourFormatOf(context));
+    return Padding(
+      padding: TaskCard.margin,
+      child: Material(
+        color: event.color.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(TaskCard.radius),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(TaskCard.radius),
+          onTap: () => DeviceCalendars.open(event),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              children: [
+                Icon(Icons.event_outlined, color: event.color, size: 22),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: p.text,
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        event.calendarName.isEmpty
+                            ? when
+                            : '$when · ${event.calendarName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: p.muted, fontSize: 12.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The read-only cards a day carries above its tasks: its holidays, then
+/// the events from the phone's calendars.
+List<Widget> fixedCards(
+  DateTime day,
+  List<Holiday> holidays,
+  List<CalendarEvent> events,
+) => [
+  for (final holiday in holidays) HolidayCard(holiday: holiday),
+  for (final event in events) EventCard(event: event, day: day),
+];

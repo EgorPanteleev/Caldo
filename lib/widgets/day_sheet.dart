@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../data/holidays.dart';
 import '../models/task.dart';
+import '../providers/events_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../screens/task_edit_screen.dart';
@@ -86,6 +87,7 @@ class _DaySheetState extends State<_DaySheet> {
     final day = dayOf(widget.day);
     final tasks = provider.tasksForDay(day);
     final holidays = Holidays.around(country, day)[day] ?? const <Holiday>[];
+    final events = context.watch<EventsProvider?>()?.on(day) ?? const [];
     final open = tasks.where((t) => !t.done).length;
 
     // The card is a dialog, so nothing lifts it for the keyboard the way a
@@ -141,7 +143,8 @@ class _DaySheetState extends State<_DaySheet> {
                         ),
                       ),
                       Flexible(
-                        child: tasks.isEmpty && holidays.isEmpty
+                        child:
+                            tasks.isEmpty && holidays.isEmpty && events.isEmpty
                             // Held to a height of its own: the card sizes to
                             // what is on the day, and a day with nothing on it
                             // should not open the largest card of all.
@@ -163,6 +166,8 @@ class _DaySheetState extends State<_DaySheet> {
                                   bottom: 10,
                                 ),
                                 holidays: holidays,
+                                events: events,
+                                day: day,
                                 tasks: tasks,
                                 listOf: (t) => provider.listById(t.listId),
                                 onOpen: _openEditor,

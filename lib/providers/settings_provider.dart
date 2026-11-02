@@ -26,6 +26,8 @@ class SettingsProvider extends ChangeNotifier {
   static const _kReminderAt = 'reminder_minutes';
   static const _kReminderLead = 'reminder_lead';
   static const _kClock = 'use_24_hour';
+  static const _kDeviceEvents = 'show_device_events';
+  static const _kHiddenCalendars = 'hidden_calendars';
 
   /// The screen the app opens on. Schedule out of the box: it is the one
   /// that answers "what now", which is what opening a to-do list is usually
@@ -49,6 +51,15 @@ class SettingsProvider extends ChangeNotifier {
 
   /// The country whose holidays are shown, or null to follow the device.
   String? _holidayCountry;
+
+  /// Whether events from the phone's own calendars are shown. Off until
+  /// asked for, since it needs a permission and most of what a to-do list is
+  /// for does not.
+  bool _showDeviceEvents = false;
+
+  /// The phone's calendars whose events are left out, by id. Left out rather
+  /// than let in, so a calendar added later shows up without being asked.
+  Set<String> _hiddenCalendars = const {};
 
   /// The colour a new task starts with, or null to take its list's.
   String? _defaultTaskStyleId;
@@ -84,6 +95,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get showCompleted => _showCompleted;
   bool get showHolidays => _showHolidays;
   String? get holidayCountry => _holidayCountry;
+  bool get showDeviceEvents => _showDeviceEvents;
+  Set<String> get hiddenCalendars => _hiddenCalendars;
   String? get defaultTaskStyleId => _defaultTaskStyleId;
   bool get reminders => _reminders;
   int get reminderMinutes => _reminderMinutes;
@@ -149,6 +162,8 @@ class SettingsProvider extends ChangeNotifier {
     _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
     _reminderLead = prefs.getInt(_kReminderLead) ?? _reminderLead;
     _use24Hour = prefs.getBool(_kClock);
+    _showDeviceEvents = prefs.getBool(_kDeviceEvents) ?? _showDeviceEvents;
+    _hiddenCalendars = {...?prefs.getStringList(_kHiddenCalendars)};
   }
 
   Future<void> update({
@@ -164,6 +179,8 @@ class SettingsProvider extends ChangeNotifier {
     int? reminderMinutes,
     int? reminderLead,
     bool? use24Hour,
+    bool? showDeviceEvents,
+    Set<String>? hiddenCalendars,
 
     /// Go back to following the device's country.
     bool clearHolidayCountry = false,
@@ -225,6 +242,14 @@ class SettingsProvider extends ChangeNotifier {
     if (reminderMinutes != null) {
       _reminderMinutes = reminderMinutes;
       await prefs.setInt(_kReminderAt, reminderMinutes);
+    }
+    if (showDeviceEvents != null) {
+      _showDeviceEvents = showDeviceEvents;
+      await prefs.setBool(_kDeviceEvents, showDeviceEvents);
+    }
+    if (hiddenCalendars != null) {
+      _hiddenCalendars = hiddenCalendars;
+      await prefs.setStringList(_kHiddenCalendars, [...hiddenCalendars]);
     }
     if (reminderLead != null) {
       _reminderLead = reminderLead;

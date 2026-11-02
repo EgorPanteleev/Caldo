@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../data/holidays.dart';
 import '../models/task.dart';
+import '../providers/events_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/device_calendars.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -81,7 +83,15 @@ class _TasksScreenState extends State<TasksScreen> {
     final today = dayOf(DateTime.now());
     final overdue = provider.overdue;
     final byDay = provider.upcomingByDay;
-    final days = byDay.keys.toList()..sort();
+    // A day with nothing on it but an event from the phone's calendars is
+    // still a day with something on it.
+    final events = context.watch<EventsProvider?>();
+    final horizon = today.add(const Duration(days: TaskProvider.agendaDays));
+    final days = {
+      ...byDay.keys,
+      for (final day in events?.byDay.keys ?? const <DateTime>[])
+        if (!day.isBefore(today) && day.isBefore(horizon)) day,
+    }.toList()..sort();
     final undated = provider.undated;
     final hasAnything =
         overdue.isNotEmpty || days.isNotEmpty || undated.isNotEmpty;
@@ -204,7 +214,8 @@ class _TasksScreenState extends State<TasksScreen> {
                             label: Dates.dayDate(day),
                           ),
                           holidays: holidays[day] ?? const <Holiday>[],
-                          tasks: byDay[day]!,
+                          events: events?.on(day) ?? const [],
+                          tasks: byDay[day] ?? const [],
                           day: day,
                         ),
                       if (undated.isNotEmpty)
@@ -302,6 +313,7 @@ class _Run {
   final String id;
   final Widget Function() heading;
   final List<Holiday> holidays;
+  final List<CalendarEvent> events;
   final List<Task> tasks;
 
   /// The day a card dropped into this run moves to — null for No date.
@@ -316,6 +328,7 @@ class _Run {
     required this.heading,
     required this.tasks,
     this.holidays = const [],
+    this.events = const [],
     this.day,
     this.takesDrops = true,
   });
@@ -503,11 +516,16 @@ class _RunOfDaysState extends State<_RunOfDays> {
           child: KeyedSubtree(key: _anchorOf(run.id), child: run.heading()),
         ),
       );
-      if (run.holidays.isNotEmpty) {
+      final fixed = fixedCards(
+        run.day ?? dayOf(DateTime.now()),
+        run.holidays,
+        run.events,
+      );
+      if (fixed.isNotEmpty) {
         slivers.add(
           SliverList.builder(
-            itemCount: run.holidays.length,
-            itemBuilder: (context, h) => HolidayCard(holiday: run.holidays[h]),
+            itemCount: fixed.length,
+            itemBuilder: (context, h) => fixed[h],
           ),
         );
       }

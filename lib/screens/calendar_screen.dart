@@ -8,7 +8,9 @@ import 'package:provider/provider.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../providers/events_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/device_calendars.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -93,7 +95,9 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
     _carry.addListener(_watchEdges);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<TaskProvider>().loadMonth(_baseMonth);
+      if (!mounted) return;
+      context.read<TaskProvider>().loadMonth(_baseMonth);
+      context.read<EventsProvider?>()?.cover(_baseMonth);
     });
   }
 
@@ -350,6 +354,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     final month = _monthOfPage(i);
     final carried = _carry.task;
     context.read<TaskProvider>().loadMonth(month, keep: carried?.dueDay);
+    context.read<EventsProvider?>()?.cover(month);
     // The header reads its month off the controller, so every page change
     // owes it a frame — including the ones we drove ourselves, which take no
     // other path back into build.
@@ -573,6 +578,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     final settings = context.watch<SettingsProvider>();
     final mondayFirst = settings.weekStartsMonday;
     final country = settings.effectiveHolidayCountry;
+    // Nullable so a screen pumped without the phone's calendars still draws.
+    final events = context.watch<EventsProvider?>();
     final page = _controller.hasClients
         ? (_controller.page?.round() ?? _basePage)
         : _basePage;
@@ -677,6 +684,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   country,
                                   _monthOfPage(i),
                                 ),
+                                eventsByDay: events?.byDay ?? const {},
                                 lists: provider.lists,
                                 animation: _expansion,
                                 openHeight: opened,
@@ -703,6 +711,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   holidays:
                                       Holidays.around(country, day)[day] ??
                                       const <Holiday>[],
+                                  events: events?.on(day) ?? const [],
                                   lists: provider.lists,
                                   onDragStart: _onDragStart,
                                   onDrag: _onDrag,
@@ -1070,6 +1079,7 @@ class _DayPanel extends StatelessWidget {
   final DateTime date;
   final List<Task> tasks;
   final List<Holiday> holidays;
+  final List<CalendarEvent> events;
   final List<TaskList> lists;
   final ValueChanged<DragStartDetails> onDragStart;
   final ValueChanged<DragUpdateDetails> onDrag;
@@ -1093,6 +1103,7 @@ class _DayPanel extends StatelessWidget {
     required this.date,
     required this.tasks,
     required this.holidays,
+    required this.events,
     required this.lists,
     required this.onDragStart,
     required this.onDrag,
@@ -1149,7 +1160,7 @@ class _DayPanel extends StatelessWidget {
             // only the placeholder's own little scroll view answered — most
             // of the panel did nothing, and a drag on the words moved the
             // grid a few points and left it stuck between states.
-            child: tasks.isEmpty && holidays.isEmpty
+            child: tasks.isEmpty && holidays.isEmpty && events.isEmpty
                 ? GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onVerticalDragStart: onDragStart,
@@ -1166,6 +1177,8 @@ class _DayPanel extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4, bottom: 8),
                     ground: AppTheme.of(context).panel,
                     holidays: holidays,
+                    events: events,
+                    day: date,
                     tasks: tasks,
                     listOf: _listOf,
                     onOpen: onOpen,

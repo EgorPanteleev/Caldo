@@ -1,9 +1,14 @@
 package com.igor.caldo
 
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.ContentUris
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.CalendarContract
 import android.provider.Settings
 import android.view.View
 import android.view.WindowInsets
@@ -13,6 +18,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
@@ -51,6 +57,9 @@ class MainActivity : FlutterActivity() {
 
     /** Where the home-screen widget asks the app to go ([TodayWidget]). */
     private var launches: MethodChannel? = null
+
+    /** A request to read the calendars, waiting on the user's answer. */
+    private var askingCalendars: MethodChannel.Result? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,6 +104,165 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALENDARS_CHANNEL)
+            .setMethodCallHandler(::calendarCall)
+    }
+
+    /**
+     * The phone's own calendars, read and never written: the events in them
+     * are shown beside the tasks the way public holidays are. Everything is
+     * read off the main thread — a busy calendar is not instant — and
+     * answered back on it.
+     */
+    private fun calendarCall(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "permitted" -> result.success(canReadCalendars())
+            "ask" -> {
+                if (canReadCalendars()) {
+                    result.success(true)
+                } else {
+                    askingCalendars?.success(false)
+                    askingCalendars = result
+                    requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), ASK_CALENDARS)
+                }
+            }
+            "calendars" -> readOffMain(result) { calendars() }
+            "events" -> {
+                val from = call.argument<Number>("from")!!.toLong()
+                val to = call.argument<Number>("to")!!.toLong()
+                readOffMain(result) { events(from, to) }
+            }
+            "open" -> result.success(
+                openEvent(
+                    call.argument<Number>("id")!!.toLong(),
+                    call.argument<Number>("begin")!!.toLong(),
+                    call.argument<Number>("end")!!.toLong(),
+                ),
+            )
+            else -> result.notImplemented()
+        }
+    }
+
+    private fun canReadCalendars() =
+        checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != ASK_CALENDARS) return
+        askingCalendars?.success(
+            grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED,
+        )
+        askingCalendars = null
+    }
+
+    /** Runs [read] on a thread of its own; nothing at all if not allowed. */
+    private fun readOffMain(result: MethodChannel.Result, read: () -> Any) {
+        if (!canReadCalendars()) {
+            result.success(emptyList<Any>())
+            return
+        }
+        Thread {
+            val answer = try {
+                read()
+            } catch (_: SecurityException) {
+                emptyList<Any>()
+            }
+            runOnUiThread { result.success(answer) }
+        }.start()
+    }
+
+    private fun calendars(): List<Map<String, Any?>> {
+        val columns = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+            CalendarContract.Calendars.ACCOUNT_NAME,
+            CalendarContract.Calendars.CALENDAR_COLOR,
+        )
+        val found = mutableListOf<Map<String, Any?>>()
+        contentResolver.query(
+            CalendarContract.Calendars.CONTENT_URI,
+            columns,
+            "${CalendarContract.Calendars.VISIBLE} = 1",
+            null,
+            "${CalendarContract.Calendars.ACCOUNT_NAME}, " +
+                CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                found.add(
+                    mapOf(
+                        "id" to c.getLong(0).toString(),
+                        "name" to c.getString(1),
+                        "account" to c.getString(2),
+                        "colour" to c.getInt(3),
+                    ),
+                )
+            }
+        }
+        return found
+    }
+
+    /**
+     * Every instance of every event between [from] and [to] — a repeating
+     * event is a row per time it happens, which is what Instances is for.
+     */
+    private fun events(from: Long, to: Long): List<Map<String, Any?>> {
+        val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also {
+            ContentUris.appendId(it, from)
+            ContentUris.appendId(it, to)
+        }.build()
+        val columns = arrayOf(
+            CalendarContract.Instances.EVENT_ID,
+            CalendarContract.Instances.BEGIN,
+            CalendarContract.Instances.END,
+            CalendarContract.Instances.ALL_DAY,
+            CalendarContract.Instances.TITLE,
+            CalendarContract.Instances.DISPLAY_COLOR,
+            CalendarContract.Instances.CALENDAR_ID,
+            CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
+        )
+        val found = mutableListOf<Map<String, Any?>>()
+        contentResolver.query(
+            uri,
+            columns,
+            "${CalendarContract.Instances.VISIBLE} = 1",
+            null,
+            "${CalendarContract.Instances.BEGIN} ASC",
+        )?.use { c ->
+            while (c.moveToNext()) {
+                found.add(
+                    mapOf(
+                        "id" to c.getLong(0),
+                        "begin" to c.getLong(1),
+                        "end" to c.getLong(2),
+                        "allDay" to (c.getInt(3) != 0),
+                        "title" to (c.getString(4) ?: ""),
+                        "colour" to c.getInt(5),
+                        "calendar" to c.getLong(6).toString(),
+                        "calendarName" to c.getString(7),
+                    ),
+                )
+            }
+        }
+        return found
+    }
+
+    /** Shows an event in whichever app keeps the calendar. */
+    private fun openEvent(id: Long, begin: Long, end: Long): Boolean = try {
+        startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id),
+            )
+                .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, begin)
+                .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end),
+        )
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -305,6 +473,8 @@ class MainActivity : FlutterActivity() {
         const val IME_CHANNEL = "caldo/ime"
         const val UPDATES_CHANNEL = "caldo/updates"
         const val WIDGET_CHANNEL = "caldo/widget"
+        const val CALENDARS_CHANNEL = "caldo/calendars"
+        const val ASK_CALENDARS = 7
 
         /** What a measurement may be out by and still be believed. */
         const val SLACK = 2

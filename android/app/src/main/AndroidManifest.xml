@@ -15,6 +15,10 @@
          only open for an APK if it says so here — and the user still has to
          allow Caldo to install apps, once, in settings. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Events from the phone's own calendars are shown beside the tasks,
+         read-only, once Settings has been asked to and the user has said
+         yes. Nothing is ever written to them. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <application
@@ -111,6 +115,8 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <!-- The calendar provider the events are read from. -->
+        <provider android:authorities="com.android.calendar"/>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

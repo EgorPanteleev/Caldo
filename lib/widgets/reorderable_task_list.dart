@@ -7,6 +7,8 @@ import 'package:flutter/rendering.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../providers/task_provider.dart' show dayOf;
+import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import 'carry.dart';
 import 'slide_into_place.dart';
@@ -510,6 +512,10 @@ class _RenderAtFinger extends RenderProxyBox {
 
 class ReorderableTaskList extends StatefulWidget {
   final List<Holiday> holidays;
+
+  /// Events from the phone's calendars on [day], under its holidays.
+  final List<CalendarEvent> events;
+  final DateTime? day;
   final List<Task> tasks;
 
   /// What the list is standing on, painted behind a card while it is carried.
@@ -551,6 +557,8 @@ class ReorderableTaskList extends StatefulWidget {
   const ReorderableTaskList({
     super.key,
     required this.holidays,
+    this.events = const [],
+    this.day,
     required this.tasks,
     required this.ground,
     required this.listOf,
@@ -601,11 +609,16 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
     return DragWithin(child: Builder(builder: (context) => _build(context)));
   }
 
-  /// Holidays in a sliver of their own and the tasks in a reorderable one,
-  /// rather than both in a single list. A list cannot tell a holiday from a
-  /// task, so the gap it opens for the card being carried could land above
-  /// the holidays, where the card could never be dropped.
+  /// Holidays and events in a sliver of their own and the tasks in a
+  /// reorderable one, rather than all in a single list. A list cannot tell a
+  /// holiday from a task, so the gap it opens for the card being carried
+  /// could land above the holidays, where the card could never be dropped.
   Widget _build(BuildContext context) {
+    final fixed = fixedCards(
+      w.day ?? dayOf(DateTime.now()),
+      w.holidays,
+      w.events,
+    );
     return CustomScrollView(
       controller: w.controller,
       shrinkWrap: w.shrinkWrap,
@@ -613,10 +626,10 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
       slivers: [
         SliverToBoxAdapter(child: SizedBox(height: w.padding.top)),
         SliverList.builder(
-          itemCount: w.holidays.length,
+          itemCount: fixed.length,
           itemBuilder: (context, i) => KeyedSubtree(
-            key: i == w.holidays.length - 1 ? _lastHoliday : null,
-            child: HolidayCard(holiday: w.holidays[i]),
+            key: i == fixed.length - 1 ? _lastHoliday : null,
+            child: fixed[i],
           ),
         ),
         SliverReorderableList(
@@ -635,7 +648,7 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
             animation,
             // A card that can leave the list is not held below its
             // holidays: up past them is the way to the month.
-            under: w.holidays.isEmpty || !w.penned ? null : _lastHoliday,
+            under: fixed.isEmpty || !w.penned ? null : _lastHoliday,
             carry: w.carry,
             chip: (
               title: w.tasks[index].title,
