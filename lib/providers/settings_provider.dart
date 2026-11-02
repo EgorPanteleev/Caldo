@@ -24,6 +24,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kDefaultStyle = 'default_task_style';
   static const _kReminders = 'reminders_enabled';
   static const _kReminderAt = 'reminder_minutes';
+  static const _kReminderLead = 'reminder_lead';
   static const _kClock = 'use_24_hour';
 
   /// The screen the app opens on. Schedule out of the box: it is the one
@@ -60,6 +61,13 @@ class SettingsProvider extends ChangeNotifier {
   /// point in the day, and nine in the morning is the least of the evils.
   int _reminderMinutes = 9 * 60;
 
+  /// Minutes ahead of its time a timed task is announced, unless it says
+  /// otherwise. At the time out of the box, which is what it always was.
+  int _reminderLead = 0;
+
+  /// The leads offered, here and on the task form.
+  static const leads = [0, 5, 10, 15, 30, 60];
+
   /// Whether times are written on a 24-hour clock, or null for as the phone
   /// does until a choice is made here.
   bool? _use24Hour;
@@ -79,6 +87,7 @@ class SettingsProvider extends ChangeNotifier {
   String? get defaultTaskStyleId => _defaultTaskStyleId;
   bool get reminders => _reminders;
   int get reminderMinutes => _reminderMinutes;
+  int get reminderLead => _reminderLead;
 
   /// The hour all-day reminders land on, as the pickers want it.
   TimeOfDay get reminderTime =>
@@ -102,8 +111,32 @@ class SettingsProvider extends ChangeNotifier {
     return _startScreenFromString(prefs.getString(_kStartScreen));
   }
 
+  /// Puts the stored settings where a background isolate needs them — the
+  /// clock notifications are written on, and when the alarms go off —
+  /// without the permission request [load] ends with, which nobody would be
+  /// there to answer. Reloaded from disk each time: the isolate may have
+  /// been running since before the setting was last changed.
+  static Future<void> prime() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final settings = SettingsProvider().._read(prefs);
+    Dates.use24Hour = settings.use24Hour;
+    await settings._tellReminders();
+  }
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    _read(prefs);
+    Dates.use24Hour = use24Hour;
+    await _tellReminders();
+    // Reminders are on out of the box, so the first run is where Android has
+    // to be asked — nothing else in the app would ever ask, and a permission
+    // that was never requested looks exactly like a feature that is broken.
+    if (_reminders) await Reminders.instance.requestPermission();
+    notifyListeners();
+  }
+
+  void _read(SharedPreferences prefs) {
     _startScreen = _startScreenFromString(prefs.getString(_kStartScreen));
     _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
     _accent = AppAccent.byId(prefs.getString(_kAccent));
@@ -114,14 +147,8 @@ class SettingsProvider extends ChangeNotifier {
     _defaultTaskStyleId = prefs.getString(_kDefaultStyle);
     _reminders = prefs.getBool(_kReminders) ?? _reminders;
     _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
+    _reminderLead = prefs.getInt(_kReminderLead) ?? _reminderLead;
     _use24Hour = prefs.getBool(_kClock);
-    Dates.use24Hour = use24Hour;
-    await _tellReminders();
-    // Reminders are on out of the box, so the first run is where Android has
-    // to be asked — nothing else in the app would ever ask, and a permission
-    // that was never requested looks exactly like a feature that is broken.
-    if (_reminders) await Reminders.instance.requestPermission();
-    notifyListeners();
   }
 
   Future<void> update({
@@ -135,6 +162,7 @@ class SettingsProvider extends ChangeNotifier {
     String? defaultTaskStyleId,
     bool? reminders,
     int? reminderMinutes,
+    int? reminderLead,
     bool? use24Hour,
 
     /// Go back to following the device's country.
@@ -198,16 +226,23 @@ class SettingsProvider extends ChangeNotifier {
       _reminderMinutes = reminderMinutes;
       await prefs.setInt(_kReminderAt, reminderMinutes);
     }
-    if (reminders != null || reminderMinutes != null) await _tellReminders();
+    if (reminderLead != null) {
+      _reminderLead = reminderLead;
+      await prefs.setInt(_kReminderLead, reminderLead);
+    }
+    if (reminders != null || reminderMinutes != null || reminderLead != null) {
+      await _tellReminders();
+    }
     notifyListeners();
   }
 
-  /// Hands the two settings that matter to the scheduler, which holds them
+  /// Hands the settings that matter to the scheduler, which holds them
   /// rather than reaching back here: it is called from a provider that may not
   /// be in scope, and from the database layer, which has no context at all.
   Future<void> _tellReminders() => Reminders.instance.configure(
     enabled: _reminders,
     allDayMinutes: _reminderMinutes,
+    lead: _reminderLead,
   );
 
   static StartScreen _startScreenFromString(String? value) {

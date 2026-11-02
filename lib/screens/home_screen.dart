@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../db/database.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import 'calendar_screen.dart';
 import 'settings_screen.dart';
+import 'task_edit_screen.dart';
 import 'tasks_screen.dart';
 
 /// Width the menu takes.
@@ -80,6 +83,25 @@ class _HomeScreenState extends State<HomeScreen>
       final update = await Updates.instance.check();
       if (mounted && update != null) setState(() => _update = update);
     });
+    TodayWidget.listen(_openFromWidget);
+  }
+
+  /// A row of the home-screen widget opens its task's form, and the
+  /// widget's plus a new one on today, over whichever screen is showing —
+  /// and over nothing else: a form left open from before is closed first.
+  Future<void> _openFromWidget(int? id) async {
+    final task = id == null ? null : await AppDatabase.instance.getTask(id);
+    if (!mounted || (id != null && task == null)) return;
+    _closeMenu();
+    final navigator = Navigator.of(context)..popUntil((route) => route.isFirst);
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => TaskEditScreen(
+          task: task,
+          initialDate: task == null ? dayOf(DateTime.now()) : null,
+        ),
+      ),
+    );
   }
 
   @override

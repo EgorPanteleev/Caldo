@@ -49,6 +49,9 @@ class MainActivity : FlutterActivity() {
      */
     private var contentNav = -1
 
+    /** Where the home-screen widget asks the app to go ([TodayWidget]). */
+    private var launches: MethodChannel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         useFastestRefreshRate()
@@ -78,6 +81,36 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // The request the app was started with is asked for once Dart is
+        // ready to act on it; one made while it is open is sent straight on.
+        launches = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WIDGET_CHANNEL)
+            .apply {
+                setMethodCallHandler { call, result ->
+                    if (call.method == "take") {
+                        result.success(launchRequest(intent))
+                        intent.removeExtra(TodayWidget.EXTRA_OPEN_TASK)
+                        intent.removeExtra(TodayWidget.EXTRA_NEW_TASK)
+                    } else {
+                        result.notImplemented()
+                    }
+                }
+            }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        launchRequest(intent)?.let { launches?.invokeMethod("open", it) }
+    }
+
+    /**
+     * What a tap on the widget asked for: a task's form (its id), the form
+     * for a new one (no id), or nothing beyond the app itself (null).
+     */
+    private fun launchRequest(intent: Intent?): Map<String, Any?>? {
+        intent ?: return null
+        if (intent.getBooleanExtra(TodayWidget.EXTRA_NEW_TASK, false)) return mapOf("task" to null)
+        val id = intent.getLongExtra(TodayWidget.EXTRA_OPEN_TASK, -1)
+        return if (id >= 0) mapOf("task" to id) else null
     }
 
     /**
@@ -271,6 +304,7 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val IME_CHANNEL = "caldo/ime"
         const val UPDATES_CHANNEL = "caldo/updates"
+        const val WIDGET_CHANNEL = "caldo/widget"
 
         /** What a measurement may be out by and still be believed. */
         const val SLACK = 2

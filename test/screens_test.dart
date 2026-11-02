@@ -181,6 +181,17 @@ void main() {
     expect(find.text('Edit task'), findsOneWidget);
     expect(find.text('Ship'), findsOneWidget);
     expect(find.text('tag it first'), findsOneWidget);
+    // Further down the form than a phone shows at once.
+    await tester.scrollUntilVisible(
+      find.text('High'),
+      100,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.text('High'), findsOneWidget);
 
     // Untouched, the form leaves the way back in place and has nothing to
@@ -664,6 +675,71 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('a task chooses its own reminder on the form', (tester) async {
+    late _CapturingProvider provider;
+    Task? ship;
+    await tester.runAsync(() async {
+      await seedProvider();
+      provider = _CapturingProvider();
+      await provider.loadLists();
+      ship = await taskNamed('Ship');
+    });
+    tester.view.physicalSize = narrow;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: TaskEditScreen(task: ship),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // Ship has a time, so it follows the lead for timed tasks until told
+    // otherwise, and is offered minutes ahead rather than the day before.
+    final field = find.byKey(reminderFieldKey);
+    await tester.scrollUntilVisible(
+      field,
+      100,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(find.text('Remind at the time'), findsOneWidget);
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    expect(find.text('Remind 15 min before'), findsWidgets);
+    expect(find.text('Remind the day before'), findsNothing);
+    await tester.tap(find.text('No reminder').last);
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Save'),
+      100,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    // The foot of the form, which a scroll can leave half off the screen.
+    await tester.ensureVisible(find.text('Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    expect(provider.updated?.remindBefore, Task.silent);
+  });
+
   /// Pumps [screen] over a provider that records a move rather than making
   /// it, seeded for real first.
   Future<_CapturingProvider> pumpCapturing(
@@ -1056,11 +1132,15 @@ void main() {
 /// Records what the UI asks to create instead of writing it.
 class _CapturingProvider extends TaskProvider {
   Task? added;
+  Task? updated;
   Task? toggled;
   Task? restored;
 
   @override
   Future<void> add(Task task) async => added = task;
+
+  @override
+  Future<void> update(Task task) async => updated = task;
 
   @override
   Future<void> toggleDone(Task task) async => toggled = task;

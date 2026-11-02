@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A task card: its ink behind, the tick, the title and its time. The
+     outer frame's padding is the gap to the next card. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingBottom="6dp">
+
+    <FrameLayout
+        android:id="@+id/widget_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/widget_ink"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_ink"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="48dp"
+            android:orientation="horizontal"
+            android:paddingEnd="14dp">
+
+            <!-- Wider than the square it holds, so the tick is easy to hit
+                 without the rest of the card being taken for it. -->
+            <FrameLayout
+                android:id="@+id/widget_tick_area"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:paddingStart="12dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="10dp">
+
+                <ImageView
+                    android:id="@+id/widget_tick"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/widget_tick_open"/>
+
+                <ImageView
+                    android:id="@+id/widget_check"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/widget_check"
+                    android:visibility="gone"/>
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/widget_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp"
+                android:textColor="#FFE9E9EB"
+                android:textSize="15sp"/>
+
+            <TextView
+                android:id="@+id/widget_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:textColor="#FF9B9BA1"
+                android:textSize="12.5sp"/>
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

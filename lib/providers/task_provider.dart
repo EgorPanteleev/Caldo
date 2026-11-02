@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import '../db/database.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../services/background.dart';
 import '../services/reminders.dart';
+import '../services/today_widget.dart';
 
 /// Strips the time from [date], giving the calendar day it belongs to.
 DateTime dayOf(DateTime date) => DateTime(date.year, date.month, date.day);
@@ -12,6 +14,23 @@ DateTime dayOf(DateTime date) => DateTime(date.year, date.month, date.day);
 /// agenda, exposing CRUD to the UI.
 class TaskProvider extends ChangeNotifier {
   final AppDatabase _db = AppDatabase.instance;
+
+  /// A reminder's buttons and the widget change tasks without going through
+  /// here; when they do, the lists are read back as after any other change.
+  TaskProvider() {
+    Background.changed.addListener(_changedOutside);
+  }
+
+  @override
+  void dispose() {
+    Background.changed.removeListener(_changedOutside);
+    super.dispose();
+  }
+
+  void _changedOutside() {
+    rearranging.value++;
+    _reloadAll();
+  }
 
   List<TaskList> _lists = [];
 
@@ -114,15 +133,16 @@ class TaskProvider extends ChangeNotifier {
   /// Loads what the Tasks screen shows: the overdue backlog, the next
   /// [agendaDays] days of dated tasks, and everything with no date.
   Future<void> loadTasks() async {
-    await _readAgenda();
+    await readAgenda();
     notifyListeners();
-    await _syncReminders();
+    await _afterRead();
   }
 
   /// Reads the agenda in whole before any of it is put in place, so nothing
   /// that rebuilds in between sees a backlog from after a change beside days
-  /// from before it.
-  Future<void> _readAgenda() async {
+  /// from before it. Public for the background isolates, which read it to
+  /// redraw the widget and tell nobody.
+  Future<void> readAgenda() async {
     final today = dayOf(DateTime.now());
     final to = today.add(const Duration(days: agendaDays));
     final overdue = await _db.getOverdue(today.millisecondsSinceEpoch);
@@ -144,7 +164,17 @@ class TaskProvider extends ChangeNotifier {
   /// and after the notify rather than before it: alarms are set on the
   /// platform's main thread, which is also the one that hands out frames, and
   /// the lists should be on screen — their cards sliding — first.
-  Future<void> _syncReminders() => Reminders.instance.sync(_upcoming);
+  ///
+  /// The overdue backlog goes in with the days to come: its tasks' own times
+  /// have passed, but one snoozed late in the evening comes back after
+  /// midnight, by which time it is in the backlog.
+  ///
+  /// The home-screen widget is redrawn from the same read, for the same
+  /// reason the alarms are: every change ends here.
+  Future<void> _afterRead() async {
+    await Reminders.instance.sync([..._overdue, ..._upcoming]);
+    await TodayWidget.publish(this);
+  }
 
   /// The dated tasks grouped into days, ordered soonest first.
   Map<DateTime, List<Task>> get upcomingByDay => _upcomingByDay;
@@ -305,24 +335,8 @@ class TaskProvider extends ChangeNotifier {
   /// straight away — undoing is a correction, not a flourish.
   Future<void> toggleDone(Task task) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final due = task.due;
-    final rolls = !task.done && task.repeat != Repeat.none && due != null;
-    if (rolls) {
-      await _db.update(
-        task.copyWith(
-          dueAt: task.repeat.next(due)!.millisecondsSinceEpoch,
-          completedAt: now,
-          // Its next time round starts with nothing on the checklist done.
-          subtasks: [for (final s in task.subtasks) s.copyWith(done: false)],
-        ),
-      );
-    } else {
-      await _db.update(
-        task.done
-            ? task.copyWith(done: false, clearCompletedAt: true)
-            : task.copyWith(done: true, completedAt: now),
-      );
-    }
+    final rolls = task.rollsOn;
+    await _db.update(task.done ? task.reopened() : task.completed(now));
 
     final id = task.id;
     final tick = ++_tickCount;
@@ -409,14 +423,18 @@ class TaskProvider extends ChangeNotifier {
         clearDueAt: true,
         hasTime: false,
         clearSortOrder: true,
+        clearSnoozedUntil: true,
       );
     } else {
       final at = task.hasTime && due != null
           ? DateTime(day.year, day.month, day.day, due.hour, due.minute)
           : dayOf(day);
+      // A snooze was a reminder put off on the old date; the new one has
+      // its own.
       moved = task.copyWith(
         dueAt: at.millisecondsSinceEpoch,
         clearSortOrder: true,
+        clearSnoozedUntil: true,
       );
     }
     await _db.update(moved);
@@ -455,8 +473,8 @@ class TaskProvider extends ChangeNotifier {
     // agenda, three queries later — each a rebuild of both screens, and on a
     // phone the second one landed a frame or two into the slide it started.
     await _readMonth(_month);
-    await _readAgenda();
+    await readAgenda();
     notifyListeners();
-    await _syncReminders();
+    await _afterRead();
   }
 }

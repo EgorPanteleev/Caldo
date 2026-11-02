@@ -109,6 +109,21 @@ class Dates {
   static String clock(TimeOfDay time, {bool? h24}) =>
       Dates.time(DateTime(2000, 1, 1, time.hour, time.minute), h24: h24);
 
+  /// How far ahead a reminder comes: "at the time", "15 min before",
+  /// "1 hour before", "1 day before".
+  static String lead(int minutes) {
+    if (minutes <= 0) return 'at the time';
+    if (minutes % Duration.minutesPerDay == 0) {
+      final days = minutes ~/ Duration.minutesPerDay;
+      return days == 1 ? '1 day before' : '$days days before';
+    }
+    if (minutes % 60 == 0) {
+      final hours = minutes ~/ 60;
+      return hours == 1 ? '1 hour before' : '$hours hours before';
+    }
+    return '$minutes min before';
+  }
+
   /// How a task's due date reads on its row: "Today 18:30", "Yesterday", "".
   static String due(Task task, {bool? h24}) {
     final d = task.due;

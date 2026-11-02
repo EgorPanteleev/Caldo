@@ -1,5 +1,6 @@
 import 'package:caldo/models/task.dart';
 import 'package:caldo/services/reminders.dart';
+import 'package:caldo/utils/dates.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -178,5 +179,139 @@ void main() {
         expect(Reminders.whenToAnnounce(taskDue(due), nine), isNull);
       },
     );
+
+    test('a timed task comes the default lead ahead, or its own', () {
+      final at = DateTime(2026, 5, 4, 18, 30);
+      final task = taskDue(at, hasTime: true).copyWith(id: 1);
+      expect(
+        Reminders.whenToAnnounce(task, nine, lead: 15),
+        DateTime(2026, 5, 4, 18, 15),
+      );
+      // Its own lead wins over the default, a day of it included.
+      expect(
+        Reminders.whenToAnnounce(
+          task.copyWith(remindBefore: 60),
+          nine,
+          lead: 15,
+        ),
+        DateTime(2026, 5, 4, 17, 30),
+      );
+      expect(
+        Reminders.whenToAnnounce(
+          task.copyWith(remindBefore: Duration.minutesPerDay),
+          nine,
+        ),
+        DateTime(2026, 5, 3, 18, 30),
+      );
+      // At the time, chosen for itself, is not the same as following Settings.
+      expect(
+        Reminders.whenToAnnounce(
+          task.copyWith(remindBefore: 0),
+          nine,
+          lead: 15,
+        ),
+        at,
+      );
+    });
+
+    test('an all-day task takes only whole days of a lead', () {
+      final task = taskDue(DateTime(2026, 5, 4)).copyWith(id: 1);
+      // The default lead is for timed tasks; this one is at the hour.
+      expect(
+        Reminders.whenToAnnounce(task, nine, lead: 30),
+        DateTime(2026, 5, 4, 9),
+      );
+      expect(
+        Reminders.whenToAnnounce(task.copyWith(remindBefore: 15), nine),
+        DateTime(2026, 5, 4, 9),
+      );
+      // The day before crosses into the month before, at the same hour.
+      expect(
+        Reminders.whenToAnnounce(
+          taskDue(
+            DateTime(2026, 5, 1),
+          ).copyWith(id: 1, remindBefore: Duration.minutesPerDay),
+          nine,
+        ),
+        DateTime(2026, 4, 30, 9),
+      );
+    });
+
+    test('a silent task is never announced, and a snooze always wins', () {
+      final at = DateTime(2026, 5, 4, 18, 30);
+      final task = taskDue(at, hasTime: true).copyWith(id: 1);
+      expect(
+        Reminders.whenToAnnounce(
+          task.copyWith(remindBefore: Task.silent),
+          nine,
+        ),
+        isNull,
+      );
+      final later = DateTime(2026, 5, 4, 18, 45);
+      final snoozed = task.copyWith(
+        remindBefore: 15,
+        snoozedUntil: later.millisecondsSinceEpoch,
+      );
+      expect(Reminders.whenToAnnounce(snoozed, nine, lead: 60), later);
+      // Done is done, snoozed or not.
+      expect(
+        Reminders.whenToAnnounce(snoozed.copyWith(done: true), nine),
+        isNull,
+      );
+    });
+  });
+
+  group('ticking off', () {
+    test('a one-off task is closed, and a snooze on it ends', () {
+      final task = taskDue(
+        DateTime(2026, 5, 4),
+      ).copyWith(id: 1, snoozedUntil: 5);
+      final done = task.completed(42);
+      expect(done.done, isTrue);
+      expect(done.completedAt, 42);
+      expect(done.snoozedUntil, isNull);
+      expect(done.reopened().done, isFalse);
+      expect(done.reopened().completedAt, isNull);
+    });
+
+    test('a repeating task rolls on with its checklist cleared', () {
+      final task = taskDue(DateTime(2026, 1, 31)).copyWith(
+        id: 1,
+        repeat: Repeat.monthly,
+        snoozedUntil: 5,
+        subtasks: const [Subtask('a', done: true)],
+      );
+      expect(task.rollsOn, isTrue);
+      final next = task.completed(42);
+      expect(next.done, isFalse);
+      expect(next.due, DateTime(2026, 2, 28));
+      expect(next.subtasks.single.done, isFalse);
+      expect(next.snoozedUntil, isNull);
+    });
+
+    test('a lead and a snooze survive the database', () {
+      final task = taskDue(
+        DateTime(2026, 5, 4),
+      ).copyWith(remindBefore: Task.silent, snoozedUntil: 7);
+      final back = Task.fromMap(task.toMap());
+      expect(back.remindBefore, Task.silent);
+      expect(back.snoozedUntil, 7);
+      expect(
+        back.copyWith(clearRemindBefore: true, clearSnoozedUntil: true),
+        isA<Task>()
+            .having((t) => t.remindBefore, 'remindBefore', isNull)
+            .having((t) => t.snoozedUntil, 'snoozedUntil', isNull),
+      );
+    });
+  });
+
+  group('how far ahead a reminder reads', () {
+    test('minutes, hours and days', () {
+      expect(Dates.lead(0), 'at the time');
+      expect(Dates.lead(15), '15 min before');
+      expect(Dates.lead(60), '1 hour before');
+      expect(Dates.lead(120), '2 hours before');
+      expect(Dates.lead(Duration.minutesPerDay), '1 day before');
+    });
   });
 }

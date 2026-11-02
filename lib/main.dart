@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/task_provider.dart';
 import 'screens/home_screen.dart';
+import 'services/background.dart';
 import 'services/reminders.dart';
+import 'services/today_widget.dart';
 import 'services/updates.dart';
 import 'theme/app_theme.dart';
 import 'widgets/quick_add_bar.dart';
@@ -22,6 +24,11 @@ void main() async {
   // Checking for a newer release is switched on here and nowhere else, so
   // the widget tests — which drive the real shell — never go online.
   Updates.instance.enable();
+  // The home-screen widget, and hearing about the changes it and a
+  // reminder's buttons make — both switched on here only, for the same
+  // reason the update check is.
+  TodayWidget.enable();
+  Background.listen();
   // Read before the first frame: the app has to open on the right screen,
   // not open on Schedule and swap a frame later. It is one small read, and
   // the provider reads the rest for itself once it is up.

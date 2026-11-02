@@ -11,7 +11,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 4;
+  static const _dbVersion = 5;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
 
@@ -56,7 +56,9 @@ class AppDatabase {
             created_at INTEGER NOT NULL,
             completed_at INTEGER,
             sort_order INTEGER,
-            subtasks TEXT NOT NULL DEFAULT '[]'
+            subtasks TEXT NOT NULL DEFAULT '[]',
+            remind_before INTEGER,
+            snoozed_until INTEGER
           )
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
@@ -77,6 +79,16 @@ class AppDatabase {
           // v3 -> a task can carry a checklist, as JSON beside it.
           await db.execute(
             "ALTER TABLE $_tasks ADD COLUMN subtasks TEXT NOT NULL DEFAULT '[]'",
+          );
+        }
+        if (oldVersion < 5) {
+          // v4 -> a task can be announced ahead of its time, and a reminder
+          // put off from its notification. Null for both follows Settings.
+          await db.execute(
+            'ALTER TABLE $_tasks ADD COLUMN remind_before INTEGER',
+          );
+          await db.execute(
+            'ALTER TABLE $_tasks ADD COLUMN snoozed_until INTEGER',
           );
         }
       },
@@ -179,6 +191,14 @@ class AppDatabase {
       orderBy: '(sort_order IS NULL) ASC, sort_order ASC, due_at ASC',
     );
     return rows.map(Task.fromMap).toList();
+  }
+
+  /// The task with [id], or null if there is none any more — what a
+  /// notification's button or the widget asks for, holding only an id.
+  Future<Task?> getTask(int id) async {
+    final db = await database;
+    final rows = await db.query(_tasks, where: 'id = ?', whereArgs: [id]);
+    return rows.isEmpty ? null : Task.fromMap(rows.first);
   }
 
   Future<Task> insert(Task task) async {

@@ -19,7 +19,7 @@
 
     <application
         android:label="Caldo"
-        android:name="${applicationName}"
+        android:name=".CaldoApplication"
         android:icon="@mipmap/ic_launcher">
         <!-- No taskAffinity="" here, though Flutter's template has one. An
              empty affinity matches no task, so the installer's "Open" after
@@ -74,6 +74,30 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
+        <!-- Takes a reminder's Done and Snooze. The plugin does not declare
+             it for us: without this line the buttons are drawn and every
+             tap on them is dropped without a word. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false"/>
+
+        <!-- The home-screen widget, and the service that hands it its rows.
+             The receiver also takes the widget's taps and its midnight
+             redraw, so it is exported only as far as the launcher needs. -->
+        <receiver
+            android:name=".TodayWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_widget_info"/>
+        </receiver>
+        <service
+            android:name=".TodayWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS"/>
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

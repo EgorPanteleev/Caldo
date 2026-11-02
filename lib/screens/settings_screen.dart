@@ -254,12 +254,19 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.notifications_none,
                   title: 'Remind me when a task is due',
                   subtitle: settings.reminders
-                      ? 'A notification at the time it is due'
+                      ? 'A notification for each task with a date'
                       : 'Nothing is announced',
                   value: settings.reminders,
                   onChanged: (v) => _setReminders(context, v),
                 ),
                 if (settings.reminders) ...[
+                  const SizedBox(height: 12),
+                  _LeadField(
+                    value: settings.reminderLead,
+                    onChanged: (v) => context.read<SettingsProvider>().update(
+                      reminderLead: v,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _ActionTile(
                     icon: Icons.schedule,
@@ -581,6 +588,59 @@ class _ActionTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// How far ahead a timed task is announced when it does not say for itself.
+/// A task can still choose its own on the form.
+class _LeadField extends StatelessWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _LeadField({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    const leads = SettingsProvider.leads;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.alarm, size: 20, color: p.muted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: leads.contains(value) ? value : leads.first,
+                isExpanded: true,
+                dropdownColor: p.panel,
+                borderRadius: BorderRadius.circular(10),
+                icon: Icon(Icons.expand_more, color: p.muted),
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+                items: [
+                  for (final lead in leads)
+                    DropdownMenuItem(
+                      value: lead,
+                      child: Text('Timed tasks ${Dates.lead(lead)}'),
+                    ),
+                ],
+                onChanged: (v) => onChanged(v ?? 0),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

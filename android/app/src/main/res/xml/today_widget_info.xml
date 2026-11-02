@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Four cells by three to start with, a header and two or three cards,
+     and as large as the launcher allows: the list scrolls, so a taller
+     widget only shows more of it. Redrawn every half hour on top of the
+     redraw each change brings, as a floor. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="180dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="3"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_today"
+    android:previewLayout="@layout/widget_today"
+    android:description="@string/widget_description"
+    android:widgetCategory="home_screen"/>

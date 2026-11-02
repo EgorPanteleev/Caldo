@@ -12,6 +12,8 @@ Flutter 3.38.6 / Dart 3.10.7. `provider` (state), `sqflite` (storage),
 `flutter_local_notifications` + `timezone` + `flutter_timezone` (reminders).
 The type is the platform's own font — see the decision below.
 Dev-only: `sqflite_common_ffi`, so widget tests run against a real database.
+The home-screen widget is native (`TodayWidget.kt`, plain `RemoteViews`, no
+Glance and no `home_widget` package).
 The app is local-only except for one thing: asking GitHub whether a newer
 release is out, and fetching it — see the decision below.
 
@@ -20,11 +22,14 @@ release is out, and fetching it — see the decision below.
 ```
 lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
-  db/database.dart       schema v4: lists, tasks (+ migrations)
+  db/database.dart       schema v5: lists, tasks (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask)
   providers/             task_provider.dart, settings_provider.dart
   services/reminders.dart  the notification each dated task gets
+  services/background.dart a reminder's buttons and the widget's ticks,
+                         run on isolates of their own
+  services/today_widget.dart  the copy of the agenda the widget draws from
   services/updates.dart  the newer-release check, download and install
   screens/               home (shell + menu), tasks (Schedule), calendar,
                          search, task_edit, settings
@@ -37,6 +42,11 @@ lib/
                          theme_switcher, slide_into_place,
                          tick_off (+ AsShown), carry
 ```
+
+On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
+widget launches), `TodayWidget.kt` (the widget and the `Headless` engine its
+ticks run on), `TodayWidgetService.kt` (its rows) and `CaldoApplication.kt`
+(redraws the widget when its copy changes).
 
 The launcher icon is drawn in SVG under `assets/icon/src` and turned into
 Android's sizes by `tool/make_icon.sh` (needs `rsvg-convert`); the PNGs it
@@ -816,6 +826,55 @@ Changing them back will be noticed.
   allowed to install, and came back as 1.3.13. It only offers what a GitHub
   release carries — `gh release create` with the three APKs is what makes an
   update appear on the phone.
+- **A reminder has Done and two Snoozes on it** (`Reminders.done`,
+  `Reminders.snoozes`, `onReminderAction`). They are answered on the
+  notification plugin's own isolate whether or not the app is open, so that
+  isolate does the whole of a change itself (`Background._change`): writes
+  the task, puts that one task's alarm right (`Reminders.reset`, never a full
+  sync — a first sync cancels everything, which would take down every other
+  notification on show), redraws the widget, and tells the app if it is
+  running (an `IsolateNameServer` port, `Background.listen`), which reads its
+  lists back. Done is the same tick the cards make (`Task.completed`), so a
+  repeating task rolls on and its next alarm is set from the notification.
+  A snooze is stored on the task (`snoozed_until`, schema v5) rather than
+  only scheduled: the app's next sync would otherwise see an alarm for a
+  time already past and cancel it. While set it is the one time the task is
+  announced; a tick, a move to another day, or a new date or lead on the
+  form ends it. The alarms are synced over the overdue run as well as the
+  days to come, because a task snoozed late at night comes back after
+  midnight, by which time it is overdue.
+  **The plugin's `ActionBroadcastReceiver` is declared in the manifest by
+  hand.** Without it the buttons are drawn and every tap on them is dropped
+  without a word — that was the first build.
+- **A task can be announced ahead of its time** (`Task.remindBefore`,
+  `SettingsProvider.reminderLead`, `_ReminderField`, `Dates.lead`). Null
+  follows Settings ("Timed tasks at the time" by default, which is what it
+  always was); `Task.silent` is never. An all-day task takes only whole days
+  of a lead — on its day or the day before, at the all-day hour — and none
+  of the default, since "fifteen minutes before nine" on a day with no time
+  in it means nothing. The form offers minutes for a timed task and "the day
+  before" for an all-day one.
+- **The home-screen widget is Schedule in small** (`TodayWidget.kt`,
+  `TodayWidgetService.kt`): Overdue, Today, Tomorrow and each later day with
+  something on it, the cards inked as the app inks them, a tick that works
+  without opening the app, a row that opens its task's form, and a plus that
+  opens a new one on today. It is always dark, like the app out of the box.
+  It reads a copy of the agenda the app leaves in its own preferences
+  (`TodayWidget.publish`, at the end of every read of the lists, beside the
+  alarms) and sorts it into runs against today as it is when drawn — so a
+  copy left overnight is right in the morning, and an alarm at midnight
+  redraws it. **Nobody tells the widget to redraw**: `CaldoApplication`
+  listens to the preferences, because three different engines write the
+  copy (the app's, the plugin's for a reminder's buttons, and the widget's
+  own) and only the app's has a channel of ours on it. Writing an unchanged
+  copy redraws nothing, since Android only reports a value that differs.
+  A tick is drawn at once in the copy, then done by Dart on one engine kept
+  for the process (`Headless`, `widgetMain`) and fed one tap at a time: two
+  engines would each redraw from their own read and the slower would win.
+  A done task in the overdue run leaves the widget, as it leaves the app's
+  backlog; the widget has no Undo, so that tick can only be taken back in
+  the app.
+
 - **The icon is Dicty's sibling**: the same graphite rounded square and the
   same two overlapping tiles, here a white calendar page with its rings and
   a grid of days, and over its corner the violet tile with a white tick — a
@@ -833,7 +892,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 124 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 132 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -857,11 +916,13 @@ Things that will bite you:
 
 ## Building
 
-Three things in `android/` exist only for the reminders, and all three are
+Four things in `android/` exist only for the reminders, and all four are
 load-bearing: **desugaring** in `app/build.gradle.kts` (the plugin schedules
-through `java.time`, and the build fails without it), the **two receivers and
-three permissions** in the manifest (a scheduled notification is held by the
-system, which forgets them on a reboot and on an update), and
+through `java.time`, and the build fails without it), the **action
+receiver** in the manifest (a reminder's buttons do nothing without it),
+the **two scheduled receivers and three permissions** in the manifest (a
+scheduled notification is held by the system, which forgets them on a
+reboot and on an update), and
 **`res/raw/keep.xml`** (R8 cannot see that a notification icon is used, and a
 stripped icon fails silently at the moment the reminder was meant to appear).
 

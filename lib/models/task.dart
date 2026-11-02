@@ -132,6 +132,20 @@ class Task {
   /// The task's checklist, in the order it was written.
   final List<Subtask> subtasks;
 
+  /// How many minutes ahead of its time the task is announced, or null to
+  /// follow Settings. [silent] for a task that is never announced. An all-day
+  /// task counts only whole days of it: it is announced at the hour Settings
+  /// names, on its day or on one before.
+  final int? remindBefore;
+
+  /// Epoch millis a snoozed reminder comes back at, or null. While set, it
+  /// is the one time the task is announced — the snooze answers "not now",
+  /// and the time worked out from the due date has already gone by.
+  final int? snoozedUntil;
+
+  /// [remindBefore] for a task that is never announced.
+  static const silent = -1;
+
   const Task({
     this.id,
     required this.listId,
@@ -147,7 +161,36 @@ class Task {
     this.completedAt,
     this.sortOrder,
     this.subtasks = const [],
+    this.remindBefore,
+    this.snoozedUntil,
   });
+
+  /// Whether ticking this task off rolls it on to its next date rather than
+  /// closing it.
+  bool get rollsOn => !done && repeat != Repeat.none && dueAt != null;
+
+  /// This task as it is written back once ticked off at [now]: on its next
+  /// date with its checklist cleared, if it repeats, and done otherwise.
+  /// Either way a snooze is over — what it was put off for has been done.
+  ///
+  /// The one definition of a tick, shared by the cards, a reminder's Done and
+  /// the home-screen widget, which must not come to disagree about what a
+  /// repeating task does.
+  Task completed(int now) {
+    if (rollsOn) {
+      return copyWith(
+        dueAt: repeat.next(due!)!.millisecondsSinceEpoch,
+        completedAt: now,
+        clearSnoozedUntil: true,
+        // Its next time round starts with nothing on the checklist done.
+        subtasks: [for (final s in subtasks) s.copyWith(done: false)],
+      );
+    }
+    return copyWith(done: true, completedAt: now, clearSnoozedUntil: true);
+  }
+
+  /// This task with its tick taken back.
+  Task reopened() => copyWith(done: false, clearCompletedAt: true);
 
   /// How many of the checklist's steps are ticked.
   int get subtasksDone => subtasks.where((s) => s.done).length;
@@ -197,6 +240,10 @@ class Task {
     int? sortOrder,
     bool clearSortOrder = false,
     List<Subtask>? subtasks,
+    int? remindBefore,
+    bool clearRemindBefore = false,
+    int? snoozedUntil,
+    bool clearSnoozedUntil = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -213,6 +260,12 @@ class Task {
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       sortOrder: clearSortOrder ? null : (sortOrder ?? this.sortOrder),
       subtasks: subtasks ?? this.subtasks,
+      remindBefore: clearRemindBefore
+          ? null
+          : (remindBefore ?? this.remindBefore),
+      snoozedUntil: clearSnoozedUntil
+          ? null
+          : (snoozedUntil ?? this.snoozedUntil),
     );
   }
 
@@ -232,6 +285,8 @@ class Task {
       'completed_at': completedAt,
       'sort_order': sortOrder,
       'subtasks': jsonEncode([for (final s in subtasks) s.toJson()]),
+      'remind_before': remindBefore,
+      'snoozed_until': snoozedUntil,
     };
   }
 
@@ -251,6 +306,8 @@ class Task {
       completedAt: map['completed_at'] as int?,
       sortOrder: map['sort_order'] as int?,
       subtasks: _subtasksFrom(map['subtasks'] as String?),
+      remindBefore: map['remind_before'] as int?,
+      snoozedUntil: map['snoozed_until'] as int?,
     );
   }
 

@@ -43,6 +43,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   /// Null means the task keeps its list's colour.
   String? _styleId;
 
+  /// Minutes ahead the task is announced; null follows Settings.
+  int? _remindBefore;
+
   /// The checklist as it is being edited, and the field that adds to it.
   final List<_Draft> _steps = [];
   final _newStep = TextEditingController();
@@ -68,6 +71,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       ..addListener(_touched);
     _priority = task?.priority ?? Priority.none;
     _repeat = task?.repeat ?? Repeat.none;
+    _remindBefore = task?.remindBefore;
     for (final step in task?.subtasks ?? const <Subtask>[]) {
       _steps.add(_Draft(step.title, done: step.done, onEdit: _touched));
     }
@@ -193,9 +197,15 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           styleId: _styleId,
           createdAt: DateTime.now().millisecondsSinceEpoch,
           subtasks: _subtasks,
+          remindBefore: _remindBefore,
         ),
       );
     } else {
+      // A snooze put off the reminder this task had; a new date or a new
+      // lead is a new reminder, and the snooze would only stand in its way.
+      final reminderMoved =
+          due?.millisecondsSinceEpoch != existing.dueAt ||
+          _remindBefore != existing.remindBefore;
       await provider.update(
         existing.copyWith(
           listId: listId,
@@ -209,6 +219,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           styleId: _styleId,
           clearStyleId: _styleId == null,
           subtasks: _subtasks,
+          remindBefore: _remindBefore,
+          clearRemindBefore: _remindBefore == null,
+          clearSnoozedUntil: reminderMoved,
         ),
       );
     }
@@ -355,6 +368,16 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               onChanged: (v) {
                 _touched();
                 setState(() => _repeat = v);
+              },
+            ),
+            const SizedBox(height: 12),
+            _ReminderField(
+              value: _remindBefore,
+              timed: _time != null,
+              enabled: _date != null,
+              onChanged: (v) {
+                _touched();
+                setState(() => _remindBefore = v);
               },
             ),
             const SizedBox(height: 22),
@@ -709,6 +732,107 @@ class _RepeatField extends StatelessWidget {
     );
   }
 }
+
+/// When the task is announced. What is offered depends on whether it has a
+/// time: a timed task can be announced minutes, an hour or a day ahead; an
+/// all-day one is announced at the hour Settings names, on its day or the
+/// day before. Either can follow Settings, which is where a task starts, or
+/// be left unannounced.
+class _ReminderField extends StatelessWidget {
+  final int? value;
+  final bool timed;
+  final bool enabled;
+  final ValueChanged<int?> onChanged;
+
+  const _ReminderField({
+    required this.value,
+    required this.timed,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  /// Stands for null in the dropdown, which takes null as "nothing chosen".
+  static const _followSettings = -2;
+
+  static const _day = Duration.minutesPerDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final settings = context.watch<SettingsProvider>();
+    final h24 = MediaQuery.alwaysUse24HourFormatOf(context);
+    final options = <int, String>{
+      _followSettings: timed
+          ? 'Remind ${Dates.lead(settings.reminderLead)}'
+          : 'Remind on the day, at '
+                '${Dates.clock(settings.reminderTime, h24: h24)}',
+      if (timed)
+        for (final lead in [...SettingsProvider.leads, _day])
+          if (lead != settings.reminderLead) lead: 'Remind ${Dates.lead(lead)}',
+      if (!timed) _day: 'Remind the day before',
+      Task.silent: 'No reminder',
+    };
+    // A lead chosen for a timed task and kept when its time is taken off
+    // reads as the nearest thing an all-day task can do with it.
+    var shown = value ?? _followSettings;
+    if (!options.containsKey(shown)) {
+      shown = !timed && shown >= _day ? _day : _followSettings;
+    }
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        decoration: BoxDecoration(
+          color: p.panel,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: p.border),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              shown == Task.silent
+                  ? Icons.notifications_off_outlined
+                  : Icons.notifications_none,
+              size: 20,
+              color: p.muted,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  key: reminderFieldKey,
+                  value: shown,
+                  isExpanded: true,
+                  dropdownColor: p.panel,
+                  borderRadius: BorderRadius.circular(10),
+                  icon: Icon(Icons.expand_more, color: p.muted),
+                  style: TextStyle(
+                    color: p.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  items: [
+                    for (final MapEntry(key: lead, value: label)
+                        in options.entries)
+                      DropdownMenuItem(value: lead, child: Text(label)),
+                  ],
+                  onChanged: enabled
+                      ? (v) => onChanged(
+                          v == null || v == _followSettings ? null : v,
+                        )
+                      : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The form's reminder dropdown.
+const reminderFieldKey = Key('reminder-field');
 
 /// A row of priority chips — a segmented control that wraps instead of
 /// clipping its labels on narrow screens.

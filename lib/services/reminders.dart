@@ -11,6 +11,7 @@ import 'package:timezone/timezone.dart' as tz;
 import '../models/task.dart';
 import '../providers/task_provider.dart' show TaskProvider, dayOf;
 import '../utils/dates.dart';
+import 'background.dart';
 
 /// Puts a notification on each dated task, at the minute it is due.
 ///
@@ -38,6 +39,10 @@ class Reminders {
   /// midnight is the one hour nobody wants to hear about it.
   int _allDayMinutes = 9 * 60;
 
+  /// Minutes ahead of its time a timed task is announced, unless it says
+  /// otherwise for itself (`Task.remindBefore`).
+  int _lead = 0;
+
   /// Whether exact alarms are allowed. Without them Android is free to batch a
   /// reminder into whenever it next wakes up, which can be an hour late.
   bool _exact = true;
@@ -63,6 +68,13 @@ class Reminders {
 
   static const _channelId = 'caldo_reminders';
 
+  /// The buttons on a reminder, by the id the plugin hands back. Snoozing is
+  /// two buttons rather than one with a fixed wait: what "later" means
+  /// depends on what was interrupted, and a second tap to choose would be
+  /// the same cost as one of these.
+  static const done = 'done';
+  static const snoozes = {'snooze-15': 15, 'snooze-60': 60};
+
   bool get ready => _ready;
 
   /// Starts the plugin and works out which zone the device keeps time in.
@@ -75,10 +87,13 @@ class Reminders {
       final zone = await FlutterTimezone.getLocalTimezone();
       tz.setLocalLocation(tz.getLocation(zone.identifier));
 
+      // The buttons are answered on an isolate of their own, whether or not
+      // the app is open: they are meant to be pressed without opening it.
       await _plugin.initialize(
         settings: const InitializationSettings(
           android: AndroidInitializationSettings('@drawable/ic_notification'),
         ),
+        onDidReceiveBackgroundNotificationResponse: onReminderAction,
       );
 
       final android = _plugin
@@ -137,10 +152,16 @@ class Reminders {
   Future<void> configure({
     required bool enabled,
     required int allDayMinutes,
+    int lead = 0,
   }) async {
-    if (_enabled == enabled && _allDayMinutes == allDayMinutes) return;
+    if (_enabled == enabled &&
+        _allDayMinutes == allDayMinutes &&
+        _lead == lead) {
+      return;
+    }
     _enabled = enabled;
     _allDayMinutes = allDayMinutes;
+    _lead = lead;
     if (_synced) await sync(_last);
   }
 
@@ -164,13 +185,13 @@ class Reminders {
         final until = now.add(_horizon);
         final due = <(DateTime, Task)>[];
         for (final task in tasks) {
-          final at = whenToAnnounce(task, _allDayMinutes);
+          final at = whenToAnnounce(task, _allDayMinutes, lead: _lead);
           if (at == null || at.isBefore(now) || at.isAfter(until)) continue;
           due.add((at, task));
         }
         due.sort((a, b) => a.$1.compareTo(b.$1));
         for (final (at, task) in due.take(_limit)) {
-          final body = _body(task);
+          final body = _body(task, at);
           wanted[task.id!] = (
             at,
             task,
@@ -191,25 +212,7 @@ class Reminders {
       }
       for (final MapEntry(key: id, value: (at, task, said)) in wanted.entries) {
         if (standing[id] == said) continue;
-        await _plugin.zonedSchedule(
-          id: id,
-          scheduledDate: tz.TZDateTime.from(at, tz.local),
-          title: task.title,
-          body: _body(task),
-          notificationDetails: NotificationDetails(
-            android: AndroidNotificationDetails(
-              _channelId,
-              'Task reminders',
-              channelDescription: 'One notification per task, when it is due.',
-              importance: Importance.high,
-              priority: fln.Priority.high,
-              category: AndroidNotificationCategory.reminder,
-            ),
-          ),
-          androidScheduleMode: _exact
-              ? AndroidScheduleMode.exactAllowWhileIdle
-              : AndroidScheduleMode.inexactAllowWhileIdle,
-        );
+        await _schedule(id, at, task);
         standing[id] = said;
       }
     } catch (error, stack) {
@@ -219,23 +222,119 @@ class Reminders {
     }
   }
 
+  /// Brings the one alarm for [task] in line with it, leaving every other
+  /// alarm and notification alone — for a reminder's buttons and the
+  /// home-screen widget, which change one task from an isolate that has
+  /// never synced and so knows nothing of what else is standing. Whatever is
+  /// showing for the task goes, since it has just been answered.
+  Future<void> reset(Task task) async {
+    if (!_ready || task.id == null) return;
+    try {
+      await _plugin.cancel(id: task.id!);
+      if (!_enabled) return;
+      final at = whenToAnnounce(task, _allDayMinutes, lead: _lead);
+      final now = DateTime.now();
+      if (at == null || at.isBefore(now) || at.isAfter(now.add(_horizon))) {
+        return;
+      }
+      await _schedule(task.id!, at, task);
+    } catch (error, stack) {
+      debugPrint('Could not reset reminder: $error\n$stack');
+    }
+  }
+
+  /// Takes down the alarm and any notification for a task that is gone.
+  Future<void> dismiss(int id) async {
+    if (!_ready) return;
+    try {
+      await _plugin.cancel(id: id);
+    } catch (error, stack) {
+      debugPrint('Could not dismiss reminder: $error\n$stack');
+    }
+  }
+
+  Future<void> _schedule(int id, DateTime at, Task task) =>
+      _plugin.zonedSchedule(
+        id: id,
+        scheduledDate: tz.TZDateTime.from(at, tz.local),
+        title: task.title,
+        body: _body(task, at),
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            'Task reminders',
+            channelDescription: 'One notification per task, when it is due.',
+            importance: Importance.high,
+            priority: fln.Priority.high,
+            category: AndroidNotificationCategory.reminder,
+            actions: [
+              const AndroidNotificationAction(done, 'Done'),
+              for (final MapEntry(key: id, value: minutes) in snoozes.entries)
+                AndroidNotificationAction(
+                  id,
+                  minutes < 60 ? 'Snooze $minutes min' : 'Snooze 1 hour',
+                ),
+            ],
+          ),
+        ),
+        androidScheduleMode: _exact
+            ? AndroidScheduleMode.exactAllowWhileIdle
+            : AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+
   /// When [task] should be announced, or null if it never should — it has no
-  /// date, it is already done, or it has no id to hang an alarm on.
+  /// date, it is already done, it is [Task.silent], or it has no id to hang
+  /// an alarm on.
+  ///
+  /// [lead] is how far ahead a timed task is announced when it does not say
+  /// for itself. An all-day task takes only whole days of its own lead and
+  /// none of the default: it is announced at [allDayMinutes] on its day, or
+  /// on a day before, and "fifteen minutes before nine" on a day it has no
+  /// time on would be a reminder set off by nothing.
   ///
   /// Public because it is the one piece of this with a decision in it, and a
   /// test can check it without a device.
-  static DateTime? whenToAnnounce(Task task, int allDayMinutes) {
+  static DateTime? whenToAnnounce(
+    Task task,
+    int allDayMinutes, {
+    int lead = 0,
+  }) {
     if (task.id == null || task.done) return null;
+    final snoozed = task.snoozedUntil;
+    if (snoozed != null) return DateTime.fromMillisecondsSinceEpoch(snoozed);
     final due = task.due;
     if (due == null) return null;
-    if (task.hasTime) return due;
+    final before = task.remindBefore;
+    if (before != null && before < 0) return null;
+    if (task.hasTime) return due.subtract(Duration(minutes: before ?? lead));
+    final days = (before ?? 0) ~/ Duration.minutesPerDay;
     final day = dayOf(due);
-    return day.add(Duration(minutes: allDayMinutes));
+    return DateTime(
+      day.year,
+      day.month,
+      day.day - days,
+    ).add(Duration(minutes: allDayMinutes));
   }
 
-  String _body(Task task) {
+  /// What the notification says under the title, from where [at] stands:
+  /// a task announced a day early is due tomorrow, and one snoozed past its
+  /// time was due rather than is.
+  static String _body(Task task, DateTime at) {
     final due = task.due;
     if (due == null) return '';
-    return task.hasTime ? 'Due at ${Dates.time(due)}' : 'Due today';
+    final days = dayOf(due).difference(dayOf(at)).inDays;
+    final day = switch (days) {
+      0 => null,
+      1 => 'tomorrow',
+      -1 => 'yesterday',
+      _ => Dates.dayDate(due),
+    };
+    if (task.hasTime) {
+      final time = Dates.time(due);
+      final when = day == null ? 'at $time' : '$day at $time';
+      return due.isBefore(at) ? 'Was due $when' : 'Due $when';
+    }
+    if (day == null) return 'Due today';
+    return days < 0 ? 'Was due $day' : 'Due $day';
   }
 }
