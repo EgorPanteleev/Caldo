@@ -49,7 +49,7 @@ lib/
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
 widget launches, the phone's calendars), `TodayWidget.kt` (the widget and the `Headless` engine its
-ticks run on), `TodayWidgetService.kt` (its rows) and `CaldoApplication.kt`
+ticks run on), `TodayWidgetRuns.kt` (its runs and cards) and `CaldoApplication.kt`
 (redraws the widget when its copy changes).
 
 The launcher icon is drawn in SVG under `assets/icon/src` and turned into
@@ -860,7 +860,7 @@ Changing them back will be noticed.
   in it means nothing. The form offers minutes for a timed task and "the day
   before" for an all-day one.
 - **The home-screen widget is Schedule in small** (`TodayWidget.kt`,
-  `TodayWidgetService.kt`): Overdue, Today, Tomorrow and each later day with
+  `TodayWidgetRuns.kt`): Overdue, Today, Tomorrow and each later day with
   something on it, the cards inked as the app inks them, a tick that works
   without opening the app, a row that opens its task's form, and a plus that
   opens a new one on today. It is always dark, like the app out of the box.
@@ -905,6 +905,24 @@ Changing them back will be noticed.
   engine's copy landed within ~70ms and rebuilt the row before its square
   had filled — "too fast". The box's own state is what Dart writes
   (`Background.toggle(done:)`), so two quick taps end where the box ended.
+  **A ticked card is seen going to the end of its day**, not teleported
+  there: "it not moves to the bottom of list but teleports". So the widget
+  is not a list. A collection rebinds a card where it now stands, and
+  making each row a whole run did no better — the launcher swapped the run
+  out whole behind a "Loading…" frame — and inside a row Android refuses a
+  fill-in intent on a nested view ("available only from
+  RemoteViewsFactory"), so every tap did nothing. The runs are drawn
+  straight into the widget instead, each run and card added under its own
+  key (`addStableView`) into layouts with `animateLayoutChanges`; the
+  launcher redraws the layout it already has rather than inflating a new
+  one, keeps the views whose keys it knows, and animates the rest: the
+  ticked card leaves its place, those after it rise into the gap (300ms,
+  the platform's), and it comes in at the end. Each card carries
+  `PendingIntent`s of its own, one per task and tap. **The cost is that it
+  does not scroll**: a taller widget shows more, the rest runs on under
+  the fade at the foot, and at most 24 cards are drawn
+  (`TodayWidgetRuns.MOST`). Before Android 12 there are no stable keys and
+  the runs are simply drawn afresh.
   Before Android 12 the tick is the old image, changed on the next redraw.
 
 - **Done is a log of ticks, not a list of done tasks** (`completions`,

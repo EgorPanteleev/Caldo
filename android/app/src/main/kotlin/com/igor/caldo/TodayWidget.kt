@@ -8,9 +8,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
 import java.util.Calendar
@@ -28,8 +28,7 @@ import java.util.Locale
  */
 class TodayWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        for (id in ids) manager.updateAppWidget(id, views(context, id))
-        manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list)
+        for (id in ids) manager.updateAppWidget(id, views(context))
         wakeAtMidnight(context)
     }
 
@@ -172,34 +171,17 @@ class TodayWidget : AppWidgetProvider() {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, TodayWidget::class.java))
             if (ids.isEmpty()) return
-            for (id in ids) manager.updateAppWidget(id, views(context, id))
-            manager.notifyAppWidgetViewDataChanged(ids, R.id.widget_list)
+            for (id in ids) manager.updateAppWidget(id, views(context))
         }
 
-        private fun views(context: Context, widgetId: Int): RemoteViews {
+        private fun views(context: Context): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_today)
             val words = speaking(context, language(context))
             views.setTextViewText(R.id.widget_screen, words.getString(R.string.widget_schedule))
             views.setTextViewText(R.id.widget_empty_text, words.getString(R.string.widget_nothing))
-            // The data URI tells one widget's list apart from another's;
-            // without it Android hands every widget the first one's factory.
-            val adapter = Intent(context, TodayWidgetService::class.java).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-                data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
-            }
-            views.setRemoteAdapter(R.id.widget_list, adapter)
-            views.setEmptyView(R.id.widget_list, R.id.widget_empty)
-            // One template for every row; each row fills in which task and
-            // whether its tick or the rest of it was tapped.
-            views.setPendingIntentTemplate(
-                R.id.widget_list,
-                PendingIntent.getBroadcast(
-                    context,
-                    0,
-                    Intent(context, TodayWidget::class.java).setAction(ACTION_ITEM),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
-                ),
-            )
+            val runs = TodayWidgetRuns(context).apply { load() }
+            runs.addTo(views, R.id.widget_runs)
+            views.setViewVisibility(R.id.widget_empty, if (runs.isEmpty) View.VISIBLE else View.GONE)
             views.setOnClickPendingIntent(
                 R.id.widget_header,
                 PendingIntent.getActivity(

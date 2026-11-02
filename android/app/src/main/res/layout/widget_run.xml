@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A run: its heading, as Schedule writes it (`DayHeader`) — a day the
+     reader has a word for wears it on a badge with the date beside it,
+     Overdue is a red badge alone, any other day its date alone — then a
+     quiet note when the day is empty, and the cards. The cards animate
+     their changes, which is how a ticked one is seen to go to the end. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="10dp">
+
+        <TextView
+            android:id="@+id/widget_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/widget_badge"
+            android:fontFamily="sans-serif"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="10dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="5dp"
+            android:textColor="#FF000000"
+            android:textSize="13.5sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/widget_heading"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:textColor="#FFE9E9EB"
+            android:textSize="14.5sp"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_note"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="4dp"
+        android:paddingBottom="4dp"
+        android:textColor="#FF6A6A70"
+        android:textSize="13.5sp"
+        android:visibility="gone"/>
+
+    <LinearLayout
+        android:id="@+id/widget_cards"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:animateLayoutChanges="true"
+        android:orientation="vertical"/>
+</LinearLayout>

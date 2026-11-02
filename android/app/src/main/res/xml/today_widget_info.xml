@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Four cells by three to start with, a header and two or three cards,
-     and as large as the launcher allows: the list scrolls, so a taller
-     widget only shows more of it. Redrawn every half hour on top of the
-     redraw each change brings, as a floor. -->
+     and as large as the launcher allows: nothing scrolls, so a taller
+     widget is how more of the runs are shown. Redrawn every half hour on
+     top of the redraw each change brings, as a floor. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="180dp"

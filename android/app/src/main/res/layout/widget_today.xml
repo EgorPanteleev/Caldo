@@ -48,17 +48,17 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <ListView
-            android:id="@+id/widget_list"
+        <!-- Not a list: a list rebinds a card where it now stands, so a
+             ticked task jumped to the end of its day. A plain layout is
+             redrawn in place, keeping each run and card under its key, and
+             animates what moved. It does not scroll; what does not fit runs
+             on under the fade at the foot. -->
+        <LinearLayout
+            android:id="@+id/widget_runs"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:divider="@null"
-            android:dividerHeight="0dp"
-            android:fadingEdgeLength="28dp"
-            android:paddingBottom="12dp"
-            android:requiresFadingEdge="vertical"
-            android:scrollbars="none"/>
+            android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
+            android:orientation="vertical"/>
 
         <LinearLayout
             android:id="@+id/widget_empty"
@@ -83,5 +83,13 @@
                 android:textColor="#FF6A6A70"
                 android:textSize="13.5sp"/>
         </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_foot"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_gravity="bottom"
+            android:src="@drawable/widget_foot"
+            android:scaleType="fitXY"/>
     </FrameLayout>
 </LinearLayout>

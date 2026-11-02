@@ -1,8 +1,10 @@
 package com.igor.caldo
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.text.SpannableString
 import android.text.Spanned
@@ -10,33 +12,45 @@ import android.text.format.DateFormat
 import android.text.style.StrikethroughSpan
 import android.view.View
 import android.widget.RemoteViews
-import android.widget.RemoteViewsService
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-/** Hands the widget's list its rows. */
-class TodayWidgetService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory = Rows(applicationContext)
-}
-
 /**
  * The widget's runs, read from the copy the app leaves: Overdue, then Today,
  * Tomorrow and each later day with something on it — the order Schedule
  * reads in, and in each day the order Schedule shows it.
+ *
+ * Drawn straight into the widget rather than handed to a list. A widget's
+ * list moves nothing: a card that changed place was rebound where it now
+ * stood, so a ticked task teleported to the end of its day — and a list
+ * whose rows were whole runs, tried next, swapped each run out whole behind
+ * a "Loading…" flash. A plain layout is drawn over the one already on the
+ * home screen, and each run and card is added under its own key
+ * (`addStableView`), so the launcher keeps the views it has and its layout
+ * animates what changed: the ticked card leaves its place, the ones after
+ * it rise into the gap, and it comes in at the end. The cost is that the
+ * widget does not scroll.
  */
-private class Rows(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
-    private sealed interface Row
-
+class TodayWidgetRuns(private val context: Context) {
     /**
      * A run's heading as Schedule writes it (`DayHeader`): [word] on a
      * badge — Today, Tomorrow, Overdue — and [date] beside it.
      */
-    private data class Heading(val word: String?, val date: String?, val overdue: Boolean) : Row
+    private data class Heading(val word: String?, val date: String?, val overdue: Boolean)
 
-    /** A quiet line under a day with nothing on it. */
-    private data class Note(val text: String) : Row
+    /**
+     * A run: its heading, a quiet [note] when it has nothing in it, and its
+     * cards. [key] is the run's own, the same from one drawing to the next,
+     * so the launcher keeps the views it had for it.
+     */
+    private data class Run(
+        val key: Long,
+        val heading: Heading,
+        val note: String?,
+        val items: List<Item>,
+    )
 
     private data class Item(
         val id: Long,
@@ -46,19 +60,16 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         val colour: Int,
         /** Its time written in red, as the app writes an overdue task's. */
         val late: Boolean,
-    ) : Row
+    )
 
-    private var rows: List<Row> = emptyList()
+    private var rows: List<Run> = emptyList()
 
     /** Words and dates in the language the app is speaking. */
     private var locale: Locale = Locale.getDefault()
     private var words: Context = context
 
-    override fun onCreate() {}
-
-    override fun onDestroy() {}
-
-    override fun onDataSetChanged() {
+    /** Reads the copy, as it is now, into runs. */
+    fun load() {
         val prefs = TodayWidget.prefs(context)
         val copy = prefs.getString(TodayWidget.KEY, null) ?: run {
             rows = emptyList()
@@ -110,17 +121,19 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
             (if (day.take(4) == today.take(4)) label else labelYear).format(iso.parse(day)!!),
             locale,
         )
+        // A day's key is its date as a number, 20261102; the backlog's is 0.
+        fun key(day: String) = day.replace("-", "").toLong()
         rows = buildList {
             if (overdue.isNotEmpty()) {
-                add(Heading(words.getString(R.string.widget_overdue), null, overdue = true))
-                addAll(overdue)
+                val heading = Heading(words.getString(R.string.widget_overdue), null, overdue = true)
+                add(Run(0, heading, null, overdue))
             }
             // Today is said even when it is empty, once there is anything
             // else to show: a list that opens on Tomorrow leaves today to be
             // guessed at.
             if (today !in days && (overdue.isNotEmpty() || days.isNotEmpty())) {
-                add(Heading(words.getString(R.string.widget_today), date(today), overdue = false))
-                add(Note(words.getString(R.string.widget_nothing_today)))
+                val heading = Heading(words.getString(R.string.widget_today), date(today), overdue = false)
+                add(Run(key(today), heading, words.getString(R.string.widget_nothing_today), emptyList()))
             }
             for ((day, items) in days) {
                 val word = when (day) {
@@ -128,38 +141,73 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
                     tomorrow -> words.getString(R.string.widget_tomorrow)
                     else -> null
                 }
-                add(Heading(word, date(day), overdue = false))
-                addAll(items)
+                add(Run(key(day), Heading(word, date(day), overdue = false), null, items))
+            }
+        }.let(::trimmed)
+    }
+
+    /**
+     * The runs cut down to [MOST] cards — more than the tallest widget
+     * shows, since nothing scrolls, and every card drawn is sent to the
+     * launcher whole.
+     */
+    private fun trimmed(runs: List<Run>): List<Run> {
+        var left = MOST
+        return buildList {
+            for (run in runs) {
+                if (left <= 0) break
+                add(run.copy(items = run.items.take(left)))
+                left -= run.items.size
             }
         }
     }
 
-    override fun getCount() = rows.size
+    val isEmpty get() = rows.isEmpty()
 
-    override fun getViewAt(position: Int): RemoteViews {
-        return when (val row = rows.getOrNull(position)) {
-            is Heading -> RemoteViews(context.packageName, R.layout.widget_heading).apply {
-                if (row.word == null) {
-                    setViewVisibility(R.id.widget_badge, View.GONE)
-                } else {
-                    setViewVisibility(R.id.widget_badge, View.VISIBLE)
-                    setTextViewText(R.id.widget_badge, row.word)
-                    setInt(
-                        R.id.widget_badge,
-                        "setBackgroundResource",
-                        if (row.overdue) R.drawable.widget_badge_overdue else R.drawable.widget_badge,
-                    )
-                    setTextColor(R.id.widget_badge, if (row.overdue) Color.WHITE else Color.BLACK)
-                }
-                setViewVisibility(R.id.widget_heading, if (row.date == null) View.GONE else View.VISIBLE)
-                setTextViewText(R.id.widget_heading, row.date ?: "")
+    /** Adds the runs to [container] in [views], each under its own key. */
+    fun addTo(views: RemoteViews, container: Int) {
+        views.removeAllViews(container)
+        for (run in rows) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                views.addStableView(container, view(run), run.key.toInt())
+            } else {
+                views.addView(container, view(run))
             }
-            is Note -> RemoteViews(context.packageName, R.layout.widget_note).apply {
-                setTextViewText(R.id.widget_note, row.text)
-            }
-            is Item -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) box(row) else item(row)
-            null -> RemoteViews(context.packageName, R.layout.widget_heading)
         }
+    }
+
+    private fun view(run: Run): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.widget_run)
+        val heading = run.heading
+        if (heading.word == null) {
+            views.setViewVisibility(R.id.widget_badge, View.GONE)
+        } else {
+            views.setViewVisibility(R.id.widget_badge, View.VISIBLE)
+            views.setTextViewText(R.id.widget_badge, heading.word)
+            views.setInt(
+                R.id.widget_badge,
+                "setBackgroundResource",
+                if (heading.overdue) R.drawable.widget_badge_overdue else R.drawable.widget_badge,
+            )
+            views.setTextColor(R.id.widget_badge, if (heading.overdue) Color.WHITE else Color.BLACK)
+        }
+        views.setViewVisibility(R.id.widget_heading, if (heading.date == null) View.GONE else View.VISIBLE)
+        views.setTextViewText(R.id.widget_heading, heading.date ?: "")
+        views.setViewVisibility(R.id.widget_note, if (run.note == null) View.GONE else View.VISIBLE)
+        views.setTextViewText(R.id.widget_note, run.note ?: "")
+        // Cleared and added again in the new order — which, drawn over the
+        // run as it stands, keeps every card with an id it already has and
+        // only moves it (see [Rows]). Before Android 12 there are no stable
+        // ids, and the run is simply drawn afresh.
+        views.removeAllViews(R.id.widget_cards)
+        for (item in run.items) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                views.addStableView(R.id.widget_cards, box(item), item.id.toInt())
+            } else {
+                views.addView(R.id.widget_cards, item(item))
+            }
+        }
+        return views
     }
 
     /**
@@ -177,13 +225,27 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         setCompoundButtonChecked(R.id.widget_tick, row.done)
         setOnCheckedChangeResponse(
             R.id.widget_tick,
-            RemoteViews.RemoteResponse.fromFillInIntent(
-                Intent()
-                    .putExtra(TodayWidget.EXTRA_OP, TodayWidget.OP_TOGGLE)
-                    .putExtra(TodayWidget.EXTRA_TASK, row.id),
-            ),
+            RemoteViews.RemoteResponse.fromPendingIntent(tap(TodayWidget.OP_TOGGLE, row.id)),
         )
     }
+
+    /**
+     * A tap on a card: an intent of its own, one per task and tap, since
+     * there is no list to hold a template. Mutable, so the box's new state
+     * can be filled in when it is sent.
+     */
+    private fun tap(op: String, id: Long): PendingIntent = PendingIntent.getBroadcast(
+        context,
+        0,
+        Intent(context, TodayWidget::class.java)
+            .setAction(TodayWidget.ACTION_ITEM)
+            // One intent per task and tap, not one shared and overwritten.
+            .setData(Uri.parse("caldo://widget/$op/$id"))
+            .putExtra(TodayWidget.EXTRA_OP, op)
+            .putExtra(TodayWidget.EXTRA_TASK, id),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+    )
+
 
     /** What every task row has, whichever tick it wears. */
     private fun RemoteViews.card(row: Item) {
@@ -200,12 +262,7 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
             if (row.minute == null) words.getString(R.string.widget_all_day) else time(row.minute),
         )
         setTextColor(R.id.widget_time, if (row.late) OVERDUE else MUTED)
-        setOnClickFillInIntent(
-            R.id.widget_card,
-            Intent()
-                .putExtra(TodayWidget.EXTRA_OP, TodayWidget.OP_OPEN)
-                .putExtra(TodayWidget.EXTRA_TASK, row.id),
-        )
+        setOnClickPendingIntent(R.id.widget_card, tap(TodayWidget.OP_OPEN, row.id))
     }
 
     /** The row layout in the swatch nearest [colour]. */
@@ -231,12 +288,7 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         )
         setInt(R.id.widget_tick, "setColorFilter", row.colour)
         setViewVisibility(R.id.widget_check, if (row.done) View.VISIBLE else View.GONE)
-        setOnClickFillInIntent(
-            R.id.widget_tick_area,
-            Intent()
-                .putExtra(TodayWidget.EXTRA_OP, TodayWidget.OP_TOGGLE)
-                .putExtra(TodayWidget.EXTRA_TASK, row.id),
-        )
+        setOnClickPendingIntent(R.id.widget_tick_area, tap(TodayWidget.OP_TOGGLE, row.id))
     }
 
     /** On the clock Settings names, or the phone's until one is named. */
@@ -255,19 +307,6 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
         return SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", locale).format(at.time)
     }
 
-    override fun getLoadingView(): RemoteViews? = null
-
-    // A heading, a note, the old tick's row and a row per swatch.
-    override fun getViewTypeCount() = 3 + SWATCHES.size
-
-    override fun getItemId(position: Int): Long =
-        when (val row = rows.getOrNull(position)) {
-            is Item -> row.id
-            else -> -1L - position
-        }
-
-    override fun hasStableIds() = true
-
     private companion object {
         // The app's dark palette (`AppColors`).
         const val TEXT = 0xFFE9E9EB.toInt()
@@ -281,6 +320,8 @@ private class Rows(private val context: Context) : RemoteViewsService.RemoteView
          */
         const val INK = 61
         const val INK_DONE = 18
+
+        const val MOST = 24
 
         /** `ListStyle`'s swatches, each with its row (see [box]). */
         val SWATCHES = mapOf(
