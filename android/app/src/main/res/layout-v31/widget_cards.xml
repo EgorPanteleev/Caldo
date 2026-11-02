@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A run's cards, each placed by its top margin rather than stacked, so a
+     card that changes place is the same view moved, and the layout slides
+     it there (see TodayWidgetRuns). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_cards"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:animateLayoutChanges="true"/>

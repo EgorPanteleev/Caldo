@@ -3,4 +3,8 @@
     <!-- The widget's corners: the launcher's own from Android 12 on, so it
          sits among the other widgets as one of them. -->
     <dimen name="widget_radius">24dp</dimen>
+
+    <!-- Between the widget's edge and its cards; the cards are measured
+         against the widget's width less this on either side. -->
+    <dimen name="widget_padding">12dp</dimen>
 </resources>

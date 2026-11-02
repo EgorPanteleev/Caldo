@@ -2,8 +2,7 @@
 <!-- A run: its heading, as Schedule writes it (`DayHeader`) — a day the
      reader has a word for wears it on a badge with the date beside it,
      Overdue is a red badge alone, any other day its date alone — then a
-     quiet note when the day is empty, and the cards. The cards animate
-     their changes, which is how a ticked one is seen to go to the end. -->
+     quiet note when the day is empty, and the cards. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -57,10 +56,5 @@
         android:textSize="13.5sp"
         android:visibility="gone"/>
 
-    <LinearLayout
-        android:id="@+id/widget_cards"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:animateLayoutChanges="true"
-        android:orientation="vertical"/>
+    <include layout="@layout/widget_cards"/>
 </LinearLayout>

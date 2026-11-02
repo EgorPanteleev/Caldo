@@ -915,14 +915,34 @@ Changing them back will be noticed.
   straight into the widget instead, each run and card added under its own
   key (`addStableView`) into layouts with `animateLayoutChanges`; the
   launcher redraws the layout it already has rather than inflating a new
-  one, keeps the views whose keys it knows, and animates the rest: the
-  ticked card leaves its place, those after it rise into the gap (300ms,
-  the platform's), and it comes in at the end. Each card carries
+  one and keeps the views whose keys it knows. Each card carries
   `PendingIntent`s of its own, one per task and tap. **The cost is that it
   does not scroll**: a taller widget shows more, the rest runs on under
   the fade at the foot, and at most 24 cards are drawn
   (`TodayWidgetRuns.MOST`). Before Android 12 there are no stable keys and
   the runs are simply drawn afresh.
+  **Stacked, that still teleported**, and it was reported again. The
+  launcher keeps only the keys that come in the order it already has and
+  takes out the ones in between, so the ticked card was taken out and a
+  new one put in at the end: a fade out and a fade in, which reads as a
+  jump. So a run's cards stand in a frame in the order of their ids, which
+  a move never changes, each placed by a top margin from the heights of the
+  cards above it, and a move is only a margin changed. The heights are
+  measured in the app's process by applying the card at the widget's width
+  (`fit`), and the title is then held to the lines it took there, so a
+  pixel's difference in the launcher's width cannot make a card taller
+  than its room. A zero-size view shown and hidden on every drawing
+  (`nudge`) is what sets the layout watching where everything goes —
+  shown first, because the first change of the pass decides the timing
+  and a removal waits 300ms. The card that travels furthest is raised
+  (`translationZ`) so it slides over the cards it passes, and the ink is
+  worked out over black rather than left translucent, so crossing cards
+  do not show through each other. Two details cost a round each: a frame
+  left to wrap its cards is held to the room above the widget's foot and
+  hands each card only what is left of it, so the ticked card, sent past
+  the foot, was measured to nothing and vanished — the frame's height is
+  set outright; and a resize redraws (`onAppWidgetOptionsChanged`), since
+  the measured heights depend on the width.
   Before Android 12 the tick is the old image, changed on the next redraw.
 
 - **Done is a log of ticks, not a list of done tasks** (`completions`,

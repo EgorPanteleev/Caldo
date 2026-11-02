@@ -131,8 +131,10 @@ TEXT = """            <LinearLayout
 def row(name):
     return HEADER + f"""<!-- A task card in {name}, as Schedule draws one: its ink behind, the tick,
      the title and under it the time or "All day". The outer frame's padding
-     is the gap to the next card. -->
+     is the gap to the next card, and its top margin is where it stands in
+     its run. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:paddingBottom="8dp">

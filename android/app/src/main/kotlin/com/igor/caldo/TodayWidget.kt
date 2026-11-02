@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -15,6 +16,7 @@ import android.widget.RemoteViews
 import org.json.JSONObject
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * The home-screen widget: what is overdue and what is coming, each with a
@@ -28,8 +30,19 @@ import java.util.Locale
  */
 class TodayWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        for (id in ids) manager.updateAppWidget(id, views(context))
+        for (id in ids) manager.updateAppWidget(id, views(context, manager, id))
         wakeAtMidnight(context)
+    }
+
+    // Resized: the cards are placed by their measured heights, and a title
+    // that wraps at one width need not at another.
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        manager: AppWidgetManager,
+        id: Int,
+        options: Bundle,
+    ) {
+        manager.updateAppWidget(id, views(context, manager, id))
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -171,16 +184,16 @@ class TodayWidget : AppWidgetProvider() {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, TodayWidget::class.java))
             if (ids.isEmpty()) return
-            for (id in ids) manager.updateAppWidget(id, views(context))
+            for (id in ids) manager.updateAppWidget(id, views(context, manager, id))
         }
 
-        private fun views(context: Context): RemoteViews {
+        private fun views(context: Context, manager: AppWidgetManager, id: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_today)
             val words = speaking(context, language(context))
             views.setTextViewText(R.id.widget_screen, words.getString(R.string.widget_schedule))
             views.setTextViewText(R.id.widget_empty_text, words.getString(R.string.widget_nothing))
-            val runs = TodayWidgetRuns(context).apply { load() }
-            runs.addTo(views, R.id.widget_runs)
+            val runs = TodayWidgetRuns(context, id).apply { load() }
+            runs.addTo(views, R.id.widget_runs, cardWidth(context, manager, id))
             views.setViewVisibility(R.id.widget_empty, if (runs.isEmpty) View.VISIBLE else View.GONE)
             views.setOnClickPendingIntent(
                 R.id.widget_header,
@@ -201,6 +214,26 @@ class TodayWidget : AppWidgetProvider() {
                 ),
             )
             return views
+        }
+
+        /**
+         * How wide widget [id]'s cards are, in pixels: its width on the home
+         * screen as the phone is held now, less its padding. The launcher
+         * reports the width upright as the least and on its side as the
+         * most.
+         */
+        private fun cardWidth(context: Context, manager: AppWidgetManager, id: Int): Int {
+            val res = context.resources
+            val options = manager.getAppWidgetOptions(id)
+            val dp = options.getInt(
+                if (res.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                    AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH
+                } else {
+                    AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH
+                },
+            )
+            val width = if (dp > 0) dp * res.displayMetrics.density else res.displayMetrics.widthPixels.toFloat()
+            return (width - 2 * res.getDimension(R.dimen.widget_padding)).roundToInt()
         }
 
         /**
