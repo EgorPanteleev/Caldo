@@ -523,6 +523,7 @@ class ReorderableTaskList extends StatefulWidget {
 
   final EdgeInsets padding;
   final ScrollController? controller;
+  final ScrollPhysics? physics;
   final bool shrinkWrap;
   final TaskList? Function(Task) listOf;
   final ValueChanged<Task> onOpen;
@@ -573,6 +574,7 @@ class ReorderableTaskList extends StatefulWidget {
     required this.onReorder,
     this.padding = EdgeInsets.zero,
     this.controller,
+    this.physics,
     this.shrinkWrap = false,
   });
 
@@ -622,7 +624,9 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
     return CustomScrollView(
       controller: w.controller,
       shrinkWrap: w.shrinkWrap,
-      physics: w.shrinkWrap ? const ClampingScrollPhysics() : null,
+      physics:
+          w.physics ??
+          (w.shrinkWrap ? const ClampingScrollPhysics() : null),
       slivers: [
         SliverToBoxAdapter(child: SizedBox(height: w.padding.top)),
         SliverList.builder(

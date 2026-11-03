@@ -94,6 +94,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       value: 0,
       duration: const Duration(milliseconds: 280),
     );
+    _expansion.addListener(_leaveWeek);
     _carry.addListener(_watchEdges);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -111,6 +112,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     _controller.dispose();
     _dayController.dispose();
     _expansion.dispose();
+    _dayLists.dispose();
     _quickAdd.dispose();
     super.dispose();
   }
@@ -190,9 +192,55 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// the same sign the grid's own drag uses.
   void _onPull(double delta) => _dragBy(delta);
 
-  void _onPullStart() => _dragFrom = _expansion.value.roundToDouble();
+  void _onPullStart() {
+    _listDragged = true;
+    _dragFrom = _expansion.value.roundToDouble();
+  }
 
-  void _onPullEnd() => _onDragEnd(DragEndDetails());
+  /// [details] is null when the list ends a fling rather than a drag: the
+  /// finger left before it, and the grid was settled then, or never moved.
+  void _onPullEnd(DragEndDetails? details) {
+    if (!_listDragged) return;
+    _listDragged = false;
+    if (details != null) _onDragEnd(details);
+  }
+
+  /// Set while a finger is dragging the day's list, and on through the fling
+  /// it throws.
+  bool _listDragged = false;
+
+  /// The day's list scrolls only once the grid is down to its week. Above
+  /// that, a drag on the list is a drag on the grid, all of it: a list that
+  /// scrolled until it ran out and only then moved the grid made the same
+  /// gesture do one thing or the other depending on where the list stood,
+  /// and could leave the grid stopped halfway with the list scrolled beside
+  /// it. From the week, a pull down from the top of the list opens it again.
+  bool get _listHeld => _listDragged && _expansion.value > -1 + 1e-6;
+
+  late final _dayListPhysics = _HeldScrollPhysics(() => _listHeld);
+
+  /// Every day page's list, so they can be put back at their tops.
+  final _dayLists = ScrollController();
+
+  bool _atWeek = false;
+
+  /// A list scrolled down in the week cannot be scrolled back once the grid
+  /// has left it, so it is brought back to its top as the grid opens —
+  /// otherwise its first tasks would be out of reach until the week again.
+  void _leaveWeek() {
+    final atWeek = _expansion.value <= -1 + 1e-6;
+    if (atWeek == _atWeek) return;
+    _atWeek = atWeek;
+    if (atWeek) return;
+    for (final position in _dayLists.positions) {
+      if (position.pixels <= position.minScrollExtent) continue;
+      position.animateTo(
+        position.minScrollExtent,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
 
   void _onDrag(DragUpdateDetails details) => _dragBy(details.primaryDelta!);
 
@@ -720,6 +768,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   onPull: _onPull,
                                   onPullStart: _onPullStart,
                                   onPullEnd: _onPullEnd,
+                                  physics: _dayListPhysics,
+                                  controller: _dayLists,
                                   onOpen: _openEditor,
                                   onToggle: (task) => tickOff(context, task),
                                   isLeaving: provider.isLeaving,
@@ -927,6 +977,34 @@ class _Glide extends Simulation {
   bool isDone(double time) => time >= _seconds;
 }
 
+/// Scroll physics that can hold a list still, handing the whole of each drag
+/// on as overscroll — which is what the day panel turns into a pull on the
+/// grid — and throwing no fling after it.
+class _HeldScrollPhysics extends ScrollPhysics {
+  final bool Function() held;
+
+  const _HeldScrollPhysics(this.held, {super.parent});
+
+  @override
+  _HeldScrollPhysics applyTo(ScrollPhysics? ancestor) => _HeldScrollPhysics(
+    held,
+    // Always scrollable, so a short list still reports the drags on it.
+    parent: const AlwaysScrollableScrollPhysics().applyTo(ancestor),
+  );
+
+  @override
+  double applyBoundaryConditions(ScrollMetrics position, double value) =>
+      held()
+      ? value - position.pixels
+      : super.applyBoundaryConditions(position, value);
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) => held() ? null : super.createBallisticSimulation(position, velocity);
+}
+
 const calendarHandleKey = Key('calendar-handle');
 
 /// The strip between the grid and the day's tasks. It draws nothing — the
@@ -1093,7 +1171,12 @@ class _DayPanel extends StatelessWidget {
   /// go should open or close the month rather than do nothing at all.
   final void Function(double delta) onPull;
   final VoidCallback onPullStart;
-  final VoidCallback onPullEnd;
+  final ValueChanged<DragEndDetails?> onPullEnd;
+
+  /// Keeps the list still while the grid is above its week (see
+  /// `_listHeld`), so every drag on it reaches [onPull].
+  final ScrollPhysics physics;
+  final ScrollController controller;
   final ValueChanged<Task> onOpen;
   final ValueChanged<Task> onToggle;
   final bool Function(Task) isLeaving;
@@ -1114,6 +1197,8 @@ class _DayPanel extends StatelessWidget {
     required this.onPull,
     required this.onPullStart,
     required this.onPullEnd,
+    required this.physics,
+    required this.controller,
     required this.onOpen,
     required this.onToggle,
     required this.isLeaving,
@@ -1147,11 +1232,18 @@ class _DayPanel extends StatelessWidget {
         Expanded(
           child: NotificationListener<ScrollNotification>(
             onNotification: (notification) {
-              if (notification is ScrollStartNotification) onPullStart();
-              if (notification is ScrollEndNotification) onPullEnd();
-              // A short day's list cannot scroll at all, so every drag on it
-              // arrives here as overscroll; a long one only once it has run
-              // out of list to give.
+              // Only a finger's drag: a fling or the list being put back at
+              // its top is no pull, and ending one used to settle the grid.
+              if (notification is ScrollStartNotification &&
+                  notification.dragDetails != null) {
+                onPullStart();
+              }
+              if (notification is ScrollEndNotification) {
+                onPullEnd(notification.dragDetails);
+              }
+              // A held list (or a short one, which cannot scroll at all)
+              // passes every drag on as overscroll; in the week a long one
+              // does once it is back at its top.
               if (notification is OverscrollNotification &&
                   notification.dragDetails != null) {
                 onPull(-notification.overscroll);
@@ -1178,6 +1270,8 @@ class _DayPanel extends StatelessWidget {
                   )
                 : ReorderableTaskList(
                     padding: const EdgeInsets.only(top: 4, bottom: 8),
+                    physics: physics,
+                    controller: controller,
                     ground: AppTheme.of(context).panel,
                     holidays: holidays,
                     events: events,

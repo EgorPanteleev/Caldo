@@ -719,8 +719,16 @@ Changing them back will be noticed.
   shape, the first in red.
 - **Pulling the day panel past either end drives the grid.** The panel is most
   of the screen; a swipe on it that had nowhere else to go used to do nothing.
-  A short day's list cannot scroll at all, so every drag on it arrives as
-  overscroll; a long one arrives only once it has run out of list.
+  **The day's list only scrolls once the grid is down to its week**
+  (`_HeldScrollPhysics`, `_listHeld`). Above that, every drag on it is a
+  drag on the grid: the physics hands the whole of it on as overscroll and
+  throws no fling. It used to scroll until it ran out and only then move
+  the grid, so one gesture did either depending on where the list stood,
+  and could leave the grid stopped halfway beside a scrolled list —
+  reported as behaving "like UB". In the week a pull down scrolls the list
+  back to its top and from there opens the month; a list left scrolled when
+  the grid opens some other way is run back to its top, since it could not
+  be scrolled there.
   A day with nothing on it has no list at all, so the whole panel takes the
   drag directly, as the day bar does, and its placeholder is shrunk to fit
   rather than scrolled (`EmptyState.scrolls`). It used to be the
@@ -1058,7 +1066,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 160 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 161 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

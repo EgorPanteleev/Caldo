@@ -12,6 +12,7 @@ import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/menu_button.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
+import 'package:caldo/widgets/reorderable_task_list.dart';
 import 'package:caldo/widgets/task_card.dart';
 import 'package:caldo/widgets/task_row.dart';
 import 'package:caldo/widgets/month_grid.dart';
@@ -465,6 +466,83 @@ void main() {
     await tester.drag(find.byKey(calendarHandleKey), const Offset(0, 900));
     await tester.pumpAndSettle();
     expect(height(), closeTo(month, 1));
+    await drainDatabase(tester);
+  });
+
+  testWidgets('the day\'s list scrolls only once the grid is a week', (
+    tester,
+  ) async {
+    final provider = await pumpScreen(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    await tester.runAsync(() async {
+      final listId = provider.lists.first.id!;
+      for (var i = 0; i < 16; i++) {
+        await provider.add(
+          Task(
+            listId: listId,
+            title: 'Chore $i',
+            dueAt: today.millisecondsSinceEpoch,
+            createdAt: DateTime.now().millisecondsSinceEpoch + i,
+          ),
+        );
+      }
+      await provider.loadTasks();
+      await provider.loadMonth(today);
+    });
+    await tester.pumpAndSettle();
+
+    double height() => tester.getSize(find.byType(MonthGrid).first).height;
+    double scrolled() => tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(ReorderableTaskList),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position
+        .pixels;
+    final month = height();
+    // Whichever card is on screen at the top of the day's list.
+    Finder card() => find.byType(TaskCard).hitTestable().first;
+
+    // In the month the list is held: a push up on it squeezes the grid to
+    // its week rather than scrolling the tasks.
+    await tester.drag(card(), const Offset(0, -120));
+    await tester.pumpAndSettle();
+    expect(height(), lessThan(month / 3));
+    expect(scrolled(), 0);
+
+    // In the week it scrolls, and the grid stays where it is.
+    await tester.drag(card(), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(scrolled(), greaterThan(100));
+    final week = height();
+
+    // A pull down runs the list back to its top first, and only from there
+    // opens the grid.
+    await tester.drag(card(), const Offset(0, 60));
+    await tester.pumpAndSettle();
+    expect(scrolled(), greaterThan(0));
+    expect(height(), closeTo(week, 1));
+    await tester.drag(card(), const Offset(0, 500));
+    await tester.pumpAndSettle();
+    expect(scrolled(), 0);
+    expect(height(), closeTo(month, 1));
+
+    // Opened another way from a scrolled list, the list goes back to its
+    // top, since it cannot be scrolled there.
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(height(), lessThan(month / 3));
+    await tester.drag(card(), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(scrolled(), greaterThan(100));
+    await tester.tap(find.byKey(calendarHandleKey));
+    await tester.pumpAndSettle();
+    expect(height(), closeTo(month, 1));
+    expect(scrolled(), 0);
     await drainDatabase(tester);
   });
 
