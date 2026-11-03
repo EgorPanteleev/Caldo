@@ -358,9 +358,16 @@ Changing them back will be noticed.
   Cancel and Save at the foot instead. An arrow beside unsaved edits is an
   invitation to lose them. Untouched, the arrow is there and there is nothing
   to save. Every field marks the form as touched, including the clears and the
-  two text controllers. The pair is pinned to the foot of the screen (above
-  the keyboard when it is up), with the form fading out under it
-  (`GroundFade`) — written after the last field, it was a scroll away.
+  two text controllers. The pair is pinned to the foot of the screen, with
+  the form fading out under it (`GroundFade`) — written after the last
+  field, it was a scroll away. It rides the keyboard as the quick-add bar
+  does (`KeyboardLift`, no `Scaffold` resize, the gesture strip kept); a
+  resized form made it misbehave the way that bar once did. Only the list's
+  viewport is shortened (`KeyboardRoom` under it), so a field's own scroll
+  into view clears the keys, and every field keeps the fade's height clear
+  below it as well (`_reveal`), or it comes to rest dimmed inside it. Save
+  and Cancel put the keyboard away; left up, it is handed to whatever field
+  had it on the screen underneath.
 - **A sheet's actions are two plain words**, Cancel and Save, drawn in towards
   the middle rather than pushed out to the corners — pinned to the edges they
   read as one control at each end rather than as a pair to choose between. A filled button beside an outlined one were the only heavy things in a
