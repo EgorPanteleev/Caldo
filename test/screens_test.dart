@@ -278,13 +278,21 @@ void main() {
     await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
     // Two plain words at the foot, and an AM/PM wheel beside the numbers.
-    expect(find.text('Save'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
+    // (The form's own pair is pinned under the sheet, hence the scoping.)
+    final sheet = find.byType(BottomSheet);
+    expect(
+      find.descendant(of: sheet, matching: find.text('Save')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.text('Cancel')),
+      findsOneWidget,
+    );
     expect(find.text('PM'), findsWidgets);
 
     await tester.tap(find.text('6:00 PM').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.descendant(of: sheet, matching: find.text('Save')));
     await tester.pumpAndSettle();
 
     // Written on the same clock it was picked on. The form used to write
@@ -308,7 +316,12 @@ void main() {
 
     await tester.tap(find.text('18:00').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('Save'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('18:00'), findsOneWidget);
   });

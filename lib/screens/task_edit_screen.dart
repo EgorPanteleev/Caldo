@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
+import '../widgets/quick_add_bar.dart' show GroundFade;
 import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/task_row.dart' show PriorityFlag;
 
@@ -284,187 +285,217 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
+        child: Column(
           children: [
-            TextFormField(
-              controller: _title,
-              autofocus: !isEdit,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(labelText: s.taskField),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? s.required : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _notes,
-              minLines: 2,
-              maxLines: 5,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(labelText: s.notesField),
-            ),
-            const SizedBox(height: 22),
-            Text(
-              s.sectionSubtasks,
-              style: TextStyle(
-                color: p.faint,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _Checklist(
-              steps: _steps,
-              newStep: _newStep,
-              newStepFocus: _newStepFocus,
-              onAdd: _addStep,
-              onToggle: (step) {
-                _touched();
-                setState(() => step.done = !step.done);
-              },
-              onRemove: (step) {
-                _touched();
-                setState(() => _steps.remove(step));
-                step.dispose();
-              },
-            ),
-            const SizedBox(height: 20),
-            _FieldTile(
-              icon: Icons.event_outlined,
-              label: s.dueDate,
-              value: _date == null ? s.none : Dates.longDay(_date!),
-              onTap: _pickDate,
-              onClear: _date == null
-                  ? null
-                  : () {
-                      _touched();
-                      setState(() {
-                        _date = null;
-                        _time = null;
-                        _repeat = Repeat.none;
-                      });
-                    },
-            ),
-            const SizedBox(height: 12),
-            _FieldTile(
-              icon: Icons.schedule,
-              label: s.time,
-              value: _time == null
-                  ? s.allDay
-                  : Dates.clock(
-                      _time!,
-                      h24: MediaQuery.alwaysUse24HourFormatOf(context),
-                    ),
-              onTap: _pickTime,
-              onClear: _time == null
-                  ? null
-                  : () {
-                      _touched();
-                      setState(() => _time = null);
-                    },
-            ),
-            const SizedBox(height: 12),
-            _RepeatField(
-              value: _repeat,
-              enabled: _date != null,
-              onChanged: (v) {
-                _touched();
-                setState(() => _repeat = v);
-              },
-            ),
-            const SizedBox(height: 12),
-            _ReminderField(
-              value: _remindBefore,
-              timed: _time != null,
-              enabled: _date != null,
-              onChanged: (v) {
-                _touched();
-                setState(() => _remindBefore = v);
-              },
-            ),
-            const SizedBox(height: 22),
-            Text(
-              s.sectionPriority,
-              style: TextStyle(
-                color: p.faint,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 10),
-            _PrioritySelector(
-              value: _priority,
-              onChanged: (v) {
-                _touched();
-                setState(() => _priority = v);
-              },
-            ),
-            const SizedBox(height: 22),
-            Text(
-              s.sectionColour,
-              style: TextStyle(
-                color: p.faint,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ColourSelector(
-              value: _styleId,
-              listColor:
-                  lists
-                      .where((l) => l.id == validId)
-                      .map((l) => l.style.color)
-                      .firstOrNull ??
-                  AppTheme.accentOf(context).color,
-              onChanged: (v) {
-                _touched();
-                setState(() => _styleId = v);
-              },
-            ),
-            if (lists.length > 1) ...[
-              const SizedBox(height: 22),
-              DropdownButtonFormField<int>(
-                initialValue: validId,
-                decoration: InputDecoration(labelText: s.list),
-                items: lists
-                    .map(
-                      (l) => DropdownMenuItem(
-                        value: l.id,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.circle, size: 10, color: l.style.color),
-                            const SizedBox(width: 8),
-                            Text(l.name),
-                          ],
+            Expanded(
+              child: Stack(
+                children: [
+                  ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      TextFormField(
+                        controller: _title,
+                        autofocus: !isEdit,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(labelText: s.taskField),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? s.required : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _notes,
+                        minLines: 2,
+                        maxLines: 5,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(labelText: s.notesField),
+                      ),
+                      const SizedBox(height: 22),
+                      Text(
+                        s.sectionSubtasks,
+                        style: TextStyle(
+                          color: p.faint,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
                         ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (v) {
-                  _touched();
-                  setState(() => _selectedListId = v);
-                },
-              ),
-            ],
-            const SizedBox(height: 26),
-            if (_dirty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  // The same pair, drawn in towards the middle the same way.
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _FootAction(
-                      label: s.cancel,
-                      onTap: () => Navigator.of(context).maybePop(),
+                      const SizedBox(height: 10),
+                      _Checklist(
+                        steps: _steps,
+                        newStep: _newStep,
+                        newStepFocus: _newStepFocus,
+                        onAdd: _addStep,
+                        onToggle: (step) {
+                          _touched();
+                          setState(() => step.done = !step.done);
+                        },
+                        onRemove: (step) {
+                          _touched();
+                          setState(() => _steps.remove(step));
+                          step.dispose();
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      _FieldTile(
+                        icon: Icons.event_outlined,
+                        label: s.dueDate,
+                        value: _date == null ? s.none : Dates.longDay(_date!),
+                        onTap: _pickDate,
+                        onClear: _date == null
+                            ? null
+                            : () {
+                                _touched();
+                                setState(() {
+                                  _date = null;
+                                  _time = null;
+                                  _repeat = Repeat.none;
+                                });
+                              },
+                      ),
+                      const SizedBox(height: 12),
+                      _FieldTile(
+                        icon: Icons.schedule,
+                        label: s.time,
+                        value: _time == null
+                            ? s.allDay
+                            : Dates.clock(
+                                _time!,
+                                h24: MediaQuery.alwaysUse24HourFormatOf(
+                                  context,
+                                ),
+                              ),
+                        onTap: _pickTime,
+                        onClear: _time == null
+                            ? null
+                            : () {
+                                _touched();
+                                setState(() => _time = null);
+                              },
+                      ),
+                      const SizedBox(height: 12),
+                      _RepeatField(
+                        value: _repeat,
+                        enabled: _date != null,
+                        onChanged: (v) {
+                          _touched();
+                          setState(() => _repeat = v);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _ReminderField(
+                        value: _remindBefore,
+                        timed: _time != null,
+                        enabled: _date != null,
+                        onChanged: (v) {
+                          _touched();
+                          setState(() => _remindBefore = v);
+                        },
+                      ),
+                      const SizedBox(height: 22),
+                      Text(
+                        s.sectionPriority,
+                        style: TextStyle(
+                          color: p.faint,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _PrioritySelector(
+                        value: _priority,
+                        onChanged: (v) {
+                          _touched();
+                          setState(() => _priority = v);
+                        },
+                      ),
+                      const SizedBox(height: 22),
+                      Text(
+                        s.sectionColour,
+                        style: TextStyle(
+                          color: p.faint,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ColourSelector(
+                        value: _styleId,
+                        listColor:
+                            lists
+                                .where((l) => l.id == validId)
+                                .map((l) => l.style.color)
+                                .firstOrNull ??
+                            AppTheme.accentOf(context).color,
+                        onChanged: (v) {
+                          _touched();
+                          setState(() => _styleId = v);
+                        },
+                      ),
+                      if (lists.length > 1) ...[
+                        const SizedBox(height: 22),
+                        DropdownButtonFormField<int>(
+                          initialValue: validId,
+                          decoration: InputDecoration(labelText: s.list),
+                          items: lists
+                              .map(
+                                (l) => DropdownMenuItem(
+                                  value: l.id,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.circle,
+                                        size: 10,
+                                        color: l.style.color,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(l.name),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            _touched();
+                            setState(() => _selectedListId = v);
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                  // The form runs on under the foot; soften where it is cut
+                  // off, as Schedule does above its add field.
+                  if (_dirty)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: GroundFade(ground: p.bg),
                     ),
-                    _FootAction(label: s.save, onTap: _save),
-                  ],
+                ],
+              ),
+            ),
+            // Pinned to the foot of the screen rather than written after the
+            // last field: on a long form the pair was a scroll away, and the
+            // way out of an edit should not have to be looked for.
+            if (_dirty)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Row(
+                    // The same pair, drawn in towards the middle the same way.
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _FootAction(
+                        label: s.cancel,
+                        onTap: () => Navigator.of(context).maybePop(),
+                      ),
+                      _FootAction(label: s.save, onTap: _save),
+                    ],
+                  ),
                 ),
               ),
           ],
