@@ -909,14 +909,23 @@ Changing them back will be noticed.
   swapped the run out whole behind a "Loading…" frame — and inside a row
   Android refuses a fill-in intent on a nested view ("available only from
   RemoteViewsFactory"), so every tap did nothing. Every heading and card
-  is drawn straight into one frame instead (`layout-v31/widget_runs.xml`),
-  each under its own key (`addStableView`), so the launcher redraws the
-  layout it already has and keeps the views whose keys it knows. Each card
-  carries `PendingIntent`s of its own, one per task and tap. **The cost is
-  that it does not scroll**: a taller widget shows more, the rest runs on
-  under the fade at the foot, and at most 24 cards are drawn
-  (`TodayWidgetRuns.MOST`). Before Android 12 there are no stable keys and
-  the runs are simply drawn afresh, stacked, with nothing moving.
+  is drawn into one frame instead (`layout/widget_page.xml`), each under
+  its own key (`addStableView`), so the launcher redraws the frame it
+  already has and keeps the views whose keys it knows. **It scrolls**
+  ("make ability to scroll"): a widget can only scroll a list, so that
+  frame is the one row of a `ListView` (`layout-v31/widget_runs.xml`),
+  handed over inline (`RemoteCollectionItems`, one item, a stable id, one
+  view type). The launcher draws the new row over the view it has rather
+  than making another, and keeps the scroll where it was; the "Loading…"
+  frame and the dead taps of the earlier attempt came with a
+  `RemoteViewsService`, whose rows are applied off the main thread. Inside
+  a list a card cannot carry an intent of its own, so each fills in which
+  task and which tap (`setOnClickFillInIntent`, `fromFillInIntent` for the
+  box) on the list's template. At most 60 cards are drawn
+  (`TodayWidgetRuns.MOST`), every one sent to the launcher whole each time,
+  and their measured heights are cached by text, width and text size.
+  Before Android 12 there is no inline list and no stable keys: the runs
+  are drawn afresh, stacked, and neither scroll nor move.
   Stacked, it still teleported: the launcher keeps only the keys that come
   in the order it already has and takes out the ones in between, so the
   ticked card was taken out and a new one faded in at the end. So nothing

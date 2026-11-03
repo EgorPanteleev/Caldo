@@ -167,9 +167,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
     }
 
     /**
-     * The runs cut down to [MOST] cards — more than the tallest widget
-     * shows, since nothing scrolls, and every card drawn is sent to the
-     * launcher whole.
+     * The runs cut down to [MOST] cards: the list scrolls them, but it is
+     * one row, and every card in it is sent to the launcher whole each time
+     * the widget is drawn.
      */
     private fun trimmed(runs: List<Run>): List<Run> {
         var left = MOST
@@ -206,12 +206,12 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         for (run in rows) {
             val head = heading(run)
             laid += Laid(headingKey(run), head, top, leaving = false)
-            top += fit(head, width)
+            top += fit(head, width, "head|${run.heading.word}|${run.heading.date}|${run.note}")
             for (item in run.items) {
                 val card = box(item)
                 val going = item.id in leaving
                 laid += Laid(item.id.toInt(), card, top, going)
-                val height = fit(card, width)
+                val height = fit(card, width, "card|${item.title}")
                 if (!going) top += height
             }
         }
@@ -285,19 +285,25 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
      * one the widget is told, and a title that wrapped there and not here
      * would make the card taller than the room left for it.
      */
-    private fun fit(views: RemoteViews, width: Int): Int {
-        val view = views.apply(context, frame)
-        view.measure(
-            View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-        )
-        val title = view.findViewById<TextView>(R.id.widget_title)
-        if (title != null) {
-            val lines = title.lineCount.coerceAtLeast(1)
+    private fun fit(views: RemoteViews, width: Int, what: String): Int {
+        // Laid out once for each text, width and text size, not on every
+        // drawing: a list of fifty cards is drawn twice in a tick.
+        val config = context.resources.configuration
+        val key = "$what|$width|${config.fontScale}|${config.densityDpi}"
+        val (height, lines) = measured.getOrPut(key) {
+            if (measured.size > 500) measured.clear()
+            val view = views.apply(context, frame)
+            view.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            view.measuredHeight to (view.findViewById<TextView>(R.id.widget_title)?.lineCount ?: 0)
+        }
+        if (lines > 0) {
             views.setInt(R.id.widget_title, "setLines", lines)
             views.setInt(R.id.widget_title_done, "setLines", lines)
         }
-        return view.measuredHeight
+        return height
     }
 
     /**
@@ -321,16 +327,23 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         setTextViewText(R.id.widget_title_done, crossedOut(row.title))
         setBoolean(R.id.widget_card, "setEnabled", row.id !in leaving)
         setCompoundButtonChecked(R.id.widget_tick, row.done)
+        // Filled in on the list's intent, as a card in a list must be; the
+        // box adds what it now shows.
         setOnCheckedChangeResponse(
             R.id.widget_tick,
-            RemoteViews.RemoteResponse.fromPendingIntent(tap(TodayWidget.OP_TOGGLE, row.id)),
+            RemoteViews.RemoteResponse.fromFillInIntent(fillIn(TodayWidget.OP_TOGGLE, row.id)),
         )
+        setOnClickFillInIntent(R.id.widget_card, fillIn(TodayWidget.OP_OPEN, row.id))
     }
 
+    /** Which task, and which tap, for the list's intent. */
+    private fun fillIn(op: String, id: Long) = Intent()
+        .putExtra(TodayWidget.EXTRA_OP, op)
+        .putExtra(TodayWidget.EXTRA_TASK, id)
+
     /**
-     * A tap on a card: an intent of its own, one per task and tap, since
-     * there is no list to hold a template. Mutable, so the box's new state
-     * can be filled in when it is sent.
+     * A tap on a card before Android 12: an intent of its own, one per task
+     * and tap, since there is no list to hold a template.
      */
     private fun tap(op: String, id: Long): PendingIntent = PendingIntent.getBroadcast(
         context,
@@ -352,7 +365,6 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
             if (row.minute == null) words.getString(R.string.widget_all_day) else time(row.minute),
         )
         setTextColor(R.id.widget_time, if (row.late) OVERDUE else MUTED)
-        setOnClickPendingIntent(R.id.widget_card, tap(TodayWidget.OP_OPEN, row.id))
     }
 
     private fun crossedOut(title: String) = SpannableString(title).apply {
@@ -386,6 +398,7 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         setInt(R.id.widget_tick, "setColorFilter", row.colour)
         setViewVisibility(R.id.widget_check, if (row.done) View.VISIBLE else View.GONE)
         setOnClickPendingIntent(R.id.widget_tick_area, tap(TodayWidget.OP_TOGGLE, row.id))
+        setOnClickPendingIntent(R.id.widget_card, tap(TodayWidget.OP_OPEN, row.id))
     }
 
     /** On the clock Settings names, or the phone's until one is named. */
@@ -420,7 +433,7 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         private const val INK = 61
         private const val INK_DONE = 18
 
-        private const val MOST = 24
+        private const val MOST = 60
 
         /**
          * Where each widget last laid out each heading and card, by key, so
@@ -429,6 +442,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
          * and a view missing here is only drawn in its place.
          */
         private val placed = mutableMapOf<Int, Map<Int, Int>>()
+
+        /** Heights and title lines [fit] has worked out, by what was measured. */
+        private val measured = HashMap<String, Pair<Int, Int>>()
 
         /** What each widget last drew leaving, so only a new leaver closes up. */
         private val left = mutableMapOf<Int, Set<Int>>()

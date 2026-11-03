@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's agenda from Android 12: every heading and card in one frame
+     under its own key, placed by its top margin, so the launcher keeps each
+     view and a move is a margin changed — which the view then slides across
+     as the app's card would (see TodayWidgetRuns). The one row of the
+     widget's list, which scrolls it. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_page"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"/>

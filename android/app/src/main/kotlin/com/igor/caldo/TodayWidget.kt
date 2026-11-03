@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -204,6 +205,9 @@ class TodayWidget : AppWidgetProvider() {
         /** From crossed out to moving to the end of its day (`TaskProvider.hold`). */
         const val HOLD = 150L
 
+        /** The id of the list's one row (see [views]). */
+        private const val PAGE = 1L
+
         /** How long a leaving card takes to fade and close up (`TaskProvider.leave`). */
         const val LEAVE = 280L
 
@@ -266,7 +270,35 @@ class TodayWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_screen, words.getString(R.string.widget_schedule))
             views.setTextViewText(R.id.widget_empty_text, words.getString(R.string.widget_nothing))
             val runs = TodayWidgetRuns(context, id).apply { load() }
-            runs.addTo(views, R.id.widget_runs, cardWidth(context, manager, id))
+            val width = cardWidth(context, manager, id)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // The agenda is the one row of a list, which scrolls it; the
+                // row keeps its id and its layout, so the launcher draws the
+                // new one over the view it has rather than making another.
+                val page = RemoteViews(context.packageName, R.layout.widget_page)
+                runs.addTo(page, R.id.widget_page, width)
+                views.setRemoteAdapter(
+                    R.id.widget_list,
+                    RemoteViews.RemoteCollectionItems.Builder()
+                        .addItem(PAGE, page)
+                        .setHasStableIds(true)
+                        .setViewTypeCount(1)
+                        .build(),
+                )
+                // Inside a list a card cannot carry an intent of its own:
+                // each fills in which task and which tap, on this one.
+                views.setPendingIntentTemplate(
+                    R.id.widget_list,
+                    PendingIntent.getBroadcast(
+                        context,
+                        0,
+                        Intent(context, TodayWidget::class.java).setAction(ACTION_ITEM),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                    ),
+                )
+            } else {
+                runs.addTo(views, R.id.widget_runs, width)
+            }
             views.setViewVisibility(R.id.widget_empty, if (runs.isEmpty) View.VISIBLE else View.GONE)
             views.setOnClickPendingIntent(
                 R.id.widget_header,

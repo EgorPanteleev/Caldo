@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Not a list: a list rebinds a card where it now stands, so a ticked task
-     jumped to the end of its day. Every heading and card stands in this one
-     frame under its own key, placed by its top margin, so the launcher keeps
-     each view and a move is a margin changed — which the view then slides
-     across as the app's card would (see TodayWidgetRuns). It does not
-     scroll; what does not fit runs on under the fade at the foot. -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_runs"
+<!-- A list of one row, which is the whole agenda (layout/widget_page.xml):
+     a widget can only scroll a list, and a list rebinds a card where it now
+     stands, so a ticked task jumped to the end of its day. One row that is
+     everything is the same view each time it is drawn, its cards kept under
+     their keys inside it and sliding there (see TodayWidgetRuns); the list
+     only scrolls it. No selector: a tap is on a card, not on the row. -->
+<ListView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_list"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"/>
+    android:layout_height="match_parent"
+    android:clipToPadding="false"
+    android:divider="@null"
+    android:dividerHeight="0dp"
+    android:listSelector="@android:color/transparent"
+    android:paddingBottom="24dp"
+    android:scrollbars="none"/>
