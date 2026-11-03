@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Nothing to see: shown and hidden again on every drawing, which is what
-     sets a layout that animates its changes watching where everything else
-     in it goes (see TodayWidgetRuns.nudge). -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_nudge"
-    android:layout_width="0dp"
-    android:layout_height="0dp"
-    android:visibility="gone"/>

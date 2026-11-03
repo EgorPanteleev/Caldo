@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card leaving its run (disabled) fades out over the first half of the
+     app's 280ms, while the cards after it close up; one that stays, or comes
+     back, is simply there. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true">
+        <objectAnimator
+            android:duration="0"
+            android:propertyName="alpha"
+            android:valueTo="1"
+            android:valueType="floatType"/>
+    </item>
+    <item>
+        <objectAnimator
+            android:duration="138"
+            android:interpolator="@interpolator/widget_leave"
+            android:propertyName="alpha"
+            android:valueTo="0"
+            android:valueType="floatType"/>
+    </item>
+</selector>

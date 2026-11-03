@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The title crossed out: hidden while its task is open (enabled), shown once done. The title's colour goes from the text's to
+     the faint grey over the app's 240ms, and the strike comes in where the
+     app's text style switches it, half way along the curve: 70ms. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true">
+        <set>
+            <objectAnimator
+                android:duration="240"
+                android:interpolator="@interpolator/widget_ease_out"
+                android:propertyName="textColor"
+                android:valueFrom="#FF6A6A70"
+                android:valueTo="#FFE9E9EB"
+                android:valueType="colorType"/>
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="alpha"
+                android:startOffset="70"
+                android:valueTo="0"
+                android:valueType="floatType"/>
+        </set>
+    </item>
+    <item>
+        <set>
+            <objectAnimator
+                android:duration="240"
+                android:interpolator="@interpolator/widget_ease_out"
+                android:propertyName="textColor"
+                android:valueFrom="#FFE9E9EB"
+                android:valueTo="#FF6A6A70"
+                android:valueType="colorType"/>
+            <objectAnimator
+                android:duration="0"
+                android:propertyName="alpha"
+                android:startOffset="70"
+                android:valueTo="1"
+                android:valueType="floatType"/>
+        </set>
+    </item>
+</selector>

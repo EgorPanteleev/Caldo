@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flutter's Curves.easeInOutCubic, which the app slides and closes up on. -->
+<pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:controlX1="0.645"
+    android:controlY1="0.045"
+    android:controlX2="0.355"
+    android:controlY2="1"/>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Not a list: a list rebinds a card where it now stands, so a ticked task
+     jumped to the end of its day. Every heading and card stands in this one
+     frame under its own key, placed by its top margin, so the launcher keeps
+     each view and a move is a margin changed — which the view then slides
+     across as the app's card would (see TodayWidgetRuns). It does not
+     scroll; what does not fit runs on under the fade at the foot. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_runs"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"/>

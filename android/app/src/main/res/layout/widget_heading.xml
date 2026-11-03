@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A run: its heading, as Schedule writes it (`DayHeader`) — a day the
-     reader has a word for wears it on a badge with the date beside it,
-     Overdue is a red badge alone, any other day its date alone — then a
-     quiet note when the day is empty, and the cards. -->
+<!-- A run's heading, as Schedule writes it (`DayHeader`) — a day the reader
+     has a word for wears it on a badge with the date beside it, Overdue is a
+     red badge alone, any other day its date alone — and a quiet note under
+     a day with nothing on it. Placed by its top margin among the cards, and
+     slides with them (animator/widget_slide.xml). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:stateListAnimator="@animator/widget_slide">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -55,6 +58,4 @@
         android:textColor="#FF6A6A70"
         android:textSize="13.5sp"
         android:visibility="gone"/>
-
-    <include layout="@layout/widget_cards"/>
 </LinearLayout>

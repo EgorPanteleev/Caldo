@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card's ink: a quarter of its colour while open (enabled), sinking to
+     a fourteenth once done, over the app's 240ms (TaskCard). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true">
+        <objectAnimator
+            android:duration="240"
+            android:interpolator="@interpolator/widget_ease_out"
+            android:propertyName="alpha"
+            android:valueTo="0.24"
+            android:valueType="floatType"/>
+    </item>
+    <item>
+        <objectAnimator
+            android:duration="240"
+            android:interpolator="@interpolator/widget_ease_out"
+            android:propertyName="alpha"
+            android:valueTo="0.07"
+            android:valueType="floatType"/>
+    </item>
+</selector>

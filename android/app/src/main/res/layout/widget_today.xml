@@ -48,17 +48,7 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- Not a list: a list rebinds a card where it now stands, so a
-             ticked task jumped to the end of its day. A plain layout is
-             redrawn in place, keeping each run and card under its key, and
-             animates what moved (see TodayWidgetRuns). It does not scroll;
-             what does not fit runs on under the fade at the foot. -->
-        <LinearLayout
-            android:id="@+id/widget_runs"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:animateLayoutChanges="true"
-            android:orientation="vertical"/>
+        <include layout="@layout/widget_runs"/>
 
         <LinearLayout
             android:id="@+id/widget_empty"

@@ -97,7 +97,10 @@ def selector(name):
 
 
 # The title and, under it, the time or "All day" — the card's (`TaskCard`),
-# and the same in the row before Android 12 (layout/widget_task.xml).
+# as the row before Android 12 has them (layout/widget_task.xml) — but the
+# title twice over, open and crossed out, so it can be crossed out as the
+# app does it: its colour fading to the faint grey, and the strike coming in
+# part way (animator/widget_title_*.xml).
 TEXT = """            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -106,15 +109,33 @@ TEXT = """            <LinearLayout
                 android:paddingTop="12dp"
                 android:paddingBottom="12dp">
 
-                <TextView
-                    android:id="@+id/widget_title"
+                <FrameLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:fontFamily="sans-serif-medium"
-                    android:maxLines="2"
-                    android:textColor="#FFE9E9EB"
-                    android:textSize="15.5sp"/>
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/widget_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="2"
+                        android:textColor="#FFE9E9EB"
+                        android:textSize="15.5sp"
+                        android:stateListAnimator="@animator/widget_title_open"/>
+
+                    <TextView
+                        android:id="@+id/widget_title_done"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:alpha="0"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="2"
+                        android:textColor="#FFE9E9EB"
+                        android:textSize="15.5sp"
+                        android:stateListAnimator="@animator/widget_title_done"/>
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/widget_time"
@@ -132,24 +153,32 @@ def row(name):
     return HEADER + f"""<!-- A task card in {name}, as Schedule draws one: its ink behind, the tick,
      the title and under it the time or "All day". The outer frame's padding
      is the gap to the next card, and its top margin is where it stands in
-     its run. -->
+     the widget. Each part plays its piece of a tick as the app's card does,
+     on an animator started by flipping its enabled state (TodayWidgetRuns):
+     the row slides, the card fades when it is leaving, the ink sinks and
+     the title is crossed out. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingBottom="8dp">
+    android:paddingBottom="8dp"
+    android:stateListAnimator="@animator/widget_slide">
 
     <FrameLayout
         android:id="@+id/widget_card"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@drawable/widget_card_base"
+        android:stateListAnimator="@animator/widget_leave">
 
         <ImageView
             android:id="@+id/widget_ink"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:alpha="0.24"
             android:scaleType="fitXY"
-            android:src="@drawable/widget_ink"/>
+            android:src="@drawable/widget_ink"
+            android:stateListAnimator="@animator/widget_ink"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -159,7 +188,11 @@ def row(name):
             android:paddingEnd="14dp">
 
             <!-- As tall as the card, so the tick is easy to hit without the
-                 rest of the card being taken for it. -->
+                 rest of the card being taken for it. Its state is never
+                 saved: every card's box has this one id, and when the
+                 launcher rebuilt itself it restored one box's saved state
+                 into all of them, which ticked every open task as if each
+                 had been tapped. -->
             <CheckBox
                 android:id="@+id/widget_tick"
                 android:layout_width="wrap_content"
@@ -169,7 +202,8 @@ def row(name):
                 android:button="@drawable/widget_check_{name}"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
-                android:paddingEnd="14dp"/>
+                android:paddingEnd="14dp"
+                android:saveEnabled="false"/>
 
 {TEXT}
         </LinearLayout>

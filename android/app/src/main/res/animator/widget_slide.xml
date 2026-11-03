@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card or heading drawn back where it was (translationY) eases to where
+     it now stands when its enabled state is flipped (TodayWidgetRuns):
+     enabled is the app's slide (SlideIntoPlace, 260ms), disabled the close
+     after a leaving card (TaskCard's leave, 280ms). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true">
+        <objectAnimator
+            android:duration="260"
+            android:interpolator="@interpolator/widget_ease_in_out_cubic"
+            android:propertyName="translationY"
+            android:valueTo="0"
+            android:valueType="floatType"/>
+    </item>
+    <item>
+        <objectAnimator
+            android:duration="280"
+            android:interpolator="@interpolator/widget_ease_in_out_cubic"
+            android:propertyName="translationY"
+            android:valueTo="0"
+            android:valueType="floatType"/>
+    </item>
+</selector>

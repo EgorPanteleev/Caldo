@@ -13,7 +13,9 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.RemoteViews
+import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -74,43 +76,111 @@ class TodayWidget : AppWidgetProvider() {
      * Ticks [id] — or takes the tick back — as [done] says, or turns it
      * over when the tap does not say.
      *
-     * Played as the app's card plays it. From Android 12 the box is a
-     * checkbox the launcher animates itself the moment it is tapped, the
-     * square filling and the check drawn through it; [SETTLE] after the tap
-     * — the tick and then a beat — the copy is changed and the card is
-     * crossed out; [HOLD] after that Dart writes the task, and its copy puts
-     * the card at the end of its day. Taking a tick back goes at once.
+     * Played step for step as the app plays it (`TaskProvider.toggleDone`).
+     * From Android 12 the box is a checkbox the launcher animates itself the
+     * moment it is tapped, the square filling and the check drawn through
+     * it. [SETTLE] after the tap — the tick and then a beat — the card is
+     * crossed out. A card that stays in its run holds there [HOLD] and then
+     * slides to the end of its day; one that leaves its run — out of the
+     * backlog, rolling on to its next date — fades while the cards after it
+     * close up, over [LEAVE]. Taken back, a tick is un-crossed at once and
+     * the run read back once the box has emptied.
      *
-     * Dart is held back as well as the copy: a warm engine wrote the task
-     * and its copy within a few tens of milliseconds, the row was rebuilt
-     * under the tick before its square had filled, and a tick that was a
-     * quarter of a second in the app was a blink on the home screen. The
-     * receiver is held open until Dart has finished, or the process could
-     * be let go mid-write.
+     * The moves are worked out here, in the copy, rather than waited for:
+     * Dart writes the task only once the card has gone where it is going,
+     * and its copy, landing tens of milliseconds later, then says what is
+     * already shown. Asked any sooner, a warm engine's copy rebuilt the row
+     * before its square had filled. The receiver is held open until Dart has
+     * finished, or the process could be let go mid-write.
      */
     private fun tick(context: Context, id: Long, done: Boolean?) {
+        val task = task(context, id) ?: return
+        val ticking = done ?: !task.getBoolean("done")
         val pending = goAsync()
-        val settle = if (done == false) UNSETTLE else SETTLE
-        val hold = if (done == false) 0L else HOLD
         val main = Handler(Looper.getMainLooper())
-        main.postDelayed({ mark(context, id, done) }, settle)
-        val args = buildMap<String, Any> {
-            put("id", id)
-            if (done != null) put("done", done)
+        val args = mapOf<String, Any>("id" to id, "done" to ticking)
+        // A last drawing once Dart is done, should its copy say nothing new:
+        // a card that was leaving is shown again if it has only rolled on.
+        val write = Runnable {
+            Headless.call(context, "toggle", args) {
+                refresh(context)
+                pending.finish()
+            }
         }
-        main.postDelayed({ Headless.call(context, "toggle", args) { pending.finish() } }, settle + hold)
+        if (!ticking) {
+            mark(context, id, false)
+            main.postDelayed(write, UNSETTLE)
+            return
+        }
+        val prefs = prefs(context)
+        val leaves = task.getString("day") < today() ||
+            task.optBoolean("repeats") ||
+            !prefs.getBoolean(KEY_SHOW_DONE, true)
+        main.postDelayed({
+            if (leaves) TodayWidgetRuns.leaving.add(id)
+            mark(context, id, true)
+        }, SETTLE)
+        if (leaves) {
+            main.postDelayed({
+                TodayWidgetRuns.leaving.remove(id)
+                write.run()
+            }, SETTLE + LEAVE)
+        } else {
+            main.postDelayed({
+                last(context, id)
+                write.run()
+            }, SETTLE + HOLD)
+        }
     }
 
+    /** Task [id] as the copy has it. */
+    private fun task(context: Context, id: Long): JSONObject? {
+        val copy = prefs(context).getString(KEY, null) ?: return null
+        val tasks = JSONObject(copy).getJSONArray("tasks")
+        for (i in 0 until tasks.length()) {
+            if (tasks.getJSONObject(i).getLong("id") == id) return tasks.getJSONObject(i)
+        }
+        return null
+    }
+
+    private fun today() = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().time)
+
     /** Shows [id] ticked or not in the copy, ahead of Dart's own. */
-    private fun mark(context: Context, id: Long, done: Boolean?) {
+    private fun mark(context: Context, id: Long, done: Boolean) {
+        edit(context) { tasks ->
+            for (i in 0 until tasks.length()) {
+                val task = tasks.getJSONObject(i)
+                if (task.getLong("id") == id) task.put("done", done)
+            }
+        }
+    }
+
+    /**
+     * Moves [id] to the end of its day in the copy, where the app puts a
+     * task just ticked: after its day's open tasks and after every task
+     * ticked before it.
+     */
+    private fun last(context: Context, id: Long) {
+        edit(context) { tasks ->
+            val at = (0 until tasks.length()).firstOrNull { tasks.getJSONObject(it).getLong("id") == id }
+                ?: return@edit
+            val task = tasks.getJSONObject(at)
+            val day = task.getString("day")
+            tasks.remove(at)
+            val end = (0 until tasks.length()).lastOrNull { tasks.getJSONObject(it).getString("day") == day }
+            // A JSONArray only appends; the rest is moved along by hand.
+            val to = if (end == null) at else end + 1
+            tasks.put(task)
+            for (i in tasks.length() - 1 downTo to + 1) tasks.put(i, tasks.getJSONObject(i - 1))
+            tasks.put(to, task)
+        }
+    }
+
+    private fun edit(context: Context, change: (JSONArray) -> Unit) {
         val prefs = prefs(context)
         val copy = prefs.getString(KEY, null) ?: return
         val json = JSONObject(copy)
-        val tasks = json.getJSONArray("tasks")
-        for (i in 0 until tasks.length()) {
-            val task = tasks.getJSONObject(i)
-            if (task.getLong("id") == id) task.put("done", done ?: !task.getBoolean("done"))
-        }
+        change(json.getJSONArray("tasks"))
         prefs.edit().putString(KEY, json.toString()).apply()
     }
 
@@ -128,11 +198,14 @@ class TodayWidget : AppWidgetProvider() {
          */
         const val SETTLE = 490L
 
-        /** How long a tick takes to come off (`_Tick`'s reverse). */
-        const val UNSETTLE = 110L
+        /** From a tick taken back to the run read back (`TaskProvider.settle`). */
+        const val UNSETTLE = 240L
 
         /** From crossed out to moving to the end of its day (`TaskProvider.hold`). */
         const val HOLD = 150L
+
+        /** How long a leaving card takes to fade and close up (`TaskProvider.leave`). */
+        const val LEAVE = 280L
 
         /** Read by [MainActivity]: the task a tap asked to have opened. */
         const val EXTRA_OPEN_TASK = "caldo.open_task"

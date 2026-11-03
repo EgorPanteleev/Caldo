@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A leaving card's fade (TaskCard): opacity 1 - 2·easeInOutCubic(t) over
+     280ms, which is gone when the curve is half way, 138ms in. This is the
+     curve's first part up to there, split off and scaled to fill the box. -->
+<pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:controlX1="0.638"
+    android:controlY1="0.044"
+    android:controlX2="0.824"
+    android:controlY2="0.522"/>

@@ -897,52 +897,74 @@ Changing them back will be noticed.
   too, so each of `ListStyle`'s eight swatches has its own drawable and its
   own row layout (`layout-v31/widget_task_<swatch>.xml`), written by
   `tool/make_widget_ticks.py`; the row takes the swatch nearest the task's
-  colour. Change a swatch, run the script. **Nothing rebuilds the row
-  until the tick has played**: the copy is crossed out 490ms after the tap
-  (`TodayWidget.SETTLE`, the tick and the app's beat), and only 150ms after
-  that is Dart even asked to write the task (`HOLD`), whose copy puts the
-  card at the end of its day. Dart used to be called at the tap, and a warm
-  engine's copy landed within ~70ms and rebuilt the row before its square
-  had filled — "too fast". The box's own state is what Dart writes
-  (`Background.toggle(done:)`), so two quick taps end where the box ended.
-  **A ticked card is seen going to the end of its day**, not teleported
-  there: "it not moves to the bottom of list but teleports". So the widget
-  is not a list. A collection rebinds a card where it now stands, and
-  making each row a whole run did no better — the launcher swapped the run
-  out whole behind a "Loading…" frame — and inside a row Android refuses a
-  fill-in intent on a nested view ("available only from
-  RemoteViewsFactory"), so every tap did nothing. The runs are drawn
-  straight into the widget instead, each run and card added under its own
-  key (`addStableView`) into layouts with `animateLayoutChanges`; the
-  launcher redraws the layout it already has rather than inflating a new
-  one and keeps the views whose keys it knows. Each card carries
-  `PendingIntent`s of its own, one per task and tap. **The cost is that it
-  does not scroll**: a taller widget shows more, the rest runs on under
-  the fade at the foot, and at most 24 cards are drawn
+  colour. Change a swatch, run the script. The box never saves its state
+  (`saveEnabled="false"`): every card's box has the one id, and once the
+  cards stopped being a list, a launcher rebuilding itself — a night-mode
+  switch is enough — restored one box's state into all of them, which
+  fired every box's tick and ticked every open task (2.3.3 shipped with
+  that). **A ticked card is seen going to the end of its day**, not
+  teleported there: "it not moves to the bottom of list but teleports". So
+  the widget is not a list. A collection rebinds a card where it now
+  stands, and making each row a whole run did no better — the launcher
+  swapped the run out whole behind a "Loading…" frame — and inside a row
+  Android refuses a fill-in intent on a nested view ("available only from
+  RemoteViewsFactory"), so every tap did nothing. Every heading and card
+  is drawn straight into one frame instead (`layout-v31/widget_runs.xml`),
+  each under its own key (`addStableView`), so the launcher redraws the
+  layout it already has and keeps the views whose keys it knows. Each card
+  carries `PendingIntent`s of its own, one per task and tap. **The cost is
+  that it does not scroll**: a taller widget shows more, the rest runs on
+  under the fade at the foot, and at most 24 cards are drawn
   (`TodayWidgetRuns.MOST`). Before Android 12 there are no stable keys and
-  the runs are simply drawn afresh.
-  **Stacked, that still teleported**, and it was reported again. The
-  launcher keeps only the keys that come in the order it already has and
-  takes out the ones in between, so the ticked card was taken out and a
-  new one put in at the end: a fade out and a fade in, which reads as a
-  jump. So a run's cards stand in a frame in the order of their ids, which
-  a move never changes, each placed by a top margin from the heights of the
-  cards above it, and a move is only a margin changed. The heights are
-  measured in the app's process by applying the card at the widget's width
-  (`fit`), and the title is then held to the lines it took there, so a
+  the runs are simply drawn afresh, stacked, with nothing moving.
+  Stacked, it still teleported: the launcher keeps only the keys that come
+  in the order it already has and takes out the ones in between, so the
+  ticked card was taken out and a new one faded in at the end. So nothing
+  is stacked. The frame holds its views in the order of their keys, which
+  a move never changes, each placed by a top margin from the heights of
+  everything above it, and a move is only a margin changed. The heights are
+  measured in the app's process by applying the view at the widget's width
+  (`fit`), and a title is then held to the lines it took there, so a
   pixel's difference in the launcher's width cannot make a card taller
-  than its room. A zero-size view shown and hidden on every drawing
-  (`nudge`) is what sets the layout watching where everything goes —
-  shown first, because the first change of the pass decides the timing
-  and a removal waits 300ms. The card that travels furthest is raised
-  (`translationZ`) so it slides over the cards it passes, and the ink is
-  worked out over black rather than left translucent, so crossing cards
-  do not show through each other. Two details cost a round each: a frame
-  left to wrap its cards is held to the room above the widget's foot and
-  hands each card only what is left of it, so the ticked card, sent past
-  the foot, was measured to nothing and vanished — the frame's height is
-  set outright; and a resize redraws (`onAppWidgetOptionsChanged`), since
-  the measured heights depend on the width.
+  than its room. The frame's height is set outright: left to wrap, it was
+  held to the room above the widget's foot and measured a card sent past
+  it to nothing. A resize redraws (`onAppWidgetOptionsChanged`), since the
+  heights depend on the width.
+  **And it plays a tick one to one with the app** ("animation in widget
+  must be the same as in app"): the same steps (`TodayWidget.tick`, after
+  `TaskProvider.toggleDone`), timings and curves (`SlideIntoPlace`,
+  `TaskCard`). A launcher's layout animation could not be told either —
+  it slid in 300ms on its own curve — so the widget does what
+  `SlideIntoPlace` does: a view that has moved is drawn back where it was
+  (`translationY`) and eased home by an animator of its own, in XML, which
+  is started by flipping the view's enabled state, the one thing a widget
+  may change on a view that an animator answers to (`stateListAnimator`,
+  `animator/widget_*.xml`, `interpolator/widget_*.xml`). The tick: 490ms
+  after the tap (`SETTLE`) the card is crossed out — the ink sinking from a
+  quarter to a fourteenth (the ink's view alpha, over a black base so the
+  card is opaque) and the title fading to the faint grey over 240ms on
+  easeOut, with the strike coming in 70ms along, where the app's text style
+  switches it (two titles, open and crossed out). A card that stays holds
+  150ms (`HOLD`), then slides to the end of its day, 260ms on
+  easeInOutCubic, the cards it passes rising into its place. One that
+  leaves — done out of the backlog, a repeating task rolling on, or any
+  done task with done tasks hidden (`TodayWidgetRuns.leaving`) — fades over
+  the first 138ms of the app's 280 (`interpolator/widget_leave.xml` is the
+  first half of easeInOutCubic, split off) while what is after it closes
+  up over the whole 280. Views are painted in the order of the run
+  (`translationZ`), as Flutter paints a list. Taken back, a tick is
+  un-crossed at once and the run read back 240ms later (`UNSETTLE`). The
+  moves are worked out in the copy (`TodayWidget.last`) rather than waited
+  for: Dart is asked to write the task only once the card has gone, and
+  its copy, landing after, says what is already shown; a view whose place
+  has not changed is not touched, so a slide under way is left to finish.
+  Dart used to be called at the tap, and a warm engine's copy rebuilt the
+  row before its square had filled — "too fast". The box's own state is
+  what Dart writes (`Background.toggle(done:)`), so two quick taps end
+  where the box ended. Measured off a recording: the square fills over
+  the first 240ms, the ink starts sinking ~530ms after the tap (the
+  broadcast's latency on top of 490) and is down 190ms later, and the
+  slide starts 150ms after that.
   Before Android 12 the tick is the old image, changed on the next redraw.
 
 - **Done is a log of ticks, not a list of done tasks** (`completions`,

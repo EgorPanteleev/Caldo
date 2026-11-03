@@ -16,7 +16,6 @@ import android.widget.FrameLayout
 import android.widget.RemoteViews
 import android.widget.TextView
 import org.json.JSONObject
-import kotlin.math.abs
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -40,13 +39,18 @@ import java.util.Locale
  * in between, so a card stacked under the others that went to the end of
  * its day was taken out and a new one put in at the end: it faded out
  * where it stood and in where it went, which read as the same teleport.
- * So a run's cards are not stacked. They stand in a frame in the order of
- * their ids, which a move never changes, each placed by a top margin
- * worked out from the heights of the cards above it ([fit]), and a move is
- * only a margin changed. The frame animates its changes, and a nudge
- * ([nudge]) on every drawing has it slide each card from where it was to
- * where it now stands — the ticked one down past the rest, the rest up
- * into its gap.
+ * So nothing is stacked. Every heading and card stands in one frame in the
+ * order of its key, which a move never changes, placed by a top margin
+ * worked out from the heights of everything above it ([fit]), and a move is
+ * only a margin changed.
+ *
+ * And it moves as the app's card does, on the app's timings and curves
+ * rather than the launcher's (`SlideIntoPlace`, `TaskCard`): a view that
+ * has moved is drawn back where it was (`translationY`) and an animator of
+ * its own eases it home, started by flipping the view's enabled state —
+ * the one thing a widget may change on a view that an animator answers to
+ * (animator/widget_*.xml). The ink sinking and the title being crossed out
+ * are started the same way.
  */
 class TodayWidgetRuns(private val context: Context, private val widget: Int) {
     /**
@@ -122,8 +126,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
                 late = !done && (day < today || (day == today && minute != null && minute < minuteNow)),
             )
             when {
-                day < today -> if (!item.done) overdue.add(item)
-                item.done && !showDone -> {}
+                // Shown while fading out of the run, though by then done.
+                day < today -> if (!item.done || item.id in leaving) overdue.add(item)
+                item.done && !showDone && item.id !in leaving -> {}
                 else -> days.getOrPut(day) { mutableListOf() }.add(item)
             }
         }
@@ -180,22 +185,76 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
     val isEmpty get() = rows.isEmpty()
 
     /**
-     * Adds the runs to [container] in [views], each under its own key, for
-     * cards [width] pixels wide.
+     * Adds the runs to [container] in [views], each heading and card under
+     * its own key, for cards [width] pixels wide.
      */
     fun addTo(views: RemoteViews, container: Int, width: Int) {
         views.removeAllViews(container)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            for (run in rows) views.addView(container, view(run, width))
+            for (run in rows) {
+                views.addView(container, heading(run))
+                for (item in run.items) views.addView(container, item(item))
+            }
             return
         }
-        for (run in rows) views.addStableView(container, view(run, width), run.key.toInt())
-        // The runs below one that grew or shrank slide too.
-        views.addStableView(container, nudge(), NUDGE)
+
+        // Laid out top to bottom. A card leaving its run keeps its place
+        // while it fades, and takes no room: what comes after it closes up
+        // over it, as the app's run does.
+        val laid = mutableListOf<Laid>()
+        var top = 0
+        for (run in rows) {
+            val head = heading(run)
+            laid += Laid(headingKey(run), head, top, leaving = false)
+            top += fit(head, width)
+            for (item in run.items) {
+                val card = box(item)
+                val going = item.id in leaving
+                laid += Laid(item.id.toInt(), card, top, going)
+                val height = fit(card, width)
+                if (!going) top += height
+            }
+        }
+
+        val before = placed[widget].orEmpty()
+        // A card has just started leaving: what closes up after it does so
+        // over the app's 280ms, not the 260 of a slide.
+        val closing = laid.any { it.leaving && before[it.key] != null && it.key !in left[widget].orEmpty() }
+        laid.forEachIndexed { index, it ->
+            it.views.setViewLayoutMargin(R.id.widget_row, RemoteViews.MARGIN_TOP, it.top.toFloat(), COMPLEX_UNIT_PX)
+            // Drawn in the order of the run, as the app paints it: a card
+            // going to the end of its day passes over those it overtakes,
+            // and one leaving is covered by the cards closing up over it.
+            it.views.setFloat(R.id.widget_row, "setTranslationZ", index.toFloat())
+            val was = before[it.key]
+            // Only what has moved is touched. Drawn again in place — when
+            // Dart's copy confirms the order already shown — a card in the
+            // middle of its slide is left to finish it.
+            if (was != null && was != it.top) {
+                it.views.setFloat(R.id.widget_row, "setTranslationY", (was - it.top).toFloat())
+                it.views.setBoolean(R.id.widget_row, "setEnabled", closing)
+                it.views.setBoolean(R.id.widget_row, "setEnabled", !closing)
+            }
+        }
+        placed[widget] = laid.associate { it.key to it.top }
+        left[widget] = laid.filter { it.leaving }.map { it.key }.toSet()
+        for (it in laid.sortedBy { it.key }) views.addStableView(container, it.views, it.key)
+        // As tall as what is in it, said outright. Left to wrap it, the
+        // frame is held to what the widget has left above its foot, and
+        // gives each card only the room left above that: a card sent past
+        // the foot — the ticked one going to the end of a long day — was
+        // measured to nothing and vanished instead of sliding.
+        views.setViewLayoutHeight(container, top.toFloat(), COMPLEX_UNIT_PX)
     }
 
-    private fun view(run: Run, width: Int): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.widget_run)
+    /** A heading or card, its key, and where it is laid out. */
+    private class Laid(val key: Int, val views: RemoteViews, val top: Int, val leaving: Boolean)
+
+    /** A run's heading's key, kept clear of the cards' (task ids) and of -1, which is none. */
+    private fun headingKey(run: Run) = -2 - run.key.toInt()
+
+    private fun heading(run: Run): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.widget_heading)
         val heading = run.heading
         if (heading.word == null) {
             views.setViewVisibility(R.id.widget_badge, View.GONE)
@@ -213,77 +272,32 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         views.setTextViewText(R.id.widget_heading, heading.date ?: "")
         views.setViewVisibility(R.id.widget_note, if (run.note == null) View.GONE else View.VISIBLE)
         views.setTextViewText(R.id.widget_note, run.note ?: "")
-        // Cleared and added again — which, drawn over the run as it
-        // stands, keeps every card with an id it already has. Before
-        // Android 12 there are no stable ids, and the run is simply drawn
-        // afresh, stacked.
-        views.removeAllViews(R.id.widget_cards)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            for (item in run.items) views.addView(R.id.widget_cards, item(item))
-            return views
-        }
-        var top = 0
-        val cards = run.items.associate { item ->
-            val card = box(item)
-            card.setViewLayoutMargin(R.id.widget_row, RemoteViews.MARGIN_TOP, top.toFloat(), COMPLEX_UNIT_PX)
-            val at = top
-            top += fit(card, width)
-            item.id to (card to at)
-        }
-        // The card that travels furthest is drawn over the rest, so it is
-        // seen going past them rather than sliding under the cards it
-        // passes and coming out at the end.
-        val before = placed[widget].orEmpty()
-        val mover = cards.entries
-            .filter { (id, it) -> before[id] != null && before[id] != it.second }
-            .maxByOrNull { (id, it) -> abs(before.getValue(id) - it.second) }?.key
-        placed[widget] = before + cards.mapValues { it.value.second }
-        for ((id, entry) in cards.toSortedMap()) {
-            val card = entry.first
-            card.setFloat(R.id.widget_row, "setTranslationZ", if (id == mover) 1f else 0f)
-            views.addStableView(R.id.widget_cards, card, id.toInt())
-        }
-        views.addStableView(R.id.widget_cards, nudge(), NUDGE)
-        // As tall as its cards, said outright. Left to wrap them, the frame
-        // is held to what the widget has left above its foot, and gives each
-        // card only the room left above that: a card sent past the foot —
-        // the ticked one going to the end of a long day — was measured to
-        // nothing and vanished instead of sliding.
-        views.setViewLayoutHeight(R.id.widget_cards, top.toFloat(), COMPLEX_UNIT_PX)
         return views
     }
 
-    /** What [fit] lays a card out in, for the layout parameters it takes. */
+    /** What [fit] lays a view out in, for the layout parameters it takes. */
     private val frame by lazy { FrameLayout(context) }
 
     /**
-     * How tall [card] stands at [width], gap included — laid out here, as
-     * the launcher will lay it out. Its title is then held to the lines it
-     * took: the launcher's width can be a pixel or two from the one the
-     * widget is told, and a title that wrapped there and not here would
-     * make the card taller than the room left for it.
+     * How tall [views] stands at [width], a card's gap included — laid out
+     * here, as the launcher will lay it out. A card's title is then held to
+     * the lines it took: the launcher's width can be a pixel or two from the
+     * one the widget is told, and a title that wrapped there and not here
+     * would make the card taller than the room left for it.
      */
-    private fun fit(card: RemoteViews, width: Int): Int {
-        val view = card.apply(context, frame)
+    private fun fit(views: RemoteViews, width: Int): Int {
+        val view = views.apply(context, frame)
         view.measure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
         )
-        val lines = view.findViewById<TextView>(R.id.widget_title).lineCount
-        card.setInt(R.id.widget_title, "setLines", lines.coerceAtLeast(1))
+        val title = view.findViewById<TextView>(R.id.widget_title)
+        if (title != null) {
+            val lines = title.lineCount.coerceAtLeast(1)
+            views.setInt(R.id.widget_title, "setLines", lines)
+            views.setInt(R.id.widget_title_done, "setLines", lines)
+        }
         return view.measuredHeight
-    }
-
-    /**
-     * A view shown and hidden again on every drawing. A layout that
-     * animates its changes only watches where its views go when one is
-     * added, taken out, shown or hidden; a card whose margin changed and
-     * nothing else would jump. Shown first: the first of these sets how
-     * every view slides, and a removal waits 300ms before it moves anything.
-     */
-    private fun nudge() = RemoteViews(context.packageName, R.layout.widget_nudge).apply {
-        setViewVisibility(R.id.widget_nudge, View.VISIBLE)
-        setViewVisibility(R.id.widget_nudge, View.GONE)
     }
 
     /**
@@ -298,6 +312,14 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
      */
     private fun box(row: Item) = RemoteViews(context.packageName, layoutFor(row.colour)).apply {
         card(row)
+        // Open is enabled, done is not: the ink and both titles each play
+        // their part of the crossing out when it changes.
+        for (part in intArrayOf(R.id.widget_ink, R.id.widget_title, R.id.widget_title_done)) {
+            setBoolean(part, "setEnabled", !row.done)
+        }
+        setTextViewText(R.id.widget_title, row.title)
+        setTextViewText(R.id.widget_title_done, crossedOut(row.title))
+        setBoolean(R.id.widget_card, "setEnabled", row.id !in leaving)
         setCompoundButtonChecked(R.id.widget_tick, row.done)
         setOnCheckedChangeResponse(
             R.id.widget_tick,
@@ -324,13 +346,7 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
 
     /** What every task row has, whichever tick it wears. */
     private fun RemoteViews.card(row: Item) {
-        setInt(R.id.widget_ink, "setColorFilter", inked(row.colour, if (row.done) INK_DONE else INK))
-        val title = SpannableString(row.title)
-        if (row.done) {
-            title.setSpan(StrikethroughSpan(), 0, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        setTextViewText(R.id.widget_title, title)
-        setTextColor(R.id.widget_title, if (row.done) FAINT else TEXT)
+        setInt(R.id.widget_ink, "setColorFilter", row.colour)
         setTextViewText(
             R.id.widget_time,
             if (row.minute == null) words.getString(R.string.widget_all_day) else time(row.minute),
@@ -339,16 +355,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         setOnClickPendingIntent(R.id.widget_card, tap(TodayWidget.OP_OPEN, row.id))
     }
 
-    /**
-     * [colour] at [strength] over the widget's black, worked out rather
-     * than left translucent: cards cross while they slide, and the one
-     * underneath would show through.
-     */
-    private fun inked(colour: Int, strength: Int) = Color.rgb(
-        Color.red(colour) * strength / 255,
-        Color.green(colour) * strength / 255,
-        Color.blue(colour) * strength / 255,
-    )
+    private fun crossedOut(title: String) = SpannableString(title).apply {
+        setSpan(StrikethroughSpan(), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
 
     /** The row layout in the swatch nearest [colour]. */
     private fun layoutFor(colour: Int): Int {
@@ -367,6 +376,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
      */
     private fun item(row: Item) = RemoteViews(context.packageName, R.layout.widget_task).apply {
         card(row)
+        setInt(R.id.widget_ink, "setImageAlpha", if (row.done) INK_DONE else INK)
+        setTextViewText(R.id.widget_title, if (row.done) crossedOut(row.title) else row.title)
+        setTextColor(R.id.widget_title, if (row.done) FAINT else TEXT)
         setImageViewResource(
             R.id.widget_tick,
             if (row.done) R.drawable.widget_tick_done else R.drawable.widget_tick_open,
@@ -392,35 +404,44 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         return SimpleDateFormat(if (h24) "HH:mm" else "h:mm a", locale).format(at.time)
     }
 
-    private companion object {
+    companion object {
         // The app's dark palette (`AppColors`).
-        const val TEXT = 0xFFE9E9EB.toInt()
-        const val MUTED = 0xFF9B9BA1.toInt()
-        const val FAINT = 0xFF6A6A70.toInt()
-        const val OVERDUE = 0xFFE05252.toInt()
+        private const val TEXT = 0xFFE9E9EB.toInt()
+        private const val MUTED = 0xFF9B9BA1.toInt()
+        private const val FAINT = 0xFF6A6A70.toInt()
+        private const val OVERDUE = 0xFFE05252.toInt()
 
         /**
-         * The card's ink, out of 255, as the app inks it over the same
-         * black: a quarter of the task's colour, and a fourteenth once done.
+         * The card's ink before Android 12, out of 255, as the app inks it
+         * over the same black: a quarter of the task's colour, and a
+         * fourteenth once done. From Android 12 the same is played out by
+         * animator/widget_ink.xml.
          */
-        const val INK = 61
-        const val INK_DONE = 18
+        private const val INK = 61
+        private const val INK_DONE = 18
 
-        const val MOST = 24
+        private const val MOST = 24
 
         /**
-         * Where each widget last drew each card, by task, to tell which
-         * card is moving furthest. Held in memory: the process lives from a
-         * tick to the drawing that moves its card, and a card missing here
-         * only means nothing is raised.
+         * Where each widget last laid out each heading and card, by key, so
+         * what has moved can be drawn back there and slide. Held in memory:
+         * the process lives from a tick to the drawing that moves its card,
+         * and a view missing here is only drawn in its place.
          */
-        val placed = mutableMapOf<Int, Map<Long, Int>>()
+        private val placed = mutableMapOf<Int, Map<Int, Int>>()
 
-        /** The nudge's key; -1 is no key at all, and the rest are ids. */
-        const val NUDGE = -2
+        /** What each widget last drew leaving, so only a new leaver closes up. */
+        private val left = mutableMapOf<Int, Set<Int>>()
+
+        /**
+         * Tasks ticked on the widget that are fading out of the run they are
+         * in ([TodayWidget.tick]) — out of the backlog, or rolling on to
+         * another date — drawn in their place but taking no room.
+         */
+        val leaving: MutableSet<Long> = mutableSetOf()
 
         /** `ListStyle`'s swatches, each with its row (see [box]). */
-        val SWATCHES = mapOf(
+        private val SWATCHES = mapOf(
             0xFF7B61E8.toInt() to R.layout.widget_task_violet,
             0xFF3B7DD8.toInt() to R.layout.widget_task_blue,
             0xFF16A394.toInt() to R.layout.widget_task_teal,
