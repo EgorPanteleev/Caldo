@@ -190,10 +190,13 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// The day panel pulling past one of its ends, in pixels. Positive means
   /// the finger is going down, which is the direction that opens the month —
   /// the same sign the grid's own drag uses.
-  void _onPull(double delta) => _dragBy(delta);
+  void _onPull(double delta) {
+    if (!_listScrolled) _dragBy(delta);
+  }
 
   void _onPullStart() {
     _listDragged = true;
+    _listScrolled = false;
     _dragFrom = _expansion.value.roundToDouble();
   }
 
@@ -202,8 +205,17 @@ class _CalendarScreenState extends State<CalendarScreen>
   void _onPullEnd(DragEndDetails? details) {
     if (!_listDragged) return;
     _listDragged = false;
-    if (details != null) _onDragEnd(details);
+    if (details != null && !_listScrolled) _onDragEnd(details);
   }
+
+  /// Set once the drag under way has actually moved the day's list. Such a
+  /// drag is a scroll and stays one: running into the top of the list and
+  /// on, or flicking down as it got there, used to open the month out from
+  /// the week in the middle of reading the day — "while I'm scrolling I
+  /// mustn't". A fresh drag from the top still opens it.
+  bool _listScrolled = false;
+
+  void _onListScrolled() => _listScrolled = true;
 
   /// Set while a finger is dragging the day's list, and on through the fling
   /// it throws.
@@ -768,6 +780,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                   onPull: _onPull,
                                   onPullStart: _onPullStart,
                                   onPullEnd: _onPullEnd,
+                                  onScrolled: _onListScrolled,
                                   physics: _dayListPhysics,
                                   controller: _dayLists,
                                   onOpen: _openEditor,
@@ -1173,6 +1186,10 @@ class _DayPanel extends StatelessWidget {
   final VoidCallback onPullStart;
   final ValueChanged<DragEndDetails?> onPullEnd;
 
+  /// The list moving under a finger, which makes the rest of that drag a
+  /// scroll and no pull on the grid.
+  final VoidCallback onScrolled;
+
   /// Keeps the list still while the grid is above its week (see
   /// `_listHeld`), so every drag on it reaches [onPull].
   final ScrollPhysics physics;
@@ -1197,6 +1214,7 @@ class _DayPanel extends StatelessWidget {
     required this.onPull,
     required this.onPullStart,
     required this.onPullEnd,
+    required this.onScrolled,
     required this.physics,
     required this.controller,
     required this.onOpen,
@@ -1238,12 +1256,18 @@ class _DayPanel extends StatelessWidget {
                   notification.dragDetails != null) {
                 onPullStart();
               }
+              if (notification is ScrollUpdateNotification &&
+                  notification.dragDetails != null &&
+                  notification.scrollDelta != 0) {
+                onScrolled();
+              }
               if (notification is ScrollEndNotification) {
                 onPullEnd(notification.dragDetails);
               }
               // A held list (or a short one, which cannot scroll at all)
               // passes every drag on as overscroll; in the week a long one
-              // does once it is back at its top.
+              // does once it is back at its top — which only pulls the grid
+              // if this drag has not scrolled it there.
               if (notification is OverscrollNotification &&
                   notification.dragDetails != null) {
                 onPull(-notification.overscroll);

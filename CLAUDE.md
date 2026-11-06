@@ -735,7 +735,11 @@ Changing them back will be noticed.
   the grid, so one gesture did either depending on where the list stood,
   and could leave the grid stopped halfway beside a scrolled list —
   reported as behaving "like UB". In the week a pull down scrolls the list
-  back to its top and from there opens the month; a list left scrolled when
+  back to its top, and **a drag that has scrolled the list never opens the
+  month** (`_listScrolled`) — not by running on past the top, and not by a
+  flick as it gets there, which ended the drag with a speed that
+  `_onDragEnd` took for a pull. Opening the month mid-read was "while I'm
+  scrolling I mustn't". A fresh drag from the top opens it; a list left scrolled when
   the grid opens some other way is run back to its top, since it could not
   be scrolled there.
   A day with nothing on it has no list at all, so the whole panel takes the

@@ -533,8 +533,9 @@ void main() {
     expect(scrolled(), greaterThan(100));
     final week = height();
 
-    // A pull down runs the list back to its top first, and only from there
-    // opens the grid.
+    // A pull down runs the list back to its top, and a drag that scrolled
+    // it there stays a scroll however far it goes on, or however hard it
+    // is flicked as it arrives.
     await tester.drag(card(), const Offset(0, 60));
     await tester.pumpAndSettle();
     expect(scrolled(), greaterThan(0));
@@ -542,6 +543,17 @@ void main() {
     await tester.drag(card(), const Offset(0, 500));
     await tester.pumpAndSettle();
     expect(scrolled(), 0);
+    expect(height(), closeTo(week, 1));
+    await tester.drag(card(), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    await tester.fling(card(), const Offset(0, 400), 2000);
+    await tester.pumpAndSettle();
+    expect(scrolled(), 0);
+    expect(height(), closeTo(week, 1));
+
+    // A fresh drag from the top opens it.
+    await tester.drag(card(), const Offset(0, 300));
+    await tester.pumpAndSettle();
     expect(height(), closeTo(month, 1));
 
     // Opened another way from a scrolled list, the list goes back to its
