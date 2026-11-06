@@ -246,18 +246,24 @@ Changing them back will be noticed.
   checkbox"), a line along the foot and the tint draining out of the Undo
   chip were tried as well, and the drain read as a smudge.
   **It is frosted glass** (`_Glass`; "make it look better like in good
-  apps, u can add transparency"): what is behind it blurred, under a thin
-  veil of white, thicker at the top, with a rim that catches the light along
-  its top edge (`_Rim`) and a soft shadow. A veil of the field's grey was
-  tried first and showed nothing — the cards are dark enough that grey over
-  a card and grey over black came out the same. The blur is a sibling of the
+  apps, u can add transparency"): what is behind it blurred under a grey
+  most of the way to opaque (`0xE0404046` to `0xE036363B`), a step lighter
+  than the add field so the two never merge, with a faint hairline rim
+  (`_Rim`) and a soft shadow. A thin veil of white came first and was "bad
+  looking": over these dark cards it was a muddy grey that took on each
+  card it crossed, and its rim drew a grey outline round the whole bar. The
+  blur is a sibling of the
   fading layers, not inside one, and thins with them, so it stays frosted
-  while it fades. It is a pill, never narrower than four fifths of the
+  while it fades. It is a pill, never narrower than nine tenths of the
   screen, centred over the field — full width, with the cards' own width
   and corners, it read as one more card; sized to a short title it was a
-  lozenge, "make it wider". A plain grey tick, the task's name, and Undo on
-  a chip of the accent's tint, the arrow drawn (`_UndoArrow`) in the tick's
-  round-ended stroke. Undo is the only thing on it in the accent: a filled
+  lozenge, "make it wider"; at four fifths its round end stopped short of
+  the tick on the card under it, which stuck out beside it as half a
+  purple square. A plain grey tick, the task's name, and Undo as plain
+  words (`_UndoButton`) in the accent lifted a third towards white, the
+  arrow drawn (`_UndoArrow`) in the tick's round-ended stroke. It sat on a
+  chip of the accent's tint, and violet on violet on grey was a pill in a
+  pill with nothing standing out. Undo is the only thing on it in the accent: a filled
   accent tick and an accent countdown beside it made three purple things on
   one small bar — "too many accent colours". The stock snack bar before all
   this was a flat slab — "make undo look better".

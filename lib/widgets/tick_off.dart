@@ -61,12 +61,14 @@ const _undoFor = Duration(seconds: 4);
 /// What a tick off leaves on screen for a moment: the task, ticked, and a way
 /// to take it back.
 ///
-/// A pill of frosted glass — what is behind it blurred, under a thin veil of
-/// white with a rim that catches the light along its top — holding a plain
-/// tick, the task's name, and Undo on a tinted chip. It floats over the add
-/// field, never narrower than four fifths of the screen: full width, with the
-/// cards' own width and corners, it read as one more card, and sized to a
-/// short title alone it was a lozenge ("make it wider").
+/// A pill of frosted glass — what is behind it blurred under a grey a step
+/// lighter than the add field, with a hairline rim — holding a plain tick,
+/// the task's name, and Undo. It floats over the add field, nine tenths of
+/// the screen wide at least: full width, with the cards' own width and
+/// corners, it read as one more card; sized to a short title alone it was a
+/// lozenge ("make it wider"); and at four fifths its round end stopped just
+/// short of the tick on the card under it, which stuck out beside the bar
+/// as half a purple square.
 ///
 /// Undo is the only thing on it in the accent. The tick was a filled accent
 /// square and the countdown an accent rule as well, and with the button that
@@ -95,8 +97,12 @@ class _UndoBar extends StatefulWidget {
   static TextStyle _titleStyle(AppPalette p) =>
       TextStyle(color: p.text, fontSize: 15, fontWeight: FontWeight.w600);
 
-  static TextStyle _undoStyle(Color accent) =>
-      TextStyle(color: accent, fontSize: 15, fontWeight: FontWeight.w700);
+  static TextStyle _undoStyle(Color accent) => TextStyle(
+    color: accent,
+    fontSize: 15,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 0.2,
+  );
 
   @override
   State<_UndoBar> createState() => _UndoBarState();
@@ -249,12 +255,16 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context).color;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    // Lifted towards white on the dark glass: the accent itself is a deep
+    // violet, and on grey it was the dimmest thing on the bar rather than
+    // the one to press.
+    final base = AppTheme.accentOf(context).color;
+    final accent = dark ? Color.lerp(base, Colors.white, 0.3)! : base;
     final content = Material(
       type: MaterialType.transparency,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+        padding: const EdgeInsets.fromLTRB(18, 4, 4, 4),
         child: Row(
           children: [
             SizedBox.square(
@@ -263,7 +273,7 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
                 painter: CheckMark(progress: 1, color: p.muted),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Text(
                 widget.task.title,
@@ -272,8 +282,8 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
                 style: _UndoBar._titleStyle(p),
               ),
             ),
-            const SizedBox(width: 10),
-            _UndoChip(
+            const SizedBox(width: 8),
+            _UndoButton(
               accent: accent,
               onTap: _undo,
               child: Row(
@@ -301,7 +311,7 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
       bottom: 78 + MediaQuery.viewPaddingOf(context).bottom,
       child: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: _width * 0.8),
+          constraints: BoxConstraints(minWidth: _width * 0.9),
           // As wide as its words when they need more than that, so a title
           // only gives up letters to an ellipsis at the margins.
           child: IntrinsicWidth(
@@ -321,7 +331,6 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
                       child: _Glass(
                         shown: t * _opacity,
                         dark: dark,
-                        rim: p.text,
                         child: content!,
                       ),
                     ),
@@ -346,32 +355,24 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
 class _Glass extends StatelessWidget {
   final double shown;
   final bool dark;
-  final Color rim;
   final Widget child;
 
-  const _Glass({
-    required this.shown,
-    required this.dark,
-    required this.rim,
-    required this.child,
-  });
+  const _Glass({required this.shown, required this.dark, required this.child});
 
   static const _shape = StadiumBorder();
 
   @override
   Widget build(BuildContext context) {
-    // A thin veil of white, thicker at the top. A tint of the field's grey
-    // was tried first and showed nothing: the cards here are so dark that
-    // grey over a card and grey over black came out the same, so the veil
-    // has to be light for what is behind it to come through.
+    // Most of the way to opaque. A thin veil of white was tried first, and
+    // over these dark cards it came out a muddy grey that took on whatever
+    // card it crossed — "bad looking". Here the glass is one even grey,
+    // lighter than the field below it so the two never merge, and what is
+    // behind only tints it.
     final veil = dark
-        ? [
-            Colors.white.withValues(alpha: 0.17),
-            Colors.white.withValues(alpha: 0.11),
-          ]
+        ? const [Color(0xE0404046), Color(0xE036363B)]
         : [
-            Colors.white.withValues(alpha: 0.80),
-            Colors.white.withValues(alpha: 0.70),
+            Colors.white.withValues(alpha: 0.92),
+            Colors.white.withValues(alpha: 0.86),
           ];
     final sigma = 24 * shown;
     return Stack(
@@ -416,7 +417,9 @@ class _Glass extends StatelessWidget {
                 ),
               ),
               child: CustomPaint(
-                foregroundPainter: _Rim(color: rim),
+                foregroundPainter: _Rim(
+                  color: dark ? Colors.white : Colors.black,
+                ),
                 child: child,
               ),
             ),
@@ -427,8 +430,8 @@ class _Glass extends StatelessWidget {
   }
 }
 
-/// The glass's edge: a hairline that catches the light along the top and
-/// fades out down the sides, as a lit pane's edge would.
+/// The glass's edge: a hairline, a little brighter along the top. Bright
+/// enough to be seen, it drew a grey outline round the whole bar.
 class _Rim extends CustomPainter {
   final Color color;
 
@@ -446,8 +449,8 @@ class _Rim extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            color.withValues(alpha: 0.22),
-            color.withValues(alpha: 0.05),
+            color.withValues(alpha: 0.12),
+            color.withValues(alpha: 0.04),
           ],
         ).createShader(rect),
     );
@@ -457,19 +460,21 @@ class _Rim extends CustomPainter {
   bool shouldRepaint(_Rim old) => old.color != color;
 }
 
-/// Undo, on a chip of the accent's tint — the one thing on the bar to press,
-/// and the one thing in colour.
+/// Undo, in the accent and on nothing — the one thing on the bar to press,
+/// and the one thing in colour. It sat on a chip of the accent's tint, and
+/// violet words on a violet chip on grey glass were a pill inside a pill
+/// with nothing in it standing out.
 ///
 /// The bar's four seconds are not drawn. They were a ring around the tick,
 /// which made it a round checkbox ("i dont like this rounded checkbox"),
-/// then a line along the foot, then the tint draining out of this chip,
+/// then a line along the foot, then the tint draining out of the chip,
 /// which read as a smudge on it. The offer still holds while it is touched.
-class _UndoChip extends StatelessWidget {
+class _UndoButton extends StatelessWidget {
   final Color accent;
   final VoidCallback? onTap;
   final Widget child;
 
-  const _UndoChip({
+  const _UndoButton({
     required this.accent,
     required this.onTap,
     required this.child,
@@ -478,13 +483,15 @@ class _UndoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: accent.withValues(alpha: 0.18),
+      type: MaterialType.transparency,
       shape: const StadiumBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        splashColor: accent.withValues(alpha: 0.16),
+        highlightColor: accent.withValues(alpha: 0.10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          padding: const EdgeInsets.fromLTRB(14, 13, 16, 13),
           child: child,
         ),
       ),
