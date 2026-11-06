@@ -646,7 +646,10 @@ Changing them back will be noticed.
   each can be ticked without opening the task — in the row, the card's own
   tick sank to the middle of the taller card. The steps are ticked in the
   task's colour, as the card's tick is; in the form they are neutral, like
-  its other controls. Search matches a step's words, but the JSON is
+  its other controls. The count is a pill with a chevron, lifted out of
+  the card in the text's colour: written in muted grey like the time beside
+  it, it read as one more fact about the task and nobody found that it
+  opened. Search matches a step's words, but the JSON is
   filtered in Dart afterwards: a search for "done" or "title" would
   otherwise find every task with a checklist.
 - **A long press picks a card up; it used to open the editor**, which a tap

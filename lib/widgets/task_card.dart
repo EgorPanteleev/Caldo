@@ -253,31 +253,48 @@ class _WithChecklistState extends State<_WithChecklist> {
     final p = AppTheme.of(context);
     final steps = widget.task.subtasks;
     if (steps.isEmpty) return widget.head(null);
+    // A done card has sunk back into the ground, and its pill goes with it.
+    final ink = widget.task.done ? p.muted : p.text;
 
+    // A pill rather than a few muted characters: written the way the time
+    // beside it is, the count read as one more fact about the task, and
+    // nothing said it would open. Lifted out of the card in the text's own
+    // colour so it reads as a control in light and dark alike, and lifted a
+    // little further while the list is open.
     final count = GestureDetector(
       key: subtaskCountKey,
-      onTap: () => setState(() => _open = !_open),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _open = !_open);
+      },
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        // A larger target than the few characters it is.
-        padding: const EdgeInsets.all(2),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.fromLTRB(7, 2, 4, 2),
+        decoration: BoxDecoration(
+          color: ink.withValues(alpha: _open ? 0.16 : 0.09),
+          borderRadius: BorderRadius.circular(999),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.checklist_rounded, size: 14, color: p.muted),
-            const SizedBox(width: 3),
+            Icon(Icons.checklist_rounded, size: 14, color: ink),
+            const SizedBox(width: 4),
             Text(
               '${widget.task.subtasksDone}/${steps.length}',
               style: TextStyle(
-                color: p.muted,
+                color: ink,
                 fontSize: 12.5,
+                fontWeight: FontWeight.w500,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
+            const SizedBox(width: 1),
             AnimatedRotation(
               turns: _open ? 0.5 : 0,
               duration: const Duration(milliseconds: 200),
-              child: Icon(Icons.expand_more, size: 16, color: p.muted),
+              child: Icon(Icons.expand_more, size: 16, color: ink),
             ),
           ],
         ),
