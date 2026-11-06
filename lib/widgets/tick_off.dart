@@ -85,12 +85,11 @@ const _undoFor = Duration(seconds: 4);
 /// What a tick off leaves on screen for a moment: the task, ticked, and a way
 /// to take it back.
 ///
-/// A pill as wide as its words, in a grey a step above the add field's, with
-/// a hairline rim and a shadow to lift it off the cards. Full width it had
-/// the cards' own width and corners, and sat on the list like one more of
-/// them. Around the tick a ring runs down over the four seconds the offer is
-/// open — it was a line along the bar's foot, whose ends the bar's rounded
-/// corners sheared off.
+/// A pill, in a grey a step above the add field's, with a hairline rim and a
+/// shadow to lift it off the cards. Full width it had the cards' own width
+/// and corners, and sat on the list like one more of them. A plain tick, the
+/// task's name, Undo, and a line along the foot that runs down over the four
+/// seconds the offer is open (`_Countdown`).
 ///
 /// Undo is the only thing on it in the accent. The tick was a filled accent
 /// square and the line an accent rule as well, and with the button that made
@@ -113,11 +112,11 @@ class _UndoBar extends StatefulWidget {
     required this.onBrushedOff,
   });
 
-  static const _ring = 26.0;
+  static const _tick = 22.0;
   static const _arrow = 18.0;
 
   // Everything on the bar but its two words, left to right.
-  static const _around = 12 + _ring + 10 + 10 + 14 + _arrow + 6 + 14 + 4;
+  static const _around = 16 + _tick + 10 + 10 + 14 + _arrow + 6 + 14 + 4;
 
   static TextStyle _titleStyle(AppPalette p) =>
       TextStyle(color: p.text, fontSize: 15, fontWeight: FontWeight.w600);
@@ -308,53 +307,58 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
           ),
         ],
       ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-          child: Row(
-            children: [
-              SizedBox.square(
-                dimension: _UndoBar._ring,
-                child: CustomPaint(
-                  painter: _Countdown(left: _left, color: p.muted),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.task.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _UndoBar._titleStyle(p),
-                ),
-              ),
-              const SizedBox(width: 10),
-              InkWell(
-                onTap: _gone ? null : widget.onUndo,
-                customBorder: const StadiumBorder(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox.square(
-                        dimension: _UndoBar._arrow,
-                        child: CustomPaint(painter: _UndoArrow(color: accent)),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        S.of(context).undo,
-                        style: _UndoBar._undoStyle(accent),
-                      ),
-                    ],
+      child: CustomPaint(
+        foregroundPainter: _Countdown(left: _left, color: p.muted),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+            child: Row(
+              children: [
+                SizedBox.square(
+                  dimension: _UndoBar._tick,
+                  child: CustomPaint(
+                    painter: CheckMark(progress: 1, color: p.muted),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _UndoBar._titleStyle(p),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: _gone ? null : widget.onUndo,
+                  customBorder: const StadiumBorder(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 11,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox.square(
+                          dimension: _UndoBar._arrow,
+                          child: CustomPaint(
+                            painter: _UndoArrow(color: accent),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          S.of(context).undo,
+                          style: _UndoBar._undoStyle(accent),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -383,8 +387,11 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   }
 }
 
-/// The tick, in a ring that runs down over the time the offer is open —
-/// clockwise from the top, the way a clock's hand would take it.
+/// A line along the bar's foot that runs down, right to left, over the time
+/// the offer is open. It keeps to the straight run of the edge, between the
+/// two rounded ends: drawn the full width, the ends were sheared off by the
+/// corners. It was a ring around the tick for a while, which made the tick
+/// look like a round checkbox — "i dont like this rounded checkbox".
 class _Countdown extends CustomPainter {
   final Animation<double> left;
   final Color color;
@@ -393,23 +400,21 @@ class _Countdown extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = (Offset.zero & size).deflate(1.2);
+    final end = size.height / 2;
+    final y = size.height - 4.5;
+    final run = size.width - 2 * end;
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    canvas.drawOval(rect, stroke..color = color.withValues(alpha: 0.18));
-    final sweep = 2 * math.pi * left.value;
-    // Drawn from where the hand has got to round to the top, so what is left
-    // is what is drawn.
-    canvas.drawArc(
-      rect,
-      -math.pi / 2 + (2 * math.pi - sweep),
-      sweep,
-      false,
-      stroke..color = color,
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: 0.12);
+    canvas.drawLine(Offset(end, y), Offset(end + run, y), stroke);
+    if (left.value <= 0) return;
+    canvas.drawLine(
+      Offset(end, y),
+      Offset(end + run * left.value, y),
+      stroke..color = color.withValues(alpha: 0.5),
     );
-    CheckMark(progress: 1, color: color).paint(canvas, size);
   }
 
   @override

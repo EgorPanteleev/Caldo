@@ -247,10 +247,15 @@ Changing them back will be noticed.
   the emulator, which the test font does not reproduce.
   It is a step lighter than the add field's grey, with a hairline rim and a
   shadow (the snack bar's clip had been cutting the shadow off). A plain
-  grey tick sits in a ring that drains clockwise over the four seconds —
-  it was a line along the foot, whose ends the rounded corners sheared off
-  — beside the task's name and "↶ Undo" (the arrow drawn, `_UndoArrow`, in
-  the tick's round-ended stroke). Undo is the only thing on it in the
+  grey tick, with nothing round it, sits beside the task's name and
+  "↶ Undo", and a line along the foot runs down over the four seconds
+  (`_Countdown`). The line keeps to the straight run between the pill's
+  rounded ends, which sheared off its ends when it ran the full width, and
+  sits a few points above the rim. For one round the countdown was a ring
+  around the tick instead, which made the tick a round checkbox — "i dont
+  like this rounded checkbox".
+  The arrow beside Undo is drawn (`_UndoArrow`) in the tick's round-ended
+  stroke. Undo is the only thing on it in the
   accent: a filled accent tick and an accent countdown beside it made three
   purple things on one small bar — "too many accent colours". The stock
   snack bar before all this was a flat slab — "make undo look better".
