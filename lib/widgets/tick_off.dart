@@ -126,7 +126,8 @@ class _UndoBar extends StatefulWidget {
       TextStyle(color: accent, fontSize: 15, fontWeight: FontWeight.w700);
 
   /// The snack bar's margin for a bar about [title]: as much either side as
-  /// the bar does not need. A long title is held 16 points off the edges and
+  /// the bar does not need. Anything it is given beyond its words goes to
+  /// the title's room, so Undo stays at the far end. A long title is held 16 points off the edges and
   /// ends in an ellipsis.
   static EdgeInsets marginFor(BuildContext context, String title) {
     final p = AppTheme.of(context);
@@ -149,8 +150,10 @@ class _UndoBar extends StatefulWidget {
     // A few points spare: laid out in the bar, each of the two words comes
     // out a point or so wider than the painter here says, and a title one
     // point short of its room loses its last letter to an ellipsis.
+    // Never narrower than four fifths of the screen: sized to a short title
+    // alone it was a small lozenge, "make it wider".
     final screen = MediaQuery.sizeOf(context).width;
-    final width = (_around + words + 6).ceilToDouble();
+    final width = math.max(_around + words + 6, screen * 0.8).ceilToDouble();
     final side = math.max(16.0, (screen - width) / 2);
     return EdgeInsets.fromLTRB(side, 0, side, 78);
   }

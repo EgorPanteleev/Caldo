@@ -235,8 +235,10 @@ Changing them back will be noticed.
   gone anywhere. A brushed-off bar is removed, not hidden, or it fades a
   second time where it was thrown. Each offer is numbered (`_offers`) so a
   bar on its way out cannot close the one that replaced it.
-  **It is a pill as wide as its words**, centred over the field — full
-  width, with the cards' own width and corners, it read as one more card.
+  **It is a pill as wide as its words, and never narrower than four fifths
+  of the screen**, centred over the field, with Undo at its far end — full
+  width, with the cards' own width and corners, it read as one more card;
+  sized to a short title alone it was a lozenge, "make it wider".
   Its width is worked out in `tickOff` (`marginFor`) because the snack bar's
   box takes every tap inside it, and a bar full width with a pill drawn in
   the middle would have blocked the cards on either side. Laid out, each
