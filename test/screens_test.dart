@@ -19,6 +19,7 @@ import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -752,25 +753,65 @@ void main() {
       of: find.text('Ship'),
       matching: find.byType(TaskCard),
     );
-    await tester.tap(
-      find.descendant(of: ship, matching: find.byKey(taskCardTickKey)),
+    final tick = find.descendant(
+      of: ship,
+      matching: find.byKey(taskCardTickKey),
     );
-    await tester.pumpAndSettle();
+    // Not settled: the bar counts its four seconds down on screen, and
+    // settling would wait them out.
+    Future<void> tickShip() async {
+      await tester.tap(tick);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    await tickShip();
     expect(provider.toggled?.title, 'Ship');
     expect(find.text('Undo'), findsOneWidget);
+    // The bar is made as wide as its words, and the title has to fit in it.
+    final onBar = find.descendant(
+      of: find.byType(SnackBar),
+      matching: find.text('Ship'),
+    );
+    expect(
+      tester.renderObject<RenderParagraph>(onBar).didExceedMaxLines,
+      isFalse,
+    );
 
-    // The offer does not stand for ever. A bar with an action stays until it
-    // is dismissed unless told otherwise, and tapping Undo dismisses it too,
-    // so this is checked before the tap rather than after it.
+    // The offer does not stand for ever. Tapping Undo dismisses it too, so
+    // this is checked before the tap rather than after it.
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     expect(find.text('Undo'), findsNothing);
 
-    // What is written back is the task as it was before the tap.
-    await tester.tap(
-      find.descendant(of: ship, matching: find.byKey(taskCardTickKey)),
-    );
+    // A finger resting on the bar holds the offer open past its time, and
+    // letting go starts it running again.
+    await tickShip();
+    final hold = await tester.startGesture(tester.getCenter(onBar));
+    await tester.pump(const Duration(seconds: 6));
+    expect(find.text('Undo'), findsOneWidget);
+    await hold.up();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Undo'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+
+    // It can be brushed off sideways, and that takes nothing back.
+    provider.restored = null;
+    await tickShip();
+    await tester.fling(find.text('Undo'), const Offset(-200, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+    expect(provider.restored, isNull);
+
+    // A short pull settles back into place instead.
+    await tickShip();
+    await tester.drag(find.text('Undo'), const Offset(30, 0));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Undo'), findsOneWidget);
+
+    // What is written back is the task as it was before the tap.
     await tester.tap(find.text('Undo'));
     await tester.pump();
     expect(provider.restored?.title, 'Ship');
