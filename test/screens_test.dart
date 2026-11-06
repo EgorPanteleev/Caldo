@@ -770,7 +770,10 @@ void main() {
     expect(find.text('Undo'), findsOneWidget);
     // The bar is made as wide as its words, and the title has to fit in it.
     final onBar = find.descendant(
-      of: find.byType(SnackBar),
+      of: find.ancestor(
+        of: find.text('Undo'),
+        matching: find.byType(IntrinsicWidth),
+      ),
       matching: find.text('Ship'),
     );
     expect(

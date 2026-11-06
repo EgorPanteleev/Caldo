@@ -217,48 +217,50 @@ Changing them back will be noticed.
   wrong") — and then it stayed put, which was asked back: "move it to the
   bottom". Taking a tick back goes at once, and a second tap while a card
   waits stops it.
-- **A tick off offers Undo for four seconds** (`tickOff`, a SnackBar above
-  the add field). Undo writes back the task as it was before the tap
-  (`TaskProvider.restore`) rather than ticking it again, because a repeating
-  task has already rolled on to its next date and a second tick would only
-  roll it further. Every card's tick goes through `tickOff`; untick is
-  already an undo and gets no bar.
-  **The bar keeps its own time and can be brushed off** (`_UndoBar`; asked
-  for as "make ability to brush off the undo"). The snack bar is only its
-  carrier — `persist: true`, `dismissDirection: none`, `Clip.none` — and the
-  bar runs the four seconds itself, so a finger resting on it holds the
-  offer, and letting go starts it again. It follows the finger sideways or
-  down (upwards it only gives a little), stays solid for the first sixth of
-  the screen and fades after, and goes past a quarter of the width, 36
-  points down, or on a throw; short of that it settles back. Faded from the
-  first point, the card under it showed through its words before it had
-  gone anywhere. A brushed-off bar is removed, not hidden, or it fades a
-  second time where it was thrown. Each offer is numbered (`_offers`) so a
-  bar on its way out cannot close the one that replaced it.
-  **It is a pill as wide as its words, and never narrower than four fifths
-  of the screen**, centred over the field, with Undo at its far end — full
-  width, with the cards' own width and corners, it read as one more card;
-  sized to a short title alone it was a lozenge, "make it wider".
-  Its width is worked out in `tickOff` (`marginFor`) because the snack bar's
-  box takes every tap inside it, and a bar full width with a pill drawn in
-  the middle would have blocked the cards on either side. Laid out, each
-  word comes out a point or so wider than the `TextPainter` there says, so
-  the sum carries 6 points spare; at 2 the title lost its last character on
-  the emulator, which the test font does not reproduce.
-  It is a step lighter than the add field's grey, with a hairline rim and a
-  shadow (the snack bar's clip had been cutting the shadow off). A plain
-  grey tick, with nothing round it, sits beside the task's name and
-  "↶ Undo", and a line along the foot runs down over the four seconds
-  (`_Countdown`). The line keeps to the straight run between the pill's
-  rounded ends, which sheared off its ends when it ran the full width, and
-  sits a few points above the rim. For one round the countdown was a ring
-  around the tick instead, which made the tick a round checkbox — "i dont
-  like this rounded checkbox".
-  The arrow beside Undo is drawn (`_UndoArrow`) in the tick's round-ended
-  stroke. Undo is the only thing on it in the
-  accent: a filled accent tick and an accent countdown beside it made three
-  purple things on one small bar — "too many accent colours". The stock
-  snack bar before all this was a flat slab — "make undo look better".
+- **A tick off offers Undo for four seconds** (`tickOff`, `_UndoBar`, a
+  bar above the add field). Undo writes back the task as it was before the
+  tap (`TaskProvider.restore`) rather than ticking it again, because a
+  repeating task has already rolled on to its next date and a second tick
+  would only roll it further. Every card's tick goes through `tickOff`;
+  untick is already an undo and gets no bar.
+  **It is an entry on the app's root overlay, not a snack bar.** It was a
+  snack bar until it became glass: a snack bar fades itself in and out, and
+  a blur inside a fading layer has nothing behind it to blur, so the glass
+  went clear and sharp at every fade. A snack bar also takes every tap
+  across the width it is given, which meant measuring the bar's words with a
+  `TextPainter` beforehand (and missing by a point a word on the phone,
+  which the test font does not reproduce). On the overlay it is laid out at
+  its own width and only the pill takes taps. It must be the **root**
+  overlay (`rootOverlay: true`): the nearest one on the calendar is the pen
+  a carried card is kept in (`DragWithin`), which ends above the add field
+  and put the bar half a card too high. One offer at a time (`_offer`).
+  **It keeps its own time and can be brushed off** (asked for as "make
+  ability to brush off the undo"). A finger resting on it holds the offer,
+  and letting go starts the four seconds again. It follows the finger
+  sideways or down (upwards it only gives a little), stays solid for the
+  first sixth of the screen and fades after, and goes past a quarter of the
+  width, 36 points down, or on a throw; short of that it settles back.
+  Faded from the first point, the card under it showed through its words
+  before it had gone anywhere. The four seconds are not drawn: a ring
+  around the tick made it a round checkbox ("i dont like this rounded
+  checkbox"), a line along the foot and the tint draining out of the Undo
+  chip were tried as well, and the drain read as a smudge.
+  **It is frosted glass** (`_Glass`; "make it look better like in good
+  apps, u can add transparency"): what is behind it blurred, under a thin
+  veil of white, thicker at the top, with a rim that catches the light along
+  its top edge (`_Rim`) and a soft shadow. A veil of the field's grey was
+  tried first and showed nothing — the cards are dark enough that grey over
+  a card and grey over black came out the same. The blur is a sibling of the
+  fading layers, not inside one, and thins with them, so it stays frosted
+  while it fades. It is a pill, never narrower than four fifths of the
+  screen, centred over the field — full width, with the cards' own width
+  and corners, it read as one more card; sized to a short title it was a
+  lozenge, "make it wider". A plain grey tick, the task's name, and Undo on
+  a chip of the accent's tint, the arrow drawn (`_UndoArrow`) in the tick's
+  round-ended stroke. Undo is the only thing on it in the accent: a filled
+  accent tick and an accent countdown beside it made three purple things on
+  one small bar — "too many accent colours". The stock snack bar before all
+  this was a flat slab — "make undo look better".
 - **A card slides to its new place by task, not by card** (`SlideIntoPlace`).
   `TaskProvider.rearranging` fires just before a re-read; every card notes
   where it stands in its scrollable's content space (so a scroll is never

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,82 +19,58 @@ import 'task_card.dart';
 /// repeating task that had rolled on — ticking it again would only have
 /// rolled it a second time. Taking a tick back by tapping the tick needs no
 /// bar: it is already an undo.
+///
+/// The bar is an overlay entry of its own, not a snack bar. A snack bar
+/// fades itself in and out, and a blur inside a fade has nothing behind it
+/// to blur — the glass went clear and sharp for every fade. It also takes
+/// every tap across the width it is given, so a bar narrower than the
+/// screen had to be measured beforehand to keep it off the cards beside it.
 void tickOff(BuildContext context, Task task) {
   final provider = context.read<TaskProvider>();
-  final messenger = ScaffoldMessenger.of(context);
   final completing = !task.done;
   provider.toggleDone(task);
   if (!completing) return;
 
-  // A bar on its way out can still finish its countdown or be let go of, and
-  // closing "the current one" then would close the bar that replaced it.
-  final offer = ++_offers;
-  bool current() => offer == _offers;
+  // One offer at a time: the new bar rises in the old one's place.
+  _offer?.remove();
+  late final OverlayEntry entry;
+  void close() {
+    if (_offer != entry) return;
+    entry.remove();
+    _offer = null;
+  }
 
-  messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        // The bar draws itself; the snack bar only carries it in and out.
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        // Unclipped, or the bar's shadow is cut off at its own edge and a
-        // drag cuts the bar off at the snack bar's.
-        clipBehavior: Clip.none,
-        // The bar does its own dismissing: it follows the finger either way
-        // and keeps its own time, which stops while it is held.
-        dismissDirection: DismissDirection.none,
-        persist: true,
-        // As wide as what it says, so the cards either side of it can still
-        // be tapped: the snack bar's box takes every tap inside it. Over the
-        // add field rather than on it: the field is the next thing most often
-        // reached for, and a bar sitting on it for four seconds would be in
-        // the way of exactly that.
-        margin: _UndoBar.marginFor(context, task.title),
-        content: _UndoBar(
-          task: task,
-          onUndo: () {
-            if (current()) messenger.hideCurrentSnackBar();
-            provider.restore(task);
-          },
-          onTimeout: () {
-            if (current()) {
-              messenger.hideCurrentSnackBar(
-                reason: SnackBarClosedReason.timeout,
-              );
-            }
-          },
-          // Already faded out where it was thrown, so it goes at once rather
-          // than fading a second time.
-          onBrushedOff: () {
-            if (current()) {
-              messenger.removeCurrentSnackBar(
-                reason: SnackBarClosedReason.swipe,
-              );
-            }
-          },
-        ),
-      ),
-    );
+  entry = OverlayEntry(
+    builder: (context) => _UndoBar(
+      task: task,
+      onUndo: () => provider.restore(task),
+      onGone: close,
+    ),
+  );
+  _offer = entry;
+  // The app's own overlay, the whole screen: the nearest one can be a pen a
+  // carried card is kept inside (`DragWithin`), which on the calendar ends
+  // above the add field and put the bar half a card too high.
+  Overlay.of(context, rootOverlay: true).insert(entry);
 }
 
-int _offers = 0;
+OverlayEntry? _offer;
 
 const _undoFor = Duration(seconds: 4);
 
 /// What a tick off leaves on screen for a moment: the task, ticked, and a way
 /// to take it back.
 ///
-/// A pill, in a grey a step above the add field's, with a hairline rim and a
-/// shadow to lift it off the cards. Full width it had the cards' own width
-/// and corners, and sat on the list like one more of them. A plain tick, the
-/// task's name, Undo, and a line along the foot that runs down over the four
-/// seconds the offer is open (`_Countdown`).
+/// A pill of frosted glass — what is behind it blurred, under a thin veil of
+/// white with a rim that catches the light along its top — holding a plain
+/// tick, the task's name, and Undo on a tinted chip. It floats over the add
+/// field, never narrower than four fifths of the screen: full width, with the
+/// cards' own width and corners, it read as one more card, and sized to a
+/// short title alone it was a lozenge ("make it wider").
 ///
 /// Undo is the only thing on it in the accent. The tick was a filled accent
-/// square and the line an accent rule as well, and with the button that made
-/// three purple things on one small bar — "too many accent colours".
+/// square and the countdown an accent rule as well, and with the button that
+/// made three purple things on one small bar — "too many accent colours".
 ///
 /// It can be brushed off to either side or down: it follows the finger,
 /// fading as it goes, and either carries on out of a throw or settles back.
@@ -102,60 +79,24 @@ const _undoFor = Duration(seconds: 4);
 class _UndoBar extends StatefulWidget {
   final Task task;
   final VoidCallback onUndo;
-  final VoidCallback onTimeout;
-  final VoidCallback onBrushedOff;
+
+  /// Called once the bar has finished leaving, however it left.
+  final VoidCallback onGone;
 
   const _UndoBar({
     required this.task,
     required this.onUndo,
-    required this.onTimeout,
-    required this.onBrushedOff,
+    required this.onGone,
   });
 
-  static const _tick = 22.0;
+  static const _tick = 20.0;
   static const _arrow = 18.0;
-
-  // Everything on the bar but its two words, left to right.
-  static const _around = 16 + _tick + 10 + 10 + 14 + _arrow + 6 + 14 + 4;
 
   static TextStyle _titleStyle(AppPalette p) =>
       TextStyle(color: p.text, fontSize: 15, fontWeight: FontWeight.w600);
 
   static TextStyle _undoStyle(Color accent) =>
       TextStyle(color: accent, fontSize: 15, fontWeight: FontWeight.w700);
-
-  /// The snack bar's margin for a bar about [title]: as much either side as
-  /// the bar does not need. Anything it is given beyond its words goes to
-  /// the title's room, so Undo stays at the far end. A long title is held 16 points off the edges and
-  /// ends in an ellipsis.
-  static EdgeInsets marginFor(BuildContext context, String title) {
-    final p = AppTheme.of(context);
-    final scaler = MediaQuery.textScalerOf(context);
-    double measure(String text, TextStyle style) {
-      final painter = TextPainter(
-        text: TextSpan(text: text, style: style),
-        textDirection: TextDirection.ltr,
-        textScaler: scaler,
-        maxLines: 1,
-      )..layout();
-      final width = painter.width;
-      painter.dispose();
-      return width;
-    }
-
-    final words =
-        measure(title, _titleStyle(p)) +
-        measure(S.of(context).undo, _undoStyle(Colors.white));
-    // A few points spare: laid out in the bar, each of the two words comes
-    // out a point or so wider than the painter here says, and a title one
-    // point short of its room loses its last letter to an ellipsis.
-    // Never narrower than four fifths of the screen: sized to a short title
-    // alone it was a small lozenge, "make it wider".
-    final screen = MediaQuery.sizeOf(context).width;
-    final width = math.max(_around + words + 6, screen * 0.8).ceilToDouble();
-    final side = math.max(16.0, (screen - width) / 2);
-    return EdgeInsets.fromLTRB(side, 0, side, 78);
-  }
 
   @override
   State<_UndoBar> createState() => _UndoBarState();
@@ -169,9 +110,12 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
     value: 1,
   )..addStatusListener(_onLeft);
 
+  /// In on the way up, out on the way down — rising and growing a little as
+  /// it comes, sinking a little as it goes.
   late final _enter = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 280),
+    reverseDuration: const Duration(milliseconds: 200),
   )..forward();
 
   /// Carries the bar from where the finger left it, back home or away.
@@ -200,10 +144,22 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   }
 
   void _onLeft(AnimationStatus status) {
-    if (status == AnimationStatus.dismissed && !_gone) {
-      _gone = true;
-      widget.onTimeout();
-    }
+    if (status == AnimationStatus.dismissed) _leave();
+  }
+
+  void _leave() {
+    if (_gone) return;
+    _gone = true;
+    _left.stop();
+    _enter.reverse().whenComplete(() {
+      if (mounted) widget.onGone();
+    });
+  }
+
+  void _undo() {
+    if (_gone) return;
+    widget.onUndo();
+    _leave();
   }
 
   void _onFling() {
@@ -262,8 +218,10 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
     final to = sideways
         ? Offset(s.dx.sign * _width, _drag.dy)
         : Offset(_drag.dx, _drag.dy + 120);
+    // Faded out by the time it gets there, so it goes at once rather than
+    // fading a second time.
     _settle(const Duration(milliseconds: 180), to).whenComplete(() {
-      if (mounted) widget.onBrushedOff();
+      if (mounted) widget.onGone();
     });
   }
 
@@ -292,133 +250,246 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final accent = AppTheme.accentOf(context).color;
-    final ground = Color.alphaBlend(p.text.withValues(alpha: 0.06), p.field);
-    final bar = DecoratedBox(
-      decoration: ShapeDecoration(
-        color: ground,
-        shape: StadiumBorder(
-          side: BorderSide(color: p.text.withValues(alpha: 0.08)),
-        ),
-        shadows: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: CustomPaint(
-        foregroundPainter: _Countdown(left: _left, color: p.muted),
-        child: Material(
-          type: MaterialType.transparency,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
-            child: Row(
-              children: [
-                SizedBox.square(
-                  dimension: _UndoBar._tick,
-                  child: CustomPaint(
-                    painter: CheckMark(progress: 1, color: p.muted),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    widget.task.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _UndoBar._titleStyle(p),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                InkWell(
-                  onTap: _gone ? null : widget.onUndo,
-                  customBorder: const StadiumBorder(),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 11,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox.square(
-                          dimension: _UndoBar._arrow,
-                          child: CustomPaint(
-                            painter: _UndoArrow(color: accent),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          S.of(context).undo,
-                          style: _UndoBar._undoStyle(accent),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final content = Material(
+      type: MaterialType.transparency,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: _UndoBar._tick,
+              child: CustomPaint(
+                painter: CheckMark(progress: 1, color: p.muted),
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.task.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _UndoBar._titleStyle(p),
+              ),
+            ),
+            const SizedBox(width: 10),
+            _UndoChip(
+              accent: accent,
+              onTap: _undo,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox.square(
+                    dimension: _UndoBar._arrow,
+                    child: CustomPaint(painter: _UndoArrow(color: accent)),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(S.of(context).undo, style: _UndoBar._undoStyle(accent)),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
-    return GestureDetector(
-      onPanDown: _hold,
-      onPanUpdate: _move,
-      onPanEnd: _let,
-      onPanCancel: _cancel,
-      child: AnimatedBuilder(
-        animation: _enter,
-        builder: (context, child) {
-          // Rises a little into place as the snack bar fades it in.
-          final t = Curves.easeOutCubic.transform(_enter.value);
-          return Transform.translate(
-            offset: _shown + Offset(0, 14 * (1 - t)),
-            child: Transform.scale(
-              scale: 0.94 + 0.06 * t,
-              child: Opacity(opacity: _opacity, child: child),
+    // Over the add field rather than on it: the field is the next thing most
+    // often reached for, and a bar sitting on it for four seconds would be in
+    // the way of exactly that.
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 78 + MediaQuery.viewPaddingOf(context).bottom,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: _width * 0.8),
+          // As wide as its words when they need more than that, so a title
+          // only gives up letters to an ellipsis at the margins.
+          child: IntrinsicWidth(
+            child: GestureDetector(
+              onPanDown: _hold,
+              onPanUpdate: _move,
+              onPanEnd: _let,
+              onPanCancel: _cancel,
+              child: AnimatedBuilder(
+                animation: _enter,
+                builder: (context, content) {
+                  final t = Curves.easeOutCubic.transform(_enter.value);
+                  return Transform.translate(
+                    offset: _shown + Offset(0, 14 * (1 - t)),
+                    child: Transform.scale(
+                      scale: 0.94 + 0.06 * t,
+                      child: _Glass(
+                        shown: t * _opacity,
+                        dark: dark,
+                        rim: p.text,
+                        child: content!,
+                      ),
+                    ),
+                  );
+                },
+                child: content,
+              ),
             ),
-          );
-        },
-        child: bar,
+          ),
+        ),
       ),
     );
   }
 }
 
-/// A line along the bar's foot that runs down, right to left, over the time
-/// the offer is open. It keeps to the straight run of the edge, between the
-/// two rounded ends: drawn the full width, the ends were sheared off by the
-/// corners. It was a ring around the tick for a while, which made the tick
-/// look like a round checkbox — "i dont like this rounded checkbox".
-class _Countdown extends CustomPainter {
-  final Animation<double> left;
+/// A pill of frosted glass over [child], at [shown] of its full strength.
+///
+/// The blur is not faded with the rest. A blur inside a fading layer only
+/// sees that layer, which is empty, so faded together the glass turned clear
+/// and sharp the moment it began to go. Here the blur sits beside the fading
+/// layers rather than inside one, and thins out as they do.
+class _Glass extends StatelessWidget {
+  final double shown;
+  final bool dark;
+  final Color rim;
+  final Widget child;
+
+  const _Glass({
+    required this.shown,
+    required this.dark,
+    required this.rim,
+    required this.child,
+  });
+
+  static const _shape = StadiumBorder();
+
+  @override
+  Widget build(BuildContext context) {
+    // A thin veil of white, thicker at the top. A tint of the field's grey
+    // was tried first and showed nothing: the cards here are so dark that
+    // grey over a card and grey over black came out the same, so the veil
+    // has to be light for what is behind it to come through.
+    final veil = dark
+        ? [
+            Colors.white.withValues(alpha: 0.17),
+            Colors.white.withValues(alpha: 0.11),
+          ]
+        : [
+            Colors.white.withValues(alpha: 0.80),
+            Colors.white.withValues(alpha: 0.70),
+          ];
+    final sigma = 24 * shown;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Opacity(
+            opacity: shown,
+            child: DecoratedBox(
+              decoration: ShapeDecoration(
+                shape: _shape,
+                shadows: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (sigma > 0.5)
+          Positioned.fill(
+            child: ClipPath(
+              clipper: const ShapeBorderClipper(shape: _shape),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        Opacity(
+          opacity: shown,
+          child: ClipPath(
+            clipper: const ShapeBorderClipper(shape: _shape),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: veil,
+                ),
+              ),
+              child: CustomPaint(
+                foregroundPainter: _Rim(color: rim),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The glass's edge: a hairline that catches the light along the top and
+/// fades out down the sides, as a lit pane's edge would.
+class _Rim extends CustomPainter {
   final Color color;
 
-  _Countdown({required this.left, required this.color}) : super(repaint: left);
+  const _Rim({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final end = size.height / 2;
-    final y = size.height - 4.5;
-    final run = size.width - 2 * end;
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..color = color.withValues(alpha: 0.12);
-    canvas.drawLine(Offset(end, y), Offset(end + run, y), stroke);
-    if (left.value <= 0) return;
-    canvas.drawLine(
-      Offset(end, y),
-      Offset(end + run * left.value, y),
-      stroke..color = color.withValues(alpha: 0.5),
+    final rect = (Offset.zero & size).deflate(0.5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(rect.height / 2)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            color.withValues(alpha: 0.22),
+            color.withValues(alpha: 0.05),
+          ],
+        ).createShader(rect),
     );
   }
 
   @override
-  bool shouldRepaint(_Countdown old) => old.color != color;
+  bool shouldRepaint(_Rim old) => old.color != color;
+}
+
+/// Undo, on a chip of the accent's tint — the one thing on the bar to press,
+/// and the one thing in colour.
+///
+/// The bar's four seconds are not drawn. They were a ring around the tick,
+/// which made it a round checkbox ("i dont like this rounded checkbox"),
+/// then a line along the foot, then the tint draining out of this chip,
+/// which read as a smudge on it. The offer still holds while it is touched.
+class _UndoChip extends StatelessWidget {
+  final Color accent;
+  final VoidCallback? onTap;
+  final Widget child;
+
+  const _UndoChip({
+    required this.accent,
+    required this.onTap,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: accent.withValues(alpha: 0.18),
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
 /// Builds a task's card from [task] as it is shown right now
