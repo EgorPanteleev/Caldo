@@ -24,7 +24,7 @@ lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
   l10n/strings.dart      every word the app says; words_*.dart, a table
                          per language
-  db/database.dart       schema v6: lists, tasks, completions (+ migrations)
+  db/database.dart       schema v7: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart,
@@ -40,7 +40,7 @@ lib/
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
-                         colour_selector,
+                         colour_selector, tag_filter,
                          date_time_pickers, day_sheet, menu_button,
                          quick_add_bar, screen_header, selection_bar,
                          theme_switcher, slide_into_place,
@@ -1059,6 +1059,28 @@ Changing them back will be noticed.
   Screens read the provider as nullable, so a test that pumps a screen
   without it still draws. The home-screen widget does not show events.
 
+- **A task can carry tags, as many as it likes** (`Task.tags`, schema v7,
+  `TagFilterButton`). Asked for as "split tasks in groups … like tags", and
+  "i dont wanna specify it in settings": there is nowhere tags are made or
+  kept. A tag exists while some task carries it — typed in the form's Tags
+  panel, picked from the ones other tasks carry under it, or written as
+  `#uni` in any quick-add field, which takes it out of the title. "Uni" and
+  "uni" are one tag, spelled as it was first met. Stored as JSON in the
+  task's own row, like the checklist, so Undo and a repeating task rolling
+  on carry them. A card writes them after its time ("All day · #uni").
+  **Schedule and the calendar can be narrowed to one tag** from a button in
+  their headers, shared between the two, which only shows once some task
+  has a tag and is the tag itself on a pill while one is chosen — so a
+  screen with tasks missing from it says why. The filter is held for the
+  run of the app and not stored (a forgotten filter is tasks gone missing),
+  and it goes when its last task loses the tag. A task added under it gets
+  the tag, or it would vanish as it was filed. The provider keeps the full
+  lists beside the narrowed ones: the alarms, the home-screen widget and
+  the menu's overdue dot read the full ones (`allOverdue`,
+  `allUpcomingByDay`) and never follow the filter. Holidays and the phone's
+  calendar events are not tasks, have no tags, and stay on show under it.
+  Lists, the older way of grouping, are still underneath and untouched.
+
 - **Caldo speaks the language of every country it keeps holidays for**
   (`S`, `l10n/strings.dart`, `l10n/words_*.dart`): English, Russian,
   Ukrainian, Belarusian, Kazakh, German, French, Spanish, Italian, Dutch,
@@ -1106,7 +1128,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 161 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 165 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

@@ -132,6 +132,12 @@ class Task {
   /// The task's checklist, in the order it was written.
   final List<Subtask> subtasks;
 
+  /// The groups the task is in — "uni", "friends" — as many as it likes.
+  /// Kept with the task, as the checklist is, for the same reason: a task
+  /// written back whole by Undo or by rolling on has to take them along.
+  /// There is nowhere tags are made; a tag is there while a task carries it.
+  final List<String> tags;
+
   /// How many minutes ahead of its time the task is announced, or null to
   /// follow Settings. [silent] for a task that is never announced. An all-day
   /// task counts only whole days of it: it is announced at the hour Settings
@@ -161,6 +167,7 @@ class Task {
     this.completedAt,
     this.sortOrder,
     this.subtasks = const [],
+    this.tags = const [],
     this.remindBefore,
     this.snoozedUntil,
   });
@@ -240,6 +247,7 @@ class Task {
     int? sortOrder,
     bool clearSortOrder = false,
     List<Subtask>? subtasks,
+    List<String>? tags,
     int? remindBefore,
     bool clearRemindBefore = false,
     int? snoozedUntil,
@@ -260,6 +268,7 @@ class Task {
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       sortOrder: clearSortOrder ? null : (sortOrder ?? this.sortOrder),
       subtasks: subtasks ?? this.subtasks,
+      tags: tags ?? this.tags,
       remindBefore: clearRemindBefore
           ? null
           : (remindBefore ?? this.remindBefore),
@@ -285,6 +294,7 @@ class Task {
       'completed_at': completedAt,
       'sort_order': sortOrder,
       'subtasks': jsonEncode([for (final s in subtasks) s.toJson()]),
+      'tags': jsonEncode(tags),
       'remind_before': remindBefore,
       'snoozed_until': snoozedUntil,
     };
@@ -306,9 +316,41 @@ class Task {
       completedAt: map['completed_at'] as int?,
       sortOrder: map['sort_order'] as int?,
       subtasks: _subtasksFrom(map['subtasks'] as String?),
+      tags: tagsFrom(map['tags'] as String?),
       remindBefore: map['remind_before'] as int?,
       snoozedUntil: map['snoozed_until'] as int?,
     );
+  }
+
+  /// Whether the task carries [tag], written in any case.
+  bool hasTag(String tag) => tags.any((t) => sameTag(t, tag));
+
+  /// Whether two tags are the same tag: "Uni" typed once and "uni" another
+  /// time are one group, not two.
+  static bool sameTag(String a, String b) => a.toLowerCase() == b.toLowerCase();
+
+  /// [raw] as a tag: without the # it may have been typed with, and with
+  /// its spaces closed up into one word, the way it is written after a #
+  /// in the quick-add field. Null if nothing is left.
+  static String? tagOf(String raw) {
+    final tag = raw.trim().replaceFirst(RegExp(r'^#+'), '').trim();
+    final word = tag.replaceAll(RegExp(r'\s+'), '-');
+    return word.isEmpty ? null : word;
+  }
+
+  /// The stored tags, or none if they cannot be read.
+  static List<String> tagsFrom(String? text) {
+    if (text == null || text.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is! List) return const [];
+      return [
+        for (final item in decoded)
+          if (item is String) item,
+      ];
+    } on FormatException {
+      return const [];
+    }
   }
 
   /// The stored checklist, or none if there is none or it cannot be read — a

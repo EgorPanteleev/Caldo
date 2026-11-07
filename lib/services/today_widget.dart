@@ -63,9 +63,9 @@ class TodayWidget {
     _last = tasks;
     try {
       final rows = [
-        for (final task in tasks.overdue) _row(task, tasks),
-        for (final day in tasks.upcomingByDay.keys.toList()..sort())
-          for (final task in tasks.upcomingByDay[day]!) _row(task, tasks),
+        for (final task in tasks.allOverdue) _row(task, tasks),
+        for (final day in tasks.allUpcomingByDay.keys.toList()..sort())
+          for (final task in tasks.allUpcomingByDay[day]!) _row(task, tasks),
       ];
       // Written every time, though most re-reads of the lists change
       // nothing the widget shows: Android only reports a value that differs

@@ -22,7 +22,7 @@ Future<DateTime?> showAppDatePicker({
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _Sheet(
+    builder: (_) => PickerSheet(
       child: _DateSheet(
         initial: initial ?? now,
         firstDate: firstDate ?? DateTime(now.year - 5),
@@ -42,7 +42,7 @@ Future<TimeOfDay?> showAppTimePicker({
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _Sheet(
+    builder: (_) => PickerSheet(
       child: _TimeSheet(
         initial: initial ?? const TimeOfDay(hour: 9, minute: 0),
       ),
@@ -50,10 +50,11 @@ Future<TimeOfDay?> showAppTimePicker({
   );
 }
 
-/// The rounded panel every picker sits in, with a drag handle on top.
-class _Sheet extends StatelessWidget {
+/// The rounded panel every picker sits in, with a drag handle on top — and
+/// the tag filter, which is a picker of a sort.
+class PickerSheet extends StatelessWidget {
   final Widget child;
-  const _Sheet({required this.child});
+  const PickerSheet({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {

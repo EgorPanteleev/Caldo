@@ -275,6 +275,10 @@ class S {
   String get notesField => _word('notesField');
   String get sectionSubtasks => _word('sectionSubtasks');
   String get addSubtask => _word('addSubtask');
+  String get sectionTags => _word('sectionTags');
+  String get addTag => _word('addTag');
+  String get tags => _word('tags');
+  String get allTasks => _word('allTasks');
   String get dueDate => _word('dueDate');
   String get time => _word('time');
   String get none => _word('none');

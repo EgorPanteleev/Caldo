@@ -54,6 +54,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   final _newStep = TextEditingController();
   final _newStepFocus = FocusNode();
 
+  /// The task's tags as they are being edited, and the field that adds one.
+  final List<String> _tags = [];
+  final _newTag = TextEditingController();
+  final _newTagFocus = FocusNode();
+
   /// Whether anything has been touched since the form opened. Until it has,
   /// the back arrow is the only way out and there is nothing to save; once it
   /// has, the arrow goes and the two words at the foot take over — leaving by
@@ -79,6 +84,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       _steps.add(_Draft(step.title, done: step.done, onEdit: _touched));
     }
     _newStep.addListener(_touched);
+    // A new task made while the screens are narrowed to a tag starts with
+    // it, or it would be saved out of sight of the screen it was made on.
+    final filter = context.read<TaskProvider>().filter;
+    _tags.addAll(task?.tags ?? [?filter]);
+    _newTag.addListener(_touched);
     // A new task starts in the colour Settings says new tasks start in; an
     // existing one keeps whatever it was given.
     _styleId = task == null
@@ -109,6 +119,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     }
     _newStep.dispose();
     _newStepFocus.dispose();
+    _newTag.dispose();
+    _newTagFocus.dispose();
     super.dispose();
   }
 
@@ -140,6 +152,33 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  /// Adds [raw] as a tag — spelled as the one already in use, if it is one
+  /// — and leaves the field ready for the next, keyboard up.
+  void _addTag(String raw) {
+    final tag = Task.tagOf(raw);
+    _newTag.clear();
+    if (tag == null) return;
+    _touched();
+    final known = context.read<TaskProvider>().tags.keys;
+    setState(() {
+      if (!_tags.any((t) => Task.sameTag(t, tag))) {
+        _tags.add(
+          known.firstWhere((k) => Task.sameTag(k, tag), orElse: () => tag),
+        );
+      }
+    });
+  }
+
+  /// The tags to save, with whatever was left typed in the field, as the
+  /// checklist keeps a step left typed without Enter.
+  List<String> get _savedTags {
+    final typed = Task.tagOf(_newTag.text);
+    return [
+      ..._tags,
+      if (typed != null && !_tags.any((t) => Task.sameTag(t, typed))) typed,
+    ];
   }
 
   /// The checklist to save: every step with words in it, and whatever was
@@ -209,6 +248,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           styleId: _styleId,
           createdAt: DateTime.now().millisecondsSinceEpoch,
           subtasks: _subtasks,
+          tags: _savedTags,
           remindBefore: _remindBefore,
         ),
       );
@@ -231,6 +271,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           styleId: _styleId,
           clearStyleId: _styleId == null,
           subtasks: _subtasks,
+          tags: _savedTags,
           remindBefore: _remindBefore,
           clearRemindBefore: _remindBefore == null,
           clearSnoozedUntil: reminderMoved,
@@ -272,7 +313,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final p = AppTheme.of(context);
     final s = S.of(context);
     final isEdit = widget.task != null;
-    final lists = context.watch<TaskProvider>().lists;
+    final provider = context.watch<TaskProvider>();
+    final lists = provider.lists;
     final validId = lists.any((l) => l.id == _selectedListId)
         ? _selectedListId
         : (lists.isNotEmpty ? lists.first.id : null);
@@ -366,6 +408,31 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                   _touched();
                                   setState(() => _steps.remove(step));
                                   step.dispose();
+                                },
+                              ),
+                              const SizedBox(height: 22),
+                              Text(
+                                s.sectionTags,
+                                style: TextStyle(
+                                  color: p.faint,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              _Tags(
+                                tags: _tags,
+                                known: provider.tags.keys.toList(),
+                                field: _newTag,
+                                focus: _newTagFocus,
+                                onAdd: (tag) {
+                                  _addTag(tag);
+                                  _newTagFocus.requestFocus();
+                                },
+                                onRemove: (tag) {
+                                  _touched();
+                                  setState(() => _tags.remove(tag));
                                 },
                               ),
                               const SizedBox(height: 20),
@@ -690,6 +757,162 @@ class _Checklist extends StatelessWidget {
 
 /// The field at the foot of the form's checklist that adds a step.
 const newSubtaskFieldKey = Key('new-subtask-field');
+
+/// The field in the form that adds a tag.
+const newTagFieldKey = Key('new-tag-field');
+
+/// The task's tags in the form: each as a chip that can be taken off, a line
+/// to type a new one, and under the panel the tags other tasks carry, any of
+/// which a tap puts on this one. That is all the making a tag needs — there
+/// is no list of them to keep anywhere else.
+class _Tags extends StatelessWidget {
+  final List<String> tags;
+  final List<String> known;
+  final TextEditingController field;
+  final FocusNode focus;
+  final ValueChanged<String> onAdd;
+  final ValueChanged<String> onRemove;
+
+  const _Tags({
+    required this.tags,
+    required this.known,
+    required this.field,
+    required this.focus,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return ValueListenableBuilder(
+      valueListenable: field,
+      builder: (context, value, _) {
+        // What is typed narrows the offer to the tags it could be the start
+        // of; with nothing typed, every tag this task does not have yet.
+        final typed = Task.tagOf(value.text)?.toLowerCase() ?? '';
+        final offered = [
+          for (final tag in known)
+            if (!tags.any((t) => Task.sameTag(t, tag)) &&
+                tag.toLowerCase().contains(typed))
+              tag,
+        ];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: p.panel,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: p.border),
+              ),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final tag in tags)
+                    _TagChip(
+                      key: ValueKey(tag),
+                      tag: tag,
+                      filled: true,
+                      onTap: () => onRemove(tag),
+                    ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 120),
+                    child: IntrinsicWidth(
+                      child: TextField(
+                        key: newTagFieldKey,
+                        scrollPadding: _reveal,
+                        controller: field,
+                        focusNode: focus,
+                        textInputAction: TextInputAction.done,
+                        decoration: _Checklist._bare.copyWith(
+                          hintText: S.of(context).addTag,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 6,
+                          ),
+                        ),
+                        style: TextStyle(color: p.text, fontSize: 15),
+                        // Enter files the tag and stays for the next; on an
+                        // empty line it is the way out.
+                        onEditingComplete: () => field.text.trim().isEmpty
+                            ? focus.unfocus()
+                            : onAdd(field.text),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (offered.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final tag in offered)
+                    _TagChip(tag: tag, filled: false, onTap: () => onAdd(tag)),
+                ],
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A tag in the form: on the task, a chip that a tap takes off; offered, a
+/// faint outline that a tap puts on.
+class _TagChip extends StatelessWidget {
+  final String tag;
+  final bool filled;
+  final VoidCallback onTap;
+
+  const _TagChip({
+    super.key,
+    required this.tag,
+    required this.filled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(10, 5, filled ? 6 : 10, 5),
+        decoration: BoxDecoration(
+          color: filled ? p.field : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: filled ? null : Border.all(color: p.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '#$tag',
+              style: TextStyle(
+                color: filled ? p.text : p.muted,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (filled) ...[
+              const SizedBox(width: 3),
+              Icon(Icons.close, size: 15, color: p.muted),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 /// A tappable settings-style row: icon, label, current value, optional clear.
 class _FieldTile extends StatelessWidget {

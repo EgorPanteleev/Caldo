@@ -15,6 +15,7 @@ import '../widgets/quick_add_bar.dart';
 import '../widgets/reorderable_task_list.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/slide_into_place.dart';
+import '../widgets/tag_filter.dart';
 import '../widgets/task_card.dart';
 import '../widgets/tick_off.dart';
 import 'search_screen.dart';
@@ -146,6 +147,7 @@ class _TasksScreenState extends State<TasksScreen> {
               title: S.of(context).schedule,
               onMenu: widget.onMenu,
               actions: [
+                const TagFilterButton(),
                 IconButton(
                   icon: Icon(Icons.search, color: p.muted),
                   tooltip: S.of(context).search,

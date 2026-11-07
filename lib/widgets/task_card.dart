@@ -60,10 +60,10 @@ class TaskCard extends StatelessWidget {
     this.leaving = false,
   });
 
-  /// "All day", or the time it is due, and the repeat rule if it has one. Not
-  /// the list it belongs to: the tick already wears that list's colour, and
-  /// under the calendar a day's tasks are usually all from the same one, so
-  /// the name was the same word under every card.
+  /// "All day", or the time it is due, the repeat rule if it has one, and
+  /// its tags. Not the list it belongs to: the tick already wears that
+  /// list's colour, and under the calendar a day's tasks are usually all
+  /// from the same one, so the name was the same word under every card.
   String _subtitle(S s, bool h24) {
     final due = task.due;
     final when = due == null
@@ -72,6 +72,7 @@ class TaskCard extends StatelessWidget {
     final parts = [
       when,
       if (task.repeat != Repeat.none) s.repeatName(task.repeat),
+      if (task.tags.isNotEmpty) task.tags.map((t) => '#$t').join(' '),
     ];
     return parts.join(' · ');
   }
