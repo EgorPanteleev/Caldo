@@ -145,15 +145,15 @@ class _BoardScreenState extends State<BoardScreen> {
           ),
           // The same choice of group as Schedule and the calendar make.
           const SizedBox(width: double.infinity, child: GroupChips()),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (final stage in Stage.values) ...[
-                    if (stage != Stage.notStarted) const SizedBox(width: 5),
+                    if (stage != Stage.notStarted) const SizedBox(width: 4),
                     Expanded(
                       child: _Column(
                         stage: stage,
@@ -188,6 +188,13 @@ class _Column extends StatelessWidget {
     required this.onDrop,
   });
 
+  /// An empty ring, a half-filled one, a tick: how far along, at a glance.
+  static IconData iconOf(Stage stage) => switch (stage) {
+    Stage.notStarted => Icons.radio_button_unchecked,
+    Stage.inProgress => Icons.contrast,
+    Stage.done => Icons.check_circle_outline,
+  };
+
   static String nameOf(S s, Stage stage) => switch (stage) {
     Stage.notStarted => s.notStarted,
     Stage.inProgress => s.inProgress,
@@ -203,23 +210,32 @@ class _Column extends StatelessWidget {
       onWillAcceptWithDetails: (d) => d.data.stage != stage,
       onAcceptWithDetails: (d) => onDrop(d.data),
       builder: (context, over, _) {
-        final ground = over.isNotEmpty ? p.panelHi : p.panel;
+        // The columns stand on the screen's own black, with nothing behind
+        // them: grey panels under each made boxes of boxes of cards. A
+        // column says where a card would land only while one is over it.
+        final ground = over.isNotEmpty ? p.panel : p.bg;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             color: ground,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: LayoutBuilder(
             builder: (context, box) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 11, 10, 9),
+                  padding: const EdgeInsets.fromLTRB(2, 6, 2, 12),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Icon(iconOf(stage), size: 15, color: p.muted),
+                      ),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           nameOf(s, stage),
@@ -239,7 +255,6 @@ class _Column extends StatelessWidget {
                         style: TextStyle(
                           color: p.faint,
                           fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
                           height: 1.25,
                         ),
                       ),
@@ -248,12 +263,23 @@ class _Column extends StatelessWidget {
                 ),
                 Expanded(
                   child: tasks.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.only(top: 14),
-                          child: Text(
-                            s.boardEmpty,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: p.faint, fontSize: 12.5),
+                      // A card's room, drawn as an outline: somewhere to
+                      // put one down.
+                      ? Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            height: 52,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: p.border),
+                              borderRadius: BorderRadius.circular(
+                                BoardCard.radius,
+                              ),
+                            ),
+                            child: Text(
+                              s.boardEmpty,
+                              style: TextStyle(color: p.faint, fontSize: 12),
+                            ),
                           ),
                         )
                       : _FadeFoot(
@@ -390,8 +416,13 @@ class _Lifted extends StatelessWidget {
 /// A task on the board: the title on up to three lines, a column being a
 /// third of a phone wide, and under it when it is due. Inked with the task's
 /// colour as the other cards are, and sunk the same way once done.
+///
+/// A done card is its title and nothing else, and is not crossed out: the
+/// column already says it is done, as the Done log's rows do not need to,
+/// and a column of struck-through titles over dates gone by was the
+/// busiest thing on the board.
 class BoardCard extends StatelessWidget {
-  static const margin = EdgeInsets.fromLTRB(6, 0, 6, 6);
+  static const margin = EdgeInsets.only(bottom: 6);
   static const radius = 12.0;
 
   final Task task;
@@ -422,35 +453,38 @@ class BoardCard extends StatelessWidget {
       fallback: AppTheme.accentOf(context).color,
     );
     final when = _when(MediaQuery.alwaysUse24HourFormatOf(context));
-    final meta = task.done ? p.faint : p.muted;
+    final meta = p.muted;
     final marks = [
-      if (when != null)
-        Flexible(
-          child: Text(
-            when,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.fade,
-            style: TextStyle(
-              color: task.isOverdue ? AppColors.overdue : meta,
-              fontSize: 11.5,
+      if (!task.done) ...[
+        if (when != null)
+          Flexible(
+            child: Text(
+              when,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                color: task.isOverdue ? AppColors.overdue : meta,
+                fontSize: 11.5,
+              ),
             ),
           ),
-        ),
-      if (task.repeat != Repeat.none) Icon(Icons.repeat, size: 12, color: meta),
-      if (task.subtasks.isNotEmpty) ...[
-        Icon(Icons.checklist_rounded, size: 12, color: meta),
-        Text(
-          '${task.subtasksDone}/${task.subtasks.length}',
-          style: TextStyle(color: meta, fontSize: 11.5),
-        ),
+        if (task.repeat != Repeat.none)
+          Icon(Icons.repeat, size: 12, color: meta),
+        if (task.subtasks.isNotEmpty) ...[
+          Icon(Icons.checklist_rounded, size: 12, color: meta),
+          Text(
+            '${task.subtasksDone}/${task.subtasks.length}',
+            style: TextStyle(color: meta, fontSize: 11.5),
+          ),
+        ],
+        if (task.priority != Priority.none)
+          Icon(
+            Icons.flag,
+            size: 12,
+            color: TaskCard.priorityColor(task.priority),
+          ),
       ],
-      if (task.priority != Priority.none)
-        Icon(
-          Icons.flag,
-          size: 12,
-          color: TaskCard.priorityColor(task.priority),
-        ),
     ];
     return Padding(
       padding: margin,
@@ -460,7 +494,7 @@ class BoardCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(radius),
           child: Ink(
-            padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+            padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
             decoration: BoxDecoration(
               color: color.withValues(alpha: task.done ? 0.07 : 0.24),
               borderRadius: BorderRadius.circular(radius),
@@ -473,16 +507,14 @@ class BoardCard extends StatelessWidget {
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: task.done ? p.faint : p.text,
+                    color: task.done ? p.muted : p.text,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w500,
                     height: 1.25,
-                    decoration: task.done ? TextDecoration.lineThrough : null,
-                    decorationColor: p.faint,
                   ),
                 ),
                 if (marks.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   Row(
                     children: [
                       for (var i = 0; i < marks.length; i++) ...[

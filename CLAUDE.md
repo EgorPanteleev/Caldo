@@ -1091,6 +1091,14 @@ Changing them back will be noticed.
   header for the full form rather than a field, since a board's new task
   has no day to be filed on. Each column scrolls on its own and fades at
   its foot.
+  **The columns stand on the screen's black with nothing behind them**,
+  headed by a neutral mark (an empty ring, a half-filled one, a tick), the
+  name and a faint count; the grey shows only under the column a card is
+  held over. The first version had a grey panel under each column, done
+  cards crossed out over their dates, and an inset inside each panel —
+  boxes of boxes, "it looks bad, make the ui look simpler and nicer". A
+  done card is now its title alone, sunk and not struck through, and an
+  empty column is a card's outline.
 
 - **Events from the phone's own calendars sit beside the tasks the way
   holidays do** (`EventsProvider`, `DeviceCalendars`, `EventCard`, the
