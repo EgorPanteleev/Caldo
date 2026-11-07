@@ -190,6 +190,21 @@ void main() {
     expect(under('Ship', done), isTrue);
     await waitFor('Ship', Stage.done);
 
+    // Or without carrying it: the card's move button lists the lanes.
+    final move = find.descendant(
+      of: find.ancestor(
+        of: find.text('Someday idea'),
+        matching: find.byType(BoardCard),
+      ),
+      matching: find.byIcon(Icons.swap_horiz_rounded),
+    );
+    await tester.tap(move);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('In progress').last);
+    await tester.pumpAndSettle();
+    expect(under('Someday idea', next), isTrue);
+    await waitFor('Someday idea', Stage.inProgress);
+
     // From In progress back to Not started, the lane that is off the
     // screen to the left — the one there was no way back to.
     await tester.fling(find.byKey(boardLanesKey), const Offset(-300, 0), 1000);

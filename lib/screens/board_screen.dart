@@ -256,6 +256,7 @@ class _BoardScreenState extends State<BoardScreen> {
                                 tasks: columns[stage]!,
                                 onTap: _open,
                                 onDrop: (task) => _move(task, stage),
+                                onMove: _move,
                                 finger: _finger,
                                 overBar: _overBar,
                                 onLift: _lift,
@@ -376,6 +377,9 @@ class _Column extends StatelessWidget {
   final ValueChanged<Task> onTap;
   final ValueChanged<Task> onDrop;
 
+  /// A card's own move button has sent it to a lane.
+  final void Function(Task task, Stage stage) onMove;
+
   /// Where the card being carried is, across the screen, and whether it is
   /// over the drop bar; the board's.
   final ValueNotifier<double> finger;
@@ -392,6 +396,7 @@ class _Column extends StatelessWidget {
     required this.tasks,
     required this.onTap,
     required this.onDrop,
+    required this.onMove,
     required this.finger,
     required this.overBar,
     required this.onLift,
@@ -474,10 +479,15 @@ class _Column extends StatelessWidget {
                         task: task,
                         list: provider.listById(task.listId),
                         onTap: () => onTap(task),
+                        onMove: (to) => onMove(task, to),
                       );
                       return LongPressDraggable<Task>(
                         key: ValueKey(task.id),
                         data: task,
+                        // Quicker than the platform's long press, which made
+                        // every move start with a wait; a finger that moves
+                        // first is still a scroll.
+                        delay: _Board.pickUp,
                         hapticFeedbackOnStart: true,
                         onDragStarted: () => onLift(task),
                         onDragUpdate: (d) => finger.value = d.globalPosition.dx,
@@ -520,6 +530,9 @@ abstract final class _Board {
   /// turns again while it is held there.
   static const edge = 28.0;
   static const nextTurn = Duration(milliseconds: 900);
+
+  /// How long a card is held before it comes up to be carried.
+  static const pickUp = Duration(milliseconds: 300);
 
   /// The drop bar's targets.
   static const dropHeight = 60.0;
@@ -755,27 +768,37 @@ class _DropBar extends StatelessWidget {
 /// A task on the board, drawn as a Jira card: a flat card a step lighter
 /// than its lane with the title across the top; under it the group as
 /// Jira labels an epic, a lozenge in its colour, and when it is due; and
-/// along the foot the issue type's square in the task's colour, the key,
-/// and the marks — repeat, checklist, priority as Jira's chevrons.
+/// along the foot the issue type's square in the task's colour and the
+/// marks — repeat, checklist, priority as Jira's chevrons.
 ///
 /// Neutral rather than inked like the cards elsewhere: three columns of
 /// tinted cards in three tinted lanes were a wash of colour, and the square
 /// says which colour the task is. A done card looks like any other but for
-/// its key, struck through as Jira strikes a resolved issue's.
+/// the tick in its square.
 class BoardCard extends StatelessWidget {
   static const margin = EdgeInsets.only(bottom: 8);
   static const radius = 6.0;
   static const padding = 14.0;
 
+  /// Whether the card carries Jira's issue key beside its square. Hidden
+  /// for now: nothing else in the app knows a task by it, and it was asked
+  /// what it meant.
+  static const showKey = false;
+
   final Task task;
   final TaskList? list;
   final VoidCallback onTap;
+
+  /// Sends the task to another lane from the card's move button; without
+  /// it the card has no button.
+  final ValueChanged<Stage>? onMove;
 
   const BoardCard({
     super.key,
     required this.task,
     this.list,
     required this.onTap,
+    this.onMove,
   });
 
   /// "Today", "Sep 23", with the time after it if it has one.
@@ -788,6 +811,7 @@ class BoardCard extends StatelessWidget {
 
   /// Jira's issue key: the project's first letters and the issue's number.
   /// Here the group stands for the project, so "PER-12" is in Personal.
+  /// Struck through once done, as Jira strikes a resolved issue's.
   static String keyOf(String group, int? id) {
     final letters = RegExp(
       r'\p{L}',
@@ -849,14 +873,16 @@ class BoardCard extends StatelessWidget {
 
     final foot = <Widget>[
       _TypeSquare(color: color, done: task.done),
-      const SizedBox(width: 7),
-      Text(
-        keyOf(group ?? '', task.id),
-        style: meta.copyWith(
-          decoration: task.done ? TextDecoration.lineThrough : null,
-          decorationColor: p.muted,
+      if (showKey) ...[
+        const SizedBox(width: 7),
+        Text(
+          keyOf(group ?? '', task.id),
+          style: meta.copyWith(
+            decoration: task.done ? TextDecoration.lineThrough : null,
+            decorationColor: p.muted,
+          ),
         ),
-      ),
+      ],
       const Spacer(),
       if (task.repeat != Repeat.none) ...[
         Icon(Icons.repeat_rounded, size: 16, color: p.muted),
@@ -882,6 +908,10 @@ class BoardCard extends StatelessWidget {
           size: 20,
           color: TaskCard.priorityColor(task.priority),
         ),
+      if (onMove != null) ...[
+        const SizedBox(width: 6),
+        _MoveButton(stage: task.stage, onMove: onMove!, ground: chip),
+      ],
     ];
 
     return Padding(
@@ -922,6 +952,93 @@ class BoardCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Moves a card to another lane in two taps, without carrying it: a small
+/// button at the end of its foot opens the three lanes beside it, the one
+/// it is in ticked. Carrying a card was the only way, and it was asked to
+/// be easier.
+class _MoveButton extends StatelessWidget {
+  final Stage stage;
+  final ValueChanged<Stage> onMove;
+  final Color ground;
+
+  const _MoveButton({
+    required this.stage,
+    required this.onMove,
+    required this.ground,
+  });
+
+  Future<void> _open(BuildContext context) async {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    final box = context.findRenderObject()! as RenderBox;
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final at = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final to = await showMenu<Stage>(
+      context: context,
+      position: RelativeRect.fromRect(
+        at & box.size,
+        Offset.zero & overlay.size,
+      ),
+      color: p.field,
+      surfaceTintColor: Colors.transparent,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_Board.laneRadius),
+      ),
+      items: [
+        for (final lane in Stage.values)
+          PopupMenuItem(
+            value: lane,
+            enabled: lane != stage,
+            height: 44,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 26,
+                  child: lane == stage
+                      ? Icon(Icons.check_rounded, size: 18, color: p.muted)
+                      : null,
+                ),
+                Text(
+                  _Column.nameOf(s, lane),
+                  style: TextStyle(
+                    color: lane == stage ? p.muted : p.text,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (to != null && to != stage) onMove(to);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    // A little wider to the finger than it looks; the foot it sits in is
+    // only as tall as the chip.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _open(context),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Container(
+          width: 30,
+          height: 20,
+          decoration: BoxDecoration(
+            color: ground,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(Icons.swap_horiz_rounded, size: 16, color: p.muted),
         ),
       ),
     );

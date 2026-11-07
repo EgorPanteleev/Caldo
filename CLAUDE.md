@@ -1145,10 +1145,17 @@ Changing them back will be noticed.
   WIP i see the part of DONE but dont see not started".
   A card is laid out as Jira's is: the title; then the group as a lozenge
   in its colour (Jira's epic label) and the due date on a grey one, red
-  once gone by; then the type square, a key made of the group's first
-  letters and the task's id ("PER-12", struck through once done, as Jira
-  strikes a resolved issue), and the marks at the far end. The lane's name
+  once gone by; then the type square and the marks at the far end. Jira's
+  issue key beside the square — the group's first letters and the task's
+  id, "PER-12", struck through once done — is hidden for now
+  (`BoardCard.showKey`): nothing else knows a task by it, and it was asked
+  what it meant. The lane's name
   stands in line with the titles.
+  **A card can be moved without carrying it** (`_MoveButton`): a small
+  grey chip with a swap mark at the end of its foot opens the three lanes
+  beside it, the one it is in ticked and greyed — asked for as "make
+  easier to move task to another col". And a card comes up to be carried
+  after 300ms held (`_Board.pickUp`) rather than the platform's 500.
   **A card is carried to a lane by a bar of the three along the foot**
   (`_DropBar`), which rises as the card is picked up: the lane it came
   from faint and taking nothing, the one under the finger ringed in the
