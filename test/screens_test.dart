@@ -15,6 +15,7 @@ import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:caldo/widgets/reorderable_task_list.dart';
 import 'package:caldo/widgets/task_card.dart';
 import 'package:caldo/widgets/task_row.dart';
+import 'package:caldo/widgets/tick_off.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/gestures.dart';
@@ -768,17 +769,24 @@ void main() {
     await tickShip();
     expect(provider.toggled?.title, 'Ship');
     expect(find.text('Undo'), findsOneWidget);
-    // The bar is made as wide as its words, and the title has to fit in it.
+    // The offer takes the quick-add row's place, and the title has to fit
+    // in what is left of it beside Undo.
     final onBar = find.descendant(
-      of: find.ancestor(
-        of: find.text('Undo'),
-        matching: find.byType(IntrinsicWidth),
-      ),
+      of: find.byType(UndoSlot),
       matching: find.text('Ship'),
     );
     expect(
       tester.renderObject<RenderParagraph>(onBar).didExceedMaxLines,
       isFalse,
+    );
+    final field = find.descendant(
+      of: find.byType(UndoSlot),
+      matching: find.byType(TextField),
+    );
+    expect(tester.getRect(onBar).top, lessThan(tester.getRect(field).bottom));
+    expect(
+      tester.getRect(onBar).bottom,
+      greaterThan(tester.getRect(field).top),
     );
 
     // The offer does not stand for ever. Tapping Undo dismisses it too, so
@@ -820,6 +828,16 @@ void main() {
     expect(provider.restored?.title, 'Ship');
     expect(provider.restored?.done, isFalse);
     await tester.pumpAndSettle();
+
+    // It stands where the field was, so a tap on it anywhere but Undo puts
+    // it away and opens the field.
+    provider.restored = null;
+    await tickShip();
+    await tester.tap(onBar);
+    await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+    expect(provider.restored, isNull);
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
   });
 
   testWidgets('a task chooses its own reminder on the form', (tester) async {

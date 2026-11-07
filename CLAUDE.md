@@ -217,56 +217,43 @@ Changing them back will be noticed.
   wrong") — and then it stayed put, which was asked back: "move it to the
   bottom". Taking a tick back goes at once, and a second tap while a card
   waits stops it.
-- **A tick off offers Undo for four seconds** (`tickOff`, `_UndoBar`, a
-  bar above the add field). Undo writes back the task as it was before the
-  tap (`TaskProvider.restore`) rather than ticking it again, because a
+- **A tick off offers Undo for four seconds** (`tickOff`, `_UndoBar`, in
+  the quick-add row's place). Undo writes back the task as it was before
+  the tap (`TaskProvider.restore`) rather than ticking it again, because a
   repeating task has already rolled on to its next date and a second tick
   would only roll it further. Every card's tick goes through `tickOff`;
   untick is already an undo and gets no bar.
-  **It is an entry on the app's root overlay, not a snack bar.** It was a
-  snack bar until it became glass: a snack bar fades itself in and out, and
-  a blur inside a fading layer has nothing behind it to blur, so the glass
-  went clear and sharp at every fade. A snack bar also takes every tap
-  across the width it is given, which meant measuring the bar's words with a
-  `TextPainter` beforehand (and missing by a point a word on the phone,
-  which the test font does not reproduce). On the overlay it is laid out at
-  its own width and only the pill takes taps. It must be the **root**
-  overlay (`rootOverlay: true`): the nearest one on the calendar is the pen
-  a carried card is kept in (`DragWithin`), which ends above the add field
-  and put the bar half a card too high. One offer at a time (`_offer`).
+  **It takes the add row's place, field and plus together, at their size**
+  (`UndoScope`, `UndoSlot`): each screen with a field, and the day card, is
+  a scope, and a tick on a card in it is offered in that scope's row, which
+  cross-fades to the bar and back. Chosen from mockups of four ways of
+  drawing it. Before this it floated above the field — first a snack bar,
+  then an entry on the root overlay so it could be frosted glass — and
+  however it was dressed it was a second grey pill the height of the field
+  stacked on the first, which read as two fields, and it cut across the card
+  under it ("still looks bad"). The cost is the field, for four seconds, so a
+  tap on the bar anywhere but Undo puts it away and opens the field. The
+  field stays in the tree under it, so what is typed and its hold on the
+  keyboard survive. One offer at a time, across scopes.
+  **The four seconds are drawn across the whole bar** (`_Countdown`, asked
+  for as "the timer like gradient in all panel"): the field's grey with the
+  accent mixed in a quarter covers it at first and draws back to the start,
+  its leading edge a ramp four tenths of the bar wide. A finger holding the
+  bar holds it still. Three earlier countdowns were taken out unasked for —
+  a ring round the tick ("i dont like this rounded checkbox"), a line along
+  the foot, and the tint draining out of an Undo chip alone, a smudge.
   **It keeps its own time and can be brushed off** (asked for as "make
   ability to brush off the undo"). A finger resting on it holds the offer,
-  and letting go starts the four seconds again. It follows the finger
-  sideways or down (upwards it only gives a little), stays solid for the
-  first sixth of the screen and fades after, and goes past a quarter of the
-  width, 36 points down, or on a throw; short of that it settles back.
-  Faded from the first point, the card under it showed through its words
-  before it had gone anywhere. The four seconds are not drawn: a ring
-  around the tick made it a round checkbox ("i dont like this rounded
-  checkbox"), a line along the foot and the tint draining out of the Undo
-  chip were tried as well, and the drain read as a smudge.
-  **It is frosted glass** (`_Glass`; "make it look better like in good
-  apps, u can add transparency"): what is behind it blurred under a grey
-  most of the way to opaque (`0xE0404046` to `0xE036363B`), a step lighter
-  than the add field so the two never merge, with a faint hairline rim
-  (`_Rim`) and a soft shadow. A thin veil of white came first and was "bad
-  looking": over these dark cards it was a muddy grey that took on each
-  card it crossed, and its rim drew a grey outline round the whole bar. The
-  blur is a sibling of the
-  fading layers, not inside one, and thins with them, so it stays frosted
-  while it fades. It is a pill, never narrower than nine tenths of the
-  screen, centred over the field — full width, with the cards' own width
-  and corners, it read as one more card; sized to a short title it was a
-  lozenge, "make it wider"; at four fifths its round end stopped short of
-  the tick on the card under it, which stuck out beside it as half a
-  purple square. A plain grey tick, the task's name, and Undo as plain
-  words (`_UndoButton`) in the accent lifted a third towards white, the
-  arrow drawn (`_UndoArrow`) in the tick's round-ended stroke. It sat on a
-  chip of the accent's tint, and violet on violet on grey was a pill in a
-  pill with nothing standing out. Undo is the only thing on it in the accent: a filled
-  accent tick and an accent countdown beside it made three purple things on
-  one small bar — "too many accent colours". The stock snack bar before all
-  this was a flat slab — "make undo look better".
+  and letting go starts it running again. It follows the finger sideways or
+  down (upwards it only gives a little), stays solid for the first sixth of
+  the screen and fades after, and goes past a quarter of the width, 36
+  points down, or on a throw; short of that it settles back.
+  On it: a plain grey tick, the task's name, and Undo as plain words
+  (`_UndoButton`) in the accent lifted a third towards white, the arrow
+  drawn (`_UndoArrow`) in the tick's round-ended stroke. Undo is the only
+  thing on it in the accent: a filled accent tick and an accent countdown
+  beside it made three purple things on one small bar — "too many accent
+  colours" — and on a chip of the accent's tint it was a pill in a pill.
 - **A card slides to its new place by task, not by card** (`SlideIntoPlace`).
   `TaskProvider.rearranging` fires just before a re-read; every card notes
   where it stands in its scrollable's content space (so a scroll is never

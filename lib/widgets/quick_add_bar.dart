@@ -11,6 +11,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'tick_off.dart';
 
 /// Identifies the button beside the quick-add field.
 const quickAddButtonKey = Key('quick-add-button');
@@ -98,43 +99,48 @@ class _QuickAddBarState extends State<QuickAddBar> {
 
     return Padding(
       padding: widget.padding,
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: widget.controller,
-              focusNode: _focus,
-              textCapitalization: TextCapitalization.sentences,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submit(),
-              style: TextStyle(color: p.text, fontSize: 14.5),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: p.field,
-                hintText: S.of(context).addTaskOn(Dates.shortDay(widget.date)),
-                hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
+      child: UndoSlot(
+        onField: _focus.requestFocus,
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: widget.controller,
+                focusNode: _focus,
+                textCapitalization: TextCapitalization.sentences,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                style: TextStyle(color: p.text, fontSize: 14.5),
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: p.field,
+                  hintText: S
+                      .of(context)
+                      .addTaskOn(Dates.shortDay(widget.date)),
+                  hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  // Nothing marks the focus but the cursor. An accent ring
+                  // around half the screen was the loudest thing on it, and a
+                  // neutral one on a grey field is a line nobody reads.
+                  border: border,
+                  enabledBorder: border,
+                  focusedBorder: border,
                 ),
-                // Nothing marks the focus but the cursor. An accent ring
-                // around half the screen was the loudest thing on it, and a
-                // neutral one on a grey field is a line nobody reads.
-                border: border,
-                enabledBorder: border,
-                focusedBorder: border,
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          _ConfirmButton(
-            key: quickAddButtonKey,
-            icon: writing ? Icons.check_rounded : Icons.add,
-            tooltip: writing ? S.of(context).addTask : S.of(context).newTask,
-            onTap: _press,
-          ),
-        ],
+            const SizedBox(width: 10),
+            _ConfirmButton(
+              key: quickAddButtonKey,
+              icon: writing ? Icons.check_rounded : Icons.add,
+              tooltip: writing ? S.of(context).addTask : S.of(context).newTask,
+              onTap: _press,
+            ),
+          ],
+        ),
       ),
     );
   }

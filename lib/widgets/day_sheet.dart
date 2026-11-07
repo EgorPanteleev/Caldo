@@ -29,7 +29,7 @@ Future<void> showDaySheet(BuildContext context, DateTime day) {
     barrierLabel: Dates.longDay(day),
     barrierColor: Colors.black.withValues(alpha: 0.55),
     transitionDuration: const Duration(milliseconds: 220),
-    pageBuilder: (_, _, _) => _DaySheet(day: day),
+    pageBuilder: (_, _, _) => UndoScope(child: _DaySheet(day: day)),
     transitionBuilder: (context, animation, _, child) {
       final eased = CurvedAnimation(
         parent: animation,

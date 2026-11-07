@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,66 +13,209 @@ import 'task_card.dart';
 /// Ticks [task] off, or takes its tick back, from a card — and when it was
 /// ticked off, offers a moment to take that back.
 ///
-/// The bar stays four seconds, or longer while a finger is on it, and can be
-/// brushed off sooner. Undo puts the task back exactly as it was before the
-/// tap (`TaskProvider.restore`): not done, and on its own date if it was a
-/// repeating task that had rolled on — ticking it again would only have
-/// rolled it a second time. Taking a tick back by tapping the tick needs no
-/// bar: it is already an undo.
-///
-/// The bar is an overlay entry of its own, not a snack bar. A snack bar
-/// fades itself in and out, and a blur inside a fade has nothing behind it
-/// to blur — the glass went clear and sharp for every fade. It also takes
-/// every tap across the width it is given, so a bar narrower than the
-/// screen had to be measured beforehand to keep it off the cards beside it.
+/// The offer stands in the quick-add row of the screen the tick was made on
+/// ([UndoScope], [UndoSlot]): for four seconds, or longer while a finger is
+/// on it, the field and its button give way to it. Undo puts the task back
+/// exactly as it was before the tap (`TaskProvider.restore`): not done, and
+/// on its own date if it was a repeating task that had rolled on — ticking
+/// it again would only have rolled it a second time. Taking a tick back by
+/// tapping the tick needs no offer: it is already an undo.
 void tickOff(BuildContext context, Task task) {
   final provider = context.read<TaskProvider>();
   final completing = !task.done;
   provider.toggleDone(task);
   if (!completing) return;
-
-  // One offer at a time: the new bar rises in the old one's place.
-  _offer?.remove();
-  late final OverlayEntry entry;
-  void close() {
-    if (_offer != entry) return;
-    entry.remove();
-    _offer = null;
-  }
-
-  entry = OverlayEntry(
-    builder: (context) => _UndoBar(
-      task: task,
-      onUndo: () => provider.restore(task),
-      onGone: close,
-    ),
-  );
-  _offer = entry;
-  // The app's own overlay, the whole screen: the nearest one can be a pen a
-  // carried card is kept inside (`DragWithin`), which on the calendar ends
-  // above the add field and put the bar half a card too high.
-  Overlay.of(context, rootOverlay: true).insert(entry);
+  final spot = context.getInheritedWidgetOfExactType<_UndoSpot>()?.offer;
+  if (spot == null) return;
+  // One offer at a time, whichever screen it stands on: the new one takes
+  // the old one's place.
+  _offered?.value = null;
+  spot.value = _Offer(task: task, onUndo: () => provider.restore(task));
+  _offered = spot;
 }
 
-OverlayEntry? _offer;
+/// Where the offer standing now was made.
+ValueNotifier<_Offer?>? _offered;
 
 const _undoFor = Duration(seconds: 4);
+
+class _Offer {
+  final Task task;
+  final VoidCallback onUndo;
+
+  const _Offer({required this.task, required this.onUndo});
+}
+
+/// The reach of a tick's offer: a tick made on a card under it is offered
+/// back in the [UndoSlot] under it, and nowhere else. Each screen with a
+/// quick-add field is one, and so is the day card, which is a dialog of its
+/// own over the calendar.
+class UndoScope extends StatefulWidget {
+  final Widget child;
+
+  const UndoScope({super.key, required this.child});
+
+  @override
+  State<UndoScope> createState() => _UndoScopeState();
+}
+
+class _UndoScopeState extends State<UndoScope> {
+  final _offer = ValueNotifier<_Offer?>(null);
+
+  @override
+  void dispose() {
+    if (_offered == _offer) _offered = null;
+    _offer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _UndoSpot(offer: _offer, child: widget.child);
+}
+
+class _UndoSpot extends InheritedWidget {
+  final ValueNotifier<_Offer?> offer;
+
+  const _UndoSpot({required this.offer, required super.child});
+
+  @override
+  bool updateShouldNotify(_UndoSpot old) => old.offer != offer;
+}
+
+/// The quick-add row, which gives its place to the offer for as long as it
+/// stands, and gets it back after.
+///
+/// In the row's place rather than above it: floated over the field, as it
+/// was, the bar was a second grey pill of the same height stacked on the
+/// first, which read as two fields, and it cut across whatever card was
+/// under it. Here there is only ever one thing at the foot of the screen.
+/// What that costs is the field, for four seconds — so a tap anywhere on the
+/// bar but Undo puts it away and opens the field ([onField]).
+class UndoSlot extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onField;
+
+  const UndoSlot({super.key, required this.onField, required this.child});
+
+  @override
+  State<UndoSlot> createState() => _UndoSlotState();
+}
+
+class _UndoSlotState extends State<UndoSlot>
+    with SingleTickerProviderStateMixin {
+  ValueNotifier<_Offer?>? _spot;
+
+  /// The offer on show — kept after it has been withdrawn, for as long as
+  /// it takes to fade.
+  _Offer? _shown;
+
+  late final _swap = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+    reverseDuration: const Duration(milliseconds: 200),
+  )..addStatusListener(_onSwap);
+
+  late final _eased = CurvedAnimation(
+    parent: _swap,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final spot = context.getInheritedWidgetOfExactType<_UndoSpot>()?.offer;
+    if (spot == _spot) return;
+    _spot?.removeListener(_changed);
+    _spot = spot?..addListener(_changed);
+  }
+
+  void _changed() {
+    final offer = _spot?.value;
+    setState(() => _shown = offer ?? _shown);
+    if (offer == null) {
+      _swap.reverse();
+    } else {
+      _swap.forward();
+    }
+  }
+
+  void _onSwap(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && _spot?.value == null) {
+      setState(() => _shown = null);
+    }
+  }
+
+  void _withdraw(_Offer offer) {
+    if (_spot?.value == offer) _spot!.value = null;
+  }
+
+  @override
+  void dispose() {
+    _spot?.removeListener(_changed);
+    _eased.dispose();
+    _swap.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = _shown;
+    final standing = _spot?.value != null;
+    return Stack(
+      children: [
+        // Always first and always wrapped the same way, so the field keeps
+        // its state — what is typed, and its hold on the keyboard — while
+        // the offer stands over it.
+        IgnorePointer(
+          ignoring: standing,
+          child: FadeTransition(
+            opacity: ReverseAnimation(_eased),
+            child: widget.child,
+          ),
+        ),
+        if (shown != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: _spot?.value != shown,
+              child: FadeTransition(
+                opacity: _eased,
+                child: SlideTransition(
+                  position: Tween(
+                    begin: const Offset(0, 0.18),
+                    end: Offset.zero,
+                  ).animate(_eased),
+                  child: _UndoBar(
+                    key: ObjectKey(shown),
+                    task: shown.task,
+                    onUndo: shown.onUndo,
+                    onGone: () => _withdraw(shown),
+                    onField: () {
+                      _withdraw(shown);
+                      widget.onField();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 /// What a tick off leaves on screen for a moment: the task, ticked, and a way
 /// to take it back.
 ///
-/// A pill of frosted glass — what is behind it blurred under a grey a step
-/// lighter than the add field, with a hairline rim — holding a plain tick,
-/// the task's name, and Undo. It floats over the add field, nine tenths of
-/// the screen wide at least: full width, with the cards' own width and
-/// corners, it read as one more card; sized to a short title alone it was a
-/// lozenge ("make it wider"); and at four fifths its round end stopped just
-/// short of the tick on the card under it, which stuck out beside the bar
-/// as half a purple square.
+/// The field's own pill, at the field's own size, holding a plain tick, the
+/// task's name, and Undo — the only thing on it in the accent. The tick was
+/// a filled accent square and the countdown an accent rule as well, and with
+/// the button that made three purple things on one small bar — "too many
+/// accent colours".
 ///
-/// Undo is the only thing on it in the accent. The tick was a filled accent
-/// square and the countdown an accent rule as well, and with the button that
-/// made three purple things on one small bar — "too many accent colours".
+/// The four seconds are drawn across the whole of it ([_Countdown]), asked
+/// for as "the timer like gradient in all panel".
 ///
 /// It can be brushed off to either side or down: it follows the finger,
 /// fading as it goes, and either carries on out of a throw or settles back.
@@ -82,13 +225,18 @@ class _UndoBar extends StatefulWidget {
   final Task task;
   final VoidCallback onUndo;
 
-  /// Called once the bar has finished leaving, however it left.
+  /// Called once, however it left.
   final VoidCallback onGone;
 
+  /// A tap on the bar away from Undo: the field is wanted back.
+  final VoidCallback onField;
+
   const _UndoBar({
+    super.key,
     required this.task,
     required this.onUndo,
     required this.onGone,
+    required this.onField,
   });
 
   static const _tick = 20.0;
@@ -115,14 +263,6 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
     duration: _undoFor,
     value: 1,
   )..addStatusListener(_onLeft);
-
-  /// In on the way up, out on the way down — rising and growing a little as
-  /// it comes, sinking a little as it goes.
-  late final _enter = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 280),
-    reverseDuration: const Duration(milliseconds: 200),
-  )..forward();
 
   /// Carries the bar from where the finger left it, back home or away.
   late final _fling = AnimationController(vsync: this)..addListener(_onFling);
@@ -157,15 +297,20 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
     if (_gone) return;
     _gone = true;
     _left.stop();
-    _enter.reverse().whenComplete(() {
-      if (mounted) widget.onGone();
-    });
+    widget.onGone();
   }
 
   void _undo() {
     if (_gone) return;
     widget.onUndo();
     _leave();
+  }
+
+  void _field() {
+    if (_gone) return;
+    _gone = true;
+    _left.stop();
+    widget.onField();
   }
 
   void _onFling() {
@@ -183,7 +328,7 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   // Upwards there is nowhere to throw it, so it only gives a little.
   Offset get _shown => Offset(_drag.dx, _drag.dy > 0 ? _drag.dy : _drag.dy / 4);
 
-  // Solid for the first part of a pull: faded from the start, the card under
+  // Solid for the first part of a pull: faded from the start, what is under
   // it showed through the words on the bar before it had gone anywhere.
   double get _opacity {
     final s = _shown;
@@ -247,7 +392,6 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   @override
   void dispose() {
     _left.dispose();
-    _enter.dispose();
     _fling.dispose();
     super.dispose();
   }
@@ -256,7 +400,7 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final dark = Theme.of(context).brightness == Brightness.dark;
-    // Lifted towards white on the dark glass: the accent itself is a deep
+    // Lifted towards white on the dark grey: the accent itself is a deep
     // violet, and on grey it was the dimmest thing on the bar rather than
     // the one to press.
     final base = AppTheme.accentOf(context).color;
@@ -264,22 +408,28 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
     final content = Material(
       type: MaterialType.transparency,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 4, 4, 4),
+        padding: const EdgeInsets.fromLTRB(18, 0, 0, 0),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox.square(
-              dimension: _UndoBar._tick,
-              child: CustomPaint(
-                painter: CheckMark(progress: 1, color: p.muted),
+            Center(
+              child: SizedBox.square(
+                dimension: _UndoBar._tick,
+                child: CustomPaint(
+                  painter: CheckMark(progress: 1, color: p.muted),
+                ),
               ),
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                widget.task.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _UndoBar._titleStyle(p),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  widget.task.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _UndoBar._titleStyle(p),
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -302,43 +452,24 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
         ),
       ),
     );
-    // Over the add field rather than on it: the field is the next thing most
-    // often reached for, and a bar sitting on it for four seconds would be in
-    // the way of exactly that.
-    return Positioned(
-      left: 16,
-      right: 16,
-      bottom: 78 + MediaQuery.viewPaddingOf(context).bottom,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: _width * 0.9),
-          // As wide as its words when they need more than that, so a title
-          // only gives up letters to an ellipsis at the margins.
-          child: IntrinsicWidth(
-            child: GestureDetector(
-              onPanDown: _hold,
-              onPanUpdate: _move,
-              onPanEnd: _let,
-              onPanCancel: _cancel,
-              child: AnimatedBuilder(
-                animation: _enter,
-                builder: (context, content) {
-                  final t = Curves.easeOutCubic.transform(_enter.value);
-                  return Transform.translate(
-                    offset: _shown + Offset(0, 14 * (1 - t)),
-                    child: Transform.scale(
-                      scale: 0.94 + 0.06 * t,
-                      child: _Glass(
-                        shown: t * _opacity,
-                        dark: dark,
-                        child: content!,
-                      ),
-                    ),
-                  );
-                },
-                child: content,
-              ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _field,
+      onPanDown: _hold,
+      onPanUpdate: _move,
+      onPanEnd: _let,
+      onPanCancel: _cancel,
+      child: Transform.translate(
+        offset: _shown,
+        child: Opacity(
+          opacity: _opacity,
+          child: CustomPaint(
+            painter: _Countdown(
+              left: _left,
+              ground: p.field,
+              tint: Color.lerp(p.field, base, dark ? 0.26 : 0.2)!,
             ),
+            child: content,
           ),
         ),
       ),
@@ -346,129 +477,58 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   }
 }
 
-/// A pill of frosted glass over [child], at [shown] of its full strength.
+/// The bar's pill, with the time left drawn across all of it: the tint
+/// covers the bar at first and draws back towards the start as the four
+/// seconds run out, its leading edge a long soft ramp into the field's grey
+/// rather than a line, so it reads as the bar draining rather than as a
+/// progress bar laid on it. A finger holding the bar holds it still.
 ///
-/// The blur is not faded with the rest. A blur inside a fading layer only
-/// sees that layer, which is empty, so faded together the glass turned clear
-/// and sharp the moment it began to go. Here the blur sits beside the fading
-/// layers rather than inside one, and thins out as they do.
-class _Glass extends StatelessWidget {
-  final double shown;
-  final bool dark;
-  final Widget child;
+/// Drawn before, and taken out: a ring around the tick, which made it a
+/// round checkbox; a line along the foot; and the tint draining out of the
+/// Undo chip alone, which read as a smudge on it. This one was asked for.
+class _Countdown extends CustomPainter {
+  final Animation<double> left;
+  final Color ground;
+  final Color tint;
 
-  const _Glass({required this.shown, required this.dark, required this.child});
+  _Countdown({required this.left, required this.ground, required this.tint})
+    : super(repaint: left);
 
-  static const _shape = StadiumBorder();
-
-  @override
-  Widget build(BuildContext context) {
-    // Most of the way to opaque. A thin veil of white was tried first, and
-    // over these dark cards it came out a muddy grey that took on whatever
-    // card it crossed — "bad looking". Here the glass is one even grey,
-    // lighter than the field below it so the two never merge, and what is
-    // behind only tints it.
-    final veil = dark
-        ? const [Color(0xE0404046), Color(0xE036363B)]
-        : [
-            Colors.white.withValues(alpha: 0.92),
-            Colors.white.withValues(alpha: 0.86),
-          ];
-    final sigma = 24 * shown;
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Opacity(
-            opacity: shown,
-            child: DecoratedBox(
-              decoration: ShapeDecoration(
-                shape: _shape,
-                shadows: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 28,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        if (sigma > 0.5)
-          Positioned.fill(
-            child: ClipPath(
-              clipper: const ShapeBorderClipper(shape: _shape),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-        Opacity(
-          opacity: shown,
-          child: ClipPath(
-            clipper: const ShapeBorderClipper(shape: _shape),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: veil,
-                ),
-              ),
-              child: CustomPaint(
-                foregroundPainter: _Rim(
-                  color: dark ? Colors.white : Colors.black,
-                ),
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The glass's edge: a hairline, a little brighter along the top. Bright
-/// enough to be seen, it drew a grey outline round the whole bar.
-class _Rim extends CustomPainter {
-  final Color color;
-
-  const _Rim({required this.color});
+  /// How much of the bar's width the soft edge takes.
+  static const _soft = 0.4;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = (Offset.zero & size).deflate(0.5);
+    final pill = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      Radius.circular(size.height / 2),
+    );
+    // Solid up to [from], the field's grey from [to]: whole at the start,
+    // with the ramp past the far end, and gone by the end, with the ramp
+    // before the near one.
+    final reach = left.value * (1 + _soft);
+    final from = (reach - _soft) * size.width;
+    final to = reach * size.width;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(rect.height / 2)),
+      pill,
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            color.withValues(alpha: 0.12),
-            color.withValues(alpha: 0.04),
-          ],
-        ).createShader(rect),
+        ..shader = ui.Gradient.linear(
+          Offset(from, 0),
+          Offset(math.max(to, from + 1), 0),
+          [tint, ground],
+        ),
     );
   }
 
   @override
-  bool shouldRepaint(_Rim old) => old.color != color;
+  bool shouldRepaint(_Countdown old) =>
+      old.left != left || old.ground != ground || old.tint != tint;
 }
 
 /// Undo, in the accent and on nothing — the one thing on the bar to press,
 /// and the one thing in colour. It sat on a chip of the accent's tint, and
-/// violet words on a violet chip on grey glass were a pill inside a pill
-/// with nothing in it standing out.
-///
-/// The bar's four seconds are not drawn. They were a ring around the tick,
-/// which made it a round checkbox ("i dont like this rounded checkbox"),
-/// then a line along the foot, then the tint draining out of the chip,
-/// which read as a smudge on it. The offer still holds while it is touched.
+/// violet words on a violet chip on grey were a pill inside a pill with
+/// nothing in it standing out.
 class _UndoButton extends StatelessWidget {
   final Color accent;
   final VoidCallback? onTap;
@@ -491,7 +551,7 @@ class _UndoButton extends StatelessWidget {
         splashColor: accent.withValues(alpha: 0.16),
         highlightColor: accent.withValues(alpha: 0.10),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 13, 16, 13),
+          padding: const EdgeInsets.fromLTRB(14, 0, 20, 0),
           child: child,
         ),
       ),
