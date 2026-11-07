@@ -1155,30 +1155,23 @@ Changing them back will be noticed.
   than the platform's 500. A move button on each card, opening the lanes
   in a menu, was tried for "make easier to move task to another col" and
   taken back out: what was wanted was the next lane on show sooner.
-  **A card is carried to a lane by a bar of the three along the foot**
-  (`_DropBar`), which rises as the card is picked up: the lane it came
-  from faint and taking nothing, the one under the finger ringed in the
-  text colour, neutral like the month's edge tabs. The strip of the next
-  lane can still take a drop. Before it, that strip was the only target,
-  and the lane before the one on show was out of reach but by holding the
-  card at the edge — "i cant normally return task from WIP to not
-  started". **Taken towards either side, the card turns the board at once**
-  (`_watchEdges`), and on every 900ms while it stays. It used to wait
-  500ms first, and holding still at the edge to reach the next lane was
-  disliked by name; and the side was the last 28 points of the screen,
-  where it is now the outer 18% (`_Board.edge`), about as far in as the
-  strip of the next lane — "make it easier by earlier show the second
-  col". Every lane stays built (the row, not a list): a lane
+  **A card is moved by carrying it onto a lane**, the one on show or the
+  strip of a neighbour. **Taken towards either side, the card turns the
+  board at once** (`_watchEdges`), and on every 900ms while it stays. It
+  used to wait 500ms first, and holding still at the edge to reach the
+  next lane was disliked by name; and the side was the last 28 points of
+  the screen, where it is now the outer 18% (`_Board.edge`), about as far
+  in as the strip of the next lane — "make it easier by earlier show the
+  second col". Every lane stays built (the row, not a list): a lane
   turned off the screen was thrown away with the card being carried out
   of it, and its drag's callbacks with it, so the board could not turn
-  back and never heard the card let go. **The carried card stays where it was taken hold
-  of, at its size, and goes see-through over the bar** (`_Lifted`,
-  `_overBar`), since a card a lane wide covers all three targets. It rode
-  above the finger to keep clear of them — shrunk to a tile three fifths
-  its size, then at its size — and both were asked back under the finger
-  ("now task is taking above my finger"). A drag stops at the first target
-  that takes it, so the bar's own target only hears the card over its
-  gaps, and each lane's target says the card is over the bar as well.
+  back and never heard the card let go. **The carried card stays where it
+  was taken hold of, at its size** (`_Lifted`). Two things came and went
+  around it, each asked back out: a bar of the three lanes rising along
+  the foot to drop on ("remove the bottom not started in progress and
+  done when im moving the task"), with the card see-through over it; and
+  the card riding above the finger, shrunk to a tile and then at its size
+  ("now task is taking above my finger").
   **A task in progress says so everywhere a card is drawn**
   (`InProgressBadge`, in `TaskCard`): Jira's status lozenge, in Jira's
   blue for it, ahead of the time on a two-line card and before the time on

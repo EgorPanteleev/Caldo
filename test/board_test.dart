@@ -120,35 +120,25 @@ void main() {
     expect(left(next), greaterThan(width * 0.8));
     expect(left(next), lessThan(width));
 
-    // Nothing to drop on until a card is picked up; then a target for each
-    // lane along the foot, so Done can be reached without the board turning.
-    Finder target(String name) => find.text(name);
-    bool hittable(Finder f) => f.hitTestable().evaluate().isNotEmpty;
-    expect(hittable(target('DONE')), isFalse);
-
-    Future<void> carry(String title, String to) async {
+    // Carried towards a side until the board has turned [turns] lanes that
+    // way, and let go in the middle of the lane then on show.
+    Future<void> carry(String title, {required int side, int turns = 1}) async {
       final gesture = await tester.startGesture(
         tester.getCenter(find.text(title)),
       );
       await tester.pump(const Duration(milliseconds: 600));
-      await gesture.moveBy(const Offset(0, 20));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(hittable(target(to)), isTrue);
-      await gesture.moveTo(tester.getCenter(target(to)));
+      final y = tester.getCenter(find.text(title).first).dy;
+      await gesture.moveTo(Offset(side > 0 ? width * 0.85 : width * 0.15, y));
       await tester.pump();
-      // The card is carried where it was held, a lane wide, so over the
-      // bar it lets the targets show through it.
-      final carried = tester.widget<AnimatedOpacity>(
-        find
-            .ancestor(
-              of: find.text(title).last,
-              matching: find.byType(AnimatedOpacity),
-            )
-            .first,
-      );
-      expect(carried.opacity, lessThan(1));
+      await tester.pump(const Duration(milliseconds: 350));
+      for (var i = 1; i < turns; i++) {
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump(const Duration(milliseconds: 350));
+      }
+      await gesture.moveTo(Offset(width / 2, y));
+      await tester.pump();
       await gesture.up();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
     }
 
     Future<void> waitFor(String title, Stage stage) =>
@@ -183,18 +173,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(left(lane), closeTo(home, 1));
 
-    await carry('Ship', 'DONE');
-    // The bar's Done reaches into the side, and the board stays put for it.
-    expect(left(lane), closeTo(home, 1));
+    // On to Done, two lanes along, the board turning again while the card
+    // stays at the side.
+    await carry('Ship', side: 1, turns: 2);
     // In its new lane at once, before the write lands.
     final done = find.textContaining('DONE   ', findRichText: true);
     expect(find.text('Ship'), findsOneWidget);
     expect(under('Ship', done), isTrue);
     await waitFor('Ship', Stage.done);
 
-    // From In progress back to Not started, the lane that is off the
-    // screen to the left — the one there was no way back to.
-    await tester.fling(find.byKey(boardLanesKey), const Offset(-300, 0), 1000);
+    // From In progress back to Not started, the lane to the left of it.
+    await tester.fling(find.byKey(boardLanesKey), const Offset(100, 0), 1000);
     await tester.pumpAndSettle();
     expect(left(next), lessThan(width / 2));
     // Centred, with as much of the lane on either side of it showing. The
@@ -207,7 +196,7 @@ void main() {
     final after = width - (from + width * 0.84 - margin) - margin;
     expect(before, greaterThan(16));
     expect(before, closeTo(after, 1));
-    await carry('Water', 'NOT STARTED');
+    await carry('Water', side: -1);
     expect(find.text('Water'), findsOneWidget);
     expect(under('Water', lane), isTrue);
     await waitFor('Water', Stage.notStarted);
