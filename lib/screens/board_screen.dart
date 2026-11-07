@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -44,10 +44,15 @@ class _BoardScreenState extends State<BoardScreen> {
   /// The lanes, a page each with the next one showing at the side.
   final _pages = PageController(viewportFraction: _Board.laneFraction);
 
-  /// While a card is carried: which side of the screen it is held at, and
-  /// the timer that turns the board towards it.
-  int _side = 0;
-  Timer? _turning;
+  /// Whether a card is being carried, and the lane it was picked up from,
+  /// which the drop bar keeps drawing while it goes away.
+  bool _carrying = false;
+  Stage _from = Stage.notStarted;
+
+  /// Where the card being carried was held. One for the board, since one
+  /// card is carried at a time and picking it up rebuilds its lane, which
+  /// would otherwise hand the drag a different one from the card's.
+  final _grab = _Grab();
 
   @override
   void initState() {
@@ -60,8 +65,8 @@ class _BoardScreenState extends State<BoardScreen> {
   void dispose() {
     widget.shown?.removeListener(_follow);
     if (_listening) _tasks.removeListener(_load);
-    _turning?.cancel();
     _pages.dispose();
+    _grab.finger.dispose();
     super.dispose();
   }
 
@@ -96,39 +101,12 @@ class _BoardScreenState extends State<BoardScreen> {
     _tasks.moveToStage(task, stage);
   }
 
-  /// Turns the board towards a side a card is held at: after a moment
-  /// there, then on every so often while it stays. Held rather than
-  /// touched, since a card is carried across the lane's edge on its way to
-  /// the next one showing beside it.
-  void _watchEdges(Offset finger) {
-    final width = MediaQuery.sizeOf(context).width;
-    final side = finger.dx < _Board.edge
-        ? -1
-        : finger.dx > width - _Board.edge
-        ? 1
-        : 0;
-    if (side == _side) return;
-    _side = side;
-    _turning?.cancel();
-    if (side != 0) _turning = Timer(_Board.firstTurn, _turn);
-  }
+  void _lift(Task task) => setState(() {
+    _carrying = true;
+    _from = task.stage;
+  });
 
-  void _turn() {
-    final page = (_pages.page ?? 0).round() + _side;
-    if (page >= 0 && page < Stage.values.length) {
-      _pages.animateToPage(
-        page,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    }
-    _turning = Timer(_Board.nextTurn, _turn);
-  }
-
-  void _stopWatching() {
-    _turning?.cancel();
-    _side = 0;
-  }
+  void _putDown() => setState(() => _carrying = false);
 
   Future<void> _open([Task? task]) async {
     await Navigator.of(
@@ -197,27 +175,38 @@ class _BoardScreenState extends State<BoardScreen> {
           // carried onto. Three at once left a column a third of a phone
           // wide and a title a word a line.
           Expanded(
-            child: PageView(
-              controller: _pages,
-              padEnds: false,
+            child: Stack(
               children: [
-                for (final stage in Stage.values)
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      _Board.gap,
-                      0,
-                      stage == Stage.values.last ? _Board.gap : 0,
-                      _Board.gap,
-                    ),
-                    child: _Column(
-                      stage: stage,
-                      tasks: columns[stage]!,
-                      onTap: _open,
-                      onDrop: (task) => _move(task, stage),
-                      onCarry: _watchEdges,
-                      onPutDown: _stopWatching,
-                    ),
-                  ),
+                PageView(
+                  controller: _pages,
+                  padEnds: false,
+                  children: [
+                    for (final stage in Stage.values)
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          _Board.gap,
+                          0,
+                          stage == Stage.values.last ? _Board.gap : 0,
+                          _Board.gap,
+                        ),
+                        child: _Column(
+                          stage: stage,
+                          tasks: columns[stage]!,
+                          onTap: _open,
+                          onDrop: (task) => _move(task, stage),
+                          grab: _grab,
+                          onLift: _lift,
+                          onPutDown: _putDown,
+                        ),
+                      ),
+                  ],
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _DropBar(shown: _carrying, from: _from, onDrop: _move),
+                ),
               ],
             ),
           ),
@@ -236,8 +225,11 @@ class _Column extends StatelessWidget {
   final ValueChanged<Task> onTap;
   final ValueChanged<Task> onDrop;
 
-  /// Where a card picked up from this lane is being carried, on the screen.
-  final ValueChanged<Offset> onCarry;
+  /// Where the card being carried was held, the board's.
+  final _Grab grab;
+
+  /// A card in this lane has been picked up.
+  final ValueChanged<Task> onLift;
 
   /// The card has been let go, wherever it was.
   final VoidCallback onPutDown;
@@ -247,7 +239,8 @@ class _Column extends StatelessWidget {
     required this.tasks,
     required this.onTap,
     required this.onDrop,
-    required this.onCarry,
+    required this.grab,
+    required this.onLift,
     required this.onPutDown,
   });
 
@@ -332,10 +325,14 @@ class _Column extends StatelessWidget {
                         key: ValueKey(task.id),
                         data: task,
                         hapticFeedbackOnStart: true,
-                        onDragUpdate: (d) => onCarry(d.globalPosition),
+                        dragAnchorStrategy: grab.anchor,
+                        onDragStarted: () => onLift(task),
+                        onDragUpdate: (d) =>
+                            grab.finger.value = d.globalPosition.dx,
                         onDragEnd: (_) => onPutDown(),
                         feedback: _Lifted(
                           width: box.maxWidth - 2 * _Board.inset,
+                          grab: grab,
                           child: card,
                         ),
                         childWhenDragging: Opacity(opacity: 0.3, child: card),
@@ -367,10 +364,13 @@ abstract final class _Board {
   /// Squarer than the rest of the app's corners, as Jira's are.
   static const laneRadius = 8.0;
 
-  /// How near the side a carried card turns the board, and after how long.
-  static const edge = 28.0;
-  static const firstTurn = Duration(milliseconds: 500);
-  static const nextTurn = Duration(milliseconds: 900);
+  /// A carried card's size against the card it was, and how far above the
+  /// finger it rides.
+  static const carriedScale = 0.6;
+  static const carriedLift = 18.0;
+
+  /// The drop bar's targets.
+  static const dropHeight = 60.0;
 }
 
 /// Fades a column's foot out rather than letting the last card be cut off
@@ -410,35 +410,218 @@ class _FadeFoot extends StatelessWidget {
   }
 }
 
-/// A card as it is carried: a little larger and shadowed, so it is above
-/// the board rather than in it. Held square — tipped a degree or two, as
-/// Jira's are, it was asked to stop looking crooked.
-class _Lifted extends StatelessWidget {
+/// Where a card was taken hold of, and how big it was, for the card that
+/// is carried to shrink about. Filled in by the drag's anchor, which runs
+/// before the carried card is first built.
+class _Grab {
+  Offset at = Offset.zero;
+  Size size = Size.zero;
+
+  /// Where the finger is on the screen, so the card can be kept on it.
+  final finger = ValueNotifier<double>(0);
+
+  Offset anchor(Draggable<Object> draggable, BuildContext context, Offset p) {
+    final box = context.findRenderObject()! as RenderBox;
+    size = box.size;
+    finger.value = p.dx;
+    return at = box.globalToLocal(p);
+  }
+}
+
+/// A card as it is carried: it draws in from where it lay to a tile a little
+/// over half its size, riding just above the finger. Carried at full size it
+/// was as wide as a lane and covered the strip of the next one it was being
+/// carried onto, and the finger covered the rest. Shadowed, so it is above
+/// the board rather than in it, and held square — tipped a degree or two,
+/// as Jira's are, it was asked to stop looking crooked.
+class _Lifted extends StatefulWidget {
   final double width;
+  final _Grab grab;
   final Widget child;
 
-  const _Lifted({required this.width, required this.child});
+  const _Lifted({required this.width, required this.grab, required this.child});
+
+  @override
+  State<_Lifted> createState() => _LiftedState();
+}
+
+class _LiftedState extends State<_Lifted> with SingleTickerProviderStateMixin {
+  late final _shrink = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  )..forward();
+
+  @override
+  void dispose() {
+    _shrink.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: Transform.scale(
-        scale: 1.03,
-        child: Material(
-          type: MaterialType.transparency,
+    final grab = widget.grab;
+    final from = Offset.zero & grab.size;
+    const s = _Board.carriedScale;
+    final to = Rect.fromLTWH(
+      grab.at.dx - grab.size.width * s / 2,
+      grab.at.dy - _Board.carriedLift - grab.size.height * s,
+      grab.size.width * s,
+      grab.size.height * s,
+    );
+    final card = SizedBox(
+      width: widget.width,
+      child: Material(
+        type: MaterialType.transparency,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(BoardCard.radius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: widget.child,
+        ),
+      ),
+    );
+    final screen = MediaQuery.sizeOf(context).width;
+    return AnimatedBuilder(
+      animation: Listenable.merge([_shrink, grab.finger]),
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_shrink.value);
+        var r = Rect.lerp(from, to, t)!;
+        // Kept on the screen at the sides, rather than centred on a finger
+        // near the edge and half off it.
+        final left = grab.finger.value - grab.at.dx + r.left;
+        final kept = left.clamp(
+          _Board.gap,
+          math.max(_Board.gap, screen - _Board.gap - r.width),
+        );
+        r = r.translate(kept - left, 0);
+        final scale = grab.size.width == 0 ? 1.0 : r.width / grab.size.width;
+        return Transform(
+          transform: Matrix4.translationValues(r.left, r.top, 0)
+            ..scaleByDouble(scale, scale, 1, 1),
+          child: child,
+        );
+      },
+      child: card,
+    );
+  }
+}
+
+/// While a card is carried, a target for each lane along the foot of the
+/// board, so a card can go to any lane from any other without the lane
+/// being on screen. The strip of the next lane at the side was the only
+/// place to drop a card, which made the lane before it out of reach but by
+/// holding the card at the edge until the board turned under the finger.
+/// The lane it came from is drawn faintly and takes nothing.
+class _DropBar extends StatelessWidget {
+  final bool shown;
+  final Stage from;
+  final void Function(Task task, Stage stage) onDrop;
+
+  const _DropBar({
+    required this.shown,
+    required this.from,
+    required this.onDrop,
+  });
+
+  static const _fade = 28.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    final ground = Theme.of(context).scaffoldBackgroundColor;
+    return IgnorePointer(
+      ignoring: !shown,
+      child: AnimatedSlide(
+        offset: shown ? Offset.zero : const Offset(0, 0.4),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: shown ? 1 : 0,
+          duration: const Duration(milliseconds: 160),
           child: DecoratedBox(
+            // The lanes run on under it, so it stands on the screen's own
+            // ground, faded in above, rather than on top of the cards.
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(BoardCard.radius),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0, 0.3],
+                colors: [ground.withValues(alpha: 0), ground],
+              ),
             ),
-            child: child,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                _Board.gap,
+                _fade,
+                _Board.gap,
+                _Board.gap,
+              ),
+              child: Row(
+                children: [
+                  for (final stage in Stage.values) ...[
+                    if (stage != Stage.values.first) const SizedBox(width: 8),
+                    Expanded(
+                      child: DragTarget<Task>(
+                        onWillAcceptWithDetails: (d) => d.data.stage != stage,
+                        onAcceptWithDetails: (d) => onDrop(d.data, stage),
+                        builder: (context, over, _) {
+                          final here = stage == from;
+                          final lit = over.isNotEmpty;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 140),
+                            curve: Curves.easeOut,
+                            height: _Board.dropHeight,
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: here
+                                  ? p.panel
+                                  : lit
+                                  ? p.field
+                                  : p.panelHi,
+                              borderRadius: BorderRadius.circular(
+                                _Board.laneRadius,
+                              ),
+                              // Always there and only coloured in, as the
+                              // lanes' is, so the label does not shift.
+                              border: Border.all(
+                                color: lit ? p.text : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              _Column.nameOf(s, stage).toUpperCase(),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: here
+                                    ? p.faint
+                                    : lit
+                                    ? p.text
+                                    : p.muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5,
+                                height: 1.25,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

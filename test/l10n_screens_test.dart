@@ -78,9 +78,10 @@ void main() {
       expect(find.text(S.forCode(code).schedule), findsOneWidget);
       await pump(const CalendarScreen());
       await pump(const BoardScreen());
+      // The lane's heading, its count after it; not the drop bar's target.
       expect(
         find.textContaining(
-          S.forCode(code).inProgress.toUpperCase(),
+          '${S.forCode(code).inProgress.toUpperCase()}   ',
           findRichText: true,
         ),
         findsOneWidget,

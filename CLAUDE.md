@@ -1142,10 +1142,21 @@ Changing them back will be noticed.
   once gone by; then the type square, a key made of the group's first
   letters and the task's id ("PER-12", struck through once done, as Jira
   strikes a resolved issue), and the marks at the far end. The lane's name
-  stands in line with the titles. A card is carried to another lane by
-  dropping it on the strip of it that shows, or held at either side of
-  the screen, which turns the board after 500ms and every 900ms after
-  (`_watchEdges`), as the calendar's month turns.
+  stands in line with the titles.
+  **A card is carried to a lane by a bar of the three along the foot**
+  (`_DropBar`), which rises as the card is picked up: the lane it came
+  from faint and taking nothing, the one under the finger ringed in the
+  text colour, neutral like the month's edge tabs. The strip of the next
+  lane can still take a drop. Before it, that strip was the only target:
+  the lane before the one on show was out of reach but by holding the card
+  at the edge until the board turned under the finger (`_watchEdges`,
+  gone) — "i cant normally return task from WIP to not started" — and the
+  card, carried at a lane's width, covered the very strip it was carried
+  onto. **The carried card draws in to a tile three fifths its size riding
+  18 points above the finger** (`_Lifted`, `_Grab`), kept on the screen at
+  the sides. The board owns the one `_Grab`: picking a card up rebuilds
+  its lane, and a grab made per card handed the drag a different one from
+  the carried card's.
   **A task in progress says so everywhere a card is drawn**
   (`InProgressBadge`, in `TaskCard`): Jira's status lozenge, in Jira's
   blue for it, ahead of the time on a two-line card and before the time on

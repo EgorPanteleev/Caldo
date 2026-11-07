@@ -107,8 +107,8 @@ void main() {
 
     // The lanes are headed in capitals, the count in the same line, and
     // the titles stand in line under the name of the lane they are in.
-    final lane = find.textContaining('NOT STARTED', findRichText: true);
-    final next = find.textContaining('IN PROGRESS', findRichText: true);
+    final lane = find.textContaining('NOT STARTED   ', findRichText: true);
+    final next = find.textContaining('IN PROGRESS   ', findRichText: true);
     double left(Finder f) => tester.getTopLeft(f).dx;
     bool under(String title, Finder header) =>
         (left(find.text(title)) - left(header)).abs() < 1;
@@ -120,39 +120,57 @@ void main() {
     expect(left(next), greaterThan(width * 0.8));
     expect(left(next), lessThan(width));
 
-    // Carried to the side and held there, the board turns towards Done.
-    final y = tester.getCenter(find.text('Ship')).dy;
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Ship')),
-    );
-    await tester.pump(const Duration(milliseconds: 600));
-    await gesture.moveTo(Offset(width - 10, y));
-    await tester.pump();
-    for (var i = 0; i < 2; i++) {
-      await tester.pump(const Duration(milliseconds: 950));
-      await tester.pump(const Duration(milliseconds: 400));
+    // Nothing to drop on until a card is picked up; then a target for each
+    // lane along the foot, so Done can be reached without the board turning.
+    Finder target(String name) => find.text(name);
+    bool hittable(Finder f) => f.hitTestable().evaluate().isNotEmpty;
+    expect(hittable(target('DONE')), isFalse);
+
+    Future<void> carry(String title, String to) async {
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text(title)),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(hittable(target(to)), isTrue);
+      await gesture.moveTo(tester.getCenter(target(to)));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 300));
     }
-    final done = find.textContaining('DONE', findRichText: true);
-    expect(left(done), lessThan(width / 2));
 
-    await gesture.moveTo(Offset(left(done) + 60, y));
-    await tester.pump();
-    await gesture.up();
-    await tester.pump();
+    Future<void> waitFor(String title, Stage stage) =>
+        tester.runAsync(() async {
+          for (var i = 0; i < 50; i++) {
+            if ((await taskNamed(title)).stage == stage) return;
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+          }
+          expect((await taskNamed(title)).stage, stage);
+        });
 
-    // Drawn in its new lane at once, before the write lands.
-    expect(find.text('Ship'), findsOneWidget);
-    expect(under('Ship', done), isTrue);
+    await carry('Ship', 'DONE');
+    // Gone from its lane at once, before the write lands.
+    expect(find.text('Ship'), findsNothing);
+    await waitFor('Ship', Stage.done);
 
-    await tester.runAsync(() async {
-      for (var i = 0; i < 50; i++) {
-        if ((await taskNamed('Ship')).done) return;
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      }
-    });
-    await tester.runAsync(
-      () async => expect((await taskNamed('Ship')).done, isTrue),
-    );
+    // From In progress back to Not started, the lane that is off the
+    // screen to the left — the one there was no way back to.
+    await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(left(next), lessThan(width / 2));
+    await carry('Water', 'NOT STARTED');
+    expect(find.text('Water'), findsNothing);
+    await waitFor('Water', Stage.notStarted);
+
+    // The write started from the screen finishes its reads in the test's
+    // clock; let them, so none of their timers outlives the test.
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+    }
   });
 
   testWidgets('a task in progress says so on Schedule', (tester) async {
