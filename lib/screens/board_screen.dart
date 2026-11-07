@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -50,10 +49,11 @@ class _BoardScreenState extends State<BoardScreen> {
   bool _carrying = false;
   Stage _from = Stage.notStarted;
 
-  /// Where the card being carried was held. One for the board, since one
-  /// card is carried at a time and picking it up rebuilds its lane, which
-  /// would otherwise hand the drag a different one from the card's.
-  final _grab = _Grab();
+  /// Where the finger carrying a card is across the screen, and whether it
+  /// is over the drop bar. The board's, since one card is carried at a
+  /// time and picking it up rebuilds its lane.
+  final _finger = ValueNotifier<double>(0);
+  final _overBar = ValueNotifier<bool>(false);
 
   /// While a card is carried: which side of the screen it is at, and the
   /// timer that turns the board on again while it stays there.
@@ -63,7 +63,7 @@ class _BoardScreenState extends State<BoardScreen> {
   @override
   void initState() {
     super.initState();
-    _grab.finger.addListener(_watchEdges);
+    _finger.addListener(_watchEdges);
     widget.shown?.addListener(_follow);
     _follow();
   }
@@ -74,7 +74,8 @@ class _BoardScreenState extends State<BoardScreen> {
     if (_listening) _tasks.removeListener(_load);
     _pages.dispose();
     _turning?.cancel();
-    _grab.finger.dispose();
+    _finger.dispose();
+    _overBar.dispose();
     super.dispose();
   }
 
@@ -117,6 +118,7 @@ class _BoardScreenState extends State<BoardScreen> {
   void _putDown() {
     _turning?.cancel();
     _side = 0;
+    _overBar.value = false;
     setState(() => _carrying = false);
   }
 
@@ -126,7 +128,7 @@ class _BoardScreenState extends State<BoardScreen> {
   /// a matter of holding still at the edge.
   void _watchEdges() {
     if (!_carrying) return;
-    final x = _grab.finger.value;
+    final x = _finger.value;
     final width = MediaQuery.sizeOf(context).width;
     final side = x < _Board.edge
         ? -1
@@ -238,7 +240,8 @@ class _BoardScreenState extends State<BoardScreen> {
                             tasks: columns[stage]!,
                             onTap: _open,
                             onDrop: (task) => _move(task, stage),
-                            grab: _grab,
+                            finger: _finger,
+                            overBar: _overBar,
                             onLift: _lift,
                             onPutDown: _putDown,
                           ),
@@ -250,7 +253,12 @@ class _BoardScreenState extends State<BoardScreen> {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: _DropBar(shown: _carrying, from: _from, onDrop: _move),
+                  child: _DropBar(
+                    shown: _carrying,
+                    from: _from,
+                    onDrop: _move,
+                    over: _overBar,
+                  ),
                 ),
               ],
             ),
@@ -295,8 +303,10 @@ class _Column extends StatelessWidget {
   final ValueChanged<Task> onTap;
   final ValueChanged<Task> onDrop;
 
-  /// Where the card being carried was held, the board's.
-  final _Grab grab;
+  /// Where the card being carried is, across the screen, and whether it is
+  /// over the drop bar; the board's.
+  final ValueNotifier<double> finger;
+  final ValueListenable<bool> overBar;
 
   /// A card in this lane has been picked up.
   final ValueChanged<Task> onLift;
@@ -309,7 +319,8 @@ class _Column extends StatelessWidget {
     required this.tasks,
     required this.onTap,
     required this.onDrop,
-    required this.grab,
+    required this.finger,
+    required this.overBar,
     required this.onLift,
     required this.onPutDown,
   });
@@ -395,14 +406,12 @@ class _Column extends StatelessWidget {
                         key: ValueKey(task.id),
                         data: task,
                         hapticFeedbackOnStart: true,
-                        dragAnchorStrategy: grab.anchor,
                         onDragStarted: () => onLift(task),
-                        onDragUpdate: (d) =>
-                            grab.finger.value = d.globalPosition.dx,
+                        onDragUpdate: (d) => finger.value = d.globalPosition.dx,
                         onDragEnd: (_) => onPutDown(),
                         feedback: _Lifted(
                           width: box.maxWidth - 2 * _Board.inset,
-                          grab: grab,
+                          overBar: overBar,
                           child: card,
                         ),
                         childWhenDragging: Opacity(opacity: 0.3, child: card),
@@ -433,11 +442,6 @@ abstract final class _Board {
 
   /// Squarer than the rest of the app's corners, as Jira's are.
   static const laneRadius = 8.0;
-
-  /// A carried card's size against the card it was — a little larger, so
-  /// it is above the board — and how far above the finger it rides.
-  static const carriedScale = 1.03;
-  static const carriedLift = 18.0;
 
   /// How near the side a carried card turns the board, and how often it
   /// turns again while it is held there.
@@ -485,107 +489,56 @@ class _FadeFoot extends StatelessWidget {
   }
 }
 
-/// Where a card was taken hold of, and how big it was, for the card that
-/// is carried to rise from. Filled in by the drag's anchor, which runs
-/// before the carried card is first built.
-class _Grab {
-  Offset at = Offset.zero;
-  Size size = Size.zero;
-
-  /// Where the finger is across the screen, so the card can be kept on it
-  /// and the board turned when it reaches a side.
-  final finger = ValueNotifier<double>(0);
-
-  Offset anchor(Draggable<Object> draggable, BuildContext context, Offset p) {
-    final box = context.findRenderObject()! as RenderBox;
-    size = box.size;
-    finger.value = p.dx;
-    return at = box.globalToLocal(p);
-  }
-}
-
-/// A card as it is carried: at its own size, gliding from where it lay to
-/// ride just above the finger. Held where it was taken hold of, it hung
-/// over whatever the finger was on — the drop bar's targets, all three of
-/// them at a lane's width. Shrunk to a tile so it covered less, it was
-/// asked back to its size. Shadowed, so it is above the board rather than
-/// in it, and held square — tipped a degree or two, as Jira's are, it was
-/// asked to stop looking crooked.
-class _Lifted extends StatefulWidget {
+/// A card as it is carried: where it was taken hold of, a little larger
+/// and shadowed, so it is above the board rather than in it. Held square —
+/// tipped a degree or two, as Jira's are, it was asked to stop looking
+/// crooked. Over the drop bar it goes see-through, since a card a lane wide
+/// covers all three of the bar's targets; it rode above the finger to keep
+/// clear of them instead, shrunk and then at its size, and was asked back
+/// under the finger both times.
+class _Lifted extends StatelessWidget {
   final double width;
-  final _Grab grab;
+  final ValueListenable<bool> overBar;
   final Widget child;
 
-  const _Lifted({required this.width, required this.grab, required this.child});
-
-  @override
-  State<_Lifted> createState() => _LiftedState();
-}
-
-class _LiftedState extends State<_Lifted> with SingleTickerProviderStateMixin {
-  late final _rise = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 220),
-  )..forward();
-
-  @override
-  void dispose() {
-    _rise.dispose();
-    super.dispose();
-  }
+  const _Lifted({
+    required this.width,
+    required this.overBar,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final grab = widget.grab;
-    final from = Offset.zero & grab.size;
-    const s = _Board.carriedScale;
-    final to = Rect.fromLTWH(
-      grab.at.dx - grab.size.width * s / 2,
-      grab.at.dy - _Board.carriedLift - grab.size.height * s,
-      grab.size.width * s,
-      grab.size.height * s,
-    );
-    final card = SizedBox(
-      width: widget.width,
-      child: Material(
-        type: MaterialType.transparency,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BoardCard.radius),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+    return SizedBox(
+      width: width,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: overBar,
+        builder: (context, over, card) => AnimatedOpacity(
+          opacity: over ? 0.35 : 1,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          child: card,
+        ),
+        child: Transform.scale(
+          scale: 1.03,
+          child: Material(
+            type: MaterialType.transparency,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(BoardCard.radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-            ],
+              child: child,
+            ),
           ),
-          child: widget.child,
         ),
       ),
-    );
-    final screen = MediaQuery.sizeOf(context).width;
-    return AnimatedBuilder(
-      animation: Listenable.merge([_rise, grab.finger]),
-      builder: (context, child) {
-        final t = Curves.easeOutCubic.transform(_rise.value);
-        var r = Rect.lerp(from, to, t)!;
-        // Kept on the screen at the sides, rather than centred on a finger
-        // near the edge and half off it.
-        final left = grab.finger.value - grab.at.dx + r.left;
-        final kept = left.clamp(
-          _Board.gap,
-          math.max(_Board.gap, screen - _Board.gap - r.width),
-        );
-        r = r.translate(kept - left, 0);
-        final scale = grab.size.width == 0 ? 1.0 : r.width / grab.size.width;
-        return Transform(
-          transform: Matrix4.translationValues(r.left, r.top, 0)
-            ..scaleByDouble(scale, scale, 1, 1),
-          child: child,
-        );
-      },
-      child: card,
     );
   }
 }
@@ -601,10 +554,14 @@ class _DropBar extends StatelessWidget {
   final Stage from;
   final void Function(Task task, Stage stage) onDrop;
 
+  /// Set while a card is over the bar, gaps between its targets included.
+  final ValueNotifier<bool> over;
+
   const _DropBar({
     required this.shown,
     required this.from,
     required this.onDrop,
+    required this.over,
   });
 
   static const _fade = 28.0;
@@ -641,62 +598,78 @@ class _DropBar extends StatelessWidget {
                 _Board.gap,
                 _Board.gap,
               ),
-              child: Row(
-                children: [
-                  for (final stage in Stage.values) ...[
-                    if (stage != Stage.values.first) const SizedBox(width: 8),
-                    Expanded(
-                      child: DragTarget<Task>(
-                        onWillAcceptWithDetails: (d) => d.data.stage != stage,
-                        onAcceptWithDetails: (d) => onDrop(d.data, stage),
-                        builder: (context, over, _) {
-                          final here = stage == from;
-                          final lit = over.isNotEmpty;
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 140),
-                            curve: Curves.easeOut,
-                            height: _Board.dropHeight,
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            decoration: BoxDecoration(
-                              color: here
-                                  ? p.panel
-                                  : lit
-                                  ? p.field
-                                  : p.panelHi,
-                              borderRadius: BorderRadius.circular(
-                                _Board.laneRadius,
+              // Takes nothing itself; it only hears the card come and go
+              // over the gaps. A drag stops at the first target that takes
+              // it, so the targets below say so as well.
+              child: DragTarget<Task>(
+                onWillAcceptWithDetails: (_) {
+                  over.value = true;
+                  return false;
+                },
+                onLeave: (_) => over.value = false,
+                builder: (context, _, _) => Row(
+                  children: [
+                    for (final stage in Stage.values) ...[
+                      if (stage != Stage.values.first) const SizedBox(width: 8),
+                      Expanded(
+                        child: DragTarget<Task>(
+                          onWillAcceptWithDetails: (d) {
+                            over.value = true;
+                            return d.data.stage != stage;
+                          },
+                          onLeave: (_) => over.value = false,
+                          onAcceptWithDetails: (d) => onDrop(d.data, stage),
+                          builder: (context, over, _) {
+                            final here = stage == from;
+                            final lit = over.isNotEmpty;
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 140),
+                              curve: Curves.easeOut,
+                              height: _Board.dropHeight,
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
                               ),
-                              // Always there and only coloured in, as the
-                              // lanes' is, so the label does not shift.
-                              border: Border.all(
-                                color: lit ? p.text : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Text(
-                              _Column.nameOf(s, stage).toUpperCase(),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
+                              decoration: BoxDecoration(
                                 color: here
-                                    ? p.faint
+                                    ? p.panel
                                     : lit
-                                    ? p.text
-                                    : p.muted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
-                                height: 1.25,
+                                    ? p.field
+                                    : p.panelHi,
+                                borderRadius: BorderRadius.circular(
+                                  _Board.laneRadius,
+                                ),
+                                // Always there and only coloured in, as the
+                                // lanes' is, so the label does not shift.
+                                border: Border.all(
+                                  color: lit ? p.text : Colors.transparent,
+                                  width: 1.5,
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                              child: Text(
+                                _Column.nameOf(s, stage).toUpperCase(),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: here
+                                      ? p.faint
+                                      : lit
+                                      ? p.text
+                                      : p.muted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                  height: 1.25,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

@@ -136,6 +136,17 @@ void main() {
       expect(hittable(target(to)), isTrue);
       await gesture.moveTo(tester.getCenter(target(to)));
       await tester.pump();
+      // The card is carried where it was held, a lane wide, so over the
+      // bar it lets the targets show through it.
+      final carried = tester.widget<AnimatedOpacity>(
+        find
+            .ancestor(
+              of: find.text(title).last,
+              matching: find.byType(AnimatedOpacity),
+            )
+            .first,
+      );
+      expect(carried.opacity, lessThan(1));
       await gesture.up();
       await tester.pump(const Duration(milliseconds: 300));
     }

@@ -1156,14 +1156,14 @@ Changing them back will be noticed.
   disliked by name. The lanes are kept alive (`_KeepLane`): a lane turned
   off the screen was thrown away with the card being carried out of it,
   and its drag's callbacks with it, so the board could not turn back and
-  never heard the card let go. **The carried card keeps its size and
-  glides up to ride 18 points above the finger** (`_Lifted`, `_Grab`),
-  kept on the screen at the sides. Held where it was taken hold of, it was
-  a lane wide and covered the strip it was carried onto, or the whole bar;
-  shrunk to a tile three fifths its size it covered less, and was asked
-  back to its size. The board owns the one `_Grab`: picking a card up
-  rebuilds its lane, and a grab made per card handed the drag a different
-  one from the carried card's.
+  never heard the card let go. **The carried card stays where it was taken hold
+  of, at its size, and goes see-through over the bar** (`_Lifted`,
+  `_overBar`), since a card a lane wide covers all three targets. It rode
+  above the finger to keep clear of them — shrunk to a tile three fifths
+  its size, then at its size — and both were asked back under the finger
+  ("now task is taking above my finger"). A drag stops at the first target
+  that takes it, so the bar's own target only hears the card over its
+  gaps, and each lane's target says the card is over the bar as well.
   **A task in progress says so everywhere a card is drawn**
   (`InProgressBadge`, in `TaskCard`): Jira's status lozenge, in Jira's
   blue for it, ahead of the time on a two-line card and before the time on
