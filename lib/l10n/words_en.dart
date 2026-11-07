@@ -9,7 +9,6 @@ const Map<String, Object> en = {
   'board': "Board",
   'notStarted': "Not started",
   'inProgress': "In progress",
-  'boardEmpty': "Nothing here",
   'settings': "Settings",
   'menu': "Menu",
   'search': "Search",

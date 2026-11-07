@@ -9,7 +9,6 @@ const Map<String, Object> pl = {
   'board': "Tablica",
   'notStarted': "Nierozpoczęte",
   'inProgress': "W toku",
-  'boardEmpty': "Pusto",
   'settings': "Ustawienia",
   'menu': "Menu",
   'search': "Szukaj",

@@ -8,7 +8,6 @@ const Map<String, Object> uk = {
   'board': "Дошка",
   'notStarted': "Не почато",
   'inProgress': "У роботі",
-  'boardEmpty': "Порожньо",
   'settings': "Налаштування",
   'menu': "Меню",
   'search': "Пошук",

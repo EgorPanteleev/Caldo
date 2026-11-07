@@ -9,7 +9,6 @@ const Map<String, Object> kk = {
   'board': "Тақта",
   'notStarted': "Басталмаған",
   'inProgress': "Орындалуда",
-  'boardEmpty': "Бос",
   'settings': "Баптаулар",
   'menu': "Мәзір",
   'search': "Іздеу",

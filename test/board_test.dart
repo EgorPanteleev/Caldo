@@ -104,9 +104,12 @@ void main() {
     await tester.pump();
 
     double columnOf(String title) => tester.getCenter(find.text(title)).dx;
-    final notStarted = columnOf('Not started');
-    final inProgress = columnOf('In progress');
-    final done = columnOf('Done');
+    // The lanes are headed in capitals, the count in the same line.
+    double laneOf(String name) =>
+        tester.getCenter(find.textContaining(name, findRichText: true)).dx;
+    final notStarted = laneOf('NOT STARTED');
+    final inProgress = laneOf('IN PROGRESS');
+    final done = laneOf('DONE');
     expect(notStarted < inProgress && inProgress < done, isTrue);
 
     final third = tester.getSize(find.byType(BoardScreen)).width / 3;
@@ -120,7 +123,11 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 600));
     await gesture.moveTo(
-      Offset(done, tester.getCenter(find.text('Done')).dy + 80),
+      Offset(
+        done,
+        tester.getCenter(find.textContaining('DONE', findRichText: true)).dy +
+            80,
+      ),
     );
     await tester.pump();
     await gesture.up();

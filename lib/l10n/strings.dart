@@ -153,7 +153,6 @@ class S {
   String get board => _word('board');
   String get notStarted => _word('notStarted');
   String get inProgress => _word('inProgress');
-  String get boardEmpty => _word('boardEmpty');
   String get settings => _word('settings');
   String get menu => _word('menu');
   String get search => _word('search');

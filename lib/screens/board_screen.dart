@@ -153,7 +153,7 @@ class _BoardScreenState extends State<BoardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (final stage in Stage.values) ...[
-                    if (stage != Stage.notStarted) const SizedBox(width: 4),
+                    if (stage != Stage.notStarted) const SizedBox(width: 6),
                     Expanded(
                       child: _Column(
                         stage: stage,
@@ -173,8 +173,9 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 }
 
-/// One column: its name and how many are in it, over its cards, scrolled on
-/// its own. A card carried over it lightens it, as long as it would be a move.
+/// One column, as a Jira board draws one: a grey lane with its name in
+/// small capitals and how many are in it, over cards that scroll on their
+/// own. A card carried over it rings it, as long as it would be a move.
 class _Column extends StatelessWidget {
   final Stage stage;
   final List<Task> tasks;
@@ -188,13 +189,6 @@ class _Column extends StatelessWidget {
     required this.onDrop,
   });
 
-  /// An empty ring, a half-filled one, a tick: how far along, at a glance.
-  static IconData iconOf(Stage stage) => switch (stage) {
-    Stage.notStarted => Icons.radio_button_unchecked,
-    Stage.inProgress => Icons.contrast,
-    Stage.done => Icons.check_circle_outline,
-  };
-
   static String nameOf(S s, Stage stage) => switch (stage) {
     Stage.notStarted => s.notStarted,
     Stage.inProgress => s.inProgress,
@@ -206,130 +200,93 @@ class _Column extends StatelessWidget {
     final p = AppTheme.of(context);
     final s = S.of(context);
     final provider = context.read<TaskProvider>();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final header = TextStyle(
+      color: p.muted,
+      fontSize: 11.5,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.4,
+      height: 1.25,
+    );
     return DragTarget<Task>(
       onWillAcceptWithDetails: (d) => d.data.stage != stage,
       onAcceptWithDetails: (d) => onDrop(d.data),
-      builder: (context, over, _) {
-        // The columns stand on the screen's own black, with nothing behind
-        // them: grey panels under each made boxes of boxes of cards. A
-        // column says where a card would land only while one is over it.
-        final ground = over.isNotEmpty ? p.panel : p.bg;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            color: ground,
-            borderRadius: BorderRadius.circular(14),
+      builder: (context, over, _) => AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: dark ? p.panel : p.sidebar,
+          borderRadius: BorderRadius.circular(_Board.laneRadius),
+          // Always there and only coloured in, so the ring coming and going
+          // does not move the cards inside it.
+          border: Border.all(
+            color: over.isNotEmpty ? p.muted : Colors.transparent,
+            width: 1.5,
           ),
-          child: LayoutBuilder(
-            builder: (context, box) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 6, 2, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        child: LayoutBuilder(
+          builder: (context, box) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+                child: Text.rich(
+                  TextSpan(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1),
-                        child: Icon(iconOf(stage), size: 15, color: p.muted),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          nameOf(s, stage),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: p.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${tasks.length}',
-                        style: TextStyle(
-                          color: p.faint,
-                          fontSize: 12.5,
-                          height: 1.25,
-                        ),
-                      ),
+                      TextSpan(text: nameOf(s, stage).toUpperCase()),
+                      TextSpan(text: '  ${tasks.length}'),
                     ],
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: header,
                 ),
-                Expanded(
-                  child: tasks.isEmpty
-                      // A card's room, drawn as an outline: somewhere to
-                      // put one down.
-                      ? Align(
-                          alignment: Alignment.topCenter,
-                          child: Container(
-                            height: 52,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: p.border),
-                              borderRadius: BorderRadius.circular(
-                                BoardCard.radius,
-                              ),
-                            ),
-                            child: Text(
-                              s.boardEmpty,
-                              style: TextStyle(color: p.faint, fontSize: 12),
-                            ),
-                          ),
-                        )
-                      : _FadeFoot(
-                          child: ListView.builder(
-                            // Room to scroll the last card clear of the fade.
-                            padding: const EdgeInsets.only(bottom: 24),
-                            itemCount: tasks.length,
-                            itemBuilder: (context, i) {
-                              final task = tasks[i];
-                              final card = BoardCard(
-                                task: task,
-                                list: provider.listById(task.listId),
-                                onTap: () => onTap(task),
-                              );
-                              return LongPressDraggable<Task>(
-                                key: ValueKey(task.id),
-                                data: task,
-                                hapticFeedbackOnStart: true,
-                                // The card's ink is translucent, so it is
-                                // carried over the ground it was standing on,
-                                // cut to its own shape, or it goes muddy over
-                                // whatever it passes.
-                                feedback: _Lifted(
-                                  width: box.maxWidth,
-                                  ground: ground,
-                                  child: card,
-                                ),
-                                childWhenDragging: Opacity(
-                                  opacity: 0.3,
-                                  child: card,
-                                ),
-                                child: card,
-                              );
-                            },
-                          ),
+              ),
+              Expanded(
+                child: _FadeFoot(
+                  child: ListView.builder(
+                    // Room to scroll the last card clear of the fade.
+                    padding: const EdgeInsets.fromLTRB(5, 0, 5, 24),
+                    itemCount: tasks.length,
+                    itemBuilder: (context, i) {
+                      final task = tasks[i];
+                      final card = BoardCard(
+                        task: task,
+                        list: provider.listById(task.listId),
+                        onTap: () => onTap(task),
+                      );
+                      return LongPressDraggable<Task>(
+                        key: ValueKey(task.id),
+                        data: task,
+                        hapticFeedbackOnStart: true,
+                        feedback: _Lifted(
+                          width: box.maxWidth - 10,
+                          child: card,
                         ),
+                        childWhenDragging: Opacity(opacity: 0.3, child: card),
+                        child: card,
+                      );
+                    },
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
+}
+
+/// The board's corners: squarer than the rest of the app's, as Jira's are.
+abstract final class _Board {
+  static const laneRadius = 8.0;
 }
 
 /// Fades a column's foot out rather than letting the last card be cut off
 /// square by the edge, as everything that runs under the add field does
 /// elsewhere. A mask rather than the ground painted over the cards, since
-/// the ground lightens while a card is held over the column.
+/// the lane's ground is not the screen's.
 class _FadeFoot extends StatelessWidget {
   final Widget child;
 
@@ -363,49 +320,37 @@ class _FadeFoot extends StatelessWidget {
   }
 }
 
-/// A card as it is carried: its own shape in the column's ground, a little
-/// larger, and shadowed so it is above the board rather than in it.
+/// A card as it is carried: a little larger, tipped a degree or two, and
+/// shadowed so it is above the board rather than in it.
 class _Lifted extends StatelessWidget {
   final double width;
-  final Color ground;
   final Widget child;
 
-  const _Lifted({
-    required this.width,
-    required this.ground,
-    required this.child,
-  });
+  const _Lifted({required this.width, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: Transform.scale(
-        scale: 1.04,
-        child: Material(
-          type: MaterialType.transparency,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Padding(
-                  padding: BoardCard.margin,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: ground,
-                      borderRadius: BorderRadius.circular(BoardCard.radius),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          blurRadius: 14,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
+      child: Transform.rotate(
+        angle: 0.03,
+        child: Transform.scale(
+          scale: 1.03,
+          child: Material(
+            type: MaterialType.transparency,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(BoardCard.radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
                   ),
-                ),
+                ],
               ),
-              child,
-            ],
+              child: child,
+            ),
           ),
         ),
       ),
@@ -413,17 +358,18 @@ class _Lifted extends StatelessWidget {
   }
 }
 
-/// A task on the board: the title on up to three lines, a column being a
-/// third of a phone wide, and under it when it is due. Inked with the task's
-/// colour as the other cards are, and sunk the same way once done.
+/// A task on the board, drawn as a Jira card: a flat card a step lighter
+/// than its lane with the title across the top, and along the foot a
+/// square in the task's colour, where Jira puts the issue type, when it is
+/// due, and its marks — repeat, checklist, priority as Jira's chevrons.
 ///
-/// A done card is its title and nothing else, and is not crossed out: the
-/// column already says it is done, as the Done log's rows do not need to,
-/// and a column of struck-through titles over dates gone by was the
-/// busiest thing on the board.
+/// Neutral rather than inked like the cards elsewhere: three columns of
+/// tinted cards in three tinted lanes were a wash of colour, and the square
+/// says which colour the task is. A done card looks like any other; the
+/// column says it is done.
 class BoardCard extends StatelessWidget {
   static const margin = EdgeInsets.only(bottom: 6);
-  static const radius = 12.0;
+  static const radius = 6.0;
 
   final Task task;
   final TaskList? list;
@@ -444,47 +390,60 @@ class BoardCard extends StatelessWidget {
     return task.hasTime ? '$day ${Dates.time(due, h24: h24)}' : day;
   }
 
+  /// Jira's: up for high, two bars for medium, down for low.
+  static IconData _priorityIcon(Priority priority) => switch (priority) {
+    Priority.high => Icons.keyboard_double_arrow_up_rounded,
+    Priority.medium => Icons.drag_handle_rounded,
+    _ => Icons.keyboard_double_arrow_down_rounded,
+  };
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final color = colorOfTask(
       task,
       list,
       fallback: AppTheme.accentOf(context).color,
     );
     final when = _when(MediaQuery.alwaysUse24HourFormatOf(context));
-    final meta = p.muted;
-    final marks = [
-      if (!task.done) ...[
-        if (when != null)
-          Flexible(
-            child: Text(
-              when,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.fade,
-              style: TextStyle(
-                color: task.isOverdue ? AppColors.overdue : meta,
-                fontSize: 11.5,
-              ),
-            ),
+    final meta = TextStyle(color: p.muted, fontSize: 11.5);
+    final foot = <Widget>[
+      // The issue type's square: the task's colour, ticked once done.
+      Container(
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: task.done
+            ? const Icon(Icons.check_rounded, size: 11, color: Colors.white)
+            : null,
+      ),
+      // The date takes whatever the marks leave it, and a card with none
+      // still pushes its marks to the far end.
+      Expanded(
+        child: Text(
+          when ?? '',
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.fade,
+          style: meta.copyWith(
+            color: task.isOverdue ? AppColors.overdue : p.muted,
           ),
-        if (task.repeat != Repeat.none)
-          Icon(Icons.repeat, size: 12, color: meta),
-        if (task.subtasks.isNotEmpty) ...[
-          Icon(Icons.checklist_rounded, size: 12, color: meta),
-          Text(
-            '${task.subtasksDone}/${task.subtasks.length}',
-            style: TextStyle(color: meta, fontSize: 11.5),
-          ),
-        ],
-        if (task.priority != Priority.none)
-          Icon(
-            Icons.flag,
-            size: 12,
-            color: TaskCard.priorityColor(task.priority),
-          ),
-      ],
+        ),
+      ),
+      if (task.repeat != Repeat.none)
+        Icon(Icons.repeat, size: 13, color: p.muted),
+      if (task.subtasks.isNotEmpty)
+        Text('${task.subtasksDone}/${task.subtasks.length}', style: meta),
+      if (task.priority != Priority.none)
+        Icon(
+          _priorityIcon(task.priority),
+          size: 15,
+          color: TaskCard.priorityColor(task.priority),
+        ),
     ];
     return Padding(
       padding: margin,
@@ -494,36 +453,36 @@ class BoardCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(radius),
           child: Ink(
-            padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+            padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: task.done ? 0.07 : 0.24),
+              color: dark ? p.panelHi : p.panel,
               borderRadius: BorderRadius.circular(radius),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: dark ? 0.5 : 0.12),
+                  blurRadius: 1,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   task.title,
-                  maxLines: 3,
+                  maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: task.done ? p.muted : p.text,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w500,
-                    height: 1.25,
-                  ),
+                  style: TextStyle(color: p.text, fontSize: 13.5, height: 1.3),
                 ),
-                if (marks.isNotEmpty) ...[
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      for (var i = 0; i < marks.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 4),
-                        marks[i],
-                      ],
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    for (var i = 0; i < foot.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 6),
+                      foot[i],
                     ],
-                  ),
-                ],
+                  ],
+                ),
               ],
             ),
           ),

@@ -78,7 +78,13 @@ void main() {
       expect(find.text(S.forCode(code).schedule), findsOneWidget);
       await pump(const CalendarScreen());
       await pump(const BoardScreen());
-      expect(find.text(S.forCode(code).inProgress), findsOneWidget);
+      expect(
+        find.textContaining(
+          S.forCode(code).inProgress.toUpperCase(),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
       await pump(const SettingsScreen());
       expect(find.text(S.forCode(code).settings), findsOneWidget);
       await pump(TaskEditScreen(task: ship));

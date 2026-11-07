@@ -9,7 +9,6 @@ const Map<String, Object> tr = {
   'board': "Pano",
   'notStarted': "Başlanmadı",
   'inProgress': "Devam ediyor",
-  'boardEmpty': "Boş",
   'settings': "Ayarlar",
   'menu': "Menü",
   'search': "Ara",

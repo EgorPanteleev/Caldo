@@ -8,7 +8,6 @@ const Map<String, Object> ru = {
   'board': "Доска",
   'notStarted': "Не начато",
   'inProgress': "В работе",
-  'boardEmpty': "Пусто",
   'settings': "Настройки",
   'menu': "Меню",
   'search': "Поиск",

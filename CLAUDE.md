@@ -1091,14 +1091,18 @@ Changing them back will be noticed.
   header for the full form rather than a field, since a board's new task
   has no day to be filed on. Each column scrolls on its own and fades at
   its foot.
-  **The columns stand on the screen's black with nothing behind them**,
-  headed by a neutral mark (an empty ring, a half-filled one, a tick), the
-  name and a faint count; the grey shows only under the column a card is
-  held over. The first version had a grey panel under each column, done
-  cards crossed out over their dates, and an inset inside each panel —
-  boxes of boxes, "it looks bad, make the ui look simpler and nicer". A
-  done card is now its title alone, sunk and not struck through, and an
-  empty column is a card's outline.
+  **It is drawn as a Jira board** ("its must looks like more like jira"):
+  grey lanes on the black, each headed in small capitals with its count
+  ("IN PROGRESS 1"); flat neutral cards a step lighter than the lane, 6pt
+  corners, the title across the top and along the foot a square in the
+  task's colour where Jira puts the issue type (ticked once done), the
+  date, and the marks — repeat, checklist count, priority as Jira's
+  chevrons. A carried card tilts and shadows; the lane under it is ringed.
+  An empty lane is just empty. Two looks came before it: grey panels with
+  inked cards and done ones crossed out ("it looks bad"), then bare
+  columns on the black with inked cards — simpler, but not Jira. The cards
+  are not inked here, unlike everywhere else: tinted cards in grey lanes
+  were a wash of colour, and the square says the colour.
 
 - **Events from the phone's own calendars sit beside the tasks the way
   holidays do** (`EventsProvider`, `DeviceCalendars`, `EventCard`, the

@@ -8,7 +8,6 @@ const Map<String, Object> it = {
   'board': "Bacheca",
   'notStarted': "Da iniziare",
   'inProgress': "In corso",
-  'boardEmpty': "Vuoto",
   'settings': "Impostazioni",
   'menu': "Menu",
   'search': "Cerca",
