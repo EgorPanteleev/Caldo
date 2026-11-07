@@ -336,6 +336,10 @@ class S {
   String get reminderDone => _word('reminderDone');
   String snoozeMinutes(int minutes) => _fill('snoozeMinutes', {'n': minutes});
   String get snoozeHour => _word('snoozeHour');
+  String get reminderDismiss => _word('reminderDismiss');
+  String get fullScreenReminders => _word('fullScreenReminders');
+  String get fullScreenOn => _word('fullScreenOn');
+  String get fullScreenOff => _word('fullScreenOff');
   String get reminderChannel => _word('reminderChannel');
   String get reminderChannelHint => _word('reminderChannelHint');
 

@@ -560,6 +560,21 @@ List<Widget> _reminders(
         ),
       ],
     ),
+  if (settings.reminders)
+    _Group(
+      children: [
+        _SwitchRow(
+          icon: Icons.fullscreen_rounded,
+          title: s.fullScreenReminders,
+          hint: settings.fullScreenReminders ? s.fullScreenOn : s.fullScreenOff,
+          value: settings.fullScreenReminders,
+          onChanged: (on) async {
+            if (on) await Reminders.instance.requestFullScreen();
+            await settings.update(fullScreenReminders: on);
+          },
+        ),
+      ],
+    ),
 ];
 
 /// [text] with a capital first letter, for a phrase made to run on in a

@@ -204,6 +204,10 @@ const Map<String, Object> nl = {
   'reminderDone': "Gedaan",
   'snoozeMinutes': "Over {n} min",
   'snoozeHour': "Over 1 uur",
+  'reminderDismiss': "Sluiten",
+  'fullScreenReminders': "Volledig scherm bij vergrendeling",
+  'fullScreenOn': "Over het vergrendelscherm, als een wekker",
+  'fullScreenOff': "Alleen een melding",
   'reminderChannel': "Taakherinneringen",
   'reminderChannelHint': "Eén melding per taak, wanneer die eraan komt.",
 

@@ -198,6 +198,10 @@ const Map<String, Object> tr = {
   'reminderDone': "Tamam",
   'snoozeMinutes': "{n} dk ertele",
   'snoozeHour': "1 saat ertele",
+  'reminderDismiss': "Kapat",
+  'fullScreenReminders': "Kilitliyken tam ekran",
+  'fullScreenOn': "Kilit ekranının üstünde, alarm gibi",
+  'fullScreenOff': "Yalnızca bildirim",
   'reminderChannel': "Görev hatırlatıcıları",
   'reminderChannelHint': "Her görev için, zamanı gelince bir bildirim.",
 

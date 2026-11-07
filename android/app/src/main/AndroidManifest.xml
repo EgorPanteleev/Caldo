@@ -8,6 +8,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <!-- A reminder takes the whole screen while the phone is locked, as an
+         alarm does. Granted on install to an app that does not come from the
+         Play Store; Settings asks for it again where it has been taken away.
+         The activity is let over the lock screen only while a reminder is
+         up (MainActivity.overLock), never by an attribute here, which would
+         have the whole app show without the phone being unlocked. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <!-- The one thing the app goes online for: asking GitHub whether a newer
          release than the installed one exists, and downloading its APK when
          the banner that says so is tapped. Everything else stays on the

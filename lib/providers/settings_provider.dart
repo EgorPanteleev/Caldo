@@ -34,6 +34,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kReminders = 'reminders_enabled';
   static const _kReminderAt = 'reminder_minutes';
   static const _kReminderLead = 'reminder_lead';
+  static const _kFullScreen = 'full_screen_reminders';
   static const _kClock = 'use_24_hour';
   static const _kDeviceEvents = 'show_device_events';
   static const _kHiddenCalendars = 'hidden_calendars';
@@ -86,6 +87,10 @@ class SettingsProvider extends ChangeNotifier {
   /// Minutes ahead of its time a timed task is announced, unless it says
   /// otherwise. At the time out of the box, which is what it always was.
   int _reminderLead = 0;
+
+  /// Whether a reminder takes the whole screen while the phone is locked,
+  /// the way an alarm does. On out of the box: it was asked for.
+  bool _fullScreen = true;
 
   /// The leads offered, here and on the task form.
   static const leads = [0, 5, 10, 15, 30, 60];
@@ -146,6 +151,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get reminders => _reminders;
   int get reminderMinutes => _reminderMinutes;
   int get reminderLead => _reminderLead;
+  bool get fullScreenReminders => _fullScreen;
 
   /// The hour all-day reminders land on, as the pickers want it.
   TimeOfDay get reminderTime =>
@@ -228,6 +234,7 @@ class SettingsProvider extends ChangeNotifier {
     _reminders = prefs.getBool(_kReminders) ?? _reminders;
     _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
     _reminderLead = prefs.getInt(_kReminderLead) ?? _reminderLead;
+    _fullScreen = prefs.getBool(_kFullScreen) ?? _fullScreen;
     _use24Hour = prefs.getBool(_kClock);
     _language = prefs.getString(_kLanguage);
     _showDeviceEvents = prefs.getBool(_kDeviceEvents) ?? _showDeviceEvents;
@@ -246,6 +253,7 @@ class SettingsProvider extends ChangeNotifier {
     bool? reminders,
     int? reminderMinutes,
     int? reminderLead,
+    bool? fullScreenReminders,
     bool? use24Hour,
     String? language,
 
@@ -337,7 +345,14 @@ class SettingsProvider extends ChangeNotifier {
       _reminderLead = reminderLead;
       await prefs.setInt(_kReminderLead, reminderLead);
     }
-    if (reminders != null || reminderMinutes != null || reminderLead != null) {
+    if (fullScreenReminders != null) {
+      _fullScreen = fullScreenReminders;
+      await prefs.setBool(_kFullScreen, fullScreenReminders);
+    }
+    if (reminders != null ||
+        reminderMinutes != null ||
+        reminderLead != null ||
+        fullScreenReminders != null) {
       await _tellReminders();
     }
     notifyListeners();
@@ -350,6 +365,7 @@ class SettingsProvider extends ChangeNotifier {
     enabled: _reminders,
     allDayMinutes: _reminderMinutes,
     lead: _reminderLead,
+    fullScreen: _fullScreen,
   );
 
   static AppScreen _startScreenFromString(String? value) =>

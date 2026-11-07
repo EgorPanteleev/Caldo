@@ -6,6 +6,7 @@ import '../l10n/strings.dart';
 import '../db/database.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/reminders.dart';
 import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
@@ -14,6 +15,7 @@ import '../widgets/selection.dart';
 import 'board_screen.dart';
 import 'calendar_screen.dart';
 import 'done_screen.dart';
+import 'reminder_screen.dart';
 import 'settings_screen.dart';
 import 'task_edit_screen.dart';
 import 'tasks_screen.dart';
@@ -96,6 +98,24 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted && update != null) setState(() => _update = update);
     });
     TodayWidget.listen(_openFromWidget);
+    // One that started the app is already waiting by the first frame.
+    Reminders.opened.addListener(_openReminder);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openReminder());
+  }
+
+  /// A reminder tapped, or put up over the lock screen, is shown full
+  /// screen over whichever screen is open — and over nothing else, as a
+  /// task opened from the widget is.
+  void _openReminder() {
+    final id = Reminders.opened.value;
+    if (id == null || !mounted) return;
+    Reminders.opened.value = null;
+    _closeMenu();
+    Navigator.of(context)
+      ..popUntil((route) => route.isFirst)
+      ..push(
+        MaterialPageRoute<void>(builder: (_) => ReminderScreen(taskId: id)),
+      );
   }
 
   /// A row of the home-screen widget opens its task's form, and the
@@ -118,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    Reminders.opened.removeListener(_openReminder);
     _menu.dispose();
     _boardShown.dispose();
     _doneShown.dispose();

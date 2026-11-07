@@ -206,6 +206,10 @@ const Map<String, Object> uk = {
   'reminderDone': "Готово",
   'snoozeMinutes': "Відкласти на {n} хв",
   'snoozeHour': "Відкласти на годину",
+  'reminderDismiss': "Приховати",
+  'fullScreenReminders': "На весь екран на блокуванні",
+  'fullScreenOn': "Поверх екрана блокування, як будильник",
+  'fullScreenOff': "Лише сповіщення",
   'reminderChannel': "Нагадування про завдання",
   'reminderChannelHint': "Сповіщення про кожне завдання в його термін.",
 

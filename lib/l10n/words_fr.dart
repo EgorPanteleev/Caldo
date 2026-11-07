@@ -205,6 +205,10 @@ const Map<String, Object> fr = {
   'reminderDone': "Fait",
   'snoozeMinutes': "Dans {n} min",
   'snoozeHour': "Dans 1 heure",
+  'reminderDismiss': "Ignorer",
+  'fullScreenReminders': "Plein écran si verrouillé",
+  'fullScreenOn': "Par-dessus l’écran de verrouillage, comme un réveil",
+  'fullScreenOff': "Une notification seulement",
   'reminderChannel': "Rappels de tâches",
   'reminderChannelHint': "Une notification par tâche, à son échéance.",
 

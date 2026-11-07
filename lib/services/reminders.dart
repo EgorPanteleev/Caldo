@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide Priority;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
@@ -69,14 +70,82 @@ class Reminders {
 
   static const _channelId = 'caldo_reminders';
 
-  /// The buttons on a reminder, by the id the plugin hands back. Snoozing is
-  /// two buttons rather than one with a fixed wait: what "later" means
-  /// depends on what was interrupted, and a second tap to choose would be
-  /// the same cost as one of these.
+  /// The buttons on a reminder, by the id the plugin hands back.
+  ///
+  /// Android draws three at most, so the notification carries Done, the
+  /// shorter snooze and Dismiss, which takes the reminder away and leaves
+  /// the task as it was (asked for by name, beside snooze). The full-screen
+  /// page has room for both snoozes: what "later" means depends on what was
+  /// interrupted.
   static const done = 'done';
+  static const dismissed = 'dismiss';
   static const snoozes = {'snooze-15': 15, 'snooze-60': 60};
 
+  /// The task whose reminder has been opened — tapped, or put up over the
+  /// lock screen — for the shell to show it full screen. Set back to null
+  /// once it has been taken.
+  static final opened = ValueNotifier<int?>(null);
+
+  /// Lets the app show over the lock screen, and takes that back: it is
+  /// allowed only while a reminder is up, so the app itself never shows
+  /// without the phone being unlocked.
+  static const _lock = MethodChannel('caldo/reminder');
+
   bool get ready => _ready;
+
+  /// Whether a reminder takes the whole screen when the phone is locked,
+  /// the way an alarm does. Android decides: in use, the phone shows it as
+  /// a notification across the top instead.
+  bool _fullScreen = true;
+
+  static void _onOpened(NotificationResponse response) {
+    if (response.notificationResponseType ==
+            NotificationResponseType.selectedNotification &&
+        response.id != null) {
+      opened.value = response.id;
+    }
+  }
+
+  /// Whether the app was started by a reminder, and if so, which; from
+  /// `main` alone, since only the app's own process was started by one.
+  Future<void> takeLaunch() async {
+    if (!_ready) return;
+    try {
+      final launch = await _plugin.getNotificationAppLaunchDetails();
+      final response = launch?.notificationResponse;
+      if (launch?.didNotificationLaunchApp == true && response != null) {
+        _onOpened(response);
+      }
+    } catch (error, stack) {
+      debugPrint('Could not read the launch: $error\n$stack');
+    }
+  }
+
+  /// Gives back the lock screen once a reminder has been answered, and
+  /// steps aside if the phone is still locked.
+  static Future<void> release() async {
+    try {
+      await _lock.invokeMethod<void>('release');
+    } on MissingPluginException {
+      // Not on a phone: there is no lock screen to give back.
+    }
+  }
+
+  /// Asks Android to let reminders take the screen. Granted on install to an
+  /// app that is not from the Play Store; this opens the page to allow it
+  /// where it has been taken away.
+  Future<void> requestFullScreen() async {
+    if (!_ready) return;
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestFullScreenIntentPermission();
+    } catch (error, stack) {
+      debugPrint('Could not ask for full screen: $error\n$stack');
+    }
+  }
 
   /// Starts the plugin and works out which zone the device keeps time in.
   /// Scheduling is done in that zone rather than in UTC, so a reminder set for
@@ -95,6 +164,7 @@ class Reminders {
           android: AndroidInitializationSettings('@drawable/ic_notification'),
         ),
         onDidReceiveBackgroundNotificationResponse: onReminderAction,
+        onDidReceiveNotificationResponse: _onOpened,
       );
 
       final android = _plugin
@@ -154,15 +224,18 @@ class Reminders {
     required bool enabled,
     required int allDayMinutes,
     int lead = 0,
+    bool fullScreen = true,
   }) async {
     if (_enabled == enabled &&
         _allDayMinutes == allDayMinutes &&
-        _lead == lead) {
+        _lead == lead &&
+        _fullScreen == fullScreen) {
       return;
     }
     _enabled = enabled;
     _allDayMinutes = allDayMinutes;
     _lead = lead;
+    _fullScreen = fullScreen;
     if (_synced) await sync(_last);
   }
 
@@ -192,11 +265,11 @@ class Reminders {
         }
         due.sort((a, b) => a.$1.compareTo(b.$1));
         for (final (at, task) in due.take(_limit)) {
-          final body = _body(task, at);
+          final body = describe(task, at);
           wanted[task.id!] = (
             at,
             task,
-            '${at.toIso8601String()}|${task.title}|$body|$_exact|${S.current.code}',
+            '${at.toIso8601String()}|${task.title}|$body|$_exact|$_fullScreen|${S.current.code}',
           );
         }
       }
@@ -259,7 +332,7 @@ class Reminders {
         id: id,
         scheduledDate: tz.TZDateTime.from(at, tz.local),
         title: task.title,
-        body: _body(task, at),
+        body: describe(task, at),
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
@@ -268,15 +341,14 @@ class Reminders {
             importance: Importance.high,
             priority: fln.Priority.high,
             category: AndroidNotificationCategory.reminder,
+            fullScreenIntent: _fullScreen,
             actions: [
               AndroidNotificationAction(done, S.current.reminderDone),
-              for (final MapEntry(key: id, value: minutes) in snoozes.entries)
-                AndroidNotificationAction(
-                  id,
-                  minutes < 60
-                      ? S.current.snoozeMinutes(minutes)
-                      : S.current.snoozeHour,
-                ),
+              AndroidNotificationAction(
+                snoozes.keys.first,
+                snoozeLabel(snoozes.values.first),
+              ),
+              AndroidNotificationAction(dismissed, S.current.reminderDismiss),
             ],
           ),
         ),
@@ -284,6 +356,10 @@ class Reminders {
             ? AndroidScheduleMode.exactAllowWhileIdle
             : AndroidScheduleMode.inexactAllowWhileIdle,
       );
+
+  /// What a snooze of [minutes] is called on its button.
+  static String snoozeLabel(int minutes) =>
+      minutes < 60 ? S.current.snoozeMinutes(minutes) : S.current.snoozeHour;
 
   /// When [task] should be announced, or null if it never should — it has no
   /// date, it is already done, it is [Task.silent], or it has no id to hang
@@ -322,7 +398,7 @@ class Reminders {
   /// What the notification says under the title, from where [at] stands:
   /// a task announced a day early is due tomorrow, and one snoozed past its
   /// time was due rather than is.
-  static String _body(Task task, DateTime at) {
+  static String describe(Task task, DateTime at) {
     final due = task.due;
     if (due == null) return '';
     final s = S.current;

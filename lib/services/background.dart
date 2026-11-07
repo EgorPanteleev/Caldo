@@ -126,6 +126,8 @@ Future<void> onReminderAction(NotificationResponse response) async {
   if (id == null) return;
   final action = response.actionId;
   try {
+    // Dismiss has nothing to write: the notification is gone by the time
+    // this runs, and the task stays as it was.
     if (action == Reminders.done) {
       await Background.complete(id);
     } else if (Reminders.snoozes[action] case final minutes?) {

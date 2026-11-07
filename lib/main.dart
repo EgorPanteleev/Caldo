@@ -24,6 +24,8 @@ void main() async {
   // Before the first screen, because the first thing a screen does is load its
   // tasks, and loading tasks is what sets the alarms.
   await Reminders.instance.init();
+  // A reminder put up over the lock screen starts the app to show it.
+  await Reminders.instance.takeLaunch();
   // Where the keyboard is comes from Android as well as from MediaQuery —
   // see KeyboardGap. Nothing reads it until a field is tapped, but the
   // channel has to be listening before that.

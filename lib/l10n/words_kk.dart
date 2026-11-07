@@ -199,6 +199,10 @@ const Map<String, Object> kk = {
   'reminderDone': "Орындалды",
   'snoozeMinutes': "{n} минутқа кейінге қалдыру",
   'snoozeHour': "1 сағатқа кейінге қалдыру",
+  'reminderDismiss': "Жабу",
+  'fullScreenReminders': "Құлыптаулыда толық экран",
+  'fullScreenOn': "Құлып экранының үстінде, оятқыш сияқты",
+  'fullScreenOff': "Тек хабарландыру",
   'reminderChannel': "Тапсырма ескертулері",
   'reminderChannelHint': "Әр тапсырмаға мерзімінде бір хабарландыру.",
 

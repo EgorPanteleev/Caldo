@@ -966,8 +966,26 @@ Changing them back will be noticed.
   allowed to install, and came back as 1.3.13. It only offers what a GitHub
   release carries — `gh release create` with the three APKs is what makes an
   update appear on the phone.
-- **A reminder has Done and two Snoozes on it** (`Reminders.done`,
-  `Reminders.snoozes`, `onReminderAction`). They are answered on the
+- **A reminder's notification has Done, Snooze 15 min and Dismiss**
+  (`Reminders.done`, `Reminders.snoozes`, `Reminders.dismissed`,
+  `onReminderAction`). Dismiss was asked for by name ("smth like snooze
+  dismiss"): it takes the reminder away and leaves the task as it was.
+  Android draws three buttons at most, so the hour's snooze went from the
+  notification to the full-screen page, which has all four.
+- **A reminder takes the whole screen while the phone is locked**
+  (`fullScreenIntent`, `ReminderScreen`, `Reminders.opened`,
+  `MainActivity.overLock`), as an alarm does — asked for as "make the
+  notification to full screen". On by default, a switch on Settings'
+  Reminders page. Android decides when: with the phone in use it shows
+  across the top as before, and a tap on it opens the same page. The page
+  answers through `Background` exactly as the buttons do. The app is let
+  over the lock screen only by a reminder's own intent (the plugin's
+  `SELECT_NOTIFICATION`) and gives that back as the page goes, and in
+  `onStop`; an attribute in the manifest would have had the whole app
+  show on a locked phone. `USE_FULL_SCREEN_INTENT` is granted on install
+  to an app not from the Play Store; the switch asks again where it has
+  been taken away.
+- **The buttons are answered off the app's screens** (`Background`). They are answered on the
   notification plugin's own isolate whether or not the app is open, so that
   isolate does the whole of a change itself (`Background._change`): writes
   the task, puts that one task's alarm right (`Reminders.reset`, never a full

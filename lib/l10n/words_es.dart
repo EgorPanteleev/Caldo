@@ -204,6 +204,10 @@ const Map<String, Object> es = {
   'reminderDone': "Hecho",
   'snoozeMinutes': "En {n} min",
   'snoozeHour': "En 1 hora",
+  'reminderDismiss': "Descartar",
+  'fullScreenReminders': "Pantalla completa si está bloqueado",
+  'fullScreenOn': "Sobre la pantalla de bloqueo, como una alarma",
+  'fullScreenOff': "Solo una notificación",
   'reminderChannel': "Recordatorios de tareas",
   'reminderChannelHint': "Una notificación por tarea, cuando vence.",
 
