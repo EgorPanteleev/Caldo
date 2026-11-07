@@ -208,6 +208,9 @@ const Map<String, Object> nl = {
   'fullScreenReminders': "Volledig scherm bij vergrendeling",
   'fullScreenOn': "Over het vergrendelscherm, als een wekker",
   'fullScreenOff': "Alleen een melding",
+  'fullScreenOffer':
+      "Herinneringen mogen niet schermvullend verschijnen als de telefoon vergrendeld is",
+  'allow': "Toestaan",
   'reminderChannel': "Taakherinneringen",
   'reminderChannelHint': "Eén melding per taak, wanneer die eraan komt.",
 

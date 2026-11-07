@@ -202,6 +202,8 @@ const Map<String, Object> tr = {
   'fullScreenReminders': "Kilitliyken tam ekran",
   'fullScreenOn': "Kilit ekranının üstünde, alarm gibi",
   'fullScreenOff': "Yalnızca bildirim",
+  'fullScreenOffer': "Hatırlatıcılar kilitli telefonda tam ekran açılamıyor",
+  'allow': "İzin ver",
   'reminderChannel': "Görev hatırlatıcıları",
   'reminderChannelHint': "Her görev için, zamanı gelince bir bildirim.",
 

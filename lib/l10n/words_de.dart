@@ -208,6 +208,9 @@ const Map<String, Object> de = {
   'fullScreenReminders': "Vollbild bei Sperre",
   'fullScreenOn': "Über dem Sperrbildschirm, wie ein Wecker",
   'fullScreenOff': "Nur eine Benachrichtigung",
+  'fullScreenOffer':
+      "Erinnerungen dürfen bei gesperrtem Telefon nicht im Vollbild erscheinen",
+  'allow': "Erlauben",
   'reminderChannel': "Aufgabenerinnerungen",
   'reminderChannelHint':
       "Eine Benachrichtigung pro Aufgabe, wenn sie fällig ist.",

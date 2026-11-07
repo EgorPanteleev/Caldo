@@ -203,6 +203,8 @@ const Map<String, Object> kk = {
   'fullScreenReminders': "Құлыптаулыда толық экран",
   'fullScreenOn': "Құлып экранының үстінде, оятқыш сияқты",
   'fullScreenOff': "Тек хабарландыру",
+  'fullScreenOffer': "Еске салғыштар құлыптаулыда толық экранға шыға алмайды",
+  'allow': "Рұқсат ету",
   'reminderChannel': "Тапсырма ескертулері",
   'reminderChannelHint': "Әр тапсырмаға мерзімінде бір хабарландыру.",
 

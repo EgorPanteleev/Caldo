@@ -15,7 +15,6 @@ import '../widgets/selection.dart';
 import 'board_screen.dart';
 import 'calendar_screen.dart';
 import 'done_screen.dart';
-import 'reminder_screen.dart';
 import 'settings_screen.dart';
 import 'task_edit_screen.dart';
 import 'tasks_screen.dart';
@@ -51,7 +50,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _menu = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 260),
@@ -101,21 +100,37 @@ class _HomeScreenState extends State<HomeScreen>
     // One that started the app is already waiting by the first frame.
     Reminders.opened.addListener(_openReminder);
     WidgetsBinding.instance.addPostFrameCallback((_) => _openReminder());
+    WidgetsBinding.instance.addObserver(this);
+    _checkFullScreen();
   }
 
-  /// A reminder tapped, or put up over the lock screen, is shown full
-  /// screen over whichever screen is open — and over nothing else, as a
-  /// task opened from the widget is.
+  /// Whether Android lets a reminder take the screen, once asked; asked on
+  /// opening and on every return, since the way to allow it is a page in
+  /// Android's settings, and coming back from it is a return.
+  bool? _fullScreenAllowed;
+
+  /// The offer to allow it has been closed for this opening.
+  bool _fullScreenPutOff = false;
+
+  Future<void> _checkFullScreen() async {
+    final allowed = await Reminders.instance.canFullScreen();
+    if (mounted && allowed != _fullScreenAllowed) {
+      setState(() => _fullScreenAllowed = allowed);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkFullScreen();
+  }
+
+  /// A reminder tapped with the phone in use opens its task, as a row of
+  /// the widget does; over the lock screen the activity shows it itself.
   void _openReminder() {
     final id = Reminders.opened.value;
     if (id == null || !mounted) return;
     Reminders.opened.value = null;
-    _closeMenu();
-    Navigator.of(context)
-      ..popUntil((route) => route.isFirst)
-      ..push(
-        MaterialPageRoute<void>(builder: (_) => ReminderScreen(taskId: id)),
-      );
+    _openFromWidget(id);
   }
 
   /// A row of the home-screen widget opens its task's form, and the
@@ -138,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     Reminders.opened.removeListener(_openReminder);
     _menu.dispose();
     _boardShown.dispose();
@@ -171,6 +187,13 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    // Offered only to someone who wants full-screen reminders and is not
+    // getting them: switched off in Settings, it is not asked about again.
+    final wantsFullScreen = context.select<SettingsProvider, bool>(
+      (s) => s.loaded && s.reminders && s.fullScreenReminders,
+    );
+    final offerFullScreen =
+        wantsFullScreen && _fullScreenAllowed == false && !_fullScreenPutOff;
     return PopScope(
       // While the menu is open, back closes it rather than leaving the app.
       canPop: !_isOpen,
@@ -214,12 +237,22 @@ class _HomeScreenState extends State<HomeScreen>
                         duration: const Duration(milliseconds: 220),
                         curve: Curves.easeOutCubic,
                         alignment: Alignment.topCenter,
-                        child: _update == null
-                            ? const SizedBox(width: double.infinity)
-                            : _UpdateBanner(
+                        child: Column(
+                          children: [
+                            const SizedBox(width: double.infinity),
+                            if (_update != null)
+                              _UpdateBanner(
                                 update: _update!,
                                 onDismiss: () => setState(() => _update = null),
                               ),
+                            if (offerFullScreen)
+                              _FullScreenBanner(
+                                onAllow: Reminders.instance.requestFullScreen,
+                                onDismiss: () =>
+                                    setState(() => _fullScreenPutOff = true),
+                              ),
+                          ],
+                        ),
                       ),
                       Expanded(
                         child: IndexedStack(index: _index, children: _pages),
@@ -357,6 +390,60 @@ class _UpdateBannerState extends State<_UpdateBanner> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Offers to let reminders take the whole screen while the phone is locked,
+/// when that has been asked for in Settings and Android does not allow it.
+///
+/// Drawn as the update banner is, above whichever screen is open. Allow
+/// opens the page in Android's settings; the shell asks again on the way
+/// back and the banner goes once it is allowed. Closing it puts it off until
+/// the app is next opened; switching full screen off in Settings is the way
+/// to stop it for good.
+class _FullScreenBanner extends StatelessWidget {
+  final VoidCallback onAllow;
+  final VoidCallback onDismiss;
+
+  const _FullScreenBanner({required this.onAllow, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final accent = AppTheme.accentOf(context).color;
+    final s = S.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.fullscreen_rounded, size: 22, color: accent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              s.fullScreenOffer,
+              style: TextStyle(color: p.text, fontSize: 14),
+            ),
+          ),
+          TextButton(
+            onPressed: onAllow,
+            child: Text(
+              s.allow,
+              style: TextStyle(color: accent, fontWeight: FontWeight.w600),
+            ),
+          ),
+          IconButton(
+            tooltip: s.notNow,
+            icon: Icon(Icons.close_rounded, color: p.muted, size: 20),
+            onPressed: onDismiss,
+          ),
+        ],
+      ),
     );
   }
 }

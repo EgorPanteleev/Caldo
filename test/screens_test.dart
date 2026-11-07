@@ -5,7 +5,6 @@ import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/tasks_screen.dart';
 import 'package:caldo/screens/calendar_screen.dart';
 import 'package:caldo/screens/home_screen.dart';
-import 'package:caldo/screens/reminder_screen.dart';
 import 'package:caldo/screens/search_screen.dart';
 import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
@@ -194,29 +193,6 @@ void main() {
       await tester.pumpAndSettle();
     }
     expect(find.text('ABOUT'), findsOneWidget);
-  });
-
-  testWidgets('a reminder full screen offers every answer, on a small phone', (
-    tester,
-  ) async {
-    late int id;
-    await tester.runAsync(() async {
-      await seedProvider();
-      id = (await taskNamed('Ship')).id!;
-    });
-    await pumpScreen(tester, ReminderScreen(taskId: id), size: narrow);
-    // The task is read for real, which fake time cannot finish.
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pump();
-
-    expect(find.text('Ship'), findsOneWidget);
-    // Room for both snoozes here, where the notification has three buttons
-    // in all.
-    for (final label in ['Done', 'Snooze 15 min', 'Snooze 1 hour', 'Dismiss']) {
-      expect(find.text(label), findsOneWidget, reason: label);
-    }
   });
 
   testWidgets('a screen switched off in settings leaves the menu', (

@@ -219,6 +219,9 @@ const Map<String, Object> pl = {
   'fullScreenReminders': "Pełny ekran po zablokowaniu",
   'fullScreenOn': "Na ekranie blokady, jak budzik",
   'fullScreenOff': "Tylko powiadomienie",
+  'fullScreenOffer':
+      "Przypomnienia nie mogą otwierać się na pełnym ekranie na zablokowanym telefonie",
+  'allow': "Zezwól",
   'reminderChannel': "Przypomnienia o zadaniach",
   'reminderChannelHint': "Jedno powiadomienie na zadanie, w jego terminie.",
 

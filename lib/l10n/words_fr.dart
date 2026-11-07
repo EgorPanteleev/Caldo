@@ -209,6 +209,9 @@ const Map<String, Object> fr = {
   'fullScreenReminders': "Plein écran si verrouillé",
   'fullScreenOn': "Par-dessus l’écran de verrouillage, comme un réveil",
   'fullScreenOff': "Une notification seulement",
+  'fullScreenOffer':
+      "Les rappels ne peuvent pas s’afficher en plein écran sur le téléphone verrouillé",
+  'allow': "Autoriser",
   'reminderChannel': "Rappels de tâches",
   'reminderChannelHint': "Une notification par tâche, à son échéance.",
 

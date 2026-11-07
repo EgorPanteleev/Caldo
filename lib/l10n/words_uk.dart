@@ -210,6 +210,9 @@ const Map<String, Object> uk = {
   'fullScreenReminders': "На весь екран на блокуванні",
   'fullScreenOn': "Поверх екрана блокування, як будильник",
   'fullScreenOff': "Лише сповіщення",
+  'fullScreenOffer':
+      "Нагадування не можуть відкриватися на весь екран на блокуванні",
+  'allow': "Дозволити",
   'reminderChannel': "Нагадування про завдання",
   'reminderChannelHint': "Сповіщення про кожне завдання в його термін.",
 

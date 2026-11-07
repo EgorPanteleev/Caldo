@@ -340,6 +340,8 @@ class S {
   String get fullScreenReminders => _word('fullScreenReminders');
   String get fullScreenOn => _word('fullScreenOn');
   String get fullScreenOff => _word('fullScreenOff');
+  String get fullScreenOffer => _word('fullScreenOffer');
+  String get allow => _word('allow');
   String get reminderChannel => _word('reminderChannel');
   String get reminderChannelHint => _word('reminderChannelHint');
 

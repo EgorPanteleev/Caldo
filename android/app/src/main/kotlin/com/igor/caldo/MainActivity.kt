@@ -2,6 +2,7 @@ package com.igor.caldo
 
 import android.Manifest
 import android.app.KeyguardManager
+import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.ContentUris
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.CalendarContract
 import android.provider.Settings
 import android.view.View
@@ -69,16 +71,44 @@ class MainActivity : FlutterActivity() {
         wakeFor(intent)
     }
 
+    /** The reminder over the lock screen, while one is up. */
+    private val cover by lazy { ReminderCover(this, ::answered) }
+
     /**
      * A reminder's own intent — the one the notification plugin puts on it,
-     * for a tap and for taking the screen while the phone is locked — lets
-     * the app over the lock screen and turns the screen on, so the reminder
-     * can be shown full screen as an alarm is. Dart gives it back as soon as
-     * the reminder is answered ([overLock], `release`), and leaving the app
-     * gives it back too: the app is never left showing on a locked phone.
+     * for a tap and for taking the screen — puts the reminder up full screen,
+     * over the lock screen, but only while the phone is locked or asleep: a
+     * tap with the phone in use opens the task instead (Dart asks
+     * `covered`). Leaving the app, or answering, gives the lock screen back:
+     * the app is never left showing on a locked phone.
      */
     private fun wakeFor(intent: Intent?) {
-        if (intent?.action == REMINDER_ACTION) overLock(true)
+        if (intent?.action != REMINDER_ACTION || !isLocked()) return
+        overLock(true)
+        cover.show(intent)
+    }
+
+    private fun isLocked(): Boolean {
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        val power = getSystemService(PowerManager::class.java)
+        return keyguard?.isKeyguardLocked == true || power?.isInteractive == false
+    }
+
+    /**
+     * The reminder has been answered or put aside: off the lock screen, and
+     * out of the way if the phone is still locked, so it goes back to its
+     * lock screen rather than to the app.
+     */
+    private fun answered() {
+        cover.hide()
+        overLock(false)
+        val keyguard = getSystemService(KeyguardManager::class.java)
+        if (keyguard?.isKeyguardLocked == true) moveTaskToBack(true)
+    }
+
+    @Deprecated("Flutter's activity still routes Back through here")
+    override fun onBackPressed() {
+        if (cover.shown) answered() else super.onBackPressed()
     }
 
     private fun overLock(on: Boolean) {
@@ -90,6 +120,32 @@ class MainActivity : FlutterActivity() {
             val flags = WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             if (on) window.addFlags(flags) else window.clearFlags(flags)
+        }
+    }
+
+    /**
+     * Whether a reminder may take the screen. Android 14 made it a
+     * permission the user can take away, and some phones' own builds of it
+     * start with it taken; before that it was always allowed.
+     */
+    private fun canFullScreen(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+            getSystemService(NotificationManager::class.java)
+                ?.canUseFullScreenIntent() != false
+
+    /** Opens the page where Caldo is allowed to take the screen. */
+    private fun allowFullScreen(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return false
+        return try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                    Uri.parse("package:$packageName"),
+                ),
+            )
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
         }
     }
 
@@ -138,18 +194,13 @@ class MainActivity : FlutterActivity() {
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALENDARS_CHANNEL)
             .setMethodCallHandler(::calendarCall)
-        // A reminder has been answered: off the lock screen, and out of the
-        // way if the phone is still locked, so it goes back to its lock
-        // screen rather than to the app.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
             .setMethodCallHandler { call, result ->
-                if (call.method == "release") {
-                    overLock(false)
-                    val keyguard = getSystemService(KeyguardManager::class.java)
-                    if (keyguard?.isKeyguardLocked == true) moveTaskToBack(true)
-                    result.success(null)
-                } else {
-                    result.notImplemented()
+                when (call.method) {
+                    "covered" -> result.success(cover.shown)
+                    "canFullScreen" -> result.success(canFullScreen())
+                    "allowFullScreen" -> result.success(allowFullScreen())
+                    else -> result.notImplemented()
                 }
             }
     }
@@ -312,8 +363,10 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
+        // Before the plugins hear of it, so the cover is up by the time Dart
+        // asks whether the reminder is on one.
         wakeFor(intent)
+        super.onNewIntent(intent)
         launchRequest(intent)?.let { launches?.invokeMethod("open", it) }
     }
 

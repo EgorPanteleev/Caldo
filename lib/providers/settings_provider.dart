@@ -153,6 +153,11 @@ class SettingsProvider extends ChangeNotifier {
   int get reminderLead => _reminderLead;
   bool get fullScreenReminders => _fullScreen;
 
+  /// Whether the stored settings have been read yet. Until they have, every
+  /// one of them is its default, which is not what the user chose.
+  bool get loaded => _loaded;
+  bool _loaded = false;
+
   /// The hour all-day reminders land on, as the pickers want it.
   TimeOfDay get reminderTime =>
       TimeOfDay(hour: _reminderMinutes ~/ 60, minute: _reminderMinutes % 60);
@@ -203,6 +208,7 @@ class SettingsProvider extends ChangeNotifier {
     // to be asked — nothing else in the app would ever ask, and a permission
     // that was never requested looks exactly like a feature that is broken.
     if (_reminders) await Reminders.instance.requestPermission();
+    _loaded = true;
     notifyListeners();
   }
 

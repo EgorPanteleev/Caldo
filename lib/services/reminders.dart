@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
@@ -81,14 +83,12 @@ class Reminders {
   static const dismissed = 'dismiss';
   static const snoozes = {'snooze-15': 15, 'snooze-60': 60};
 
-  /// The task whose reminder has been opened — tapped, or put up over the
-  /// lock screen — for the shell to show it full screen. Set back to null
-  /// once it has been taken.
+  /// The task whose reminder was tapped with the phone in use, for the
+  /// shell to open its form. Set back to null once it has been taken.
   static final opened = ValueNotifier<int?>(null);
 
-  /// Lets the app show over the lock screen, and takes that back: it is
-  /// allowed only while a reminder is up, so the app itself never shows
-  /// without the phone being unlocked.
+  /// The activity's side of a reminder: whether it is up over the lock
+  /// screen (`ReminderCover`), and whether Android lets it be.
   static const _lock = MethodChannel('caldo/reminder');
 
   bool get ready => _ready;
@@ -98,12 +98,22 @@ class Reminders {
   /// a notification across the top instead.
   bool _fullScreen = true;
 
-  static void _onOpened(NotificationResponse response) {
-    if (response.notificationResponseType ==
-            NotificationResponseType.selectedNotification &&
-        response.id != null) {
-      opened.value = response.id;
+  /// A reminder opened the app. Over the lock screen the activity has put
+  /// it up full screen itself and there is nothing for the app to do; with
+  /// the phone in use, it was a tap, and the task is opened.
+  static Future<void> _onOpened(NotificationResponse response) async {
+    final id = response.id;
+    if (response.notificationResponseType !=
+            NotificationResponseType.selectedNotification ||
+        id == null) {
+      return;
     }
+    try {
+      if (await _lock.invokeMethod<bool>('covered') == true) return;
+    } on MissingPluginException {
+      // No activity to have covered anything.
+    }
+    opened.value = id;
   }
 
   /// Whether the app was started by a reminder, and if so, which; from
@@ -121,27 +131,25 @@ class Reminders {
     }
   }
 
-  /// Gives back the lock screen once a reminder has been answered, and
-  /// steps aside if the phone is still locked.
-  static Future<void> release() async {
+  /// Whether Android lets a reminder take the screen. Granted on install to
+  /// an app that is not from the Play Store, but Android 14 lets it be taken
+  /// away, and some phones' own builds start with it taken. True where
+  /// there is nothing to ask, so nothing offers to fix it.
+  Future<bool> canFullScreen() async {
+    if (!_ready) return true;
     try {
-      await _lock.invokeMethod<void>('release');
+      return await _lock.invokeMethod<bool>('canFullScreen') ?? true;
     } on MissingPluginException {
-      // Not on a phone: there is no lock screen to give back.
+      return true;
     }
   }
 
-  /// Asks Android to let reminders take the screen. Granted on install to an
-  /// app that is not from the Play Store; this opens the page to allow it
-  /// where it has been taken away.
+  /// Opens the page in Android's settings where reminders are allowed to
+  /// take the screen, if they are not already.
   Future<void> requestFullScreen() async {
-    if (!_ready) return;
+    if (await canFullScreen()) return;
     try {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.requestFullScreenIntentPermission();
+      await _lock.invokeMethod<bool>('allowFullScreen');
     } catch (error, stack) {
       debugPrint('Could not ask for full screen: $error\n$stack');
     }
@@ -333,6 +341,16 @@ class Reminders {
         scheduledDate: tz.TZDateTime.from(at, tz.local),
         title: task.title,
         body: describe(task, at),
+        // What the full-screen reminder says, in the app's language: the
+        // activity draws it, and has no other way to know the words.
+        payload: jsonEncode({
+          'title': task.title,
+          'text': describe(task, at),
+          done: S.current.reminderDone,
+          for (final MapEntry(key: id, value: minutes) in snoozes.entries)
+            id: snoozeLabel(minutes),
+          dismissed: S.current.reminderDismiss,
+        }),
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,

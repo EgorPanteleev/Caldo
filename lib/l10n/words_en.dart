@@ -193,6 +193,9 @@ const Map<String, Object> en = {
   'fullScreenReminders': "Full screen when locked",
   'fullScreenOn': "Takes the lock screen, like an alarm",
   'fullScreenOff': "Only a notification",
+  'fullScreenOffer':
+      "Reminders can't take the full screen when the phone is locked",
+  'allow': "Allow",
   'reminderChannel': "Task reminders",
   'reminderChannelHint': "One notification per task, when it is due.",
 

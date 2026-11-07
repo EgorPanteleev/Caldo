@@ -208,6 +208,9 @@ const Map<String, Object> es = {
   'fullScreenReminders': "Pantalla completa si está bloqueado",
   'fullScreenOn': "Sobre la pantalla de bloqueo, como una alarma",
   'fullScreenOff': "Solo una notificación",
+  'fullScreenOffer':
+      "Los recordatorios no pueden mostrarse a pantalla completa con el teléfono bloqueado",
+  'allow': "Permitir",
   'reminderChannel': "Recordatorios de tareas",
   'reminderChannelHint': "Una notificación por tarea, cuando vence.",
 

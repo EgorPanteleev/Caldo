@@ -972,19 +972,19 @@ Changing them back will be noticed.
   dismiss"): it takes the reminder away and leaves the task as it was.
   Android draws three buttons at most, so the hour's snooze went from the
   notification to the full-screen page, which has all four.
-- **A reminder takes the whole screen while the phone is locked**
-  (`fullScreenIntent`, `ReminderScreen`, `Reminders.opened`,
-  `MainActivity.overLock`), as an alarm does — asked for as "make the
-  notification to full screen". On by default, a switch on Settings'
-  Reminders page. Android decides when: with the phone in use it shows
-  across the top as before, and a tap on it opens the same page. The page
-  answers through `Background` exactly as the buttons do. The app is let
-  over the lock screen only by a reminder's own intent (the plugin's
-  `SELECT_NOTIFICATION`) and gives that back as the page goes, and in
-  `onStop`; an attribute in the manifest would have had the whole app
-  show on a locked phone. `USE_FULL_SCREEN_INTENT` is granted on install
-  to an app not from the Play Store; the switch asks again where it has
-  been taken away.
+- **A reminder takes the whole screen only while the phone is locked**
+  (`fullScreenIntent`, `ReminderCover.kt`, `MainActivity.wakeFor`), as an
+  alarm does — asked for as "full screen … only if my phone is locked …
+  a bit transparent". It is drawn natively over the wallpaper, dimmed, with
+  the Flutter view hidden: see-through from Flutter would have meant a
+  transparent FlutterView for every frame of the app, and hiding the view
+  means nothing of the app shows on a locked phone. Its buttons send the
+  plugin's own action broadcast, so they run `onReminderAction` exactly as
+  the notification's do; its words ride in the payload, in the app's
+  language. A tap on the notification with the phone in use opens the task
+  (Dart asks `covered`). On by default, a switch on Settings' Reminders page;
+  if Android does not allow full screen, a banner on opening offers Allow
+  (`_FullScreenBanner`), rechecked on every return.
 - **The buttons are answered off the app's screens** (`Background`). They are answered on the
   notification plugin's own isolate whether or not the app is open, so that
   isolate does the whole of a change itself (`Background._change`): writes

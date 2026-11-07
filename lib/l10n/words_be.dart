@@ -209,6 +209,9 @@ const Map<String, Object> be = {
   'fullScreenReminders': "На ўвесь экран на блакаванні",
   'fullScreenOn': "Па-над экранам блакавання, як будзільнік",
   'fullScreenOff': "Толькі апавяшчэнне",
+  'fullScreenOffer':
+      "Напаміны не могуць адкрывацца на ўвесь экран на блакаванні",
+  'allow': "Дазволіць",
   'reminderChannel': "Напаміны пра задачы",
   'reminderChannelHint': "Апавяшчэнне пра кожную задачу ў яе тэрмін.",
 

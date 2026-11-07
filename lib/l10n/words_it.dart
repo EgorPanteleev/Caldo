@@ -208,6 +208,9 @@ const Map<String, Object> it = {
   'fullScreenReminders': "Schermo intero se bloccato",
   'fullScreenOn': "Sopra la schermata di blocco, come una sveglia",
   'fullScreenOff': "Solo una notifica",
+  'fullScreenOffer':
+      "I promemoria non possono apparire a schermo intero con il telefono bloccato",
+  'allow': "Consenti",
   'reminderChannel': "Promemoria attività",
   'reminderChannelHint': "Una notifica per attività, alla scadenza.",
 
