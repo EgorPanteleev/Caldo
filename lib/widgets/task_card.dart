@@ -118,6 +118,9 @@ class TaskCard extends StatelessWidget {
     final flag = task.priority == Priority.none
         ? null
         : Icon(Icons.flag, size: 16, color: priorityColor(task.priority));
+    final started = task.stage == Stage.inProgress
+        ? const InProgressBadge()
+        : null;
 
     final card = Padding(
       padding: TaskCard.margin,
@@ -152,6 +155,10 @@ class TaskCard extends StatelessWidget {
                         _Tick(done: task.done, color: color, onTap: onToggle),
                         const SizedBox(width: 14),
                         Expanded(child: title),
+                        if (started != null) ...[
+                          const SizedBox(width: 8),
+                          started,
+                        ],
                         if (count != null) ...[const SizedBox(width: 8), count],
                         const SizedBox(width: 10),
                         // The time alone: the repeat rule is a mark, not
@@ -187,6 +194,10 @@ class TaskCard extends StatelessWidget {
                               const SizedBox(height: 3),
                               Row(
                                 children: [
+                                  if (started != null) ...[
+                                    started,
+                                    const SizedBox(width: 8),
+                                  ],
                                   Flexible(
                                     child: Text(
                                       _subtitle(
@@ -448,6 +459,38 @@ const _leave = Duration(milliseconds: 280);
 ///
 /// Coming off, it goes in half the time and without the drawing: undoing is
 /// a correction, and a correction should not be a flourish.
+/// Says a task has been put in progress on the board, where every other
+/// screen would otherwise show it as one more open task. Jira's status
+/// lozenge, in Jira's blue for it: small capitals on a tint of their own
+/// colour, so it reads as a status rather than as the task's colour.
+class InProgressBadge extends StatelessWidget {
+  static const color = Color(0xFF579DFF);
+
+  const InProgressBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Text(
+        S.of(context).inProgress.toUpperCase(),
+        maxLines: 1,
+        style: const TextStyle(
+          color: color,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+          height: 1.3,
+        ),
+      ),
+    );
+  }
+}
+
 class _Tick extends StatefulWidget {
   final bool done;
   final Color color;

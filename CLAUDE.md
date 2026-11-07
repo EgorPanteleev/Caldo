@@ -1117,6 +1117,11 @@ Changing them back will be noticed.
   dropping it on the strip of it that shows, or held at either side of
   the screen, which turns the board after 500ms and every 900ms after
   (`_watchEdges`), as the calendar's month turns.
+  **A task in progress says so everywhere a card is drawn**
+  (`InProgressBadge`, in `TaskCard`): Jira's status lozenge, in Jira's
+  blue for it, ahead of the time on a two-line card and before the time on
+  a one-line one. Asked for as seeing "that the task WIP in schedule and
+  calendar"; without it, starting a task changed nothing off the board.
 
 - **Events from the phone's own calendars sit beside the tasks the way
   holidays do** (`EventsProvider`, `DeviceCalendars`, `EventCard`, the
@@ -1184,7 +1189,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 169 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 170 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

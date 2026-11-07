@@ -3,6 +3,8 @@ import 'package:caldo/models/task.dart';
 import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/board_screen.dart';
+import 'package:caldo/screens/tasks_screen.dart';
+import 'package:caldo/widgets/task_card.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -151,5 +153,37 @@ void main() {
     await tester.runAsync(
       () async => expect((await taskNamed('Ship')).done, isTrue),
     );
+  });
+
+  testWidgets('a task in progress says so on Schedule', (tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    late TaskProvider provider;
+    await tester.runAsync(() async {
+      provider = await seedProvider();
+      await provider.moveToStage(await taskNamed('Water'), Stage.inProgress);
+    });
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: const TasksScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    Finder badgeOn(String title) => find.descendant(
+      of: find.ancestor(of: find.text(title), matching: find.byType(TaskCard)),
+      matching: find.byType(InProgressBadge),
+    );
+    expect(badgeOn('Water'), findsOneWidget);
+    expect(badgeOn('Ship'), findsNothing);
   });
 }
