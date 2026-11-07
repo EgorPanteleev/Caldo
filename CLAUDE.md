@@ -24,7 +24,7 @@ lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
   l10n/strings.dart      every word the app says; words_*.dart, a table
                          per language
-  db/database.dart       schema v6: lists, tasks, completions (+ migrations)
+  db/database.dart       schema v7: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart,
@@ -36,7 +36,7 @@ lib/
   services/device_calendars.dart  the phone's own calendars, read-only
   services/updates.dart  the newer-release check, download and install
   screens/               home (shell + menu), tasks (Schedule), calendar,
-                         done, search, task_edit, settings
+                         board, done, search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
@@ -56,9 +56,10 @@ The launcher icon is drawn in SVG under `assets/icon/src` and turned into
 Android's sizes by `tool/make_icon.sh` (needs `rsvg-convert`); the PNGs it
 writes are checked in.
 
-Four destinations — **Schedule**, **Calendar**, **Done**, **Settings** — in
-a drawer behind the menu button at the top left of each, and nothing else in
-it. Done came last, asked for as "a Done log or simple stats".
+Five destinations — **Schedule**, **Calendar**, **Board**, **Done**,
+**Settings** — in a drawer behind the menu button at the top left of each,
+and nothing else in it. Done was asked for as "a Done log or simple stats";
+Board came after it.
 
 **Lists are groups, and there are still no list screens.** The Lists, list
 and list-edit screens were deleted once they had been unreachable for a
@@ -1070,6 +1071,27 @@ Changing them back will be noticed.
   not crossed out: everything there is done. It reads the log only while it
   is the screen on show (`shown`), since the shell builds all four at once.
 
+- **The board is a screen of its own, three columns: Not started, In
+  progress, Done** (`BoardScreen`, `Stage`, `Task.startedAt`, schema v7,
+  `TaskProvider.moveToStage`). Asked for as "work in progress, done and not
+  started … separate mode (not schedule and calendar) … like 3 cols". Only
+  In progress is new and stored: `started_at`, the moment the task was put
+  there, which orders that column latest first; the other two are whether
+  the task is done. A card is carried across by a long press, as cards are
+  everywhere else, and the column under it lightens; it is drawn in its new
+  column at once and written after (`Task.toStage`, shared with the
+  provider), since waiting for the write put it back in the column it came
+  from for the length of the read. Into Done is a tick like any other —
+  logged, and a repeating task rolls on, which lands it in Not started,
+  since its next round has not been begun. Out of Done is the tick taken
+  back. Any tick, from anywhere, ends In progress. Not started is by due
+  date, undated last; Done latest first, every done task there is (Settings
+  clears them). It follows the group chips as the other two screens do,
+  reads the tasks only while on show, as Done does, and has a plus in its
+  header for the full form rather than a field, since a board's new task
+  has no day to be filed on. Each column scrolls on its own and fades at
+  its foot.
+
 - **Events from the phone's own calendars sit beside the tasks the way
   holidays do** (`EventsProvider`, `DeviceCalendars`, `EventCard`, the
   `caldo/calendars` channel). Off until Settings is asked ("Show events from
@@ -1136,7 +1158,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 164 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 169 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

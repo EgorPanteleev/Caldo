@@ -2,6 +2,7 @@ import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/models/task.dart';
 import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
+import 'package:caldo/screens/board_screen.dart';
 import 'package:caldo/screens/calendar_screen.dart';
 import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
@@ -76,6 +77,8 @@ void main() {
       await pump(const TasksScreen());
       expect(find.text(S.forCode(code).schedule), findsOneWidget);
       await pump(const CalendarScreen());
+      await pump(const BoardScreen());
+      expect(find.text(S.forCode(code).inProgress), findsOneWidget);
       await pump(const SettingsScreen());
       expect(find.text(S.forCode(code).settings), findsOneWidget);
       await pump(TaskEditScreen(task: ship));

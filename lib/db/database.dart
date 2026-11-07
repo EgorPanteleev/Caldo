@@ -12,7 +12,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 6;
+  static const _dbVersion = 7;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -60,7 +60,8 @@ class AppDatabase {
             sort_order INTEGER,
             subtasks TEXT NOT NULL DEFAULT '[]',
             remind_before INTEGER,
-            snoozed_until INTEGER
+            snoozed_until INTEGER,
+            started_at INTEGER
           )
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
@@ -105,6 +106,11 @@ class AppDatabase {
             SELECT id, title, list_id, style_id, completed_at
             FROM $_tasks WHERE completed_at IS NOT NULL
           ''');
+        }
+        if (oldVersion < 7) {
+          // v6 -> a task can be put in progress on the board. Null for every
+          // task there already is: none of them has been.
+          await db.execute('ALTER TABLE $_tasks ADD COLUMN started_at INTEGER');
         }
       },
     );
@@ -234,6 +240,15 @@ class AppDatabase {
       where: 'due_at IS NULL',
       orderBy: _order,
     );
+    return rows.map(Task.fromMap).toList();
+  }
+
+  /// What the board sorts into its columns: every open task, and every done
+  /// one that is still kept. A repeating task is never among the done ones —
+  /// ticked, it rolls on to its next round, which has not been started.
+  Future<List<Task>> getBoard() async {
+    final db = await database;
+    final rows = await db.query(_tasks);
     return rows.map(Task.fromMap).toList();
   }
 

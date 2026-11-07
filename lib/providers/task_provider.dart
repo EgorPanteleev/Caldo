@@ -535,6 +535,23 @@ class TaskProvider extends ChangeNotifier {
     await _reloadAll();
   }
 
+  /// Puts [task] in the board's column for [stage]. Into Done is a tick like
+  /// any other, logged and rolling a repeating task on; out of it is the
+  /// tick taken back, so the log forgets it.
+  Future<void> moveToStage(Task task, Stage stage) async {
+    if (stage == task.stage) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (stage == Stage.done) {
+      await _db.complete(task, now);
+    } else if (task.done) {
+      await _db.untick(task.toStage(stage, now));
+    } else {
+      await _db.update(task.toStage(stage, now));
+    }
+    rearranging.value++;
+    await _reloadAll();
+  }
+
   /// Writes the order a run of tasks was dragged into — the whole run, in the
   /// order it now reads, not just the one that moved.
   Future<void> reorder(List<Task> ordered) async {

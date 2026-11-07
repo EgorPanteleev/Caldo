@@ -117,7 +117,7 @@ class TaskCard extends StatelessWidget {
     );
     final flag = task.priority == Priority.none
         ? null
-        : Icon(Icons.flag, size: 16, color: _priorityColor(task.priority));
+        : Icon(Icons.flag, size: 16, color: priorityColor(task.priority));
 
     final card = Padding(
       padding: TaskCard.margin,
@@ -241,7 +241,7 @@ class TaskCard extends StatelessWidget {
     );
   }
 
-  static Color _priorityColor(Priority priority) => switch (priority) {
+  static Color priorityColor(Priority priority) => switch (priority) {
     Priority.high => const Color(0xFFEF4444),
     Priority.medium => const Color(0xFFF59E0B),
     Priority.low => const Color(0xFF60A5FA),

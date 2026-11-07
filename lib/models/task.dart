@@ -61,6 +61,11 @@ enum Priority {
       : Priority.values[index];
 }
 
+/// Where a task stands on the board: not begun, under way, or finished.
+/// Only the middle one is stored ([Task.startedAt]); the other two are
+/// whether the task is done.
+enum Stage { notStarted, inProgress, done }
+
 /// One step of a task's checklist. Kept with the task rather than in a table
 /// of its own: a task is written back whole — by Undo, and by a repeating
 /// task rolling on — and its checklist has to go with it every time.
@@ -143,6 +148,11 @@ class Task {
   /// and the time worked out from the due date has already gone by.
   final int? snoozedUntil;
 
+  /// Epoch millis the task was put in progress on the board, or null while
+  /// it has not been. A tick ends it: a repeating task's next round has not
+  /// been started, and a done one is past being in progress.
+  final int? startedAt;
+
   /// [remindBefore] for a task that is never announced.
   static const silent = -1;
 
@@ -163,6 +173,7 @@ class Task {
     this.subtasks = const [],
     this.remindBefore,
     this.snoozedUntil,
+    this.startedAt,
   });
 
   /// Whether ticking this task off rolls it on to its next date rather than
@@ -182,15 +193,37 @@ class Task {
         dueAt: repeat.next(due!)!.millisecondsSinceEpoch,
         completedAt: now,
         clearSnoozedUntil: true,
+        clearStartedAt: true,
         // Its next time round starts with nothing on the checklist done.
         subtasks: [for (final s in subtasks) s.copyWith(done: false)],
       );
     }
-    return copyWith(done: true, completedAt: now, clearSnoozedUntil: true);
+    return copyWith(
+      done: true,
+      completedAt: now,
+      clearSnoozedUntil: true,
+      clearStartedAt: true,
+    );
   }
 
   /// This task with its tick taken back.
   Task reopened() => copyWith(done: false, clearCompletedAt: true);
+
+  /// This task as it is written back once moved on the board to [stage] at
+  /// [now]. Into Done is [completed], so a repeating task rolls on to a
+  /// round not yet started; out of it, the tick is taken back.
+  Task toStage(Stage stage, int now) => switch (stage) {
+    Stage.done => completed(now),
+    Stage.inProgress => reopened().copyWith(startedAt: now),
+    Stage.notStarted => reopened().copyWith(clearStartedAt: true),
+  };
+
+  /// Which of the board's columns this task is in.
+  Stage get stage => done
+      ? Stage.done
+      : startedAt != null
+      ? Stage.inProgress
+      : Stage.notStarted;
 
   /// How many of the checklist's steps are ticked.
   int get subtasksDone => subtasks.where((s) => s.done).length;
@@ -244,6 +277,8 @@ class Task {
     bool clearRemindBefore = false,
     int? snoozedUntil,
     bool clearSnoozedUntil = false,
+    int? startedAt,
+    bool clearStartedAt = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -266,6 +301,7 @@ class Task {
       snoozedUntil: clearSnoozedUntil
           ? null
           : (snoozedUntil ?? this.snoozedUntil),
+      startedAt: clearStartedAt ? null : (startedAt ?? this.startedAt),
     );
   }
 
@@ -287,6 +323,7 @@ class Task {
       'subtasks': jsonEncode([for (final s in subtasks) s.toJson()]),
       'remind_before': remindBefore,
       'snoozed_until': snoozedUntil,
+      'started_at': startedAt,
     };
   }
 
@@ -308,6 +345,7 @@ class Task {
       subtasks: _subtasksFrom(map['subtasks'] as String?),
       remindBefore: map['remind_before'] as int?,
       snoozedUntil: map['snoozed_until'] as int?,
+      startedAt: map['started_at'] as int?,
     );
   }
 

@@ -10,6 +10,7 @@ import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'board_screen.dart';
 import 'calendar_screen.dart';
 import 'done_screen.dart';
 import 'settings_screen.dart';
@@ -68,16 +69,20 @@ class _HomeScreenState extends State<HomeScreen>
   late final List<Widget> _pages = [
     TasksScreen(onMenu: _openMenu),
     CalendarScreen(onMenu: _openMenu),
+    BoardScreen(onMenu: _openMenu, shown: _boardShown),
     DoneScreen(onMenu: _openMenu, shown: _doneShown),
     SettingsScreen(onMenu: _openMenu),
   ];
 
   bool get _isOpen => _menu.value > 0.5;
 
-  /// Whether Done is the screen on show, which is when it reads its log.
+  /// Whether the board and Done are the screen on show, which is when each
+  /// reads what it draws.
+  late final _boardShown = ValueNotifier<bool>(_index == _board);
   late final _doneShown = ValueNotifier<bool>(_index == _done);
 
-  static const _done = 2;
+  static const _board = 2;
+  static const _done = 3;
 
   /// A release newer than this one, once the check on opening has found it.
   Update? _update;
@@ -115,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _menu.dispose();
+    _boardShown.dispose();
     _doneShown.dispose();
     super.dispose();
   }
@@ -128,6 +134,7 @@ class _HomeScreenState extends State<HomeScreen>
     _closeMenu();
     if (i == _index) return;
     setState(() => _index = i);
+    _boardShown.value = i == _board;
     _doneShown.value = i == _done;
     final provider = context.read<TaskProvider>();
     if (i == 0) provider.loadTasks();
@@ -377,8 +384,9 @@ class _Screen extends StatelessWidget {
 }
 
 /// The drawer behind the menu button: the screens, the current one picked
-/// out. Done is the fourth, under the two that are about what is still to
-/// come and above Settings: it is a place to look, not a setting.
+/// out. The board comes after the two that are about when, being about how
+/// far along; Done under it, and above Settings: it is a place to look, not
+/// a setting.
 class _Menu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelected;
@@ -394,6 +402,7 @@ class _Menu extends StatelessWidget {
       Icons.calendar_month,
       (s) => s.calendar,
     ),
+    _TabItem(Icons.view_kanban_outlined, Icons.view_kanban, (s) => s.board),
     _TabItem(Icons.task_alt_outlined, Icons.task_alt, (s) => s.done),
     _TabItem(Icons.settings_outlined, Icons.settings, (s) => s.settings),
   ];
