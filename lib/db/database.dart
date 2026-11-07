@@ -147,6 +147,33 @@ class AppDatabase {
     return list.copyWith(id: id);
   }
 
+  /// Writes back a group's name and colour.
+  Future<void> updateList(TaskList list) async {
+    final db = await database;
+    await db.update(
+      _lists,
+      list.toMap()..remove('id'),
+      where: 'id = ?',
+      whereArgs: [list.id],
+    );
+  }
+
+  /// Deletes the group [id], moving its tasks into [into] rather than
+  /// deleting them with it: a group is a way of looking at tasks, and taking
+  /// one away should not take away what was in it.
+  Future<void> deleteList(int id, {required int into}) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.update(
+        _tasks,
+        {'list_id': into},
+        where: 'list_id = ?',
+        whereArgs: [id],
+      );
+      await txn.delete(_lists, where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
   // ---- Tasks --------------------------------------------------------------
 
   /// Every task, which is what the search screen asks for. [query] matches

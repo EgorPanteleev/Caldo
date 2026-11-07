@@ -403,7 +403,9 @@ class _Menu extends StatelessWidget {
     final p = AppTheme.of(context);
     // The count and nothing else: watching the whole provider rebuilt the
     // menu on every change to every task.
-    final overdue = context.select<TaskProvider, int>((p) => p.overdue.length);
+    final overdue = context.select<TaskProvider, int>(
+      (p) => p.allOverdue.length,
+    );
 
     return Material(
       color: p.sidebar,

@@ -22,7 +22,7 @@ class MenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final overdue = context.select<TaskProvider, bool>(
-      (p) => p.overdue.isNotEmpty,
+      (p) => p.allOverdue.isNotEmpty,
     );
     return IconButton(
       key: menuButtonKey,

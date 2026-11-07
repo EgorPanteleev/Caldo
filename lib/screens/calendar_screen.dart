@@ -17,6 +17,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/carry.dart';
 import '../widgets/day_sheet.dart';
+import '../widgets/groups.dart';
 import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
@@ -640,7 +641,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     final mondayFirst = settings.weekStartsMonday;
     final country = settings.effectiveHolidayCountry;
     // Nullable so a screen pumped without the phone's calendars still draws.
-    final events = context.watch<EventsProvider?>();
+    final events = eventsOnShow(context);
     final page = _controller.hasClients
         ? (_controller.page?.round() ?? _basePage)
         : _basePage;
@@ -1108,6 +1109,12 @@ class _MonthBar extends StatelessWidget {
               const SizedBox(width: 6),
             ],
           ),
+        ),
+        // Between the controls and the month's name, where Schedule has it
+        // under its own header, so it is in one place on both screens.
+        const Padding(
+          padding: EdgeInsets.only(top: 2, bottom: 6),
+          child: SizedBox(width: double.infinity, child: GroupChips()),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),

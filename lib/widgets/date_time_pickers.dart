@@ -22,7 +22,7 @@ Future<DateTime?> showAppDatePicker({
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _Sheet(
+    builder: (_) => PickerSheet(
       child: _DateSheet(
         initial: initial ?? now,
         firstDate: firstDate ?? DateTime(now.year - 5),
@@ -42,7 +42,7 @@ Future<TimeOfDay?> showAppTimePicker({
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _Sheet(
+    builder: (_) => PickerSheet(
       child: _TimeSheet(
         initial: initial ?? const TimeOfDay(hour: 9, minute: 0),
       ),
@@ -50,10 +50,11 @@ Future<TimeOfDay?> showAppTimePicker({
   );
 }
 
-/// The rounded panel every picker sits in, with a drag handle on top.
-class _Sheet extends StatelessWidget {
+/// The rounded panel every picker sits in, with a drag handle on top — and
+/// the sheet a group is made in, which sits beside them.
+class PickerSheet extends StatelessWidget {
   final Widget child;
-  const _Sheet({required this.child});
+  const PickerSheet({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -415,11 +416,11 @@ class _TimeSheetState extends State<_TimeSheet> {
             // end of the sheet instead of as a pair to choose between.
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _SheetAction(
+              SheetAction(
                 label: S.of(context).cancel,
                 onTap: () => Navigator.of(context).pop(),
               ),
-              _SheetAction(
+              SheetAction(
                 label: S.of(context).save,
                 onTap: () => Navigator.of(context).pop(current),
               ),
@@ -521,11 +522,11 @@ class _WheelState extends State<_Wheel> {
 /// A word at the foot of a sheet that does something: no fill, no outline, and
 /// the same weight as its opposite number, since neither is more the answer
 /// than the other until the user has decided.
-class _SheetAction extends StatelessWidget {
+class SheetAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _SheetAction({required this.label, required this.onTap});
+  const SheetAction({super.key, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

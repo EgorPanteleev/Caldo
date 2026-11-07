@@ -249,7 +249,6 @@ class S {
   String get calendarsRefused => _word('calendarsRefused');
   String get noCalendars => _word('noCalendars');
   String get sectionTasks => _word('sectionTasks');
-  String get newTaskColour => _word('newTaskColour');
   String get showCompleted => _word('showCompleted');
   String get showCompletedHint => _word('showCompletedHint');
   String get clearCompleted => _word('clearCompleted');
@@ -275,6 +274,16 @@ class S {
   String get notesField => _word('notesField');
   String get sectionSubtasks => _word('sectionSubtasks');
   String get addSubtask => _word('addSubtask');
+  String get allGroups => _word('allGroups');
+  String get newGroup => _word('newGroup');
+  String get editGroup => _word('editGroup');
+  String get groupName => _word('groupName');
+  String get sectionGroup => _word('sectionGroup');
+  String deleteGroupQuestion(String name) =>
+      _fill('deleteGroupQuestion', {'name': name});
+  String groupTasksMoveTo(String group) =>
+      _fill('groupTasksMoveTo', {'group': group});
+  String get personal => _word('personal');
   String get dueDate => _word('dueDate');
   String get time => _word('time');
   String get none => _word('none');

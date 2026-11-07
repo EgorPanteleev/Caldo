@@ -4,12 +4,12 @@ import 'package:provider/provider.dart';
 import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
-import '../providers/events_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../screens/task_edit_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'groups.dart';
 import 'quick_add_bar.dart';
 import 'reorderable_task_list.dart';
 import 'tick_off.dart';
@@ -88,7 +88,7 @@ class _DaySheetState extends State<_DaySheet> {
     final day = dayOf(widget.day);
     final tasks = provider.tasksForDay(day);
     final holidays = Holidays.around(country, day)[day] ?? const <Holiday>[];
-    final events = context.watch<EventsProvider?>()?.on(day) ?? const [];
+    final events = eventsOnShow(context)?.on(day) ?? const [];
     final open = tasks.where((t) => !t.done).length;
 
     // The card is a dialog, so nothing lifts it for the keyboard the way a

@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
 import '../models/task.dart';
-import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -184,8 +183,9 @@ class _ConfirmButton extends StatelessWidget {
   }
 }
 
-/// Files an all-day task on [day] from a one-line title, in the colour new
-/// tasks are set to start in.
+/// Files an all-day task on [day] from a one-line title, into the group on
+/// show — added to a screen showing one group, a task anywhere else would
+/// vanish as it was filed — and in that group's colour.
 Future<void> quickAddTask(
   BuildContext context, {
   required DateTime day,
@@ -194,14 +194,11 @@ Future<void> quickAddTask(
   final trimmed = title.trim();
   if (trimmed.isEmpty) return;
   final provider = context.read<TaskProvider>();
-  final styleId = context.read<SettingsProvider>().defaultTaskStyleId;
-  final lists = provider.lists;
   await provider.add(
     Task(
-      listId: lists.isNotEmpty ? lists.first.id! : 1,
+      listId: provider.groupForNew,
       title: trimmed,
       dueAt: dayOf(day).millisecondsSinceEpoch,
-      styleId: styleId,
       createdAt: DateTime.now().millisecondsSinceEpoch,
     ),
   );

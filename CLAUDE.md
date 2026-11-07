@@ -40,7 +40,7 @@ lib/
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
-                         colour_selector,
+                         colour_selector, groups,
                          date_time_pickers, day_sheet, menu_button,
                          quick_add_bar, screen_header, selection_bar,
                          theme_switcher, slide_into_place,
@@ -60,19 +60,14 @@ Four destinations — **Schedule**, **Calendar**, **Done**, **Settings** — in
 a drawer behind the menu button at the top left of each, and nothing else in
 it. Done came last, asked for as "a Done log or simple stats".
 
-**There are no list screens.** The Lists, list and list-edit screens had been
-unreachable since the folder button went with the Schedule header and Lists
-came back out of the menu, and they were deleted rather than given a way in
-again: the app is three destinations, a task wears a colour of its own, and
-new tasks start in the colour Settings names, which covers what a list was
-mostly for here. The lists themselves are still real underneath — every task
-carries a `list_id`, the default list is "Personal", and a task with no colour
-of its own takes its list's — so `TaskList`, `addList` and the form's List
-field (shown only when there is more than one list) stay. What went with the
-screens: the provider's "open list" (`openList`, `tasks`, `search`), renaming
-and deleting lists, `GradientIconButton` and `SelectionBar`. Tests that need
-a task by name read it from the database (`taskNamed` in
-`test/support/test_db.dart`).
+**Lists are groups, and there are still no list screens.** The Lists, list
+and list-edit screens were deleted once they had been unreachable for a
+while. The lists underneath every task (`list_id`, `TaskList`, the default
+"Personal") came back to the surface as **groups** — see the decision below
+— through a row of chips and a sheet, not through screens of their own. The
+provider's old "open list" (`openList`, `tasks`, `search`),
+`GradientIconButton` and `SelectionBar` stay gone. Tests that need a task by
+name read it from the database (`taskNamed` in `test/support/test_db.dart`).
 
 ## Decisions worth keeping
 
@@ -399,9 +394,34 @@ Changing them back will be noticed.
 - **The plus beside the quick-add field opens the full form**; the tick files
   what has been typed. A plus that did nothing at all on an empty field was
   the state it was left in when the Schedule header's add button was removed.
-- **New tasks start in the colour Settings names** (`defaultTaskStyleId`, null
-  meaning they take their list's). Every quick-add goes through `quickAddTask`
-  so the three fields that have one cannot drift apart on this.
+- **A task is in one group, and Schedule and the calendar can show one
+  group at a time** (`GroupChips`, `TaskProvider.showGroup`, `groups.dart`).
+  Asked for as "split tasks in groups, for ex university, friends", without
+  setting anything up in Settings. A group is one of the lists every task
+  already had. **Tags came first and were taken back out** — any number per
+  task, `#uni` in the add field, a filter button in the header: "i dont
+  like tags like this, it must be more group than tag". Chosen from three
+  mockups: a row of chips under each screen's header — All, each group with
+  its colour as a dot, and a plus — always there, even with only the default
+  group, since it is where groups are found to exist. The two screens share
+  one choice. A group is made from the plus there or beside the form's
+  Group row, and a long press on any of its chips renames, recolours or
+  deletes it; there is no list of groups anywhere else. Deleting moves its
+  tasks into the default group (the oldest, "Personal", written in the app's
+  language until renamed), which cannot itself be deleted.
+  While a group is chosen: only its tasks are drawn, the phone's calendar
+  events go (they are in no group), holidays stay (they are the calendar's,
+  like the red Sundays), and a task added on either screen or from the form
+  goes into it — anywhere else, it would vanish as it was filed. The choice
+  is held for the run of the app and not stored. The provider keeps the full
+  lists beside the narrowed ones; alarms, the home-screen widget and the
+  menu's overdue dot read the full ones (`allOverdue`, `allUpcomingByDay`).
+  **A group's colour is its tasks' colour.** New tasks have no colour of
+  their own, and moving a task to another group in the form puts it back on
+  the group's. The Settings colour that every new task used to start in
+  ("New tasks start in the colour Settings names") would have hidden every
+  group's colour, so it went: whatever it was set to became the default
+  group's colour, once, on the first start after (`_taskColourToGroup`).
 - **The quick-add button is a plus until the field is opened, then a tick**,
   and it is plain rather than the accent gradient the headers wear — it sits
   beside the field the eye is already on.
@@ -1106,7 +1126,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 161 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 164 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

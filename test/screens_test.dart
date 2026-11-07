@@ -1,4 +1,5 @@
 import 'package:caldo/models/task.dart';
+import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/tasks_screen.dart';
@@ -1194,16 +1195,16 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('a quick-added task takes the colour new tasks start in', (
-    tester,
-  ) async {
+  testWidgets('a quick-added task goes into the group on show', (tester) async {
     late _CapturingProvider provider;
+    late TaskList uni;
     await tester.runAsync(() async {
       provider = _CapturingProvider();
       await provider.loadLists();
+      uni = await provider.addList(
+        TaskList(name: 'University', styleId: 'cyan', createdAt: 1),
+      );
     });
-    final settings = SettingsProvider();
-    await tester.runAsync(() => settings.update(defaultTaskStyleId: 'green'));
 
     tester.view.physicalSize = const Size(1080, 2280);
     tester.view.devicePixelRatio = 3;
@@ -1212,7 +1213,9 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider<TaskProvider>.value(value: provider),
-          ChangeNotifierProvider<SettingsProvider>.value(value: settings),
+          ChangeNotifierProvider<SettingsProvider>(
+            create: (_) => SettingsProvider(),
+          ),
         ],
         child: MaterialApp(
           theme: AppTheme.dark(AppAccent.presets.first),
@@ -1222,11 +1225,18 @@ void main() {
     );
     await tester.pump();
 
-    await tester.enterText(find.byType(TextField), 'Buy milk');
+    await tester.tap(find.text('University'));
+    await tester.pump();
+    expect(provider.group, uni.id);
+
+    await tester.enterText(find.byType(TextField), 'Essay');
     await tester.tap(find.byKey(quickAddButtonKey));
     await tester.pump();
 
-    expect(provider.added?.styleId, 'green');
+    // In the group, and in the group's colour rather than one of its own,
+    // or it would vanish from the screen it was added on.
+    expect(provider.added?.listId, uni.id);
+    expect(provider.added?.styleId, isNull);
   });
 
   testWidgets('the plus beside an empty field opens the full form', (

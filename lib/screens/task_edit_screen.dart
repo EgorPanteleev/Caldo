@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
+import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart'
     show GroundFade, KeyboardLift, KeyboardRoom;
 import '../widgets/task_card.dart' show CheckMark;
@@ -19,8 +20,8 @@ import '../widgets/task_row.dart' show PriorityFlag;
 class TaskEditScreen extends StatefulWidget {
   final Task? task;
 
-  /// The list a new task should go into (a starting choice; the user can
-  /// change it when there is more than one list).
+  /// The group a new task should go into (a starting choice; the form can
+  /// change it).
   final int? listId;
 
   /// Pre-selected due date for a task created from the calendar.
@@ -79,11 +80,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       _steps.add(_Draft(step.title, done: step.done, onEdit: _touched));
     }
     _newStep.addListener(_touched);
-    // A new task starts in the colour Settings says new tasks start in; an
-    // existing one keeps whatever it was given.
-    _styleId = task == null
-        ? context.read<SettingsProvider>().defaultTaskStyleId
-        : task.styleId;
+    // A new task takes its group's colour; an existing one keeps whatever
+    // it was given.
+    _styleId = task?.styleId;
 
     final due = task?.due;
     if (due != null) {
@@ -93,11 +92,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       _date = dayOf(widget.initialDate!);
     }
 
-    final lists = context.read<TaskProvider>().lists;
+    // A new task goes into the group on show, as one quick-added does.
     _selectedListId =
         task?.listId ??
         widget.listId ??
-        (lists.isNotEmpty ? lists.first.id : null);
+        context.read<TaskProvider>().groupForNew;
   }
 
   @override
@@ -151,6 +150,17 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         Subtask(step.title.text.trim(), done: step.done),
     if (_newStep.text.trim().isNotEmpty) Subtask(_newStep.text.trim()),
   ];
+
+  /// Moves the task into group [id]. Its colour goes back to following the
+  /// group's: a task put into University is meant to look like University.
+  void _pickGroup(int? id) {
+    if (id == null || id == _selectedListId) return;
+    _touched();
+    setState(() {
+      _selectedListId = id;
+      _styleId = null;
+    });
+  }
 
   /// The chosen date merged with the chosen time, or null for an undated task.
   DateTime? get _due {
@@ -446,6 +456,41 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                               ),
                               const SizedBox(height: 22),
                               Text(
+                                s.sectionGroup,
+                                style: TextStyle(
+                                  color: p.faint,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                key: groupFieldKey,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final list in lists)
+                                    GroupChip(
+                                      label: groupLabel(context, list),
+                                      color: list.style.color,
+                                      selected: list.id == validId,
+                                      onTap: () => _pickGroup(list.id),
+                                      onLongPress: () =>
+                                          showGroupSheet(context, group: list),
+                                    ),
+                                  GroupChip.add(
+                                    onTap: () async {
+                                      final made = await showGroupSheet(
+                                        context,
+                                      );
+                                      if (made != null) _pickGroup(made.id);
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 22),
+                              Text(
                                 s.sectionColour,
                                 style: TextStyle(
                                   color: p.faint,
@@ -468,38 +513,6 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                   setState(() => _styleId = v);
                                 },
                               ),
-                              if (lists.length > 1) ...[
-                                const SizedBox(height: 22),
-                                DropdownButtonFormField<int>(
-                                  initialValue: validId,
-                                  decoration: InputDecoration(
-                                    labelText: s.list,
-                                  ),
-                                  items: lists
-                                      .map(
-                                        (l) => DropdownMenuItem(
-                                          value: l.id,
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons.circle,
-                                                size: 10,
-                                                color: l.style.color,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(l.name),
-                                            ],
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (v) {
-                                    _touched();
-                                    setState(() => _selectedListId = v);
-                                  },
-                                ),
-                              ],
                             ],
                           ),
                         ),
@@ -687,6 +700,9 @@ class _Checklist extends StatelessWidget {
     );
   }
 }
+
+/// The form's row of groups.
+const groupFieldKey = Key('group-field');
 
 /// The field at the foot of the form's checklist that adds a step.
 const newSubtaskFieldKey = Key('new-subtask-field');

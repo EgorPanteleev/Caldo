@@ -41,23 +41,36 @@ class TaskProvider extends ChangeNotifier {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
 
   /// Dated tasks of [_month], grouped by the day they fall on.
-  Map<DateTime, List<Task>> _byDay = {};
+  Map<DateTime, List<Task>> _allByDay = {};
 
   /// Open tasks whose due date has already passed.
-  List<Task> _overdue = [];
+  List<Task> _allOverdue = [];
 
   /// Dated tasks from today onwards (done ones included, so a day's progress
   /// is visible), backing the Tasks screen and the calendar.
-  List<Task> _upcoming = [];
+  List<Task> _allUpcoming = [];
 
-  /// [_upcoming] grouped into days, sorted once when it is read in. Sorting
-  /// it again on every build put a ticked task at the end of its day on
-  /// Schedule the moment it was marked done — before it was crossed out, and
-  /// with nothing to slide it there.
-  Map<DateTime, List<Task>> _upcomingByDay = {};
+  /// [_allUpcoming] grouped into days, sorted once when it is read in.
+  /// Sorting it again on every build put a ticked task at the end of its day
+  /// on Schedule the moment it was marked done — before it was crossed out,
+  /// and with nothing to slide it there.
+  Map<DateTime, List<Task>> _allUpcomingByDay = {};
 
   /// Tasks with no due date, listed after the dated ones.
+  List<Task> _allUndated = [];
+
+  /// The same, narrowed to the [group] on show — what the screens draw.
+  /// Worked out once per read rather than per build, for the reason
+  /// [_allUpcomingByDay] is.
+  Map<DateTime, List<Task>> _byDay = {};
+  List<Task> _overdue = [];
+  List<Task> _upcoming = [];
+  Map<DateTime, List<Task>> _upcomingByDay = {};
   List<Task> _undated = [];
+
+  /// The id of the one group Schedule and the calendar are showing, or null
+  /// for every task.
+  int? _group;
 
   List<TaskList> get lists => _lists;
   DateTime get month => _month;
@@ -65,6 +78,54 @@ class TaskProvider extends ChangeNotifier {
   List<Task> get overdue => _overdue;
   List<Task> get upcoming => _upcoming;
   List<Task> get undated => _undated;
+  int? get group => _group;
+
+  /// The backlog and the days to come whichever group is on show: the
+  /// home-screen widget and the menu's overdue dot are not looking at a
+  /// screen, and what they say is about every task there is.
+  List<Task> get allOverdue => _allOverdue;
+  Map<DateTime, List<Task>> get allUpcomingByDay => _allUpcomingByDay;
+
+  /// The group a task goes into when nothing says otherwise — the oldest,
+  /// "Personal" unless it was renamed. It cannot be deleted.
+  int get defaultGroup => _lists.isEmpty ? 1 : _lists.first.id!;
+
+  /// The group a task made on a screen now goes into: the one on show, or
+  /// the default group when everything is.
+  int get groupForNew => _group ?? defaultGroup;
+
+  /// Shows only the tasks of group [id] on Schedule and the calendar, or
+  /// every task again when it is null. Held for the run of the app and not
+  /// stored: a group left chosen yesterday is tasks gone missing today.
+  void showGroup(int? id) {
+    if (id == _group) return;
+    _group = id;
+    _narrow();
+    notifyListeners();
+  }
+
+  /// Puts the narrowed views back in step with what was read.
+  void _narrow() {
+    final id = _group;
+    List<Task> keep(List<Task> tasks) => id == null
+        ? tasks
+        : [
+            for (final t in tasks)
+              if (t.listId == id) t,
+          ];
+    Map<DateTime, List<Task>> keepDays(Map<DateTime, List<Task>> days) =>
+        id == null
+        ? days
+        : {
+            for (final MapEntry(:key, :value) in days.entries)
+              if (keep(value) case final kept when kept.isNotEmpty) key: kept,
+          };
+    _byDay = keepDays(_allByDay);
+    _overdue = keep(_allOverdue);
+    _upcoming = keep(_allUpcoming);
+    _upcomingByDay = keepDays(_allUpcomingByDay);
+    _undated = keep(_allUndated);
+  }
 
   TaskList? listById(int id) {
     for (final l in _lists) {
@@ -89,6 +150,23 @@ class TaskProvider extends ChangeNotifier {
     return created;
   }
 
+  /// Renames or recolours a group. Its tasks are read back, since every one
+  /// without a colour of its own is drawn in the group's.
+  Future<void> updateList(TaskList list) async {
+    await _db.updateList(list);
+    await _reloadAll();
+  }
+
+  /// Deletes a group, moving its tasks into the default group. The default
+  /// group itself stays.
+  Future<void> deleteList(int id) async {
+    if (id == defaultGroup) return;
+    await _db.deleteList(id, into: defaultGroup);
+    if (_group == id) _group = null;
+    rearranging.value++;
+    await _reloadAll();
+  }
+
   /// Mirrors the "show completed" setting into search.
   void setShowCompleted(bool value) => _showCompleted = value;
 
@@ -107,9 +185,12 @@ class TaskProvider extends ChangeNotifier {
   /// card in that day's list, and the list must not lose it from under the
   /// finger.
   Future<void> loadMonth(DateTime date, {DateTime? keep}) async {
-    final kept = keep == null ? null : _byDay[dayOf(keep)];
+    final kept = keep == null ? null : _allByDay[dayOf(keep)];
     await _readMonth(date);
-    if (kept != null) _byDay.putIfAbsent(dayOf(keep!), () => kept);
+    if (kept != null) {
+      _allByDay.putIfAbsent(dayOf(keep!), () => kept);
+      _narrow();
+    }
     notifyListeners();
   }
 
@@ -124,7 +205,8 @@ class TaskProvider extends ChangeNotifier {
       from.millisecondsSinceEpoch,
       to.millisecondsSinceEpoch,
     );
-    _byDay = _groupByDay(tasks);
+    _allByDay = _groupByDay(tasks);
+    _narrow();
   }
 
   /// Tasks due on [day], open ones first.
@@ -151,10 +233,11 @@ class TaskProvider extends ChangeNotifier {
       to.millisecondsSinceEpoch,
     );
     final undated = await _db.getUndated();
-    _overdue = overdue;
-    _upcoming = upcoming;
-    _undated = undated;
-    _upcomingByDay = _groupByDay(upcoming);
+    _allOverdue = overdue;
+    _allUpcoming = upcoming;
+    _allUndated = undated;
+    _allUpcomingByDay = _groupByDay(upcoming);
+    _narrow();
   }
 
   /// Every path that changes a task ends in a read of the agenda, which makes
@@ -172,7 +255,7 @@ class TaskProvider extends ChangeNotifier {
   /// The home-screen widget is redrawn from the same read, for the same
   /// reason the alarms are: every change ends here.
   Future<void> _afterRead() async {
-    await Reminders.instance.sync([..._overdue, ..._upcoming]);
+    await Reminders.instance.sync([..._allOverdue, ..._allUpcoming]);
     await TodayWidget.publish(this);
   }
 
@@ -376,7 +459,7 @@ class TaskProvider extends ChangeNotifier {
       // A card that is leaving fades out first; one that is staying only has
       // to be seen crossed out before it moves.
       await Future<void>.delayed(
-        rolls || _overdue.any((t) => t.id == id) ? leave : hold,
+        rolls || _allOverdue.any((t) => t.id == id) ? leave : hold,
       );
       _settled.remove(id);
       _rolling.remove(id);

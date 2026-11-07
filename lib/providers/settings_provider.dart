@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' show Locale, ThemeMode, TimeOfDay;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/holidays.dart';
+import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../services/reminders.dart';
 import '../services/today_widget.dart';
@@ -23,6 +24,9 @@ class SettingsProvider extends ChangeNotifier {
   static const _kShowCompleted = 'show_completed';
   static const _kHolidayCountry = 'holiday_country';
   static const _kShowHolidays = 'show_holidays';
+
+  /// The colour new tasks used to start in, which a setting chose before
+  /// tasks had groups. Read once, to colour the default group.
   static const _kDefaultStyle = 'default_task_style';
   static const _kReminders = 'reminders_enabled';
   static const _kReminderAt = 'reminder_minutes';
@@ -63,9 +67,6 @@ class SettingsProvider extends ChangeNotifier {
   /// The phone's calendars whose events are left out, by id. Left out rather
   /// than let in, so a calendar added later shows up without being asked.
   Set<String> _hiddenCalendars = const {};
-
-  /// The colour a new task starts with, or null to take its list's.
-  String? _defaultTaskStyleId;
 
   /// Whether a dated task puts up a notification when it comes due.
   bool _reminders = true;
@@ -117,7 +118,6 @@ class SettingsProvider extends ChangeNotifier {
   String? get holidayCountry => _holidayCountry;
   bool get showDeviceEvents => _showDeviceEvents;
   Set<String> get hiddenCalendars => _hiddenCalendars;
-  String? get defaultTaskStyleId => _defaultTaskStyleId;
   bool get reminders => _reminders;
   int get reminderMinutes => _reminderMinutes;
   int get reminderLead => _reminderLead;
@@ -161,6 +161,7 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _read(prefs);
+    await _taskColourToGroup(prefs);
     S.use(languageInForce);
     Dates.use24Hour = use24Hour;
     await _tellReminders();
@@ -171,6 +172,22 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A new task takes its group's colour now; a colour of its own on every
+  /// task added would hide the group's. The setting it used to take one from
+  /// is gone, and what it said is kept as the colour of the default group,
+  /// where new tasks land when no group is chosen — so they come out in the
+  /// colour they always have.
+  static Future<void> _taskColourToGroup(SharedPreferences prefs) async {
+    final colour = prefs.getString(_kDefaultStyle);
+    if (colour == null) return;
+    final db = AppDatabase.instance;
+    final lists = await db.getLists();
+    if (lists.isNotEmpty) {
+      await db.updateList(lists.first.copyWith(styleId: colour));
+    }
+    await prefs.remove(_kDefaultStyle);
+  }
+
   void _read(SharedPreferences prefs) {
     _startScreen = _startScreenFromString(prefs.getString(_kStartScreen));
     _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
@@ -179,7 +196,6 @@ class SettingsProvider extends ChangeNotifier {
     _showCompleted = prefs.getBool(_kShowCompleted) ?? _showCompleted;
     _showHolidays = prefs.getBool(_kShowHolidays) ?? _showHolidays;
     _holidayCountry = prefs.getString(_kHolidayCountry);
-    _defaultTaskStyleId = prefs.getString(_kDefaultStyle);
     _reminders = prefs.getBool(_kReminders) ?? _reminders;
     _reminderMinutes = prefs.getInt(_kReminderAt) ?? _reminderMinutes;
     _reminderLead = prefs.getInt(_kReminderLead) ?? _reminderLead;
@@ -197,7 +213,6 @@ class SettingsProvider extends ChangeNotifier {
     bool? showCompleted,
     bool? showHolidays,
     String? holidayCountry,
-    String? defaultTaskStyleId,
     bool? reminders,
     int? reminderMinutes,
     int? reminderLead,
@@ -211,9 +226,6 @@ class SettingsProvider extends ChangeNotifier {
 
     /// Go back to following the device's country.
     bool clearHolidayCountry = false,
-
-    /// Go back to new tasks taking their list's colour.
-    bool clearDefaultTaskStyle = false,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     if (startScreen != null) {
@@ -246,13 +258,6 @@ class SettingsProvider extends ChangeNotifier {
     } else if (holidayCountry != null) {
       _holidayCountry = holidayCountry;
       await prefs.setString(_kHolidayCountry, holidayCountry);
-    }
-    if (clearDefaultTaskStyle) {
-      _defaultTaskStyleId = null;
-      await prefs.remove(_kDefaultStyle);
-    } else if (defaultTaskStyleId != null) {
-      _defaultTaskStyleId = defaultTaskStyleId;
-      await prefs.setString(_kDefaultStyle, defaultTaskStyleId);
     }
     if (use24Hour != null && use24Hour != this.use24Hour) {
       _use24Hour = use24Hour;

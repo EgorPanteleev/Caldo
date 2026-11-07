@@ -9,7 +9,6 @@ import '../services/device_calendars.dart';
 import '../services/reminders.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
-import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
@@ -253,33 +252,6 @@ class SettingsScreen extends StatelessWidget {
                 ],
                 const SizedBox(height: 28),
                 SectionLabel(s.sectionTasks),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    s.newTaskColour,
-                    style: TextStyle(color: p.muted, fontSize: 14),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: ColourSelector(
-                    value: settings.defaultTaskStyleId,
-                    // The link swatch means "whatever list it goes into", so
-                    // it shows the colour of the list a new task lands in.
-                    // Selected rather than watched: watching the provider
-                    // rebuilt all of Settings, hidden in the stack, on every
-                    // change to any task.
-                    listColor:
-                        context.select<TaskProvider, Color?>(
-                          (p) => p.lists.map((l) => l.style.color).firstOrNull,
-                        ) ??
-                        AppTheme.accentOf(context).color,
-                    onChanged: (v) => context.read<SettingsProvider>().update(
-                      defaultTaskStyleId: v,
-                      clearDefaultTaskStyle: v == null,
-                    ),
-                  ),
-                ),
                 _SwitchTile(
                   icon: Icons.visibility_outlined,
                   title: s.showCompleted,

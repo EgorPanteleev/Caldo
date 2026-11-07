@@ -4,13 +4,13 @@ import 'package:provider/provider.dart';
 import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
-import '../providers/events_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/device_calendars.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/carry.dart';
+import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/reorderable_task_list.dart';
 import '../widgets/screen_header.dart';
@@ -86,7 +86,7 @@ class _TasksScreenState extends State<TasksScreen> {
     final byDay = provider.upcomingByDay;
     // A day with nothing on it but an event from the phone's calendars is
     // still a day with something on it.
-    final events = context.watch<EventsProvider?>();
+    final events = eventsOnShow(context);
     final horizon = today.add(const Duration(days: TaskProvider.agendaDays));
     final days = {
       ...byDay.keys,
@@ -157,6 +157,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 const SizedBox(width: 6),
               ],
             ),
+            const SizedBox(width: double.infinity, child: GroupChips()),
             Expanded(
               // The run of days fades into the ground the add field sits on
               // rather than being cut off square by it, the same way the day's
