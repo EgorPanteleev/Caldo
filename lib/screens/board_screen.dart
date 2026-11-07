@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +41,14 @@ class _BoardScreenState extends State<BoardScreen> {
 
   bool _listening = false;
 
+  /// The lanes, a page each with the next one showing at the side.
+  final _pages = PageController(viewportFraction: _Board.laneFraction);
+
+  /// While a card is carried: which side of the screen it is held at, and
+  /// the timer that turns the board towards it.
+  int _side = 0;
+  Timer? _turning;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +60,8 @@ class _BoardScreenState extends State<BoardScreen> {
   void dispose() {
     widget.shown?.removeListener(_follow);
     if (_listening) _tasks.removeListener(_load);
+    _turning?.cancel();
+    _pages.dispose();
     super.dispose();
   }
 
@@ -82,6 +94,40 @@ class _BoardScreenState extends State<BoardScreen> {
       _all = [for (final t in _all) t.id == task.id ? moved : t];
     });
     _tasks.moveToStage(task, stage);
+  }
+
+  /// Turns the board towards a side a card is held at: after a moment
+  /// there, then on every so often while it stays. Held rather than
+  /// touched, since a card is carried across the lane's edge on its way to
+  /// the next one showing beside it.
+  void _watchEdges(Offset finger) {
+    final width = MediaQuery.sizeOf(context).width;
+    final side = finger.dx < _Board.edge
+        ? -1
+        : finger.dx > width - _Board.edge
+        ? 1
+        : 0;
+    if (side == _side) return;
+    _side = side;
+    _turning?.cancel();
+    if (side != 0) _turning = Timer(_Board.firstTurn, _turn);
+  }
+
+  void _turn() {
+    final page = (_pages.page ?? 0).round() + _side;
+    if (page >= 0 && page < Stage.values.length) {
+      _pages.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    _turning = Timer(_Board.nextTurn, _turn);
+  }
+
+  void _stopWatching() {
+    _turning?.cancel();
+    _side = 0;
   }
 
   Future<void> _open([Task? task]) async {
@@ -146,25 +192,33 @@ class _BoardScreenState extends State<BoardScreen> {
           // The same choice of group as Schedule and the calendar make.
           const SizedBox(width: double.infinity, child: GroupChips()),
           const SizedBox(height: 14),
+          // Wide enough lanes for a card to be a Jira card, so a page each,
+          // with the next lane at the side to say there is one and to be
+          // carried onto. Three at once left a column a third of a phone
+          // wide and a title a word a line.
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final stage in Stage.values) ...[
-                    if (stage != Stage.notStarted) const SizedBox(width: 6),
-                    Expanded(
-                      child: _Column(
-                        stage: stage,
-                        tasks: columns[stage]!,
-                        onTap: _open,
-                        onDrop: (task) => _move(task, stage),
-                      ),
+            child: PageView(
+              controller: _pages,
+              padEnds: false,
+              children: [
+                for (final stage in Stage.values)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      _Board.gap,
+                      0,
+                      stage == Stage.values.last ? _Board.gap : 0,
+                      _Board.gap,
                     ),
-                  ],
-                ],
-              ),
+                    child: _Column(
+                      stage: stage,
+                      tasks: columns[stage]!,
+                      onTap: _open,
+                      onDrop: (task) => _move(task, stage),
+                      onCarry: _watchEdges,
+                      onPutDown: _stopWatching,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -182,11 +236,19 @@ class _Column extends StatelessWidget {
   final ValueChanged<Task> onTap;
   final ValueChanged<Task> onDrop;
 
+  /// Where a card picked up from this lane is being carried, on the screen.
+  final ValueChanged<Offset> onCarry;
+
+  /// The card has been let go, wherever it was.
+  final VoidCallback onPutDown;
+
   const _Column({
     required this.stage,
     required this.tasks,
     required this.onTap,
     required this.onDrop,
+    required this.onCarry,
+    required this.onPutDown,
   });
 
   static String nameOf(S s, Stage stage) => switch (stage) {
@@ -203,9 +265,9 @@ class _Column extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final header = TextStyle(
       color: p.muted,
-      fontSize: 11.5,
+      fontSize: 12.5,
       fontWeight: FontWeight.w600,
-      letterSpacing: 0.4,
+      letterSpacing: 0.5,
       height: 1.25,
     );
     return DragTarget<Task>(
@@ -228,16 +290,22 @@ class _Column extends StatelessWidget {
           builder: (context, box) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // The name stands over the titles, in line with them.
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+                padding: const EdgeInsets.fromLTRB(
+                  _Board.inset + BoardCard.padding,
+                  16,
+                  _Board.inset + BoardCard.padding,
+                  14,
+                ),
                 child: Text.rich(
                   TextSpan(
                     children: [
                       TextSpan(text: nameOf(s, stage).toUpperCase()),
-                      TextSpan(text: '  ${tasks.length}'),
+                      TextSpan(text: '   ${tasks.length}'),
                     ],
                   ),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: header,
                 ),
@@ -246,7 +314,12 @@ class _Column extends StatelessWidget {
                 child: _FadeFoot(
                   child: ListView.builder(
                     // Room to scroll the last card clear of the fade.
-                    padding: const EdgeInsets.fromLTRB(5, 0, 5, 24),
+                    padding: const EdgeInsets.fromLTRB(
+                      _Board.inset,
+                      0,
+                      _Board.inset,
+                      28,
+                    ),
                     itemCount: tasks.length,
                     itemBuilder: (context, i) {
                       final task = tasks[i];
@@ -259,8 +332,10 @@ class _Column extends StatelessWidget {
                         key: ValueKey(task.id),
                         data: task,
                         hapticFeedbackOnStart: true,
+                        onDragUpdate: (d) => onCarry(d.globalPosition),
+                        onDragEnd: (_) => onPutDown(),
                         feedback: _Lifted(
-                          width: box.maxWidth - 10,
+                          width: box.maxWidth - 2 * _Board.inset,
                           child: card,
                         ),
                         childWhenDragging: Opacity(opacity: 0.3, child: card),
@@ -278,9 +353,24 @@ class _Column extends StatelessWidget {
   }
 }
 
-/// The board's corners: squarer than the rest of the app's, as Jira's are.
+/// The board's measures.
 abstract final class _Board {
+  /// How much of the screen's width a lane takes; the rest shows the next.
+  static const laneFraction = 0.84;
+
+  /// Between the lanes, and round the board.
+  static const gap = 10.0;
+
+  /// From a lane's sides to its cards.
+  static const inset = 6.0;
+
+  /// Squarer than the rest of the app's corners, as Jira's are.
   static const laneRadius = 8.0;
+
+  /// How near the side a carried card turns the board, and after how long.
+  static const edge = 28.0;
+  static const firstTurn = Duration(milliseconds: 500);
+  static const nextTurn = Duration(milliseconds: 900);
 }
 
 /// Fades a column's foot out rather than letting the last card be cut off
@@ -359,17 +449,19 @@ class _Lifted extends StatelessWidget {
 }
 
 /// A task on the board, drawn as a Jira card: a flat card a step lighter
-/// than its lane with the title across the top, and along the foot a
-/// square in the task's colour, where Jira puts the issue type, when it is
-/// due, and its marks — repeat, checklist, priority as Jira's chevrons.
+/// than its lane with the title across the top; under it the group as
+/// Jira labels an epic, a lozenge in its colour, and when it is due; and
+/// along the foot the issue type's square in the task's colour, the key,
+/// and the marks — repeat, checklist, priority as Jira's chevrons.
 ///
 /// Neutral rather than inked like the cards elsewhere: three columns of
 /// tinted cards in three tinted lanes were a wash of colour, and the square
-/// says which colour the task is. A done card looks like any other; the
-/// column says it is done.
+/// says which colour the task is. A done card looks like any other but for
+/// its key, struck through as Jira strikes a resolved issue's.
 class BoardCard extends StatelessWidget {
-  static const margin = EdgeInsets.only(bottom: 6);
+  static const margin = EdgeInsets.only(bottom: 8);
   static const radius = 6.0;
+  static const padding = 14.0;
 
   final Task task;
   final TaskList? list;
@@ -390,6 +482,16 @@ class BoardCard extends StatelessWidget {
     return task.hasTime ? '$day ${Dates.time(due, h24: h24)}' : day;
   }
 
+  /// Jira's issue key: the project's first letters and the issue's number.
+  /// Here the group stands for the project, so "PER-12" is in Personal.
+  static String keyOf(String group, int? id) {
+    final letters = RegExp(
+      r'\p{L}',
+      unicode: true,
+    ).allMatches(group).map((m) => m[0]!).take(3).join().toUpperCase();
+    return '${letters.isEmpty ? 'T' : letters}-${id ?? 0}';
+  }
+
   /// Jira's: up for high, two bars for medium, down for low.
   static IconData _priorityIcon(Priority priority) => switch (priority) {
     Priority.high => Icons.keyboard_double_arrow_up_rounded,
@@ -406,45 +508,78 @@ class BoardCard extends StatelessWidget {
       list,
       fallback: AppTheme.accentOf(context).color,
     );
+    final group = list == null ? null : groupLabel(context, list!);
     final when = _when(MediaQuery.alwaysUse24HourFormatOf(context));
-    final meta = TextStyle(color: p.muted, fontSize: 11.5);
-    final foot = <Widget>[
-      // The issue type's square: the task's colour, ticked once done.
-      Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: task.done
-            ? const Icon(Icons.check_rounded, size: 11, color: Colors.white)
-            : null,
-      ),
-      // The date takes whatever the marks leave it, and a card with none
-      // still pushes its marks to the far end.
-      Expanded(
-        child: Text(
-          when ?? '',
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.fade,
-          style: meta.copyWith(
-            color: task.isOverdue ? AppColors.overdue : p.muted,
+    final meta = TextStyle(
+      color: p.muted,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w500,
+    );
+    final chip = dark ? p.field : p.border;
+
+    // The group's lozenge and the due date: Jira's labels row.
+    final labels = <Widget>[
+      if (group != null)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: list!.style.color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Text(
+            group.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+              height: 1.3,
+            ),
           ),
         ),
+      if (when != null)
+        _Due(when: when, overdue: task.isOverdue && !task.done, ground: chip),
+    ];
+
+    final foot = <Widget>[
+      _TypeSquare(color: color, done: task.done),
+      const SizedBox(width: 7),
+      Text(
+        keyOf(group ?? '', task.id),
+        style: meta.copyWith(
+          decoration: task.done ? TextDecoration.lineThrough : null,
+          decorationColor: p.muted,
+        ),
       ),
-      if (task.repeat != Repeat.none)
-        Icon(Icons.repeat, size: 13, color: p.muted),
-      if (task.subtasks.isNotEmpty)
-        Text('${task.subtasksDone}/${task.subtasks.length}', style: meta),
+      const Spacer(),
+      if (task.repeat != Repeat.none) ...[
+        Icon(Icons.repeat_rounded, size: 16, color: p.muted),
+        const SizedBox(width: 10),
+      ],
+      if (task.subtasks.isNotEmpty) ...[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+          decoration: BoxDecoration(
+            color: chip,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '${task.subtasksDone}/${task.subtasks.length}',
+            style: meta.copyWith(fontSize: 12),
+          ),
+        ),
+        const SizedBox(width: 10),
+      ],
       if (task.priority != Priority.none)
         Icon(
           _priorityIcon(task.priority),
-          size: 15,
+          size: 20,
           color: TaskCard.priorityColor(task.priority),
         ),
     ];
+
     return Padding(
       padding: margin,
       child: Material(
@@ -453,14 +588,14 @@ class BoardCard extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(radius),
           child: Ink(
-            padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+            padding: const EdgeInsets.fromLTRB(padding, 13, padding, 13),
             decoration: BoxDecoration(
               color: dark ? p.panelHi : p.panel,
               borderRadius: BorderRadius.circular(radius),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: dark ? 0.5 : 0.12),
-                  blurRadius: 1,
+                  color: Colors.black.withValues(alpha: dark ? 0.6 : 0.14),
+                  blurRadius: 2,
                   offset: const Offset(0, 1),
                 ),
               ],
@@ -472,21 +607,94 @@ class BoardCard extends StatelessWidget {
                   task.title,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: p.text, fontSize: 13.5, height: 1.3),
+                  style: TextStyle(color: p.text, fontSize: 15.5, height: 1.35),
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    for (var i = 0; i < foot.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 6),
-                      foot[i],
-                    ],
-                  ],
-                ),
+                if (labels.isNotEmpty) ...[
+                  const SizedBox(height: 9),
+                  Wrap(spacing: 6, runSpacing: 6, children: labels),
+                ],
+                const SizedBox(height: 11),
+                SizedBox(height: 20, child: Row(children: foot)),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Where Jira puts the issue type: a square in the task's colour with a
+/// smaller one drawn in it, and a tick in its place once the task is done.
+class _TypeSquare extends StatelessWidget {
+  final Color color;
+  final bool done;
+
+  const _TypeSquare({required this.color, required this.done});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 17,
+      height: 17,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: done
+          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+          : Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white, width: 1.6),
+                borderRadius: BorderRadius.circular(1.5),
+              ),
+            ),
+    );
+  }
+}
+
+/// When a task is due, as Jira writes a due date on a card: a calendar and
+/// the date on a grey lozenge, red once it has gone by.
+class _Due extends StatelessWidget {
+  final String when;
+  final bool overdue;
+  final Color ground;
+
+  const _Due({required this.when, required this.overdue, required this.ground});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final ink = overdue ? AppColors.overdue : p.muted;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 2, 6, 2),
+      decoration: BoxDecoration(
+        color: overdue ? AppColors.overdue.withValues(alpha: 0.16) : ground,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.calendar_today_rounded, size: 11, color: ink),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              when,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                color: ink,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1103,6 +1103,19 @@ Changing them back will be noticed.
   columns on the black with inked cards — simpler, but not Jira. The cards
   are not inked here, unlike everywhere else: tinted cards in grey lanes
   were a wash of colour, and the square says the colour.
+  **A lane is a page, most of the screen wide, with the next one showing
+  at the side** (`_Board.laneFraction`, a `PageView`), matched to a Jira
+  board's screenshot the user supplied: "make the tasks bigger". Three
+  lanes at once left each a third of a phone and a title a word a line.
+  A card is laid out as Jira's is: the title; then the group as a lozenge
+  in its colour (Jira's epic label) and the due date on a grey one, red
+  once gone by; then the type square, a key made of the group's first
+  letters and the task's id ("PER-12", struck through once done, as Jira
+  strikes a resolved issue), and the marks at the far end. The lane's name
+  stands in line with the titles. A card is carried to another lane by
+  dropping it on the strip of it that shows, or held at either side of
+  the screen, which turns the board after 500ms and every 900ms after
+  (`_watchEdges`), as the calendar's month turns.
 
 - **Events from the phone's own calendars sit beside the tasks the way
   holidays do** (`EventsProvider`, `DeviceCalendars`, `EventCard`, the

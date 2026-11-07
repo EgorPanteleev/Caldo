@@ -77,7 +77,7 @@ void main() {
     expect(await log(), isEmpty);
   });
 
-  testWidgets('three columns, and a card carried across moves', (tester) async {
+  testWidgets('three lanes, and a card carried across moves', (tester) async {
     // A small phone, so a column that overflows fails the run.
     tester.view.physicalSize = const Size(1080, 1920);
     tester.view.devicePixelRatio = 3;
@@ -103,37 +103,42 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
 
-    double columnOf(String title) => tester.getCenter(find.text(title)).dx;
-    // The lanes are headed in capitals, the count in the same line.
-    double laneOf(String name) =>
-        tester.getCenter(find.textContaining(name, findRichText: true)).dx;
-    final notStarted = laneOf('NOT STARTED');
-    final inProgress = laneOf('IN PROGRESS');
-    final done = laneOf('DONE');
-    expect(notStarted < inProgress && inProgress < done, isTrue);
+    // The lanes are headed in capitals, the count in the same line, and
+    // the titles stand in line under the name of the lane they are in.
+    final lane = find.textContaining('NOT STARTED', findRichText: true);
+    final next = find.textContaining('IN PROGRESS', findRichText: true);
+    double left(Finder f) => tester.getTopLeft(f).dx;
+    bool under(String title, Finder header) =>
+        (left(find.text(title)) - left(header)).abs() < 1;
+    expect(under('Ship', lane), isTrue);
+    expect(under('Water', next), isTrue);
 
-    final third = tester.getSize(find.byType(BoardScreen)).width / 3;
-    bool under(String title, double column) =>
-        (columnOf(title) - column).abs() < third / 2;
-    expect(under('Ship', notStarted), isTrue);
-    expect(under('Water', inProgress), isTrue);
+    // A lane is most of the screen wide, and the next one shows beside it.
+    final width = tester.getSize(find.byType(BoardScreen)).width;
+    expect(left(next), greaterThan(width * 0.8));
+    expect(left(next), lessThan(width));
 
+    // Carried to the side and held there, the board turns towards Done.
+    final y = tester.getCenter(find.text('Ship')).dy;
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('Ship')),
     );
     await tester.pump(const Duration(milliseconds: 600));
-    await gesture.moveTo(
-      Offset(
-        done,
-        tester.getCenter(find.textContaining('DONE', findRichText: true)).dy +
-            80,
-      ),
-    );
+    await gesture.moveTo(Offset(width - 10, y));
+    await tester.pump();
+    for (var i = 0; i < 2; i++) {
+      await tester.pump(const Duration(milliseconds: 950));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    final done = find.textContaining('DONE', findRichText: true);
+    expect(left(done), lessThan(width / 2));
+
+    await gesture.moveTo(Offset(left(done) + 60, y));
     await tester.pump();
     await gesture.up();
     await tester.pump();
 
-    // Drawn in its new column at once, before the write lands.
+    // Drawn in its new lane at once, before the write lands.
     expect(find.text('Ship'), findsOneWidget);
     expect(under('Ship', done), isTrue);
 
