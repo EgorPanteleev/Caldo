@@ -41,37 +41,23 @@ class TaskProvider extends ChangeNotifier {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
 
   /// Dated tasks of [_month], grouped by the day they fall on.
-  Map<DateTime, List<Task>> _allByDay = {};
+  Map<DateTime, List<Task>> _byDay = {};
 
   /// Open tasks whose due date has already passed.
-  List<Task> _allOverdue = [];
+  List<Task> _overdue = [];
 
   /// Dated tasks from today onwards (done ones included, so a day's progress
   /// is visible), backing the Tasks screen and the calendar.
-  List<Task> _allUpcoming = [];
+  List<Task> _upcoming = [];
 
-  /// [_allUpcoming] grouped into days, sorted once when it is read in.
-  /// Sorting it again on every build put a ticked task at the end of its day
-  /// on Schedule the moment it was marked done — before it was crossed out,
-  /// and with nothing to slide it there.
-  Map<DateTime, List<Task>> _allUpcomingByDay = {};
+  /// [_upcoming] grouped into days, sorted once when it is read in. Sorting
+  /// it again on every build put a ticked task at the end of its day on
+  /// Schedule the moment it was marked done — before it was crossed out, and
+  /// with nothing to slide it there.
+  Map<DateTime, List<Task>> _upcomingByDay = {};
 
   /// Tasks with no due date, listed after the dated ones.
-  List<Task> _allUndated = [];
-
-  /// The same, narrowed to [filter] — what the screens draw. Worked out once
-  /// per read rather than per build, for the reason [_allUpcomingByDay] is.
-  Map<DateTime, List<Task>> _byDay = {};
-  List<Task> _overdue = [];
-  List<Task> _upcoming = [];
-  Map<DateTime, List<Task>> _upcomingByDay = {};
   List<Task> _undated = [];
-
-  /// Every tag in use, with how many open tasks carry it, the most used first.
-  Map<String, int> _tags = {};
-
-  /// The one tag the screens are narrowed to, or null for everything.
-  String? _filter;
 
   List<TaskList> get lists => _lists;
   DateTime get month => _month;
@@ -79,58 +65,6 @@ class TaskProvider extends ChangeNotifier {
   List<Task> get overdue => _overdue;
   List<Task> get upcoming => _upcoming;
   List<Task> get undated => _undated;
-  Map<String, int> get tags => _tags;
-  String? get filter => _filter;
-
-  /// The backlog and the days to come whatever the screens are narrowed to:
-  /// the home-screen widget and the menu's overdue dot are not looking at a
-  /// screen, and what they say is about every task there is.
-  List<Task> get allOverdue => _allOverdue;
-  Map<DateTime, List<Task>> get allUpcomingByDay => _allUpcomingByDay;
-
-  /// Narrows Schedule and the calendar to the tasks carrying [tag], or
-  /// shows everything again when it is null. Held for the run of the app and
-  /// not stored: a filter forgotten from yesterday is tasks gone missing.
-  void setFilter(String? tag) {
-    if (tag == _filter) return;
-    _filter = tag;
-    _narrow();
-    notifyListeners();
-  }
-
-  /// Puts the narrowed views back in step with what was read.
-  void _narrow() {
-    final tag = _filter;
-    List<Task> keep(List<Task> tasks) => tag == null
-        ? tasks
-        : [
-            for (final t in tasks)
-              if (t.hasTag(tag)) t,
-          ];
-    Map<DateTime, List<Task>> keepDays(Map<DateTime, List<Task>> days) =>
-        tag == null
-        ? days
-        : {
-            for (final MapEntry(:key, :value) in days.entries)
-              if (keep(value) case final kept when kept.isNotEmpty) key: kept,
-          };
-    _byDay = keepDays(_allByDay);
-    _overdue = keep(_allOverdue);
-    _upcoming = keep(_allUpcoming);
-    _upcomingByDay = keepDays(_allUpcomingByDay);
-    _undated = keep(_allUndated);
-  }
-
-  /// Reads which tags are in use. A filter on a tag nobody carries any more
-  /// would be a screen with nothing on it and nothing to say why, so it goes.
-  Future<void> _readTags() async {
-    _tags = await _db.getTags();
-    final tag = _filter;
-    if (tag != null && !_tags.keys.any((t) => Task.sameTag(t, tag))) {
-      _filter = null;
-      _narrow();
-    }
-  }
 
   TaskList? listById(int id) {
     for (final l in _lists) {
@@ -146,7 +80,6 @@ class TaskProvider extends ChangeNotifier {
 
   Future<void> loadLists() async {
     _lists = await _db.getLists();
-    await _readTags();
     notifyListeners();
   }
 
@@ -174,12 +107,9 @@ class TaskProvider extends ChangeNotifier {
   /// card in that day's list, and the list must not lose it from under the
   /// finger.
   Future<void> loadMonth(DateTime date, {DateTime? keep}) async {
-    final kept = keep == null ? null : _allByDay[dayOf(keep)];
+    final kept = keep == null ? null : _byDay[dayOf(keep)];
     await _readMonth(date);
-    if (kept != null) {
-      _allByDay.putIfAbsent(dayOf(keep!), () => kept);
-      _narrow();
-    }
+    if (kept != null) _byDay.putIfAbsent(dayOf(keep!), () => kept);
     notifyListeners();
   }
 
@@ -194,8 +124,7 @@ class TaskProvider extends ChangeNotifier {
       from.millisecondsSinceEpoch,
       to.millisecondsSinceEpoch,
     );
-    _allByDay = _groupByDay(tasks);
-    _narrow();
+    _byDay = _groupByDay(tasks);
   }
 
   /// Tasks due on [day], open ones first.
@@ -222,11 +151,10 @@ class TaskProvider extends ChangeNotifier {
       to.millisecondsSinceEpoch,
     );
     final undated = await _db.getUndated();
-    _allOverdue = overdue;
-    _allUpcoming = upcoming;
-    _allUndated = undated;
-    _allUpcomingByDay = _groupByDay(upcoming);
-    _narrow();
+    _overdue = overdue;
+    _upcoming = upcoming;
+    _undated = undated;
+    _upcomingByDay = _groupByDay(upcoming);
   }
 
   /// Every path that changes a task ends in a read of the agenda, which makes
@@ -244,7 +172,7 @@ class TaskProvider extends ChangeNotifier {
   /// The home-screen widget is redrawn from the same read, for the same
   /// reason the alarms are: every change ends here.
   Future<void> _afterRead() async {
-    await Reminders.instance.sync([..._allOverdue, ..._allUpcoming]);
+    await Reminders.instance.sync([..._overdue, ..._upcoming]);
     await TodayWidget.publish(this);
   }
 
@@ -448,7 +376,7 @@ class TaskProvider extends ChangeNotifier {
       // A card that is leaving fades out first; one that is staying only has
       // to be seen crossed out before it moves.
       await Future<void>.delayed(
-        rolls || _allOverdue.any((t) => t.id == id) ? leave : hold,
+        rolls || _overdue.any((t) => t.id == id) ? leave : hold,
       );
       _settled.remove(id);
       _rolling.remove(id);
@@ -546,7 +474,6 @@ class TaskProvider extends ChangeNotifier {
   /// Reloads whatever the UI currently has on screen after a mutation.
   Future<void> _reloadAll() async {
     _lists = await _db.getLists();
-    await _readTags();
     // One notify for the lot. It was one for the month and another for the
     // agenda, three queries later — each a rebuild of both screens, and on a
     // phone the second one landed a frame or two into the slide it started.

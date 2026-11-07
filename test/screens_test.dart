@@ -185,16 +185,17 @@ void main() {
     expect(find.text('Ship'), findsOneWidget);
     expect(find.text('tag it first'), findsOneWidget);
     // Further down the form than a phone shows at once.
-    final form = find
-        .descendant(
-          of: find.byType(ListView),
-          matching: find.byType(Scrollable),
-        )
-        .first;
-    await tester.scrollUntilVisible(find.text('High'), 100, scrollable: form);
+    await tester.scrollUntilVisible(
+      find.text('High'),
+      100,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.text('High'), findsOneWidget);
-    // And back up to the title, which the list let go of on the way down.
-    await tester.scrollUntilVisible(find.text('Ship'), -100, scrollable: form);
 
     // Untouched, the form leaves the way back in place and has nothing to
     // save. (The arrow itself only appears when there is a route under this

@@ -20,7 +20,6 @@ import '../widgets/day_sheet.dart';
 import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
-import '../widgets/tag_filter.dart';
 import '../widgets/tick_off.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/reorderable_task_list.dart';
@@ -1100,7 +1099,6 @@ class _MonthBar extends StatelessWidget {
               else
                 const SizedBox(width: 12),
               const Spacer(),
-              const TagFilterButton(),
               IconButton(
                 icon: Icon(Icons.search, color: p.muted),
                 tooltip: S.of(context).search,

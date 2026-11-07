@@ -12,7 +12,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 7;
+  static const _dbVersion = 6;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -59,7 +59,6 @@ class AppDatabase {
             completed_at INTEGER,
             sort_order INTEGER,
             subtasks TEXT NOT NULL DEFAULT '[]',
-            tags TEXT NOT NULL DEFAULT '[]',
             remind_before INTEGER,
             snoozed_until INTEGER
           )
@@ -107,12 +106,6 @@ class AppDatabase {
             FROM $_tasks WHERE completed_at IS NOT NULL
           ''');
         }
-        if (oldVersion < 7) {
-          // v6 -> a task can carry tags, as JSON beside it.
-          await db.execute(
-            "ALTER TABLE $_tasks ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
-          );
-        }
       },
     );
   }
@@ -154,41 +147,10 @@ class AppDatabase {
     return list.copyWith(id: id);
   }
 
-  // ---- Tags ---------------------------------------------------------------
-
-  /// Every tag a task carries, each with how many open tasks carry it, the
-  /// most used first. Written as it was first met: "Uni" and "uni" are one
-  /// tag, and it keeps whichever spelling the oldest task has.
-  Future<Map<String, int>> getTags() async {
-    final db = await database;
-    final rows = await db.query(
-      _tasks,
-      columns: ['tags', 'done'],
-      where: "tags != '[]'",
-      orderBy: 'created_at ASC',
-    );
-    final names = <String, String>{};
-    final open = <String, int>{};
-    for (final row in rows) {
-      final done = row['done'] == 1;
-      for (final tag in Task.tagsFrom(row['tags'] as String?)) {
-        final key = tag.toLowerCase();
-        names.putIfAbsent(key, () => tag);
-        open[key] = (open[key] ?? 0) + (done ? 0 : 1);
-      }
-    }
-    final keys = names.keys.toList()
-      ..sort((a, b) {
-        final byUse = open[b]!.compareTo(open[a]!);
-        return byUse != 0 ? byUse : a.compareTo(b);
-      });
-    return {for (final key in keys) names[key]!: open[key]!};
-  }
-
   // ---- Tasks --------------------------------------------------------------
 
   /// Every task, which is what the search screen asks for. [query] matches
-  /// the title, the notes, a subtask or a tag; when [includeDone] is false only open
+  /// the title, the notes or a subtask; when [includeDone] is false only open
   /// tasks come back.
   Future<List<Task>> getTasks({
     String query = '',
@@ -199,12 +161,11 @@ class AppDatabase {
     final args = <Object?>[];
     if (!includeDone) where.write(' AND done = 0');
     if (query.isNotEmpty) {
-      where.write(
-        ' AND (title LIKE ? OR notes LIKE ? OR subtasks LIKE ? OR tags LIKE ?)',
-      );
+      where.write(' AND (title LIKE ? OR notes LIKE ? OR subtasks LIKE ?)');
       args
-        ..addAll(List.filled(3, '%$query%'))
-        ..add('%${Task.tagOf(query) ?? query}%');
+        ..add('%$query%')
+        ..add('%$query%')
+        ..add('%$query%');
     }
     final rows = await db.query(
       _tasks,
@@ -217,16 +178,11 @@ class AppDatabase {
     // The checklist is stored as JSON, so a search for "done" or "title"
     // matches every task that has one. Those are let through the query and
     // only kept here if a subtask's own title has the words in it.
-    // A # in front finds the tag, as it is written on a card.
     final needle = query.toLowerCase();
-    final tag = Task.tagOf(query)?.toLowerCase();
     bool has(String text) => text.toLowerCase().contains(needle);
     return [
       for (final t in tasks)
-        if (has(t.title) ||
-            has(t.notes) ||
-            t.subtasks.any((s) => has(s.title)) ||
-            (tag != null && t.tags.any((g) => g.toLowerCase().contains(tag))))
+        if (has(t.title) || has(t.notes) || t.subtasks.any((s) => has(s.title)))
           t,
     ];
   }

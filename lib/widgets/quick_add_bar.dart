@@ -185,60 +185,26 @@ class _ConfirmButton extends StatelessWidget {
 }
 
 /// Files an all-day task on [day] from a one-line title, in the colour new
-/// tasks are set to start in. A `#word` in the title is a tag rather than
-/// part of it ("Essay #uni"), and while the screens are narrowed to a tag
-/// the task carries that one too — added under a filter without it, it
-/// would vanish the moment it was filed.
+/// tasks are set to start in.
 Future<void> quickAddTask(
   BuildContext context, {
   required DateTime day,
   required String title,
 }) async {
+  final trimmed = title.trim();
+  if (trimmed.isEmpty) return;
   final provider = context.read<TaskProvider>();
-  final (:words, :tags) = splitTags(
-    title,
-    also: provider.filter,
-    known: provider.tags.keys,
-  );
-  if (words.isEmpty) return;
   final styleId = context.read<SettingsProvider>().defaultTaskStyleId;
   final lists = provider.lists;
   await provider.add(
     Task(
       listId: lists.isNotEmpty ? lists.first.id! : 1,
-      title: words,
+      title: trimmed,
       dueAt: dayOf(day).millisecondsSinceEpoch,
       styleId: styleId,
       createdAt: DateTime.now().millisecondsSinceEpoch,
-      tags: tags,
     ),
   );
-}
-
-/// [title] with its `#words` taken out, and those words as tags, with
-/// [also] after them unless it was typed already. A tag is spelled as an
-/// existing one is when it matches it ([known]), so "#UNI" files under the
-/// "uni" already there instead of starting a second group that looks the same.
-({String words, List<String> tags}) splitTags(
-  String title, {
-  String? also,
-  Iterable<String> known = const [],
-}) {
-  final tags = <String>[];
-  void add(String tag) {
-    if (tags.any((t) => Task.sameTag(t, tag))) return;
-    tags.add(known.firstWhere((k) => Task.sameTag(k, tag), orElse: () => tag));
-  }
-
-  final words = title
-      .replaceAllMapped(RegExp(r'(^|\s)#([^\s#]+)'), (m) {
-        add(m[2]!);
-        return m[1]!;
-      })
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
-  if (also != null) add(also);
-  return (words: words, tags: tags);
 }
 
 /// Where the keyboard is, as Android measures it, kept beside what
