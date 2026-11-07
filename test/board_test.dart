@@ -149,6 +149,29 @@ void main() {
           expect((await taskNamed(title)).stage, stage);
         });
 
+    // Taken to a side, the card turns the board that way at once, with no
+    // holding still at the edge first.
+    final home = left(lane);
+    final lifted = await tester.startGesture(
+      tester.getCenter(find.text('Ship')),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    final y = tester.getCenter(find.text('Ship').first).dy;
+    await lifted.moveTo(Offset(width - 8, y));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(left(next), lessThan(width / 2));
+    await lifted.moveTo(Offset(8, y));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(left(lane), closeTo(home, 1));
+    // Let go over its own lane, which takes nothing.
+    await lifted.moveTo(Offset(width / 3, y));
+    await tester.pump();
+    await lifted.up();
+    await tester.pumpAndSettle();
+    expect(left(lane), closeTo(home, 1));
+
     await carry('Ship', 'DONE');
     // Gone from its lane at once, before the write lands.
     expect(find.text('Ship'), findsNothing);

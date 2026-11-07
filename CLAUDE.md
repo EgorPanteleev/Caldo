@@ -1147,16 +1147,23 @@ Changing them back will be noticed.
   (`_DropBar`), which rises as the card is picked up: the lane it came
   from faint and taking nothing, the one under the finger ringed in the
   text colour, neutral like the month's edge tabs. The strip of the next
-  lane can still take a drop. Before it, that strip was the only target:
-  the lane before the one on show was out of reach but by holding the card
-  at the edge until the board turned under the finger (`_watchEdges`,
-  gone) — "i cant normally return task from WIP to not started" — and the
-  card, carried at a lane's width, covered the very strip it was carried
-  onto. **The carried card draws in to a tile three fifths its size riding
-  18 points above the finger** (`_Lifted`, `_Grab`), kept on the screen at
-  the sides. The board owns the one `_Grab`: picking a card up rebuilds
-  its lane, and a grab made per card handed the drag a different one from
-  the carried card's.
+  lane can still take a drop. Before it, that strip was the only target,
+  and the lane before the one on show was out of reach but by holding the
+  card at the edge — "i cant normally return task from WIP to not
+  started". **Taken to either side, the card turns the board at once**
+  (`_watchEdges`), and on every 900ms while it stays; it used to wait
+  500ms first, and holding still at the edge to reach the next lane was
+  disliked by name. The lanes are kept alive (`_KeepLane`): a lane turned
+  off the screen was thrown away with the card being carried out of it,
+  and its drag's callbacks with it, so the board could not turn back and
+  never heard the card let go. **The carried card keeps its size and
+  glides up to ride 18 points above the finger** (`_Lifted`, `_Grab`),
+  kept on the screen at the sides. Held where it was taken hold of, it was
+  a lane wide and covered the strip it was carried onto, or the whole bar;
+  shrunk to a tile three fifths its size it covered less, and was asked
+  back to its size. The board owns the one `_Grab`: picking a card up
+  rebuilds its lane, and a grab made per card handed the drag a different
+  one from the carried card's.
   **A task in progress says so everywhere a card is drawn**
   (`InProgressBadge`, in `TaskCard`): Jira's status lozenge, in Jira's
   blue for it, ahead of the time on a two-line card and before the time on

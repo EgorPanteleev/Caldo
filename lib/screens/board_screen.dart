@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -54,9 +55,15 @@ class _BoardScreenState extends State<BoardScreen> {
   /// would otherwise hand the drag a different one from the card's.
   final _grab = _Grab();
 
+  /// While a card is carried: which side of the screen it is at, and the
+  /// timer that turns the board on again while it stays there.
+  int _side = 0;
+  Timer? _turning;
+
   @override
   void initState() {
     super.initState();
+    _grab.finger.addListener(_watchEdges);
     widget.shown?.addListener(_follow);
     _follow();
   }
@@ -66,6 +73,7 @@ class _BoardScreenState extends State<BoardScreen> {
     widget.shown?.removeListener(_follow);
     if (_listening) _tasks.removeListener(_load);
     _pages.dispose();
+    _turning?.cancel();
     _grab.finger.dispose();
     super.dispose();
   }
@@ -106,7 +114,42 @@ class _BoardScreenState extends State<BoardScreen> {
     _from = task.stage;
   });
 
-  void _putDown() => setState(() => _carrying = false);
+  void _putDown() {
+    _turning?.cancel();
+    _side = 0;
+    setState(() => _carrying = false);
+  }
+
+  /// Turns the board towards the side a carried card is taken to, the
+  /// moment it gets there, and on again every so often while it stays.
+  /// It used to wait half a second first, which made reaching the next lane
+  /// a matter of holding still at the edge.
+  void _watchEdges() {
+    if (!_carrying) return;
+    final x = _grab.finger.value;
+    final width = MediaQuery.sizeOf(context).width;
+    final side = x < _Board.edge
+        ? -1
+        : x > width - _Board.edge
+        ? 1
+        : 0;
+    if (side == _side) return;
+    _side = side;
+    _turning?.cancel();
+    if (side != 0) _turn();
+  }
+
+  void _turn() {
+    final page = (_pages.page ?? 0).round() + _side;
+    if (page >= 0 && page < Stage.values.length) {
+      _pages.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    _turning = Timer(_Board.nextTurn, _turn);
+  }
 
   Future<void> _open([Task? task]) async {
     await Navigator.of(
@@ -189,14 +232,16 @@ class _BoardScreenState extends State<BoardScreen> {
                           stage == Stage.values.last ? _Board.gap : 0,
                           _Board.gap,
                         ),
-                        child: _Column(
-                          stage: stage,
-                          tasks: columns[stage]!,
-                          onTap: _open,
-                          onDrop: (task) => _move(task, stage),
-                          grab: _grab,
-                          onLift: _lift,
-                          onPutDown: _putDown,
+                        child: _KeepLane(
+                          child: _Column(
+                            stage: stage,
+                            tasks: columns[stage]!,
+                            onTap: _open,
+                            onDrop: (task) => _move(task, stage),
+                            grab: _grab,
+                            onLift: _lift,
+                            onPutDown: _putDown,
+                          ),
                         ),
                       ),
                   ],
@@ -213,6 +258,31 @@ class _BoardScreenState extends State<BoardScreen> {
         ],
       ),
     );
+  }
+}
+
+/// Keeps a lane in the tree when the board is turned away from it. A card
+/// carried out of a lane is still that lane's: thrown away, it takes the
+/// drag's callbacks with it, and the board could neither turn back nor
+/// hear that the card was let go.
+class _KeepLane extends StatefulWidget {
+  final Widget child;
+
+  const _KeepLane({required this.child});
+
+  @override
+  State<_KeepLane> createState() => _KeepLaneState();
+}
+
+class _KeepLaneState extends State<_KeepLane>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 
@@ -364,10 +434,15 @@ abstract final class _Board {
   /// Squarer than the rest of the app's corners, as Jira's are.
   static const laneRadius = 8.0;
 
-  /// A carried card's size against the card it was, and how far above the
-  /// finger it rides.
-  static const carriedScale = 0.6;
+  /// A carried card's size against the card it was — a little larger, so
+  /// it is above the board — and how far above the finger it rides.
+  static const carriedScale = 1.03;
   static const carriedLift = 18.0;
+
+  /// How near the side a carried card turns the board, and how often it
+  /// turns again while it is held there.
+  static const edge = 28.0;
+  static const nextTurn = Duration(milliseconds: 900);
 
   /// The drop bar's targets.
   static const dropHeight = 60.0;
@@ -411,13 +486,14 @@ class _FadeFoot extends StatelessWidget {
 }
 
 /// Where a card was taken hold of, and how big it was, for the card that
-/// is carried to shrink about. Filled in by the drag's anchor, which runs
+/// is carried to rise from. Filled in by the drag's anchor, which runs
 /// before the carried card is first built.
 class _Grab {
   Offset at = Offset.zero;
   Size size = Size.zero;
 
-  /// Where the finger is on the screen, so the card can be kept on it.
+  /// Where the finger is across the screen, so the card can be kept on it
+  /// and the board turned when it reaches a side.
   final finger = ValueNotifier<double>(0);
 
   Offset anchor(Draggable<Object> draggable, BuildContext context, Offset p) {
@@ -428,12 +504,13 @@ class _Grab {
   }
 }
 
-/// A card as it is carried: it draws in from where it lay to a tile a little
-/// over half its size, riding just above the finger. Carried at full size it
-/// was as wide as a lane and covered the strip of the next one it was being
-/// carried onto, and the finger covered the rest. Shadowed, so it is above
-/// the board rather than in it, and held square — tipped a degree or two,
-/// as Jira's are, it was asked to stop looking crooked.
+/// A card as it is carried: at its own size, gliding from where it lay to
+/// ride just above the finger. Held where it was taken hold of, it hung
+/// over whatever the finger was on — the drop bar's targets, all three of
+/// them at a lane's width. Shrunk to a tile so it covered less, it was
+/// asked back to its size. Shadowed, so it is above the board rather than
+/// in it, and held square — tipped a degree or two, as Jira's are, it was
+/// asked to stop looking crooked.
 class _Lifted extends StatefulWidget {
   final double width;
   final _Grab grab;
@@ -446,14 +523,14 @@ class _Lifted extends StatefulWidget {
 }
 
 class _LiftedState extends State<_Lifted> with SingleTickerProviderStateMixin {
-  late final _shrink = AnimationController(
+  late final _rise = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 220),
   )..forward();
 
   @override
   void dispose() {
-    _shrink.dispose();
+    _rise.dispose();
     super.dispose();
   }
 
@@ -489,9 +566,9 @@ class _LiftedState extends State<_Lifted> with SingleTickerProviderStateMixin {
     );
     final screen = MediaQuery.sizeOf(context).width;
     return AnimatedBuilder(
-      animation: Listenable.merge([_shrink, grab.finger]),
+      animation: Listenable.merge([_rise, grab.finger]),
       builder: (context, child) {
-        final t = Curves.easeOutCubic.transform(_shrink.value);
+        final t = Curves.easeOutCubic.transform(_rise.value);
         var r = Rect.lerp(from, to, t)!;
         // Kept on the screen at the sides, rather than centred on a finger
         // near the edge and half off it.
@@ -516,8 +593,8 @@ class _LiftedState extends State<_Lifted> with SingleTickerProviderStateMixin {
 /// While a card is carried, a target for each lane along the foot of the
 /// board, so a card can go to any lane from any other without the lane
 /// being on screen. The strip of the next lane at the side was the only
-/// place to drop a card, which made the lane before it out of reach but by
-/// holding the card at the edge until the board turned under the finger.
+/// place to drop a card, which left the lane before it to be reached by
+/// turning the board, and the card covered the strip it was carried onto.
 /// The lane it came from is drawn faintly and takes nothing.
 class _DropBar extends StatelessWidget {
   final bool shown;
