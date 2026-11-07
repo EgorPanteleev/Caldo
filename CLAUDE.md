@@ -197,7 +197,16 @@ Changing them back will be noticed.
   back puts it back as the start (`SettingsProvider.startScreen`). The
   overdue count moves from Schedule to Calendar while Schedule is out. A
   hidden screen is still built behind the others; it is only unreachable.
-- **Settings is a panel per section, the way the phone's own are drawn**
+- **Settings is a list of six pages, not one long page** (`_Page`, and
+  `_screens`, `_general`, `_appearance`, `_calendar`, `_tasks`, `_reminders`):
+  Screens, General, Appearance, Calendar, Tasks, Reminders, each row saying
+  under its name how that page stands ("English · 3:00 PM"), with About on
+  the list itself. Every setting on one page ran to four screens of
+  scrolling — "too long … split it up in subgroups". A page is pushed over
+  the shell with a back arrow, and splits again into small panels: the
+  holidays and the phone's calendars a panel each, clearing completed
+  tasks on its own away from the switch above it.
+- **Every page of Settings is a panel per section, the way the phone's own are drawn**
   (`_Group`, `_Row`, `_SwitchRow`, `_choose`): a row is an icon, what it is,
   and under that what it is set to; a tap flips its switch or opens a sheet
   of the choices, the one in force ticked. Asked for as "make settings better

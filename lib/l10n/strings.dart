@@ -221,15 +221,16 @@ class S {
       _fill('noTaskMentions', {'query': query});
 
   // ---- Settings ------------------------------------------------------------
-  String get sectionScreens => _word('sectionScreens');
+  String get pageScreens => _word('pageScreens');
+  String get sectionInMenu => _word('sectionInMenu');
   String get inMenuHint => _word('inMenuHint');
-  String get sectionGeneral => _word('sectionGeneral');
+  String get pageGeneral => _word('pageGeneral');
   String get startScreen => _word('startScreen');
   String get timesWritten => _word('timesWritten');
   String get language => _word('language');
   String followPhone(String language) =>
       _fill('followPhone', {'language': language});
-  String get sectionAppearance => _word('sectionAppearance');
+  String get pageAppearance => _word('pageAppearance');
   String get theme => _word('theme');
   String get themeDark => _word('themeDark');
   String get themeLight => _word('themeLight');
@@ -255,7 +256,9 @@ class S {
   String get eventsOff => _word('eventsOff');
   String get calendarsRefused => _word('calendarsRefused');
   String get noCalendars => _word('noCalendars');
-  String get sectionTasks => _word('sectionTasks');
+  String get pageTasks => _word('pageTasks');
+  String get completedShown => _word('completedShown');
+  String get completedHidden => _word('completedHidden');
   String get showCompleted => _word('showCompleted');
   String get showCompletedHint => _word('showCompletedHint');
   String get clearCompleted => _word('clearCompleted');
@@ -264,7 +267,7 @@ class S {
   String get clearCompletedWarning => _word('clearCompletedWarning');
   String get nothingToClear => _word('nothingToClear');
   String removedCompleted(int count) => _count('removedCompleted', count);
-  String get sectionReminders => _word('sectionReminders');
+  String get pageReminders => _word('pageReminders');
   String get remindWhenDue => _word('remindWhenDue');
   String get remindOn => _word('remindOn');
   String get remindOff => _word('remindOff');

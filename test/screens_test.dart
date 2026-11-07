@@ -170,24 +170,29 @@ void main() {
     expect(find.text('Overdue'), findsOneWidget);
   });
 
-  testWidgets('the settings screen renders every section', (tester) async {
+  testWidgets('settings is a list of pages, and each one opens', (
+    tester,
+  ) async {
     await pumpScreen(tester, const SettingsScreen(), size: narrow);
 
-    // The list is lazy, so each is scrolled to: a section below the fold
-    // has not been built.
-    for (final label in [
-      'SCREENS',
-      'GENERAL',
-      'APPEARANCE',
-      'CALENDAR',
-      'TASKS',
-      'REMINDERS',
-      'ABOUT',
+    // Each kind of setting opens a page of its own — on a small phone, so
+    // an overflow on any of them fails here — and its arrow comes back.
+    for (final (page, row) in [
+      ('Screens', 'Screen the app opens on'),
+      ('General', 'Times are written'),
+      ('Appearance', 'Accent colour'),
+      ('Calendar', 'Start week on Monday'),
+      ('Tasks', 'Clear completed tasks'),
+      ('Reminders', 'Timed tasks'),
     ]) {
-      await tester.scrollUntilVisible(find.text(label), 200);
-      expect(find.text(label), findsOneWidget);
+      expect(find.text(row), findsNothing, reason: 'not on the list');
+      await tester.tap(find.text(page));
+      await tester.pumpAndSettle();
+      expect(find.text(row), findsOneWidget, reason: '$page has $row');
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
     }
-    await tester.scrollUntilVisible(find.text('Start week on Monday'), -200);
+    expect(find.text('ABOUT'), findsOneWidget);
   });
 
   testWidgets('a screen switched off in settings leaves the menu', (

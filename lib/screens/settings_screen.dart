@@ -20,126 +20,39 @@ import 'home_screen.dart' show menuItems;
 /// Appearance, calendar and task preferences. Everything here applies
 /// immediately — there is nothing to save.
 ///
-/// Each section is one panel of rows, the way the phone's own settings are
-/// drawn: a row says what it is and, under that, what it is set to, and a
-/// tap either flips its switch or opens a sheet of the choices. It was a
-/// stack of separately outlined boxes with a segmented bar, a dropdown or a
-/// switch each — three ways of choosing on one screen, and a box round
-/// every line of it.
+/// The screen itself is a short list of the kinds of thing that can be set,
+/// each saying under its name how it stands, and each opens a page of its
+/// own. All of them on one page ran to four screens of scrolling — "too
+/// long".
+///
+/// On every page a section is one panel of rows, the way the phone's own
+/// settings are drawn: a row says what it is and, under that, what it is
+/// set to, and a tap either flips its switch or opens a sheet of the
+/// choices. It was a stack of separately outlined boxes with a segmented
+/// bar, a dropdown or a switch each — three ways of choosing on one screen,
+/// and a box round every line of it.
 class SettingsScreen extends StatelessWidget {
   /// Opens the shell's menu; null when the screen is shown on its own.
   final VoidCallback? onMenu;
 
   const SettingsScreen({super.key, this.onMenu});
 
-  /// Apply a theme change with a smooth cross-fade.
-  void _setThemeMode(BuildContext context, ThemeMode mode) {
-    void apply() => context.read<SettingsProvider>().update(themeMode: mode);
-    final switcher = ThemeSwitcher.of(context);
-    if (switcher == null) {
-      apply();
-    } else {
-      switcher.change(apply);
-    }
-  }
-
-  Future<void> _clearCompleted(BuildContext context) async {
-    final s = S.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.clearCompletedQuestion),
-        content: Text(s.clearCompletedWarning),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(s.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.clear),
-          ),
-        ],
+  void _open(BuildContext context, String title, _Rows rows) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _Page(title: title, rows: rows),
       ),
     );
-    if (ok != true || !context.mounted) return;
-    final removed = await context.read<TaskProvider>().clearCompleted();
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          removed == 0 ? s.nothingToClear : s.removedCompleted(removed),
-        ),
-      ),
-    );
-  }
-
-  /// Turns reminders on or off, asking Android for permission the first time
-  /// they are turned on — a notification nobody has agreed to is simply
-  /// dropped, and silently, which looks exactly like a broken reminder.
-  Future<void> _setReminders(BuildContext context, bool on) async {
-    final settings = context.read<SettingsProvider>();
-    if (on) await Reminders.instance.requestPermission();
-    if (!context.mounted) return;
-    // Saving is all that is needed: the scheduler re-sets what is standing
-    // against the settings it is handed.
-    await settings.update(reminders: on);
-  }
-
-  /// Shows the phone's own calendars, asking Android first: without the
-  /// permission there is nothing to show, and a switch that stayed on over
-  /// nothing would look broken.
-  Future<void> _setDeviceEvents(BuildContext context, bool on) async {
-    final settings = context.read<SettingsProvider>();
-    if (on && !await DeviceCalendars.ask()) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(S.of(context).calendarsRefused)));
-      return;
-    }
-    await settings.update(showDeviceEvents: on);
-  }
-
-  /// Picks the hour an all-day task is announced at.
-  Future<void> _pickReminderTime(BuildContext context) async {
-    final settings = context.read<SettingsProvider>();
-    final picked = await showAppTimePicker(
-      context: context,
-      initial: settings.reminderTime,
-    );
-    if (picked == null || !context.mounted) return;
-    await settings.update(reminderMinutes: picked.hour * 60 + picked.minute);
-  }
-
-  /// Puts a screen in the menu or takes it out. The last one left cannot be
-  /// taken out — its switch is disabled — since a menu of Settings alone
-  /// would be an app with nothing in it.
-  void _showScreen(BuildContext context, AppScreen screen, bool on) {
-    final settings = context.read<SettingsProvider>();
-    final hidden = {...settings.hiddenScreens};
-    on ? hidden.remove(screen) : hidden.add(screen);
-    settings.update(hiddenScreens: hidden);
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final s = S.of(context);
-    final read = context.read<SettingsProvider>();
-    final shown = settings.shownScreens;
-    String screenName(AppScreen screen) => menuItems[screen.index].label(s);
-    final themeNames = {
-      ThemeMode.dark: s.themeDark,
-      ThemeMode.light: s.themeLight,
-      ThemeMode.system: s.themeSystem,
-    };
-    final phone = S.names[SettingsProvider.phoneLanguage]!;
-    final detected = Holidays.detectCountry();
-    final followCountry = detected == null
-        ? s.followDeviceUnsupported
-        : s.followDevice(s.country(detected, Holidays.countries[detected]!));
-    final timeFormats = {false: '3:00 PM', true: '15:00'};
+    final shown = [
+      for (final screen in settings.shownScreens)
+        menuItems[screen.index].label(s),
+    ];
 
     return Scaffold(
       body: ListView(
@@ -168,268 +81,49 @@ class SettingsScreen extends StatelessWidget {
             child: ScreenHeader(title: s.settings, onMenu: onMenu),
           ),
           _Group(
-            label: s.sectionScreens,
-            footnote: s.inMenuHint,
             children: [
               _Row(
-                icon: Icons.login_rounded,
-                title: s.startScreen,
-                value: screenName(settings.startScreen),
-                onTap: () async {
-                  final screen = await _choose(
-                    context,
-                    title: s.startScreen,
-                    selected: settings.startScreen,
-                    options: [
-                      for (final screen in shown)
-                        _Option(
-                          screen,
-                          screenName(screen),
-                          icon: menuItems[screen.index].icon,
-                        ),
-                    ],
-                  );
-                  if (screen != null) read.update(startScreen: screen);
-                },
+                icon: Icons.menu_open_rounded,
+                title: s.pageScreens,
+                value: shown.join(', '),
+                onTap: () => _open(context, s.pageScreens, _screens),
               ),
-              for (final screen in AppScreen.values)
-                _SwitchRow(
-                  icon: menuItems[screen.index].icon,
-                  title: screenName(screen),
-                  value: shown.contains(screen),
-                  // The last screen left in the menu stays there.
-                  enabled: !(shown.length == 1 && shown.contains(screen)),
-                  onChanged: (on) => _showScreen(context, screen, on),
-                ),
-            ],
-          ),
-          _Group(
-            label: s.sectionGeneral,
-            children: [
               _Row(
-                icon: Icons.translate,
-                title: s.language,
-                value: settings.language == null
-                    ? s.followPhone(phone)
-                    : S.names[settings.language]!,
-                onTap: () async {
-                  final code = await _choose(
-                    context,
-                    title: s.language,
-                    selected: settings.language ?? '',
-                    // Each named in itself, so whichever language is on
-                    // screen, the way back to one's own can be read.
-                    options: [
-                      _Option('', s.followPhone(phone)),
-                      for (final MapEntry(key: code, value: name)
-                          in S.names.entries)
-                        _Option(code, name),
-                    ],
-                  );
-                  if (code == null) return;
-                  read.update(
-                    language: code.isEmpty ? null : code,
-                    clearLanguage: code.isEmpty,
-                  );
-                },
+                icon: Icons.tune_rounded,
+                title: s.pageGeneral,
+                value:
+                    '${S.names[settings.languageInForce]} · '
+                    '${_timeFormats[settings.use24Hour]}',
+                onTap: () => _open(context, s.pageGeneral, _general),
               ),
-              // One clock for every time in the app — the cards, the time
-              // picker and its shortcuts, the notifications — which used to
-              // disagree: a 12-hour picker set times the cards then wrote on
-              // a 24-hour clock. Each choice is shown the way a time reads in
-              // it.
               _Row(
-                icon: Icons.schedule,
-                title: s.timesWritten,
-                value: timeFormats[settings.use24Hour]!,
-                onTap: () async {
-                  final h24 = await _choose(
-                    context,
-                    title: s.timesWritten,
-                    selected: settings.use24Hour,
-                    options: [
-                      for (final MapEntry(key: h24, value: name)
-                          in timeFormats.entries)
-                        _Option(h24, name),
-                    ],
-                  );
-                  if (h24 != null) read.update(use24Hour: h24);
-                },
+                icon: Icons.palette_outlined,
+                title: s.pageAppearance,
+                value: _themeNames(s)[settings.themeMode],
+                onTap: () => _open(context, s.pageAppearance, _appearance),
               ),
-            ],
-          ),
-          _Group(
-            label: s.sectionAppearance,
-            children: [
               _Row(
-                icon: Icons.contrast,
-                title: s.theme,
-                value: themeNames[settings.themeMode]!,
-                onTap: () async {
-                  final mode = await _choose(
-                    context,
-                    title: s.theme,
-                    selected: settings.themeMode,
-                    options: [
-                      _Option(
-                        ThemeMode.dark,
-                        s.themeDark,
-                        icon: Icons.dark_mode_outlined,
-                      ),
-                      _Option(
-                        ThemeMode.light,
-                        s.themeLight,
-                        icon: Icons.light_mode_outlined,
-                      ),
-                      _Option(
-                        ThemeMode.system,
-                        s.themeSystem,
-                        icon: Icons.brightness_auto_outlined,
-                      ),
-                    ],
-                  );
-                  if (mode != null && context.mounted) {
-                    _setThemeMode(context, mode);
-                  }
-                },
+                icon: Icons.calendar_month_outlined,
+                title: s.calendar,
+                value: settings.weekStartsMonday
+                    ? s.weeksMonSun
+                    : s.weeksSunSat,
+                onTap: () => _open(context, s.calendar, _calendar),
               ),
-              _AccentPicker(
-                title: s.accent,
-                selected: settings.accent,
-                onChanged: (accent) => read.update(accent: accent),
-              ),
-            ],
-          ),
-          _Group(
-            label: s.sectionCalendar,
-            children: [
-              _SwitchRow(
-                icon: Icons.calendar_view_week_outlined,
-                title: s.weekStartsMonday,
-                value: settings.weekStartsMonday,
-                hint: settings.weekStartsMonday ? s.weeksMonSun : s.weeksSunSat,
-                onChanged: (v) => read.update(weekStartsMonday: v),
-              ),
-              _SwitchRow(
-                icon: Icons.celebration_outlined,
-                title: s.showHolidays,
-                hint: settings.effectiveHolidayCountry == null
-                    ? s.holidaysOff
-                    : s.holidaysOn,
-                value: settings.showHolidays,
-                onChanged: (v) => read.update(showHolidays: v),
-              ),
-              if (settings.showHolidays)
-                _Row(
-                  icon: Icons.public,
-                  title: s.holidayCountry,
-                  value: settings.holidayCountry == null
-                      ? followCountry
-                      : s.country(
-                          settings.holidayCountry!,
-                          Holidays.countries[settings.holidayCountry]!,
-                        ),
-                  onTap: () async {
-                    final code = await _choose(
-                      context,
-                      title: s.holidayCountry,
-                      selected: settings.holidayCountry ?? '',
-                      options: [
-                        _Option('', followCountry),
-                        for (final MapEntry(key: code, value: name)
-                            in Holidays.countries.entries)
-                          _Option(code, s.country(code, name)),
-                      ],
-                    );
-                    if (code == null) return;
-                    read.update(
-                      holidayCountry: code.isEmpty ? null : code,
-                      clearHolidayCountry: code.isEmpty,
-                    );
-                  },
-                ),
-              _SwitchRow(
-                icon: Icons.event_outlined,
-                title: s.showEvents,
-                hint: settings.showDeviceEvents ? s.eventsOn : s.eventsOff,
-                value: settings.showDeviceEvents,
-                onChanged: (v) => _setDeviceEvents(context, v),
-              ),
-              if (settings.showDeviceEvents)
-                _CalendarPicker(
-                  hidden: settings.hiddenCalendars,
-                  onChanged: (hidden) => read.update(hiddenCalendars: hidden),
-                ),
-            ],
-          ),
-          _Group(
-            label: s.sectionTasks,
-            children: [
-              _SwitchRow(
-                icon: Icons.visibility_outlined,
-                title: s.showCompleted,
-                hint: s.showCompletedHint,
-                value: settings.showCompleted,
-                onChanged: (v) {
-                  read.update(showCompleted: v);
-                  context.read<TaskProvider>().setShowCompleted(v);
-                },
-              ),
-              // Red, and without a chevron: it is not a setting to open but
-              // a thing done, and the one on this screen that cannot be
-              // taken back.
               _Row(
-                icon: Icons.delete_sweep_outlined,
-                title: s.clearCompleted,
-                value: s.clearCompletedHint,
-                danger: true,
-                onTap: () => _clearCompleted(context),
+                icon: Icons.task_alt_rounded,
+                title: s.pageTasks,
+                value: settings.showCompleted
+                    ? s.completedShown
+                    : s.completedHidden,
+                onTap: () => _open(context, s.pageTasks, _tasks),
               ),
-            ],
-          ),
-          _Group(
-            label: s.sectionReminders,
-            children: [
-              _SwitchRow(
+              _Row(
                 icon: Icons.notifications_none,
-                title: s.remindWhenDue,
-                hint: settings.reminders ? s.remindOn : s.remindOff,
-                value: settings.reminders,
-                onChanged: (v) => _setReminders(context, v),
+                title: s.pageReminders,
+                value: settings.reminders ? s.remindOn : s.remindOff,
+                onTap: () => _open(context, s.pageReminders, _reminders),
               ),
-              if (settings.reminders) ...[
-                // How far ahead a timed task is announced when it does not
-                // say for itself; a task can still choose its own.
-                _Row(
-                  icon: Icons.alarm,
-                  title: s.timedTasks,
-                  value: _capital(Dates.lead(settings.reminderLead)),
-                  onTap: () async {
-                    const leads = SettingsProvider.leads;
-                    final lead = await _choose(
-                      context,
-                      title: s.timedTasks,
-                      selected: leads.contains(settings.reminderLead)
-                          ? settings.reminderLead
-                          : leads.first,
-                      options: [
-                        for (final lead in leads)
-                          _Option(lead, _capital(Dates.lead(lead))),
-                      ],
-                    );
-                    if (lead != null) read.update(reminderLead: lead);
-                  },
-                ),
-                _Row(
-                  icon: Icons.wb_sunny_outlined,
-                  title: s.allDayTasks,
-                  value: Dates.clock(
-                    settings.reminderTime,
-                    h24: settings.use24Hour,
-                  ),
-                  onTap: () => _pickReminderTime(context),
-                ),
-              ],
             ],
           ),
           _Group(
@@ -443,33 +137,460 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
+/// What one page of settings draws, from the settings as they stand.
+typedef _Rows =
+    List<Widget> Function(BuildContext context, SettingsProvider settings, S s);
+
+/// One kind of setting on a page of its own, pushed over the shell, with a
+/// way back to the list.
+class _Page extends StatelessWidget {
+  final String title;
+  final _Rows rows;
+
+  const _Page({required this.title, required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    return Scaffold(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            ScreenHeader(title: title, showBack: true),
+            ...rows(context, settings, S.of(context)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Each choice of clock, written the way a time reads on it.
+const _timeFormats = {false: '3:00 PM', true: '15:00'};
+
+Map<ThemeMode, String> _themeNames(S s) => {
+  ThemeMode.dark: s.themeDark,
+  ThemeMode.light: s.themeLight,
+  ThemeMode.system: s.themeSystem,
+};
+
+String _screenName(S s, AppScreen screen) => menuItems[screen.index].label(s);
+
+/// Which screen the app opens on, and which are in the menu.
+List<Widget> _screens(BuildContext context, SettingsProvider settings, S s) {
+  final shown = settings.shownScreens;
+  return [
+    _Group(
+      children: [
+        _Row(
+          icon: Icons.login_rounded,
+          title: s.startScreen,
+          value: _screenName(s, settings.startScreen),
+          onTap: () async {
+            final screen = await _choose(
+              context,
+              title: s.startScreen,
+              selected: settings.startScreen,
+              options: [
+                for (final screen in shown)
+                  _Option(
+                    screen,
+                    _screenName(s, screen),
+                    icon: menuItems[screen.index].icon,
+                  ),
+              ],
+            );
+            if (screen != null) settings.update(startScreen: screen);
+          },
+        ),
+      ],
+    ),
+    _Group(
+      label: s.sectionInMenu,
+      footnote: s.inMenuHint,
+      children: [
+        for (final screen in AppScreen.values)
+          _SwitchRow(
+            icon: menuItems[screen.index].icon,
+            title: _screenName(s, screen),
+            value: shown.contains(screen),
+            // The last screen left in the menu stays there: a menu of
+            // Settings alone would be an app with nothing in it.
+            enabled: !(shown.length == 1 && shown.contains(screen)),
+            onChanged: (on) {
+              final hidden = {...settings.hiddenScreens};
+              on ? hidden.remove(screen) : hidden.add(screen);
+              settings.update(hiddenScreens: hidden);
+            },
+          ),
+      ],
+    ),
+  ];
+}
+
+/// The language and the clock.
+List<Widget> _general(BuildContext context, SettingsProvider settings, S s) {
+  final phone = S.names[SettingsProvider.phoneLanguage]!;
+  return [
+    _Group(
+      children: [
+        _Row(
+          icon: Icons.translate,
+          title: s.language,
+          value: settings.language == null
+              ? s.followPhone(phone)
+              : S.names[settings.language]!,
+          onTap: () async {
+            final code = await _choose(
+              context,
+              title: s.language,
+              selected: settings.language ?? '',
+              // Each named in itself, so whichever language is on screen,
+              // the way back to one's own can be read.
+              options: [
+                _Option('', s.followPhone(phone)),
+                for (final MapEntry(key: code, value: name) in S.names.entries)
+                  _Option(code, name),
+              ],
+            );
+            if (code == null) return;
+            settings.update(
+              language: code.isEmpty ? null : code,
+              clearLanguage: code.isEmpty,
+            );
+          },
+        ),
+        // One clock for every time in the app — the cards, the time picker
+        // and its shortcuts, the notifications — which used to disagree: a
+        // 12-hour picker set times the cards then wrote on a 24-hour clock.
+        _Row(
+          icon: Icons.schedule,
+          title: s.timesWritten,
+          value: _timeFormats[settings.use24Hour]!,
+          onTap: () async {
+            final h24 = await _choose(
+              context,
+              title: s.timesWritten,
+              selected: settings.use24Hour,
+              options: [
+                for (final MapEntry(key: h24, value: name)
+                    in _timeFormats.entries)
+                  _Option(h24, name),
+              ],
+            );
+            if (h24 != null) settings.update(use24Hour: h24);
+          },
+        ),
+      ],
+    ),
+  ];
+}
+
+/// The theme and the accent.
+List<Widget> _appearance(
+  BuildContext context,
+  SettingsProvider settings,
+  S s,
+) => [
+  _Group(
+    children: [
+      _Row(
+        icon: Icons.contrast,
+        title: s.theme,
+        value: _themeNames(s)[settings.themeMode]!,
+        onTap: () async {
+          final mode = await _choose(
+            context,
+            title: s.theme,
+            selected: settings.themeMode,
+            options: [
+              _Option(
+                ThemeMode.dark,
+                s.themeDark,
+                icon: Icons.dark_mode_outlined,
+              ),
+              _Option(
+                ThemeMode.light,
+                s.themeLight,
+                icon: Icons.light_mode_outlined,
+              ),
+              _Option(
+                ThemeMode.system,
+                s.themeSystem,
+                icon: Icons.brightness_auto_outlined,
+              ),
+            ],
+          );
+          if (mode == null || !context.mounted) return;
+          // Cross-faded rather than snapped from one to the other.
+          void apply() => settings.update(themeMode: mode);
+          final switcher = ThemeSwitcher.of(context);
+          switcher == null ? apply() : switcher.change(apply);
+        },
+      ),
+      _AccentPicker(
+        title: s.accent,
+        selected: settings.accent,
+        onChanged: (accent) => settings.update(accent: accent),
+      ),
+    ],
+  ),
+];
+
+/// The week, the holidays and the phone's own calendars, a panel each.
+List<Widget> _calendar(BuildContext context, SettingsProvider settings, S s) {
+  final detected = Holidays.detectCountry();
+  final followCountry = detected == null
+      ? s.followDeviceUnsupported
+      : s.followDevice(s.country(detected, Holidays.countries[detected]!));
+  return [
+    _Group(
+      children: [
+        _SwitchRow(
+          icon: Icons.calendar_view_week_outlined,
+          title: s.weekStartsMonday,
+          hint: settings.weekStartsMonday ? s.weeksMonSun : s.weeksSunSat,
+          value: settings.weekStartsMonday,
+          onChanged: (v) => settings.update(weekStartsMonday: v),
+        ),
+      ],
+    ),
+    _Group(
+      children: [
+        _SwitchRow(
+          icon: Icons.celebration_outlined,
+          title: s.showHolidays,
+          hint: settings.effectiveHolidayCountry == null
+              ? s.holidaysOff
+              : s.holidaysOn,
+          value: settings.showHolidays,
+          onChanged: (v) => settings.update(showHolidays: v),
+        ),
+        if (settings.showHolidays)
+          _Row(
+            icon: Icons.public,
+            title: s.holidayCountry,
+            value: settings.holidayCountry == null
+                ? followCountry
+                : s.country(
+                    settings.holidayCountry!,
+                    Holidays.countries[settings.holidayCountry]!,
+                  ),
+            onTap: () async {
+              final code = await _choose(
+                context,
+                title: s.holidayCountry,
+                selected: settings.holidayCountry ?? '',
+                options: [
+                  _Option('', followCountry),
+                  for (final MapEntry(key: code, value: name)
+                      in Holidays.countries.entries)
+                    _Option(code, s.country(code, name)),
+                ],
+              );
+              if (code == null) return;
+              settings.update(
+                holidayCountry: code.isEmpty ? null : code,
+                clearHolidayCountry: code.isEmpty,
+              );
+            },
+          ),
+      ],
+    ),
+    _Group(
+      children: [
+        _SwitchRow(
+          icon: Icons.event_outlined,
+          title: s.showEvents,
+          hint: settings.showDeviceEvents ? s.eventsOn : s.eventsOff,
+          value: settings.showDeviceEvents,
+          onChanged: (on) async {
+            // Asked of Android first: without the permission there is
+            // nothing to show, and a switch that stayed on over nothing
+            // would look broken.
+            if (on && !await DeviceCalendars.ask()) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(s.calendarsRefused)));
+              return;
+            }
+            settings.update(showDeviceEvents: on);
+          },
+        ),
+        if (settings.showDeviceEvents)
+          _CalendarPicker(
+            hidden: settings.hiddenCalendars,
+            onChanged: (hidden) => settings.update(hiddenCalendars: hidden),
+          ),
+      ],
+    ),
+  ];
+}
+
+/// Whether done tasks stay listed, and clearing them out. The clearing is a
+/// panel of its own: it is the one thing in Settings that cannot be taken
+/// back, and it should not sit in a row under a switch that can.
+List<Widget> _tasks(BuildContext context, SettingsProvider settings, S s) => [
+  _Group(
+    children: [
+      _SwitchRow(
+        icon: Icons.visibility_outlined,
+        title: s.showCompleted,
+        hint: s.showCompletedHint,
+        value: settings.showCompleted,
+        onChanged: (v) {
+          settings.update(showCompleted: v);
+          context.read<TaskProvider>().setShowCompleted(v);
+        },
+      ),
+    ],
+  ),
+  _Group(
+    children: [
+      // Red, and without a chevron: it is not a setting to open but a thing
+      // done.
+      _Row(
+        icon: Icons.delete_sweep_outlined,
+        title: s.clearCompleted,
+        value: s.clearCompletedHint,
+        danger: true,
+        onTap: () => _clearCompleted(context),
+      ),
+    ],
+  ),
+];
+
+Future<void> _clearCompleted(BuildContext context) async {
+  final s = S.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.clearCompletedQuestion),
+      content: Text(s.clearCompletedWarning),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(s.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(s.clear),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  final removed = await context.read<TaskProvider>().clearCompleted();
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        removed == 0 ? s.nothingToClear : s.removedCompleted(removed),
+      ),
+    ),
+  );
+}
+
+/// Whether tasks are announced, and when.
+List<Widget> _reminders(
+  BuildContext context,
+  SettingsProvider settings,
+  S s,
+) => [
+  _Group(
+    children: [
+      _SwitchRow(
+        icon: Icons.notifications_none,
+        title: s.remindWhenDue,
+        hint: settings.reminders ? s.remindOn : s.remindOff,
+        value: settings.reminders,
+        onChanged: (on) async {
+          // Permission is asked for the first time they are turned on — a
+          // notification nobody has agreed to is dropped, and silently,
+          // which looks exactly like a broken reminder. Saving is all that
+          // is needed after that: the scheduler re-sets what is standing
+          // against the settings it is handed.
+          if (on) await Reminders.instance.requestPermission();
+          await settings.update(reminders: on);
+        },
+      ),
+    ],
+  ),
+  if (settings.reminders)
+    _Group(
+      children: [
+        // How far ahead a timed task is announced when it does not say for
+        // itself; a task can still choose its own.
+        _Row(
+          icon: Icons.alarm,
+          title: s.timedTasks,
+          value: _capital(Dates.lead(settings.reminderLead)),
+          onTap: () async {
+            const leads = SettingsProvider.leads;
+            final lead = await _choose(
+              context,
+              title: s.timedTasks,
+              selected: leads.contains(settings.reminderLead)
+                  ? settings.reminderLead
+                  : leads.first,
+              options: [
+                for (final lead in leads)
+                  _Option(lead, _capital(Dates.lead(lead))),
+              ],
+            );
+            if (lead != null) settings.update(reminderLead: lead);
+          },
+        ),
+        _Row(
+          icon: Icons.wb_sunny_outlined,
+          title: s.allDayTasks,
+          value: Dates.clock(settings.reminderTime, h24: settings.use24Hour),
+          onTap: () async {
+            final picked = await showAppTimePicker(
+              context: context,
+              initial: settings.reminderTime,
+            );
+            if (picked == null) return;
+            await settings.update(
+              reminderMinutes: picked.hour * 60 + picked.minute,
+            );
+          },
+        ),
+      ],
+    ),
+];
+
 /// [text] with a capital first letter, for a phrase made to run on in a
 /// sentence ("at the time") standing on a line of its own.
 String _capital(String text) => text.isEmpty
     ? text
     : Characters(text).first.toUpperCase() + Characters(text).skip(1).string;
 
-/// A section: its name above, its rows on one panel with a hairline between
-/// each, and a line of explanation under it when it needs one.
+/// A section: its name above when it needs one, its rows on one panel with
+/// a hairline between each, and a line of explanation under it when it
+/// needs one.
 class _Group extends StatelessWidget {
-  final String label;
+  final String? label;
   final List<Widget> children;
   final String? footnote;
 
-  const _Group({required this.label, required this.children, this.footnote});
+  const _Group({this.label, required this.children, this.footnote});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+      padding: EdgeInsets.fromLTRB(16, label == null ? 10 : 18, 16, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: SectionLabel(label),
-          ),
+          if (label != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: SectionLabel(label!),
+            ),
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Material(
