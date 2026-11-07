@@ -1133,10 +1133,16 @@ Changing them back will be noticed.
   columns on the black with inked cards — simpler, but not Jira. The cards
   are not inked here, unlike everywhere else: tinted cards in grey lanes
   were a wash of colour, and the square says the colour.
-  **A lane is a page, most of the screen wide, with the next one showing
-  at the side** (`_Board.laneFraction`, a `PageView`), matched to a Jira
+  **A lane is a page, most of the screen wide, with its neighbours
+  showing at the sides** (`_Board.laneFraction`), matched to a Jira
   board's screenshot the user supplied: "make the tasks bigger". Three
   lanes at once left each a third of a phone and a title a word a line.
+  **The lanes snap to three places** (`_LaneSnap`, a row in a
+  `SingleChildScrollView`): Not started against the left edge, Done
+  against the right, In progress centred with a strip of each neighbour.
+  A `PageView` pages a lane's width at a time, so In progress sat against
+  the left edge too and Not started was nowhere on screen — "when im on
+  WIP i see the part of DONE but dont see not started".
   A card is laid out as Jira's is: the title; then the group as a lozenge
   in its colour (Jira's epic label) and the due date on a grey one, red
   once gone by; then the type square, a key made of the group's first
@@ -1153,10 +1159,10 @@ Changing them back will be noticed.
   started". **Taken to either side, the card turns the board at once**
   (`_watchEdges`), and on every 900ms while it stays; it used to wait
   500ms first, and holding still at the edge to reach the next lane was
-  disliked by name. The lanes are kept alive (`_KeepLane`): a lane turned
-  off the screen was thrown away with the card being carried out of it,
-  and its drag's callbacks with it, so the board could not turn back and
-  never heard the card let go. **The carried card stays where it was taken hold
+  disliked by name. Every lane stays built (the row, not a list): a lane
+  turned off the screen was thrown away with the card being carried out
+  of it, and its drag's callbacks with it, so the board could not turn
+  back and never heard the card let go. **The carried card stays where it was taken hold
   of, at its size, and goes see-through over the bar** (`_Lifted`,
   `_overBar`), since a card a lane wide covers all three targets. It rode
   above the finger to keep clear of them — shrunk to a tile three fifths

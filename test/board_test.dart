@@ -184,17 +184,30 @@ void main() {
     expect(left(lane), closeTo(home, 1));
 
     await carry('Ship', 'DONE');
-    // Gone from its lane at once, before the write lands.
-    expect(find.text('Ship'), findsNothing);
+    // In its new lane at once, before the write lands.
+    final done = find.textContaining('DONE   ', findRichText: true);
+    expect(find.text('Ship'), findsOneWidget);
+    expect(under('Ship', done), isTrue);
     await waitFor('Ship', Stage.done);
 
     // From In progress back to Not started, the lane that is off the
     // screen to the left — the one there was no way back to.
-    await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
+    await tester.fling(find.byKey(boardLanesKey), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
     expect(left(next), lessThan(width / 2));
+    // Centred, with as much of the lane on either side of it showing. The
+    // header stands as far into its lane as it did in the first, which was
+    // a margin in from the screen's edge.
+    const margin = 10.0;
+    final inset = home - margin;
+    final from = left(next) - inset;
+    final before = from - margin;
+    final after = width - (from + width * 0.84 - margin) - margin;
+    expect(before, greaterThan(16));
+    expect(before, closeTo(after, 1));
     await carry('Water', 'NOT STARTED');
-    expect(find.text('Water'), findsNothing);
+    expect(find.text('Water'), findsOneWidget);
+    expect(under('Water', lane), isTrue);
     await waitFor('Water', Stage.notStarted);
 
     // The write started from the screen finishes its reads in the test's

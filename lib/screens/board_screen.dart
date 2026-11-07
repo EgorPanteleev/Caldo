@@ -41,8 +41,9 @@ class _BoardScreenState extends State<BoardScreen> {
 
   bool _listening = false;
 
-  /// The lanes, a page each with the next one showing at the side.
-  final _pages = PageController(viewportFraction: _Board.laneFraction);
+  /// The lanes, side by side, snapped so the one on show has the lanes
+  /// either side of it showing (`_LaneSnap`).
+  final _lanes = ScrollController();
 
   /// Whether a card is being carried, and the lane it was picked up from,
   /// which the drop bar keeps drawing while it goes away.
@@ -72,7 +73,7 @@ class _BoardScreenState extends State<BoardScreen> {
   void dispose() {
     widget.shown?.removeListener(_follow);
     if (_listening) _tasks.removeListener(_load);
-    _pages.dispose();
+    _lanes.dispose();
     _turning?.cancel();
     _finger.dispose();
     _overBar.dispose();
@@ -142,13 +143,17 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   void _turn() {
-    final page = (_pages.page ?? 0).round() + _side;
-    if (page >= 0 && page < Stage.values.length) {
-      _pages.animateToPage(
-        page,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
+    if (_lanes.hasClients) {
+      final at = _lanes.position;
+      final stops = _LaneSnap.stops(at);
+      final page = _LaneSnap.nearest(at, stops) + _side;
+      if (page >= 0 && page < stops.length) {
+        _lanes.animateTo(
+          stops[page],
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        );
+      }
     }
     _turning = Timer(_Board.nextTurn, _turn);
   }
@@ -222,32 +227,45 @@ class _BoardScreenState extends State<BoardScreen> {
           Expanded(
             child: Stack(
               children: [
-                PageView(
-                  controller: _pages,
-                  padEnds: false,
-                  children: [
-                    for (final stage in Stage.values)
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          _Board.gap,
-                          0,
-                          stage == Stage.values.last ? _Board.gap : 0,
-                          _Board.gap,
-                        ),
-                        child: _KeepLane(
-                          child: _Column(
-                            stage: stage,
-                            tasks: columns[stage]!,
-                            onTap: _open,
-                            onDrop: (task) => _move(task, stage),
-                            finger: _finger,
-                            overBar: _overBar,
-                            onLift: _lift,
-                            onPutDown: _putDown,
-                          ),
-                        ),
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, box) => SingleChildScrollView(
+                      key: boardLanesKey,
+                      controller: _lanes,
+                      scrollDirection: Axis.horizontal,
+                      physics: const _LaneSnap(),
+                      // A row rather than a list, so every lane stays built:
+                      // a lane thrown away while a card carried out of it is
+                      // still in the air takes the drag's callbacks with it,
+                      // and the board could neither turn back nor hear the
+                      // card let go.
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final stage in Stage.values)
+                            Container(
+                              width: box.maxWidth * _Board.laneFraction,
+                              padding: EdgeInsets.fromLTRB(
+                                _Board.gap,
+                                0,
+                                stage == Stage.values.last ? _Board.gap : 0,
+                                _Board.gap,
+                              ),
+                              child: _Column(
+                                stage: stage,
+                                tasks: columns[stage]!,
+                                onTap: _open,
+                                onDrop: (task) => _move(task, stage),
+                                finger: _finger,
+                                overBar: _overBar,
+                                onLift: _lift,
+                                onPutDown: _putDown,
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
+                    ),
+                  ),
                 ),
                 Positioned(
                   left: 0,
@@ -269,29 +287,84 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 }
 
-/// Keeps a lane in the tree when the board is turned away from it. A card
-/// carried out of a lane is still that lane's: thrown away, it takes the
-/// drag's callbacks with it, and the board could neither turn back nor
-/// hear that the card was let go.
-class _KeepLane extends StatefulWidget {
-  final Widget child;
+/// The board's lanes, for tests to swipe.
+const boardLanesKey = Key('boardLanes');
 
-  const _KeepLane({required this.child});
-
-  @override
-  State<_KeepLane> createState() => _KeepLaneState();
-}
-
-class _KeepLaneState extends State<_KeepLane>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
+/// Snaps the lanes to where each is on show: the first against the left
+/// edge, the last against the right, and the one between them centred, so
+/// both its neighbours show at the sides. Paged a lane's width at a time,
+/// as a `PageView` pages, the middle lane sat against the left edge too,
+/// and the lane before it was nowhere on the screen.
+class _LaneSnap extends ScrollPhysics {
+  const _LaneSnap({super.parent});
 
   @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return widget.child;
+  _LaneSnap applyTo(ScrollPhysics? ancestor) =>
+      _LaneSnap(parent: buildParent(ancestor));
+
+  /// Where the board stands with each lane on show: that lane's middle at
+  /// the screen's, as far as the ends allow.
+  static List<double> stops(ScrollMetrics m) {
+    final width = m.viewportDimension;
+    final lane = width * _Board.laneFraction;
+    return [
+      for (var i = 0; i < Stage.values.length; i++)
+        ((i + 0.5) * lane + _Board.gap / 2 - width / 2).clamp(
+          m.minScrollExtent,
+          m.maxScrollExtent,
+        ),
+    ];
   }
+
+  static int nearest(ScrollMetrics m, List<double> stops) {
+    var best = 0;
+    for (var i = 1; i < stops.length; i++) {
+      if ((stops[i] - m.pixels).abs() < (stops[best] - m.pixels).abs()) {
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    if ((velocity <= 0 && position.pixels <= position.minScrollExtent) ||
+        (velocity >= 0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+    final tolerance = toleranceFor(position);
+    final all = stops(position);
+    // A swipe goes on to the next lane its way, however short, as a page
+    // view's does; let go at rest, the board settles on the nearest.
+    final double target;
+    if (velocity > tolerance.velocity) {
+      target = all.firstWhere(
+        (stop) => stop > position.pixels + tolerance.distance,
+        orElse: () => all.last,
+      );
+    } else if (velocity < -tolerance.velocity) {
+      target = all.lastWhere(
+        (stop) => stop < position.pixels - tolerance.distance,
+        orElse: () => all.first,
+      );
+    } else {
+      target = all[nearest(position, all)];
+    }
+    if ((target - position.pixels).abs() < tolerance.distance) return null;
+    return ScrollSpringSimulation(
+      spring,
+      position.pixels,
+      target,
+      velocity,
+      tolerance: tolerance,
+    );
+  }
+
+  @override
+  bool get allowImplicitScrolling => false;
 }
 
 /// One column, as a Jira board draws one: a grey lane with its name in
