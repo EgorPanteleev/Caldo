@@ -503,29 +503,20 @@ class TaskProvider extends ChangeNotifier {
   /// is written for the whole run, the moved task included. Without, the
   /// task lets go of the place it had in its old day and goes after whatever
   /// the new one already has arranged, the way a task added to it would.
-  Future<void> moveToDay(Task task, DateTime? day, {List<Task>? among}) async {
-    final due = task.due;
-    final Task moved;
-    if (day == null) {
-      moved = task.copyWith(
-        clearDueAt: true,
-        hasTime: false,
-        clearSortOrder: true,
-        clearSnoozedUntil: true,
-      );
-    } else {
-      final at = task.hasTime && due != null
-          ? DateTime(day.year, day.month, day.day, due.hour, due.minute)
-          : dayOf(day);
-      // A snooze was a reminder put off on the old date; the new one has
-      // its own.
-      moved = task.copyWith(
-        dueAt: at.millisecondsSinceEpoch,
-        clearSortOrder: true,
-        clearSnoozedUntil: true,
-      );
+  Future<void> moveToDay(Task task, DateTime? day, {List<Task>? among}) =>
+      moveAllToDay([task], day, among: among);
+
+  /// Moves every one of [tasks] to [day], as [moveToDay] moves one — with
+  /// one read back for the lot, so they all slide to their new places
+  /// together.
+  Future<void> moveAllToDay(
+    List<Task> tasks,
+    DateTime? day, {
+    List<Task>? among,
+  }) async {
+    for (final task in tasks) {
+      await _db.update(_movedTo(task, day));
     }
-    await _db.update(moved);
     final ids = [
       for (final t in among ?? const <Task>[])
         if (t.id != null) t.id!,
@@ -533,6 +524,81 @@ class TaskProvider extends ChangeNotifier {
     if (ids.length > 1) await _db.setOrder(ids);
     rearranging.value++;
     await _reloadAll();
+  }
+
+  static Task _movedTo(Task task, DateTime? day) {
+    if (day == null) {
+      return task.copyWith(
+        clearDueAt: true,
+        hasTime: false,
+        clearSortOrder: true,
+        clearSnoozedUntil: true,
+      );
+    }
+    final due = task.due;
+    final at = task.hasTime && due != null
+        ? DateTime(day.year, day.month, day.day, due.hour, due.minute)
+        : dayOf(day);
+    // A snooze was a reminder put off on the old date; the new one has its
+    // own.
+    return task.copyWith(
+      dueAt: at.millisecondsSinceEpoch,
+      clearSortOrder: true,
+      clearSnoozedUntil: true,
+    );
+  }
+
+  /// Puts every one of [tasks] in group [id], back on the group's colour —
+  /// as the form does when a task changes group.
+  Future<void> moveAllToGroup(List<Task> tasks, int id) async {
+    for (final task in tasks) {
+      if (task.listId == id) continue;
+      await _db.update(task.copyWith(listId: id, clearStyleId: true));
+    }
+    rearranging.value++;
+    await _reloadAll();
+  }
+
+  /// Ticks off every one of [tasks] that is still open, or with [done]
+  /// false takes the tick back from every one that is done. Each tick is
+  /// logged and a repeating task rolls on, as when it is ticked on its card;
+  /// the cards are not played through a tick each, only slid to where the
+  /// read back puts them.
+  Future<void> setAllDone(List<Task> tasks, {required bool done}) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final task in tasks) {
+      if (task.done == done) continue;
+      if (done) {
+        await _db.complete(task, now);
+      } else {
+        await _db.untick(task.reopened());
+      }
+    }
+    rearranging.value++;
+    await _reloadAll();
+  }
+
+  Future<void> removeAll(List<Task> tasks) async {
+    for (final task in tasks) {
+      if (task.id != null) await _db.delete(task.id!);
+    }
+    rearranging.value++;
+    await _reloadAll();
+  }
+
+  /// The task with [id] as it was last read, wherever it is on show.
+  Task? taskById(int id) {
+    for (final run in [
+      _allOverdue,
+      _allUpcoming,
+      _allUndated,
+      for (final day in _allByDay.values) day,
+    ]) {
+      for (final task in run) {
+        if (task.id == id) return task;
+      }
+    }
+    return null;
   }
 
   /// Puts [task] in the board's column for [stage]. Into Done is a tick like

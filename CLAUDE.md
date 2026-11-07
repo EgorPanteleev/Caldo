@@ -44,7 +44,7 @@ lib/
                          date_time_pickers, day_sheet, menu_button,
                          quick_add_bar, screen_header, selection_bar,
                          theme_switcher, slide_into_place,
-                         tick_off (+ AsShown), carry
+                         tick_off (+ AsShown), carry, selection
 ```
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
@@ -675,6 +675,30 @@ Changing them back will be noticed.
   already does, so nothing was lost. There are no drag handles: the card is
   the handle, and a grip beside every row would be a column of furniture down
   a list whose whole job is to be read.
+- **Several tasks can be picked out and dealt with at once** (`Selection`,
+  `SelectionScope`, `SelectionSlot`, `TaskProvider.moveAllToDay`/
+  `moveAllToGroup`/`setAllDone`/`removeAll`). Asked for as "select several
+  tasks to move it to another day or delete or smth". The long press
+  stays the drag's: a card held and moved is carried, and one held and let
+  go within 18 points of where it was pressed is picked out — the scope's
+  `Listener` sees the release before the list's drag does, and the lists
+  report what they lifted (`Selection.lifted`). Once anything is picked
+  out, a tap anywhere on a card, its tick included, picks it out or puts
+  it back, so nothing is ticked off or opened by mistake halfway through.
+  A picked-out card wears a light rim in front of its ink
+  (`foregroundDecoration`, so the title does not shift) and a little more
+  of its colour. The quick-add row gives its place to a bar the field's
+  size, as it does to Undo: a cross, "3 selected", and Move to a day (the
+  date sheet; each task keeps its time), Move to a group (back on the
+  group's colour, as on the form), Mark done (each tick logged, a
+  repeating task rolling on; Mark not done when every one is done
+  already) and Delete, the one action that asks first. A picked-out card
+  carried to another day takes the rest with it (`Selection.carried`).
+  Schedule, the calendar and the day sheet are each a scope; one
+  selection at a time across them, put down by Back, by choosing another
+  group, and by opening the menu, since the screens stay alive behind it
+  and one left holding a selection would have Back answer to it from out
+  of sight. Not on the board, whose cards are moved between lanes.
 - **A card carried to another day moves to that day** (`Carry`,
   `CarryArea`, `CarryMark`, `TaskProvider.moveToDay`). This was ruled out
   once — "a change of date wearing the clothes of a change of order" — and
@@ -1189,7 +1213,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 170 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 179 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

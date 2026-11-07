@@ -304,6 +304,16 @@ class S {
   String willBeRemoved(String title) =>
       _fill('willBeRemoved', {'title': title});
 
+  // ---- Several tasks at once -----------------------------------------------
+  String selectedCount(int n) => _count('selectedCount', n);
+  String get moveToDay => _word('moveToDay');
+  String get moveToGroup => _word('moveToGroup');
+  String get markDone => _word('markDone');
+  String get markNotDone => _word('markNotDone');
+  String get clearSelection => _word('clearSelection');
+  String deleteTasksQuestion(int n) => _count('deleteTasksQuestion', n);
+  String get cannotBeUndone => _word('cannotBeUndone');
+
   // ---- Reminders and how far ahead -----------------------------------------
   String get atTheTime => _word('atTheTime');
   String minutesBefore(int minutes) => _fill('minutesBefore', {'n': minutes});

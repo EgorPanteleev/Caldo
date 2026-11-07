@@ -10,6 +10,7 @@ import '../providers/task_provider.dart';
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'selection.dart';
 
 /// A task as it appears under the calendar: a card inked with its list's
 /// colour, carrying a tick, the title and when it is due.
@@ -91,7 +92,25 @@ class TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final selection = Selection.maybeOf(context);
+    if (selection == null) return _build(context, null);
+    return ListenableBuilder(
+      listenable: selection,
+      builder: (context, _) => _build(context, selection),
+    );
+  }
+
+  /// While anything is picked out ([selection] active), a tap anywhere on
+  /// the card — its tick included — picks it out or puts it back, and what
+  /// is picked out wears a rim: ticking a card off or opening it by mistake,
+  /// halfway through gathering several, would be the wrong thing to have
+  /// happen.
+  Widget _build(BuildContext context, Selection? selection) {
     final p = AppTheme.of(context);
+    final selecting = selection?.active ?? false;
+    final picked = selection?.has(task) ?? false;
+    final onTap = selecting ? () => selection!.toggle(task) : this.onTap;
+    final onToggle = selecting ? onTap : this.onToggle;
     final color = colorOfTask(
       task,
       list,
@@ -139,7 +158,20 @@ class TaskCard extends StatelessWidget {
             decoration: BoxDecoration(
               // A done task sinks most of the way back into the ground rather
               // than keeping its place in the run.
-              color: color.withValues(alpha: faded ? 0.07 : 0.24),
+              color: color.withValues(
+                alpha: faded ? 0.07 : (picked ? 0.34 : 0.24),
+              ),
+              borderRadius: BorderRadius.circular(TaskCard.radius),
+            ),
+            // In front rather than a border of the card's own, which would
+            // take its width out of what is inside and shift the title.
+            foregroundDecoration: BoxDecoration(
+              border: Border.all(
+                color: picked
+                    ? p.text.withValues(alpha: 0.8)
+                    : p.text.withValues(alpha: 0),
+                width: 1.8,
+              ),
               borderRadius: BorderRadius.circular(TaskCard.radius),
             ),
             child: _WithChecklist(

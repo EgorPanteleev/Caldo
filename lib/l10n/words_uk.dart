@@ -171,6 +171,18 @@ const Map<String, Object> uk = {
   'list': "Список",
   'deleteTaskQuestion': "Видалити завдання?",
   'willBeRemoved': "Завдання «{title}» буде видалено.",
+  'selectedCount': ["Вибрано: {n}"],
+  'moveToDay': "Перенести на день",
+  'moveToGroup': "Перенести в групу",
+  'markDone': "Позначити виконаними",
+  'markNotDone': "Зняти позначку",
+  'clearSelection': "Зняти виділення",
+  'deleteTasksQuestion': [
+    "Видалити {n} завдання?",
+    "Видалити {n} завдання?",
+    "Видалити {n} завдань?",
+  ],
+  'cannotBeUndone': "Це не можна скасувати.",
 
   'atTheTime': "вчасно",
   'minutesBefore': "за {n} хв",

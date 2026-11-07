@@ -44,7 +44,12 @@ void main() {
       find
           .descendant(
             of: find.byType(TaskCard),
-            matching: find.byType(DecoratedBox),
+            // The fill, not the rim a picked-out card wears in front of it.
+            matching: find.byWidgetPredicate(
+              (w) =>
+                  w is DecoratedBox &&
+                  w.position == DecorationPosition.background,
+            ),
           )
           .first,
     );

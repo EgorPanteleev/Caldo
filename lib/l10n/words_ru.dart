@@ -171,6 +171,18 @@ const Map<String, Object> ru = {
   'list': "Список",
   'deleteTaskQuestion': "Удалить задачу?",
   'willBeRemoved': "Задача «{title}» будет удалена.",
+  'selectedCount': ["Выбрано: {n}"],
+  'moveToDay': "Перенести на день",
+  'moveToGroup': "Перенести в группу",
+  'markDone': "Отметить выполненными",
+  'markNotDone': "Снять отметку",
+  'clearSelection': "Снять выделение",
+  'deleteTasksQuestion': [
+    "Удалить {n} задачу?",
+    "Удалить {n} задачи?",
+    "Удалить {n} задач?",
+  ],
+  'cannotBeUndone': "Это нельзя отменить.",
 
   'atTheTime': "в срок",
   'minutesBefore': "за {n} мин",

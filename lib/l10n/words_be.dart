@@ -171,6 +171,18 @@ const Map<String, Object> be = {
   'list': "Спіс",
   'deleteTaskQuestion': "Выдаліць задачу?",
   'willBeRemoved': "Задача «{title}» будзе выдалена.",
+  'selectedCount': ["Выбрана: {n}"],
+  'moveToDay': "Перанесці на дзень",
+  'moveToGroup': "Перанесці ў групу",
+  'markDone': "Адзначыць выкананымі",
+  'markNotDone': "Зняць адзнаку",
+  'clearSelection': "Зняць вылучэнне",
+  'deleteTasksQuestion': [
+    "Выдаліць {n} задачу?",
+    "Выдаліць {n} задачы?",
+    "Выдаліць {n} задач?",
+  ],
+  'cannotBeUndone': "Гэта нельга адмяніць.",
 
   'atTheTime': "у тэрмін",
   'minutesBefore': "за {n} хв",

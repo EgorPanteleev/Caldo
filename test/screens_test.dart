@@ -1344,12 +1344,18 @@ class _CapturingProvider extends TaskProvider {
   Future<void> restore(Task original) async => restored = original;
 
   Task? moved;
+  List<Task>? movedAll;
   DateTime? movedTo;
   List<Task>? movedAmong;
 
   @override
-  Future<void> moveToDay(Task task, DateTime? day, {List<Task>? among}) async {
-    moved = task;
+  Future<void> moveAllToDay(
+    List<Task> tasks,
+    DateTime? day, {
+    List<Task>? among,
+  }) async {
+    moved = tasks.first;
+    movedAll = tasks;
     movedTo = day;
     movedAmong = among;
   }

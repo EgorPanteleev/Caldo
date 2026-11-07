@@ -11,6 +11,7 @@ import '../providers/task_provider.dart' show dayOf;
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import 'carry.dart';
+import 'selection.dart';
 import 'slide_into_place.dart';
 import 'task_card.dart';
 import 'tick_off.dart';
@@ -656,10 +657,13 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
           key: _list,
           itemCount: w.tasks.length,
           onReorder: _reorder,
-          onReorderStart: (i) => w.carry?.begin(
-            w.tasks[i],
-            () => _list.currentState?.cancelReorder(),
-          ),
+          onReorderStart: (i) {
+            Selection.maybeOf(context)?.lifted(w.tasks[i]);
+            w.carry?.begin(
+              w.tasks[i],
+              () => _list.currentState?.cancelReorder(),
+            );
+          },
           onReorderEnd: (_) => w.carry?.end(),
           proxyDecorator: (child, index, animation) => liftedCard(
             context,

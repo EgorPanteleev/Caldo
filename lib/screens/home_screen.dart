@@ -10,6 +10,7 @@ import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/selection.dart';
 import 'board_screen.dart';
 import 'calendar_screen.dart';
 import 'done_screen.dart';
@@ -125,7 +126,14 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  void _openMenu() => _menu.forward();
+  /// What is picked out on a screen is put down on the way off it: the
+  /// screens stay alive behind the menu, and one left holding a selection
+  /// would have back answer to it from somewhere else.
+  void _openMenu() {
+    Selection.dropAll();
+    _menu.forward();
+  }
+
   void _closeMenu() => _menu.reverse();
 
   /// Switch screens, refreshing the dated views so they stay correct across a

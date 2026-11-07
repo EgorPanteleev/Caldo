@@ -172,6 +172,18 @@ const Map<String, Object> pl = {
   'list': "Lista",
   'deleteTaskQuestion': "Usunąć zadanie?",
   'willBeRemoved': "Zadanie „{title}” zostanie usunięte.",
+  'selectedCount': ["Zaznaczono: {n}"],
+  'moveToDay': "Przenieś na dzień",
+  'moveToGroup': "Przenieś do grupy",
+  'markDone': "Oznacz jako zrobione",
+  'markNotDone': "Oznacz jako niezrobione",
+  'clearSelection': "Odznacz wszystko",
+  'deleteTasksQuestion': [
+    "Usunąć {n} zadanie?",
+    "Usunąć {n} zadania?",
+    "Usunąć {n} zadań?",
+  ],
+  'cannotBeUndone': "Tego nie można cofnąć.",
 
   'atTheTime': "w terminie",
   'minutesBefore': "{n} min wcześniej",

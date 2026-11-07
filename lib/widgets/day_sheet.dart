@@ -12,6 +12,7 @@ import '../utils/dates.dart';
 import 'groups.dart';
 import 'quick_add_bar.dart';
 import 'reorderable_task_list.dart';
+import 'selection.dart';
 import 'tick_off.dart';
 
 /// Identifies the day card, for tests and for the calendar that opens it.
@@ -35,7 +36,9 @@ Future<void> showDaySheet(BuildContext context, DateTime day) {
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.4),
-    builder: (_) => UndoScope(child: _DaySheet(day: day)),
+    builder: (_) => SelectionScope(
+      child: UndoScope(child: _DaySheet(day: day)),
+    ),
   );
 }
 
