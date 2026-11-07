@@ -168,7 +168,6 @@ def row(name):
         android:id="@+id/widget_card"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/widget_card_base"
         android:stateListAnimator="@animator/widget_leave">
 
         <ImageView

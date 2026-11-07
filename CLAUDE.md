@@ -1018,12 +1018,15 @@ Changing them back will be noticed.
   may change on a view that an animator answers to (`stateListAnimator`,
   `animator/widget_*.xml`, `interpolator/widget_*.xml`). The tick: 490ms
   after the tap (`SETTLE`) the card is crossed out — the ink sinking from a
-  quarter to a fourteenth (the ink's view alpha, over a black base so the
-  card is opaque) and the title fading to the faint grey over 240ms on
+  quarter to a fourteenth (the ink's view alpha) and the title fading to
+  the faint grey over 240ms on
   easeOut, with the strike coming in 70ms along, where the app's text style
   switches it (two titles, open and crossed out). A card that stays holds
   150ms (`HOLD`), then slides to the end of its day, 260ms on
-  easeInOutCubic, the cards it passes rising into its place. One that
+  easeInOutCubic, the cards it passes rising into its place and showing
+  through it, as the app's translucent card lets them. It had a black base
+  under its ink, so it would not show what it slid over, and it blotted
+  out each card it passed: "moves to the bottom badly". One that
   leaves — done out of the backlog, a repeating task rolling on, or any
   done task with done tasks hidden (`TodayWidgetRuns.leaving`) — fades over
   the first 138ms of the app's 280 (`interpolator/widget_leave.xml` is the
