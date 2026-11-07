@@ -816,6 +816,26 @@ void main() {
     expect(find.text('Undo'), findsNothing);
     expect(provider.restored, isNull);
 
+    // The field comes back under it as it is pulled away: hidden while the
+    // bar is at rest, whole by the point where letting go throws it.
+    double fieldShown() => tester
+        .widget<Opacity>(
+          find.ancestor(of: field, matching: find.byType(Opacity)).first,
+        )
+        .opacity;
+    await tickShip();
+    expect(fieldShown(), lessThan(0.05));
+    final pull = await tester.startGesture(tester.getCenter(onBar));
+    for (var i = 0; i < 6; i++) {
+      await pull.moveBy(const Offset(20, 0));
+      await tester.pump();
+    }
+    expect(fieldShown(), greaterThan(0.99));
+    await pull.up();
+    await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+    expect(fieldShown(), 1);
+
     // A short pull settles back into place instead.
     await tickShip();
     await tester.drag(find.text('Undo'), const Offset(30, 0));

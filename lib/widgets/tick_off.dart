@@ -122,6 +122,10 @@ class _UndoSlotState extends State<UndoSlot>
     reverseCurve: Curves.easeInCubic,
   );
 
+  /// How far the bar has been pulled towards being brushed off, from 0 at
+  /// rest to 1 at the point where letting go throws it.
+  final _away = ValueNotifier<double>(0);
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -137,6 +141,7 @@ class _UndoSlotState extends State<UndoSlot>
     if (offer == null) {
       _swap.reverse();
     } else {
+      _away.value = 0;
       _swap.forward();
     }
   }
@@ -154,6 +159,7 @@ class _UndoSlotState extends State<UndoSlot>
   @override
   void dispose() {
     _spot?.removeListener(_changed);
+    _away.dispose();
     _eased.dispose();
     _swap.dispose();
     super.dispose();
@@ -168,10 +174,19 @@ class _UndoSlotState extends State<UndoSlot>
         // Always first and always wrapped the same way, so the field keeps
         // its state — what is typed, and its hold on the keyboard — while
         // the offer stands over it.
+        //
+        // It comes back as the bar is pulled away, all of it by the point
+        // where letting go would throw the bar: pulled off a blank strip, the
+        // bar read as taking the field with it ("i dont see add task under
+        // it when im moving undo bar").
         IgnorePointer(
           ignoring: standing,
-          child: FadeTransition(
-            opacity: ReverseAnimation(_eased),
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_eased, _away]),
+            builder: (context, child) => Opacity(
+              opacity: 1 - _eased.value * (1 - _away.value),
+              child: child,
+            ),
             child: widget.child,
           ),
         ),
@@ -190,6 +205,7 @@ class _UndoSlotState extends State<UndoSlot>
                     key: ObjectKey(shown),
                     task: shown.task,
                     onUndo: shown.onUndo,
+                    away: _away,
                     onGone: () => _withdraw(shown),
                     onField: () {
                       _withdraw(shown);
@@ -231,12 +247,16 @@ class _UndoBar extends StatefulWidget {
   /// A tap on the bar away from Undo: the field is wanted back.
   final VoidCallback onField;
 
+  /// Where the bar tells the row how far it has been pulled away.
+  final ValueNotifier<double> away;
+
   const _UndoBar({
     super.key,
     required this.task,
     required this.onUndo,
     required this.onGone,
     required this.onField,
+    required this.away,
   });
 
   static const _tick = 20.0;
@@ -321,6 +341,15 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
         Curves.easeOutCubic.transform(_fling.value),
       )!;
     });
+    _report();
+  }
+
+  /// Tells the row how near the bar is to being thrown, measured against
+  /// the same distances [_let] decides by.
+  void _report() {
+    final s = _shown;
+    final away = math.max(s.dx.abs() / (_width * 0.25), s.dy / 36);
+    widget.away.value = away.clamp(0.0, 1.0);
   }
 
   double get _width => MediaQuery.sizeOf(context).width;
@@ -348,6 +377,7 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
   void _move(DragUpdateDetails details) {
     if (_gone) return;
     setState(() => _drag += details.delta);
+    _report();
   }
 
   void _let(DragEndDetails details) {

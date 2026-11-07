@@ -247,7 +247,11 @@ Changing them back will be noticed.
   and letting go starts it running again. It follows the finger sideways or
   down (upwards it only gives a little), stays solid for the first sixth of
   the screen and fades after, and goes past a quarter of the width, 36
-  points down, or on a throw; short of that it settles back.
+  points down, or on a throw; short of that it settles back. The add row
+  comes back under it as it goes (`UndoSlot._away`), all of it by the point
+  where letting go would throw it: pulled off a blank strip, the bar looked
+  as if it was taking the field with it ("i dont see add task under it when
+  im moving undo bar").
   On it: a plain grey tick, the task's name, and Undo as plain words
   (`_UndoButton`) in the accent lifted a third towards white, the arrow
   drawn (`_UndoArrow`) in the tick's round-ended stroke. Undo is the only
