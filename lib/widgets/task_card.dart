@@ -102,7 +102,7 @@ class TaskCard extends StatelessWidget {
 
   /// While anything is picked out ([selection] active), a tap anywhere on
   /// the card — its tick included — picks it out or puts it back, and what
-  /// is picked out wears a rim: ticking a card off or opening it by mistake,
+  /// is picked out is lit in its colour: ticking a card off or opening it by mistake,
   /// halfway through gathering several, would be the wrong thing to have
   /// happen.
   Widget _build(BuildContext context, Selection? selection) {
@@ -162,15 +162,30 @@ class TaskCard extends StatelessWidget {
                 alpha: faded ? 0.07 : (picked ? 0.34 : 0.24),
               ),
               borderRadius: BorderRadius.circular(TaskCard.radius),
+              // A picked-out card is lit in its own colour: a soft glow
+              // round it, outside only — under the translucent ink a
+              // shadow would cloud the card itself.
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: picked ? 0.5 : 0),
+                  blurRadius: 14,
+                  blurStyle: BlurStyle.outer,
+                ),
+              ],
             ),
-            // In front rather than a border of the card's own, which would
+            // The rim is the task's colour lifted towards white, rather than
+            // a white one: a white box round a violet card read as a frame
+            // put on it, where this reads as the card itself lit up. In
+            // front rather than a border of the card's own, which would
             // take its width out of what is inside and shift the title.
             foregroundDecoration: BoxDecoration(
               border: Border.all(
-                color: picked
-                    ? p.text.withValues(alpha: 0.8)
-                    : p.text.withValues(alpha: 0),
-                width: 1.8,
+                color: Color.lerp(
+                  color,
+                  Colors.white,
+                  0.4,
+                )!.withValues(alpha: picked ? 1 : 0),
+                width: 1.5,
               ),
               borderRadius: BorderRadius.circular(TaskCard.radius),
             ),
@@ -275,6 +290,9 @@ class TaskCard extends StatelessWidget {
       // half, while its height only closes over the whole. Both at once
       // read as the card being squashed rather than taken away.
       builder: (context, t, card) => ClipRect(
+        // Only while it is going: at rest the clip would cut a picked-out
+        // card's glow off flat along its top, where it has no margin.
+        clipBehavior: t < 1 ? Clip.hardEdge : Clip.none,
         child: Align(
           alignment: Alignment.topCenter,
           heightFactor: t,

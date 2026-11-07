@@ -685,9 +685,14 @@ Changing them back will be noticed.
   report what they lifted (`Selection.lifted`). Once anything is picked
   out, a tap anywhere on a card, its tick included, picks it out or puts
   it back, so nothing is ticked off or opened by mistake halfway through.
-  A picked-out card wears a light rim in front of its ink
-  (`foregroundDecoration`, so the title does not shift) and a little more
-  of its colour. The quick-add row gives its place to a bar the field's
+  A picked-out card is lit in its own colour: a 1.5pt rim of the task's
+  colour lifted two fifths towards white, in front of its ink
+  (`foregroundDecoration`, so the title does not shift), a soft glow of
+  that colour outside it only (`BlurStyle.outer`; under the translucent ink
+  a shadow clouds the card), and a little more ink. The first rim was
+  white at 1.8pt — a frame put round the card rather than the card lit up,
+  and asked to look nicer. The leaving animation's `ClipRect` clips only
+  while a card is leaving; at rest it cut the glow off flat along the top. The quick-add row gives its place to a bar the field's
   size, as it does to Undo: a cross, "3 selected", and Move to a day (the
   date sheet; each task keeps its time), Move to a group (back on the
   group's colour, as on the form), Mark done (each tick logged, a
