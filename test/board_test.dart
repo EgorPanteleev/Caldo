@@ -160,19 +160,19 @@ void main() {
           expect((await taskNamed(title)).stage, stage);
         });
 
-    // Taken to a side, the card turns the board that way at once, with no
-    // holding still at the edge first.
+    // Taken towards a side, the card turns the board that way at once —
+    // well before the screen's edge, and with no holding still there.
     final home = left(lane);
     final lifted = await tester.startGesture(
       tester.getCenter(find.text('Ship')),
     );
     await tester.pump(const Duration(milliseconds: 600));
     final y = tester.getCenter(find.text('Ship').first).dy;
-    await lifted.moveTo(Offset(width - 8, y));
+    await lifted.moveTo(Offset(width * 0.85, y));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(left(next), lessThan(width / 2));
-    await lifted.moveTo(Offset(8, y));
+    await lifted.moveTo(Offset(width * 0.15, y));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(left(lane), closeTo(home, 1));
@@ -184,26 +184,13 @@ void main() {
     expect(left(lane), closeTo(home, 1));
 
     await carry('Ship', 'DONE');
+    // The bar's Done reaches into the side, and the board stays put for it.
+    expect(left(lane), closeTo(home, 1));
     // In its new lane at once, before the write lands.
     final done = find.textContaining('DONE   ', findRichText: true);
     expect(find.text('Ship'), findsOneWidget);
     expect(under('Ship', done), isTrue);
     await waitFor('Ship', Stage.done);
-
-    // Or without carrying it: the card's move button lists the lanes.
-    final move = find.descendant(
-      of: find.ancestor(
-        of: find.text('Someday idea'),
-        matching: find.byType(BoardCard),
-      ),
-      matching: find.byIcon(Icons.swap_horiz_rounded),
-    );
-    await tester.tap(move);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('In progress').last);
-    await tester.pumpAndSettle();
-    expect(under('Someday idea', next), isTrue);
-    await waitFor('Someday idea', Stage.inProgress);
 
     // From In progress back to Not started, the lane that is off the
     // screen to the left — the one there was no way back to.

@@ -126,14 +126,21 @@ class _BoardScreenState extends State<BoardScreen> {
   /// Turns the board towards the side a carried card is taken to, the
   /// moment it gets there, and on again every so often while it stays.
   /// It used to wait half a second first, which made reaching the next lane
-  /// a matter of holding still at the edge.
+  /// a matter of holding still at the edge, and the edge was the last 28
+  /// points of the screen; the next lane is wanted on show sooner than that.
   void _watchEdges() {
     if (!_carrying) return;
     final x = _finger.value;
     final width = MediaQuery.sizeOf(context).width;
-    final side = x < _Board.edge
+    final edge = width * _Board.edge;
+    // Not over the drop bar, whose outer targets reach into the sides: a
+    // card taken to Done there would turn the board under it. The bar has
+    // heard the card before this does.
+    final side = _overBar.value
+        ? 0
+        : x < edge
         ? -1
-        : x > width - _Board.edge
+        : x > width - edge
         ? 1
         : 0;
     if (side == _side) return;
@@ -256,7 +263,6 @@ class _BoardScreenState extends State<BoardScreen> {
                                 tasks: columns[stage]!,
                                 onTap: _open,
                                 onDrop: (task) => _move(task, stage),
-                                onMove: _move,
                                 finger: _finger,
                                 overBar: _overBar,
                                 onLift: _lift,
@@ -377,9 +383,6 @@ class _Column extends StatelessWidget {
   final ValueChanged<Task> onTap;
   final ValueChanged<Task> onDrop;
 
-  /// A card's own move button has sent it to a lane.
-  final void Function(Task task, Stage stage) onMove;
-
   /// Where the card being carried is, across the screen, and whether it is
   /// over the drop bar; the board's.
   final ValueNotifier<double> finger;
@@ -396,7 +399,6 @@ class _Column extends StatelessWidget {
     required this.tasks,
     required this.onTap,
     required this.onDrop,
-    required this.onMove,
     required this.finger,
     required this.overBar,
     required this.onLift,
@@ -479,7 +481,6 @@ class _Column extends StatelessWidget {
                         task: task,
                         list: provider.listById(task.listId),
                         onTap: () => onTap(task),
-                        onMove: (to) => onMove(task, to),
                       );
                       return LongPressDraggable<Task>(
                         key: ValueKey(task.id),
@@ -526,9 +527,10 @@ abstract final class _Board {
   /// Squarer than the rest of the app's corners, as Jira's are.
   static const laneRadius = 8.0;
 
-  /// How near the side a carried card turns the board, and how often it
-  /// turns again while it is held there.
-  static const edge = 28.0;
+  /// How near the side, as a share of the screen's width, a carried card
+  /// turns the board — about as far in as the strip of the next lane — and
+  /// how often it turns again while it is held there.
+  static const edge = 0.18;
   static const nextTurn = Duration(milliseconds: 900);
 
   /// How long a card is held before it comes up to be carried.
@@ -789,16 +791,11 @@ class BoardCard extends StatelessWidget {
   final TaskList? list;
   final VoidCallback onTap;
 
-  /// Sends the task to another lane from the card's move button; without
-  /// it the card has no button.
-  final ValueChanged<Stage>? onMove;
-
   const BoardCard({
     super.key,
     required this.task,
     this.list,
     required this.onTap,
-    this.onMove,
   });
 
   /// "Today", "Sep 23", with the time after it if it has one.
@@ -908,10 +905,6 @@ class BoardCard extends StatelessWidget {
           size: 20,
           color: TaskCard.priorityColor(task.priority),
         ),
-      if (onMove != null) ...[
-        const SizedBox(width: 6),
-        _MoveButton(stage: task.stage, onMove: onMove!, ground: chip),
-      ],
     ];
 
     return Padding(
@@ -952,93 +945,6 @@ class BoardCard extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Moves a card to another lane in two taps, without carrying it: a small
-/// button at the end of its foot opens the three lanes beside it, the one
-/// it is in ticked. Carrying a card was the only way, and it was asked to
-/// be easier.
-class _MoveButton extends StatelessWidget {
-  final Stage stage;
-  final ValueChanged<Stage> onMove;
-  final Color ground;
-
-  const _MoveButton({
-    required this.stage,
-    required this.onMove,
-    required this.ground,
-  });
-
-  Future<void> _open(BuildContext context) async {
-    final p = AppTheme.of(context);
-    final s = S.of(context);
-    final box = context.findRenderObject()! as RenderBox;
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    final at = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final to = await showMenu<Stage>(
-      context: context,
-      position: RelativeRect.fromRect(
-        at & box.size,
-        Offset.zero & overlay.size,
-      ),
-      color: p.field,
-      surfaceTintColor: Colors.transparent,
-      elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(_Board.laneRadius),
-      ),
-      items: [
-        for (final lane in Stage.values)
-          PopupMenuItem(
-            value: lane,
-            enabled: lane != stage,
-            height: 44,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 26,
-                  child: lane == stage
-                      ? Icon(Icons.check_rounded, size: 18, color: p.muted)
-                      : null,
-                ),
-                Text(
-                  _Column.nameOf(s, lane),
-                  style: TextStyle(
-                    color: lane == stage ? p.muted : p.text,
-                    fontSize: 15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-    if (to != null && to != stage) onMove(to);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    // A little wider to the finger than it looks; the foot it sits in is
-    // only as tall as the chip.
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _open(context),
-      child: Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Container(
-          width: 30,
-          height: 20,
-          decoration: BoxDecoration(
-            color: ground,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Icon(Icons.swap_horiz_rounded, size: 16, color: p.muted),
         ),
       ),
     );

@@ -1151,11 +1151,10 @@ Changing them back will be noticed.
   (`BoardCard.showKey`): nothing else knows a task by it, and it was asked
   what it meant. The lane's name
   stands in line with the titles.
-  **A card can be moved without carrying it** (`_MoveButton`): a small
-  grey chip with a swap mark at the end of its foot opens the three lanes
-  beside it, the one it is in ticked and greyed — asked for as "make
-  easier to move task to another col". And a card comes up to be carried
-  after 300ms held (`_Board.pickUp`) rather than the platform's 500.
+  A card comes up to be carried after 300ms held (`_Board.pickUp`) rather
+  than the platform's 500. A move button on each card, opening the lanes
+  in a menu, was tried for "make easier to move task to another col" and
+  taken back out: what was wanted was the next lane on show sooner.
   **A card is carried to a lane by a bar of the three along the foot**
   (`_DropBar`), which rises as the card is picked up: the lane it came
   from faint and taking nothing, the one under the finger ringed in the
@@ -1163,10 +1162,13 @@ Changing them back will be noticed.
   lane can still take a drop. Before it, that strip was the only target,
   and the lane before the one on show was out of reach but by holding the
   card at the edge — "i cant normally return task from WIP to not
-  started". **Taken to either side, the card turns the board at once**
-  (`_watchEdges`), and on every 900ms while it stays; it used to wait
+  started". **Taken towards either side, the card turns the board at once**
+  (`_watchEdges`), and on every 900ms while it stays. It used to wait
   500ms first, and holding still at the edge to reach the next lane was
-  disliked by name. Every lane stays built (the row, not a list): a lane
+  disliked by name; and the side was the last 28 points of the screen,
+  where it is now the outer 18% (`_Board.edge`), about as far in as the
+  strip of the next lane — "make it easier by earlier show the second
+  col". Every lane stays built (the row, not a list): a lane
   turned off the screen was thrown away with the card being carried out
   of it, and its drag's callbacks with it, so the board could not turn
   back and never heard the card let go. **The carried card stays where it was taken hold
