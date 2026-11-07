@@ -191,7 +191,6 @@ class S {
   String get collapseMonth => _word('collapseMonth');
   String get nothingOnDay => _word('nothingOnDay');
   String get addOneBelow => _word('addOneBelow');
-  String get addOneBelowOrForm => _word('addOneBelowOrForm');
   String get addWithForm => _word('addWithForm');
   String openCount(int open) => _fill('openCount', {'n': open});
   String get allClear => _word('allClear');

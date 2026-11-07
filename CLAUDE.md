@@ -154,14 +154,21 @@ Changing them back will be noticed.
   rows' positions there fit this interpolation. Holding the selected week
   still until the closing edge reached it, then letting the edge carry it,
   was tried before this and rejected.
-- **Picking a day in the opened month opens it as a card on top** (`day_sheet`)
-  rather than collapsing the calendar to make room — the tap was made from that
-  view, so it should still be there underneath. The card gives the keyboard its
-  room out of its own height, margins first and then the list of the day's
-  tasks: it is a dialog, so nothing lifts it the way a screen is lifted, and
-  the keys came up over the field at the foot of it with the typing underneath.
-  This is the opposite of what the calendar does with the same keyboard, and on
-  purpose — there the month is the thing being looked at, here the field is.
+- **Picking a day in the opened month opens it in a sheet from the foot of
+  the screen** (`day_sheet`) rather than collapsing the calendar to make room
+  — the tap was made from that view, so it should still be there above it.
+  It was a card in the middle of the screen, a panel within a panel with two
+  lines to every task, and a day of six filled the screen: "too big and
+  inconvenient to use". Chosen from three mockups (a sheet, a popover at the
+  day, folding back to the month). The sheet sizes to the day and stops at
+  56% of the screen; its cards are one line each (`TaskCard.dense`, the time
+  at the far end and the repeat rule as a mark), an empty day is a line of
+  text rather than the screens' placeholder, and the list fades under the
+  field only while there is more of it below. Dragged down, it goes. Its list
+  is penned without an overlay of its own (`DragWithin.overlay`): an overlay
+  takes all the height offered, which made every day's sheet as tall as the
+  fullest. The keyboard lifts the whole sheet, measured as the screens
+  measure it (`KeyboardGap`), so the field sits on the keys.
 - **The days below the grid are a pager, one page per day.** Picking a day
   slides it in from the edge it lies on and the days can be swiped through
   directly, carrying the month round with them. A day more than ten away is

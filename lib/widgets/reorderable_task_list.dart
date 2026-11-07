@@ -36,7 +36,14 @@ import 'tick_off.dart';
 class DragWithin extends StatefulWidget {
   final Widget child;
 
-  const DragWithin({super.key, required this.child});
+  /// Whether the card is carried in an overlay of this box's own, or in the
+  /// app's and only held inside the box. An overlay takes all the height it
+  /// is offered, so a list that is as tall as what is in it — the day sheet,
+  /// which sizes to the day — cannot have one: it was the height of the
+  /// fullest day whatever was on the day being shown.
+  final bool overlay;
+
+  const DragWithin({super.key, required this.child, this.overlay = true});
 
   @override
   State<DragWithin> createState() => _DragWithinState();
@@ -53,7 +60,7 @@ class _DragWithinState extends State<DragWithin> {
   @override
   void didUpdateWidget(covariant DragWithin old) {
     super.didUpdateWidget(old);
-    _entry.markNeedsBuild();
+    if (widget.overlay) _entry.markNeedsBuild();
   }
 
   @override
@@ -62,7 +69,9 @@ class _DragWithinState extends State<DragWithin> {
       bounds: _bounds,
       child: SizedBox(
         key: _bounds,
-        child: Overlay(initialEntries: [_entry]),
+        child: widget.overlay
+            ? Overlay(initialEntries: [_entry])
+            : widget.child,
       ),
     );
   }
@@ -555,6 +564,9 @@ class ReorderableTaskList extends StatefulWidget {
   /// Hands back the day's tasks in the order they were dragged into.
   final ValueChanged<List<Task>> onReorder;
 
+  /// Draws every card on one line (`TaskCard.dense`).
+  final bool dense;
+
   const ReorderableTaskList({
     super.key,
     required this.holidays,
@@ -576,6 +588,7 @@ class ReorderableTaskList extends StatefulWidget {
     this.controller,
     this.physics,
     this.shrinkWrap = false,
+    this.dense = false,
   });
 
   @override
@@ -608,7 +621,10 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
     // The builder is for a context below `DragWithin`, which is where
     // the card being carried finds the box it has to stay inside.
     if (!w.penned) return _build(context);
-    return DragWithin(child: Builder(builder: (context) => _build(context)));
+    return DragWithin(
+      overlay: !w.shrinkWrap,
+      child: Builder(builder: (context) => _build(context)),
+    );
   }
 
   /// Holidays and events in a sliver of their own and the tasks in a
@@ -620,13 +636,13 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
       w.day ?? dayOf(DateTime.now()),
       w.holidays,
       w.events,
+      dense: w.dense,
     );
     return CustomScrollView(
       controller: w.controller,
       shrinkWrap: w.shrinkWrap,
       physics:
-          w.physics ??
-          (w.shrinkWrap ? const ClampingScrollPhysics() : null),
+          w.physics ?? (w.shrinkWrap ? const ClampingScrollPhysics() : null),
       slivers: [
         SliverToBoxAdapter(child: SizedBox(height: w.padding.top)),
         SliverList.builder(
@@ -681,6 +697,7 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
                     onToggle: () => w.onToggle(shown),
                     ticking: w.isTicking?.call(task) ?? false,
                     leaving: w.isLeaving?.call(task) ?? false,
+                    dense: w.dense,
                   ),
                 ),
               ),

@@ -44,8 +44,6 @@ const Map<String, Object> it = {
   'collapseMonth': "Comprimi il mese",
   'nothingOnDay': "Niente in questo giorno",
   'addOneBelow': "Aggiungine una nel campo qui sotto.",
-  'addOneBelowOrForm':
-      "Aggiungine una qui sotto, o tocca l’icona in alto per il modulo completo.",
   'addWithForm': "Aggiungi con il modulo",
   'openCount': "{n} da fare",
   'allClear': "Tutto fatto",

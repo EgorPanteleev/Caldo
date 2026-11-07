@@ -45,8 +45,6 @@ const Map<String, Object> uk = {
   'collapseMonth': "Згорнути місяць",
   'nothingOnDay': "Цього дня нічого немає",
   'addOneBelow': "Додайте завдання в полі нижче.",
-  'addOneBelowOrForm':
-      "Додайте завдання нижче або відкрийте повну форму значком угорі.",
   'addWithForm': "Додати через форму",
   'openCount': "Залишилося: {n}",
   'allClear': "Усе виконано",

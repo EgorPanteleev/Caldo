@@ -45,8 +45,6 @@ const Map<String, Object> ru = {
   'collapseMonth': "Свернуть месяц",
   'nothingOnDay': "В этот день ничего нет",
   'addOneBelow': "Добавьте задачу в поле ниже.",
-  'addOneBelowOrForm':
-      "Добавьте задачу ниже или откройте полную форму значком вверху.",
   'addWithForm': "Добавить через форму",
   'openCount': "Осталось: {n}",
   'allClear': "Всё сделано",

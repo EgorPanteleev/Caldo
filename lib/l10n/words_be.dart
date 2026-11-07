@@ -45,8 +45,6 @@ const Map<String, Object> be = {
   'collapseMonth': "Згарнуць месяц",
   'nothingOnDay': "У гэты дзень нічога няма",
   'addOneBelow': "Дадайце задачу ў поле ніжэй.",
-  'addOneBelowOrForm':
-      "Дадайце задачу ніжэй або адкрыйце поўную форму значком уверсе.",
   'addWithForm': "Дадаць праз форму",
   'openCount': "Засталося: {n}",
   'allClear': "Усё зроблена",

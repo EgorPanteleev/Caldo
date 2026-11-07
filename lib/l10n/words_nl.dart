@@ -44,8 +44,6 @@ const Map<String, Object> nl = {
   'collapseMonth': "Maand inklappen",
   'nothingOnDay': "Niets op deze dag",
   'addOneBelow': "Voeg er een toe in het veld hieronder.",
-  'addOneBelowOrForm':
-      "Voeg er hieronder een toe, of tik boven op het pictogram voor het volledige formulier.",
   'addWithForm': "Toevoegen met formulier",
   'openCount': "{n} open",
   'allClear': "Alles gedaan",

@@ -42,8 +42,6 @@ const Map<String, Object> tr = {
   'collapseMonth': "Ayı daralt",
   'nothingOnDay': "Bu gün bir şey yok",
   'addOneBelow': "Aşağıdaki alandan ekleyin.",
-  'addOneBelowOrForm':
-      "Aşağıdan ekleyin ya da tam form için yukarıdaki simgeye dokunun.",
   'addWithForm': "Formla ekle",
   'openCount': "{n} açık",
   'allClear': "Hepsi tamam",

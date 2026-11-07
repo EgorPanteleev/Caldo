@@ -42,8 +42,6 @@ const Map<String, Object> kk = {
   'collapseMonth': "Айды жию",
   'nothingOnDay': "Бұл күні ештеңе жоқ",
   'addOneBelow': "Төмендегі өріске қосыңыз.",
-  'addOneBelowOrForm':
-      "Төменнен қосыңыз немесе толық пішін үшін жоғарғы белгішені басыңыз.",
   'addWithForm': "Пішін арқылы қосу",
   'openCount': "Қалды: {n}",
   'allClear': "Бәрі орындалды",

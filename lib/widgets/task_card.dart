@@ -49,6 +49,12 @@ class TaskCard extends StatelessWidget {
   /// (`TaskProvider.toggleDone`).
   final bool leaving;
 
+  /// One line instead of two: the title, and when it is due at the far end
+  /// of it. For the day card over the opened month, which has half a screen
+  /// to say a day in, and at two lines a card a day of six tasks filled all
+  /// of it.
+  final bool dense;
+
   const TaskCard({
     super.key,
     required this.task,
@@ -58,22 +64,29 @@ class TaskCard extends StatelessWidget {
     required this.onToggle,
     this.ticking = false,
     this.leaving = false,
+    this.dense = false,
   });
+
+  /// The padding inside a card, and a dense one's.
+  static const _inside = EdgeInsets.fromLTRB(14, 12, 14, 12);
+  static const _insideDense = EdgeInsets.fromLTRB(14, 9, 14, 9);
 
   /// "All day", or the time it is due, and the repeat rule if it has one. Not
   /// the list it belongs to: the tick already wears that list's colour, and
   /// under the calendar a day's tasks are usually all from the same one, so
   /// the name was the same word under every card.
   String _subtitle(S s, bool h24) {
-    final due = task.due;
-    final when = due == null
-        ? s.noDate
-        : (task.hasTime ? Dates.time(due, h24: h24) : s.allDay);
     final parts = [
-      when,
+      _when(s, h24),
       if (task.repeat != Repeat.none) s.repeatName(task.repeat),
     ];
     return parts.join(' · ');
+  }
+
+  String _when(S s, bool h24) {
+    final due = task.due;
+    if (due == null) return s.noDate;
+    return task.hasTime ? Dates.time(due, h24: h24) : s.allDay;
   }
 
   @override
@@ -86,6 +99,25 @@ class TaskCard extends StatelessWidget {
     );
     // Crossed out once the tick has been seen, not with it.
     final faded = task.done && !ticking;
+    final title = AnimatedDefaultTextStyle(
+      duration: _settle,
+      curve: Curves.easeOut,
+      style: TextStyle(
+        color: faded ? p.faint : p.text,
+        fontSize: dense ? 15 : 15.5,
+        fontWeight: FontWeight.w500,
+        decoration: faded ? TextDecoration.lineThrough : null,
+        decorationColor: p.faint,
+      ),
+      child: Text(
+        task.title,
+        maxLines: dense ? 1 : 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+    final flag = task.priority == Priority.none
+        ? null
+        : Icon(Icons.flag, size: 16, color: _priorityColor(task.priority));
 
     final card = Padding(
       padding: TaskCard.margin,
@@ -100,7 +132,7 @@ class TaskCard extends StatelessWidget {
             // frames: the point of the gesture is seeing it happen.
             duration: _settle,
             curve: Curves.easeOut,
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            padding: dense ? _insideDense : _inside,
             decoration: BoxDecoration(
               // A done task sinks most of the way back into the ground rather
               // than keeping its place in the run.
@@ -114,71 +146,77 @@ class TaskCard extends StatelessWidget {
               key: ValueKey(('checklist', task.id)),
               task: task,
               color: color,
-              head: (count) => Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _Tick(done: task.done, color: color, onTap: onToggle),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              head: (count) => dense
+                  ? Row(
                       children: [
-                        AnimatedDefaultTextStyle(
-                          duration: _settle,
-                          curve: Curves.easeOut,
+                        _Tick(done: task.done, color: color, onTap: onToggle),
+                        const SizedBox(width: 14),
+                        Expanded(child: title),
+                        if (count != null) ...[const SizedBox(width: 8), count],
+                        const SizedBox(width: 10),
+                        // The time alone: the repeat rule is a mark, not
+                        // words, so a long rule cannot eat into the title.
+                        if (task.repeat != Repeat.none) ...[
+                          Icon(Icons.repeat, size: 14, color: p.faint),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          _when(
+                            S.of(context),
+                            MediaQuery.alwaysUse24HourFormatOf(context),
+                          ),
+                          maxLines: 1,
                           style: TextStyle(
-                            color: faded ? p.faint : p.text,
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w500,
-                            decoration: faded
-                                ? TextDecoration.lineThrough
-                                : null,
-                            decorationColor: p.faint,
-                          ),
-                          child: Text(
-                            task.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            color: task.isOverdue ? AppColors.overdue : p.muted,
+                            fontSize: 12.5,
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                _subtitle(
-                                  S.of(context),
-                                  MediaQuery.alwaysUse24HourFormatOf(context),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: task.isOverdue
-                                      ? AppColors.overdue
-                                      : p.muted,
-                                  fontSize: 12.5,
-                                ),
+                        if (flag != null) ...[const SizedBox(width: 8), flag],
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _Tick(done: task.done, color: color, onTap: onToggle),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              title,
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _subtitle(
+                                        S.of(context),
+                                        MediaQuery.alwaysUse24HourFormatOf(
+                                          context,
+                                        ),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: task.isOverdue
+                                            ? AppColors.overdue
+                                            : p.muted,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ),
+                                  if (count != null) ...[
+                                    const SizedBox(width: 10),
+                                    count,
+                                  ],
+                                ],
                               ),
-                            ),
-                            if (count != null) ...[
-                              const SizedBox(width: 10),
-                              count,
                             ],
-                          ],
+                          ),
                         ),
+                        if (flag != null) ...[const SizedBox(width: 10), flag],
                       ],
                     ),
-                  ),
-                  if (task.priority != Priority.none) ...[
-                    const SizedBox(width: 10),
-                    Icon(
-                      Icons.flag,
-                      size: 16,
-                      color: _priorityColor(task.priority),
-                    ),
-                  ],
-                ],
-              ),
             ),
           ),
         ),
@@ -548,7 +586,10 @@ const taskCardMarkKey = Key('task-card-mark');
 class HolidayCard extends StatelessWidget {
   final Holiday holiday;
 
-  const HolidayCard({super.key, required this.holiday});
+  /// On one line, as [TaskCard.dense] is.
+  final bool dense;
+
+  const HolidayCard({super.key, required this.holiday, this.dense = false});
 
   @override
   Widget build(BuildContext context) {
@@ -556,38 +597,51 @@ class HolidayCard extends StatelessWidget {
     return Padding(
       padding: TaskCard.margin,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        padding: dense ? TaskCard._insideDense : TaskCard._inside,
         decoration: BoxDecoration(
           color: AppColors.holiday.withValues(alpha: 0.22),
           borderRadius: BorderRadius.circular(TaskCard.radius),
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.celebration_outlined,
               color: AppColors.holiday,
-              size: 22,
+              size: dense ? 20 : 22,
             ),
             const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    holiday.name,
-                    style: TextStyle(
-                      color: p.text,
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w500,
+              child: dense
+                  // The green mark says it is a holiday; the words saying
+                  // so are left to the full card.
+                  ? Text(
+                      holiday.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          holiday.name,
+                          style: TextStyle(
+                            color: p.text,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          S.of(context).publicHoliday,
+                          style: TextStyle(color: p.muted, fontSize: 12.5),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    S.of(context).publicHoliday,
-                    style: TextStyle(color: p.muted, fontSize: 12.5),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -607,7 +661,15 @@ class EventCard extends StatelessWidget {
   /// which of them this is.
   final DateTime day;
 
-  const EventCard({super.key, required this.event, required this.day});
+  /// On one line, as [TaskCard.dense] is.
+  final bool dense;
+
+  const EventCard({
+    super.key,
+    required this.event,
+    required this.day,
+    this.dense = false,
+  });
 
   String _when(S s, bool h24) {
     if (event.allDay) return s.allDay;
@@ -637,37 +699,61 @@ class EventCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(TaskCard.radius),
           onTap: () => DeviceCalendars.open(event),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            padding: dense ? TaskCard._insideDense : TaskCard._inside,
             child: Row(
               children: [
-                Icon(Icons.event_outlined, color: event.color, size: 22),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: p.text,
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        event.calendarName.isEmpty
-                            ? when
-                            : '$when · ${event.calendarName}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: p.muted, fontSize: 12.5),
-                      ),
-                    ],
-                  ),
+                Icon(
+                  Icons.event_outlined,
+                  color: event.color,
+                  size: dense ? 20 : 22,
                 ),
+                const SizedBox(width: 14),
+                if (dense) ...[
+                  Expanded(
+                    child: Text(
+                      event.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    when,
+                    maxLines: 1,
+                    style: TextStyle(color: p.muted, fontSize: 12.5),
+                  ),
+                ] else
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          event.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: p.text,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          event.calendarName.isEmpty
+                              ? when
+                              : '$when · ${event.calendarName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: p.muted, fontSize: 12.5),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -682,8 +768,9 @@ class EventCard extends StatelessWidget {
 List<Widget> fixedCards(
   DateTime day,
   List<Holiday> holidays,
-  List<CalendarEvent> events,
-) => [
-  for (final holiday in holidays) HolidayCard(holiday: holiday),
-  for (final event in events) EventCard(event: event, day: day),
+  List<CalendarEvent> events, {
+  bool dense = false,
+}) => [
+  for (final holiday in holidays) HolidayCard(holiday: holiday, dense: dense),
+  for (final event in events) EventCard(event: event, day: day, dense: dense),
 ];
