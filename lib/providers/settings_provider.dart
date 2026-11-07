@@ -10,14 +10,17 @@ import '../services/today_widget.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 
-/// Which of the two task screens the app opens on.
-enum StartScreen { schedule, calendar }
+/// The screens the menu leads to, Settings aside: it is always there, being
+/// the way back to the others.
+enum AppScreen { schedule, calendar, board, done }
 
-/// Holds user-configurable settings: the screen the app opens on, its theme
-/// mode and accent, which day the calendar week starts on, whether completed
-/// tasks stay visible, and when a task is allowed to interrupt.
+/// Holds user-configurable settings: the screen the app opens on and which
+/// screens are in the menu, its theme mode and accent, which day the
+/// calendar week starts on, whether completed tasks stay visible, and when a
+/// task is allowed to interrupt.
 class SettingsProvider extends ChangeNotifier {
   static const _kStartScreen = 'start_screen';
+  static const _kHiddenScreens = 'hidden_screens';
   static const _kThemeMode = 'theme_mode';
   static const _kAccent = 'accent_id';
   static const _kWeekStart = 'week_starts_monday';
@@ -39,7 +42,11 @@ class SettingsProvider extends ChangeNotifier {
   /// The screen the app opens on. Schedule out of the box: it is the one
   /// that answers "what now", which is what opening a to-do list is usually
   /// for.
-  StartScreen _startScreen = StartScreen.schedule;
+  AppScreen _startScreen = AppScreen.schedule;
+
+  /// The screens left out of the menu. Never all four: a menu of Settings
+  /// alone would be an app with nothing in it.
+  Set<AppScreen> _hiddenScreens = const {};
 
   /// The app defaults to dark mode.
   ThemeMode _themeMode = ThemeMode.dark;
@@ -109,7 +116,25 @@ class SettingsProvider extends ChangeNotifier {
     return S.supports(phone) ? phone : 'en';
   }
 
-  StartScreen get startScreen => _startScreen;
+  /// The screen the app opens on: the one chosen, unless it has been taken
+  /// out of the menu since, and then the first one still in it. The choice
+  /// is kept, so putting the screen back puts it back as the start too.
+  AppScreen get startScreen => _opensOn(_startScreen, _hiddenScreens);
+  Set<AppScreen> get hiddenScreens => _hiddenScreens;
+
+  /// The screens in the menu, in its order.
+  List<AppScreen> get shownScreens => [
+    for (final screen in AppScreen.values)
+      if (!_hiddenScreens.contains(screen)) screen,
+  ];
+
+  static AppScreen _opensOn(AppScreen chosen, Set<AppScreen> hidden) =>
+      hidden.contains(chosen)
+      ? AppScreen.values.firstWhere(
+          (s) => !hidden.contains(s),
+          orElse: () => chosen,
+        )
+      : chosen;
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
   bool get weekStartsMonday => _weekStartsMonday;
@@ -139,9 +164,12 @@ class SettingsProvider extends ChangeNotifier {
   /// did. The screen to open on has to be known before anything is drawn,
   /// though, or the app shows Schedule for a frame or two and then swaps,
   /// which is worse than the setting not existing.
-  static Future<StartScreen> storedStartScreen() async {
+  static Future<AppScreen> storedStartScreen() async {
     final prefs = await SharedPreferences.getInstance();
-    return _startScreenFromString(prefs.getString(_kStartScreen));
+    return _opensOn(
+      _startScreenFromString(prefs.getString(_kStartScreen)),
+      _screensFrom(prefs.getStringList(_kHiddenScreens)),
+    );
   }
 
   /// Puts the stored settings where a background isolate needs them — the
@@ -190,6 +218,7 @@ class SettingsProvider extends ChangeNotifier {
 
   void _read(SharedPreferences prefs) {
     _startScreen = _startScreenFromString(prefs.getString(_kStartScreen));
+    _hiddenScreens = _screensFrom(prefs.getStringList(_kHiddenScreens));
     _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
     _accent = AppAccent.byId(prefs.getString(_kAccent));
     _weekStartsMonday = prefs.getBool(_kWeekStart) ?? _weekStartsMonday;
@@ -206,7 +235,8 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> update({
-    StartScreen? startScreen,
+    AppScreen? startScreen,
+    Set<AppScreen>? hiddenScreens,
     ThemeMode? themeMode,
     AppAccent? accent,
     bool? weekStartsMonday,
@@ -231,6 +261,13 @@ class SettingsProvider extends ChangeNotifier {
     if (startScreen != null) {
       _startScreen = startScreen;
       await prefs.setString(_kStartScreen, startScreen.name);
+    }
+    if (hiddenScreens != null &&
+        hiddenScreens.length < AppScreen.values.length) {
+      _hiddenScreens = hiddenScreens;
+      await prefs.setStringList(_kHiddenScreens, [
+        for (final screen in hiddenScreens) screen.name,
+      ]);
     }
     if (themeMode != null) {
       _themeMode = themeMode;
@@ -315,10 +352,16 @@ class SettingsProvider extends ChangeNotifier {
     lead: _reminderLead,
   );
 
-  static StartScreen _startScreenFromString(String? value) {
-    return value == StartScreen.calendar.name
-        ? StartScreen.calendar
-        : StartScreen.schedule;
+  static AppScreen _startScreenFromString(String? value) =>
+      AppScreen.values.asNameMap()[value] ?? AppScreen.schedule;
+
+  static Set<AppScreen> _screensFrom(List<String>? names) {
+    final byName = AppScreen.values.asNameMap();
+    final screens = {
+      for (final name in names ?? const <String>[])
+        if (byName[name] != null) byName[name]!,
+    };
+    return screens.length < AppScreen.values.length ? screens : const {};
   }
 
   ThemeMode _themeModeFromString(String? value) {

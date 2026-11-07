@@ -126,9 +126,15 @@ const Map<String, Object> fr = {
   'remindWhenDue': "Me rappeler les tâches à échéance",
   'remindOn': "Une notification pour chaque tâche datée",
   'remindOff': "Aucune notification",
-  'timedTasksLead': "Tâches avec heure : {lead}",
-  'allDayAt': "Tâches de la journée à {time}",
-  'allDayAtHint': "Une tâche sans heure est rappelée à ce moment-là",
+  'sectionScreens': "ÉCRANS",
+  'inMenuHint':
+      "Désactivé, un écran quitte le menu. Les réglages y restent toujours.",
+  'theme': "Thème",
+  'accent': "Couleur d’accent",
+  'holidayCountry': "Pays",
+  'timedTasks': "Tâches avec heure",
+  'allDayTasks': "Tâches de la journée",
+  'version': "Version {version}",
   'sectionAbout': "À PROPOS",
   'about':
       "Caldo réunit votre calendrier et vos tâches au même endroit, uniquement sur cet appareil.",

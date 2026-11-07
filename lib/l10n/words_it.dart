@@ -125,9 +125,15 @@ const Map<String, Object> it = {
   'remindWhenDue': "Avvisami quando un’attività scade",
   'remindOn': "Una notifica per ogni attività con data",
   'remindOff': "Nessun avviso",
-  'timedTasksLead': "Attività con orario: {lead}",
-  'allDayAt': "Attività di tutto il giorno alle {time}",
-  'allDayAtHint': "Un’attività senza orario viene ricordata a quell’ora",
+  'sectionScreens': "SCHERMATE",
+  'inMenuHint':
+      "Disattivata, una schermata esce dal menu. Le impostazioni ci restano sempre.",
+  'theme': "Tema",
+  'accent': "Colore principale",
+  'holidayCountry': "Paese",
+  'timedTasks': "Attività con orario",
+  'allDayTasks': "Attività di tutto il giorno",
+  'version': "Versione {version}",
   'sectionAbout': "INFORMAZIONI",
   'about':
       "Caldo tiene calendario e attività in un unico posto, solo su questo dispositivo.",

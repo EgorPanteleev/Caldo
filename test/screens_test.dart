@@ -173,10 +173,62 @@ void main() {
   testWidgets('the settings screen renders every section', (tester) async {
     await pumpScreen(tester, const SettingsScreen(), size: narrow);
 
-    expect(find.text('APPEARANCE'), findsOneWidget);
-    expect(find.text('CALENDAR'), findsOneWidget);
-    expect(find.text('TASKS'), findsOneWidget);
-    expect(find.text('Start week on Monday'), findsOneWidget);
+    // The list is lazy, so each is scrolled to: a section below the fold
+    // has not been built.
+    for (final label in [
+      'SCREENS',
+      'GENERAL',
+      'APPEARANCE',
+      'CALENDAR',
+      'TASKS',
+      'REMINDERS',
+      'ABOUT',
+    ]) {
+      await tester.scrollUntilVisible(find.text(label), 200);
+      expect(find.text(label), findsOneWidget);
+    }
+    await tester.scrollUntilVisible(find.text('Start week on Monday'), -200);
+  });
+
+  testWidgets('a screen switched off in settings leaves the menu', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const HomeScreen());
+    final settings = Provider.of<SettingsProvider>(
+      tester.element(find.byType(HomeScreen)),
+      listen: false,
+    );
+    await tester.tap(find.byKey(menuButtonKey));
+    await tester.pumpAndSettle();
+    expect(find.text('Board'), findsOneWidget);
+
+    await tester.runAsync(
+      () => settings.update(hiddenScreens: {AppScreen.board}),
+    );
+    await tester.pump();
+    expect(find.text('Board'), findsNothing);
+    expect(find.text('Done'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget, reason: 'always there');
+    await drainDatabase(tester);
+  });
+
+  test('the app opens on a screen that is in the menu', () async {
+    final settings = SettingsProvider();
+    await settings.update(startScreen: AppScreen.done);
+    expect(await SettingsProvider.storedStartScreen(), AppScreen.done);
+
+    // Taken out of the menu, the start falls to the first screen left in it
+    // — and comes back when the screen is put back, since the choice is
+    // kept.
+    await settings.update(hiddenScreens: {AppScreen.schedule, AppScreen.done});
+    expect(settings.startScreen, AppScreen.calendar);
+    expect(await SettingsProvider.storedStartScreen(), AppScreen.calendar);
+    await settings.update(hiddenScreens: {});
+    expect(settings.startScreen, AppScreen.done);
+
+    // A menu of Settings alone is refused.
+    await settings.update(hiddenScreens: {...AppScreen.values});
+    expect(settings.shownScreens, isNotEmpty);
   });
 
   testWidgets('the editor pre-fills an existing task', (tester) async {
@@ -1285,7 +1337,7 @@ void main() {
     // not again, so a second pump of the same widget would keep the screen
     // the first one opened on.
     await tester.pumpWidget(const SizedBox());
-    await pumpScreen(tester, const HomeScreen(start: StartScreen.calendar));
+    await pumpScreen(tester, const HomeScreen(start: AppScreen.calendar));
     // The other two screens are still in the stack, so this says which one
     // is actually on top rather than which ones exist.
     expect(find.byKey(monthTitleKey), findsOneWidget);

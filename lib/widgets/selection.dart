@@ -297,10 +297,7 @@ class _SelectionBar extends StatelessWidget {
   /// picked: a reminder's button or the widget may have changed it since.
   List<Task> _tasks(BuildContext context) {
     final provider = context.read<TaskProvider>();
-    return [
-      for (final task in selection.tasks)
-        ?provider.taskById(task.id!),
-    ];
+    return [for (final task in selection.tasks) ?provider.taskById(task.id!)];
   }
 
   Future<void> _moveToDay(BuildContext context) async {

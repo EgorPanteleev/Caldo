@@ -125,9 +125,15 @@ const Map<String, Object> de = {
   'remindWhenDue': "An fällige Aufgaben erinnern",
   'remindOn': "Eine Benachrichtigung für jede Aufgabe mit Datum",
   'remindOff': "Keine Benachrichtigungen",
-  'timedTasksLead': "Aufgaben mit Uhrzeit: {lead}",
-  'allDayAt': "Ganztägige Aufgaben um {time}",
-  'allDayAtHint': "Eine Aufgabe ohne Uhrzeit meldet sich dann",
+  'sectionScreens': "BILDSCHIRME",
+  'inMenuHint':
+      "Ausgeschaltet verschwindet ein Bildschirm aus dem Menü. Die Einstellungen bleiben immer darin.",
+  'theme': "Design",
+  'accent': "Akzentfarbe",
+  'holidayCountry': "Land",
+  'timedTasks': "Aufgaben mit Uhrzeit",
+  'allDayTasks': "Ganztägige Aufgaben",
+  'version': "Version {version}",
   'sectionAbout': "ÜBER",
   'about':
       "Caldo hält Kalender und Aufgabenliste an einem Ort – nur auf diesem Gerät.",

@@ -46,9 +46,9 @@ void main() async {
 
 class CaldoApp extends StatelessWidget {
   /// The screen to open on, read from storage before the app was built.
-  final StartScreen start;
+  final AppScreen start;
 
-  const CaldoApp({super.key, this.start = StartScreen.schedule});
+  const CaldoApp({super.key, this.start = AppScreen.schedule});
 
   @override
   Widget build(BuildContext context) {

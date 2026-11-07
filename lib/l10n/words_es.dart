@@ -125,9 +125,15 @@ const Map<String, Object> es = {
   'remindWhenDue': "Avisarme cuando venza una tarea",
   'remindOn': "Una notificación por cada tarea con fecha",
   'remindOff': "Sin avisos",
-  'timedTasksLead': "Tareas con hora: {lead}",
-  'allDayAt': "Tareas de todo el día a las {time}",
-  'allDayAtHint': "Una tarea sin hora se avisa a esa hora",
+  'sectionScreens': "PANTALLAS",
+  'inMenuHint':
+      "Desactivada, una pantalla sale del menú. Ajustes siempre está en él.",
+  'theme': "Tema",
+  'accent': "Color de acento",
+  'holidayCountry': "País",
+  'timedTasks': "Tareas con hora",
+  'allDayTasks': "Tareas de todo el día",
+  'version': "Versión {version}",
   'sectionAbout': "ACERCA DE",
   'about':
       "Caldo reúne tu calendario y tus tareas en un solo lugar, solo en este dispositivo.",

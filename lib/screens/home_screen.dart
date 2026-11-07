@@ -40,9 +40,9 @@ class HomeScreen extends StatefulWidget {
   /// Which screen to open on. Only read as the shell is built: changing the
   /// setting is about the next launch, and a screen that jumped out from
   /// under the setting being changed would be startling.
-  final StartScreen start;
+  final AppScreen start;
 
-  const HomeScreen({super.key, this.start = StartScreen.schedule});
+  const HomeScreen({super.key, this.start = AppScreen.schedule});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -62,10 +62,8 @@ class _HomeScreenState extends State<HomeScreen>
     reverseCurve: Curves.easeInCubic,
   );
 
-  late int _index = switch (widget.start) {
-    StartScreen.schedule => 0,
-    StartScreen.calendar => 1,
-  };
+  // The pages are in the order of [AppScreen], Settings after them.
+  late int _index = widget.start.index;
 
   late final List<Widget> _pages = [
     TasksScreen(onMenu: _openMenu),
@@ -82,8 +80,8 @@ class _HomeScreenState extends State<HomeScreen>
   late final _boardShown = ValueNotifier<bool>(_index == _board);
   late final _doneShown = ValueNotifier<bool>(_index == _done);
 
-  static const _board = 2;
-  static const _done = 3;
+  static final _board = AppScreen.board.index;
+  static final _done = AppScreen.done.index;
 
   /// A release newer than this one, once the check on opening has found it.
   Update? _update;
@@ -145,8 +143,8 @@ class _HomeScreenState extends State<HomeScreen>
     _boardShown.value = i == _board;
     _doneShown.value = i == _done;
     final provider = context.read<TaskProvider>();
-    if (i == 0) provider.loadTasks();
-    if (i == 1) provider.loadMonth(provider.month);
+    if (i == AppScreen.schedule.index) provider.loadTasks();
+    if (i == AppScreen.calendar.index) provider.loadMonth(provider.month);
   }
 
   @override
@@ -394,26 +392,16 @@ class _Screen extends StatelessWidget {
 /// The drawer behind the menu button: the screens, the current one picked
 /// out. The board comes after the two that are about when, being about how
 /// far along; Done under it, and above Settings: it is a place to look, not
-/// a setting.
+/// a setting. Settings can take any of the four out of it, and is always
+/// there itself, as the way to put them back.
 class _Menu extends StatelessWidget {
   final int index;
   final ValueChanged<int> onSelected;
 
   const _Menu({required this.index, required this.onSelected});
 
-  static final _items = [
-    // A list, not a tick: the screen is a running order of days, and a tick
-    // is what sits on each of the rows inside it.
-    _TabItem(Icons.list_alt_outlined, Icons.list_alt, (s) => s.schedule),
-    _TabItem(
-      Icons.calendar_month_outlined,
-      Icons.calendar_month,
-      (s) => s.calendar,
-    ),
-    _TabItem(Icons.view_kanban_outlined, Icons.view_kanban, (s) => s.board),
-    _TabItem(Icons.task_alt_outlined, Icons.task_alt, (s) => s.done),
-    _TabItem(Icons.settings_outlined, Icons.settings, (s) => s.settings),
-  ];
+  /// Settings, after the screens [AppScreen] names.
+  static final _settings = AppScreen.values.length;
 
   @override
   Widget build(BuildContext context) {
@@ -423,6 +411,19 @@ class _Menu extends StatelessWidget {
     final overdue = context.select<TaskProvider, int>(
       (p) => p.allOverdue.length,
     );
+    final hidden = context.select<SettingsProvider, Set<AppScreen>>(
+      (s) => s.hiddenScreens,
+    );
+    final shown = [
+      for (final screen in AppScreen.values)
+        if (!hidden.contains(screen)) screen.index,
+      _settings,
+    ];
+    // The overdue backlog is Schedule's, so the count goes there — or on
+    // the calendar, where the overdue days are, when Schedule is out.
+    final late = !hidden.contains(AppScreen.schedule)
+        ? AppScreen.schedule.index
+        : AppScreen.calendar.index;
 
     return Material(
       color: p.sidebar,
@@ -457,13 +458,13 @@ class _Menu extends StatelessWidget {
             ),
             Divider(height: 1, color: p.border),
             const SizedBox(height: 8),
-            for (var i = 0; i < _items.length; i++)
+            for (final i in shown)
               _MenuItem(
-                item: _items[i],
+                item: menuItems[i],
                 selected: index == i,
                 // The overdue backlog is what the dot on the button stands
                 // for, so the menu says how much of it there is.
-                badge: i == 0 && overdue > 0 ? overdue : null,
+                badge: i == late && overdue > 0 ? overdue : null,
                 onTap: () => onSelected(i),
               ),
           ],
@@ -474,7 +475,7 @@ class _Menu extends StatelessWidget {
 }
 
 class _MenuItem extends StatelessWidget {
-  final _TabItem item;
+  final MenuItem item;
   final bool selected;
   final int? badge;
   final VoidCallback onTap;
@@ -553,9 +554,26 @@ class _MenuItem extends StatelessWidget {
   }
 }
 
-class _TabItem {
+/// What the menu draws for each screen, in the order of [AppScreen] and
+/// Settings last. Settings draws its list of screens from it too, so a
+/// screen looks the same in both places.
+final menuItems = [
+  // A list, not a tick: the screen is a running order of days, and a tick
+  // is what sits on each of the rows inside it.
+  MenuItem(Icons.list_alt_outlined, Icons.list_alt, (s) => s.schedule),
+  MenuItem(
+    Icons.calendar_month_outlined,
+    Icons.calendar_month,
+    (s) => s.calendar,
+  ),
+  MenuItem(Icons.view_kanban_outlined, Icons.view_kanban, (s) => s.board),
+  MenuItem(Icons.task_alt_outlined, Icons.task_alt, (s) => s.done),
+  MenuItem(Icons.settings_outlined, Icons.settings, (s) => s.settings),
+];
+
+class MenuItem {
   final IconData icon;
   final IconData activeIcon;
   final String Function(S) label;
-  const _TabItem(this.icon, this.activeIcon, this.label);
+  const MenuItem(this.icon, this.activeIcon, this.label);
 }

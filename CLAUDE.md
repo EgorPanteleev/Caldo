@@ -59,7 +59,8 @@ writes are checked in.
 Five destinations — **Schedule**, **Calendar**, **Board**, **Done**,
 **Settings** — in a drawer behind the menu button at the top left of each,
 and nothing else in it. Done was asked for as "a Done log or simple stats";
-Board came after it.
+Board came after it. Any of the first four can be taken out of the menu in
+Settings; Settings itself cannot.
 
 **Lists are groups, and there are still no list screens.** The Lists, list
 and list-edit screens were deleted once they had been unreachable for a
@@ -178,14 +179,34 @@ Changing them back will be noticed.
   swipe across a month boundary from bouncing.
 - **Week rules only arrive at the end of the opening** (`weekRuleAlpha`, last
   quarter) and never while the month is shrinking.
-- **Which of Schedule and Calendar the app opens on is a setting**
-  (`StartScreen`, read in `main` before the first frame). It cannot wait for
+- **Which screen the app opens on is a setting** — any of Schedule,
+  Calendar, Board and Done (`AppScreen`, read in `main` before the first
+  frame). It cannot wait for
   `SettingsProvider.load`: that ends by asking Android about notifications,
   which on a first run is a dialog the user has to answer, and waiting for it
-  would hold the app on a blank screen. So the one key is read on its own
-  first, and the shell takes it as it is built and never again — a screen
-  that jumped out from under the setting being changed would be startling,
-  and the setting is about the next launch.
+  would hold the app on a blank screen. So the start and the hidden screens
+  are read on their own first, and the shell takes the start as it is built
+  and never again — a screen that jumped out from under the setting being
+  changed would be startling, and the setting is about the next launch.
+- **Each of those four can be switched off, and leaves the menu**
+  (`hiddenScreens`, asked for as "set in settings which to show or hide in
+  left list"). Never all four — the last one's switch is disabled and the
+  provider refuses it — and Settings is always there, being the way back.
+  The start is always a screen in the menu: hide the one chosen and the app
+  opens on the first one left, but the choice is kept, so putting the screen
+  back puts it back as the start (`SettingsProvider.startScreen`). The
+  overdue count moves from Schedule to Calendar while Schedule is out. A
+  hidden screen is still built behind the others; it is only unreachable.
+- **Settings is a panel per section, the way the phone's own are drawn**
+  (`_Group`, `_Row`, `_SwitchRow`, `_choose`): a row is an icon, what it is,
+  and under that what it is set to; a tap flips its switch or opens a sheet
+  of the choices, the one in force ticked. Asked for as "make settings better
+  at all". It was a stack of separately outlined boxes with a segmented bar,
+  a dropdown or a switch each — three ways of choosing on one screen, and a
+  box round every line. The value goes under the title rather than at the
+  far end because twelve languages have to fit beside a chevron. Clear
+  completed is the one red row, with no chevron: it is a thing done, not a
+  setting opened. About shows the installed version (`Updates.installed`).
 - **Nothing on a screen moves when the keyboard does** (`SafeArea`'s
   `maintainBottomViewPadding` in the shell). Android stops counting the
   gesture bar as padding the moment the keys cover it, so a screen drawn edge
@@ -1244,7 +1265,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 179 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 181 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

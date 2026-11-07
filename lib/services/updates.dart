@@ -49,6 +49,18 @@ class Updates {
 
   void enable() => _enabled = true;
 
+  /// The version installed, as Android has it, or null before [enable] or if
+  /// the activity cannot be asked.
+  Future<String?> installed() async {
+    if (!_enabled) return null;
+    try {
+      final info = await _channel.invokeMapMethod<String, Object?>('info');
+      return info?['version'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// The newer release, if there is one. Null on any failure at all — no
   /// network, GitHub out of reach or rate-limited, a release with no file
   /// for this phone — because not hearing about an update is the cost of

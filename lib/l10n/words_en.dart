@@ -110,9 +110,15 @@ const Map<String, Object> en = {
   'remindWhenDue': "Remind me when a task is due",
   'remindOn': "A notification for each task with a date",
   'remindOff': "Nothing is announced",
-  'timedTasksLead': "Timed tasks {lead}",
-  'allDayAt': "All-day tasks at {time}",
-  'allDayAtHint': "A task with no time of day is announced then",
+  'sectionScreens': "SCREENS",
+  'inMenuHint':
+      "Switched off, a screen leaves the menu. Settings is always there.",
+  'theme': "Theme",
+  'accent': "Accent colour",
+  'holidayCountry': "Country",
+  'timedTasks': "Timed tasks",
+  'allDayTasks': "All-day tasks",
+  'version': "Version {version}",
   'sectionAbout': "ABOUT",
   'about':
       "Caldo keeps your calendar and to-do list in one place, stored on this device only.",

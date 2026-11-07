@@ -221,6 +221,8 @@ class S {
       _fill('noTaskMentions', {'query': query});
 
   // ---- Settings ------------------------------------------------------------
+  String get sectionScreens => _word('sectionScreens');
+  String get inMenuHint => _word('inMenuHint');
   String get sectionGeneral => _word('sectionGeneral');
   String get startScreen => _word('startScreen');
   String get timesWritten => _word('timesWritten');
@@ -228,9 +230,11 @@ class S {
   String followPhone(String language) =>
       _fill('followPhone', {'language': language});
   String get sectionAppearance => _word('sectionAppearance');
+  String get theme => _word('theme');
   String get themeDark => _word('themeDark');
   String get themeLight => _word('themeLight');
   String get themeSystem => _word('themeSystem');
+  String get accent => _word('accent');
   String get sectionCalendar => _word('sectionCalendar');
   String get weekStartsMonday => _word('weekStartsMonday');
   String get weeksMonSun => _word('weeksMonSun');
@@ -241,6 +245,7 @@ class S {
   String followDevice(String country) =>
       _fill('followDevice', {'country': country});
   String get followDeviceUnsupported => _word('followDeviceUnsupported');
+  String get holidayCountry => _word('holidayCountry');
 
   /// A country's name, in this language when the table has it.
   String country(String code, String english) =>
@@ -263,11 +268,11 @@ class S {
   String get remindWhenDue => _word('remindWhenDue');
   String get remindOn => _word('remindOn');
   String get remindOff => _word('remindOff');
-  String timedTasksLead(String lead) => _fill('timedTasksLead', {'lead': lead});
-  String allDayAt(String time) => _fill('allDayAt', {'time': time});
-  String get allDayAtHint => _word('allDayAtHint');
+  String get timedTasks => _word('timedTasks');
+  String get allDayTasks => _word('allDayTasks');
   String get sectionAbout => _word('sectionAbout');
   String get about => _word('about');
+  String version(String version) => _fill('version', {'version': version});
 
   // ---- The task form -------------------------------------------------------
   String get editTask => _word('editTask');

@@ -125,9 +125,15 @@ const Map<String, Object> nl = {
   'remindWhenDue': "Herinner me als een taak eraan komt",
   'remindOn': "Een melding voor elke taak met een datum",
   'remindOff': "Geen meldingen",
-  'timedTasksLead': "Taken met tijd: {lead}",
-  'allDayAt': "Taken voor de hele dag om {time}",
-  'allDayAtHint': "Een taak zonder tijd wordt dan gemeld",
+  'sectionScreens': "SCHERMEN",
+  'inMenuHint':
+      "Uitgezet verdwijnt een scherm uit het menu. Instellingen staat er altijd in.",
+  'theme': "Thema",
+  'accent': "Accentkleur",
+  'holidayCountry': "Land",
+  'timedTasks': "Taken met tijd",
+  'allDayTasks': "Taken voor de hele dag",
+  'version': "Versie {version}",
   'sectionAbout': "OVER",
   'about':
       "Caldo houdt je kalender en takenlijst op één plek bij, alleen op dit apparaat.",
