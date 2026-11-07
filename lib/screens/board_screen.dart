@@ -410,8 +410,9 @@ class _FadeFoot extends StatelessWidget {
   }
 }
 
-/// A card as it is carried: a little larger, tipped a degree or two, and
-/// shadowed so it is above the board rather than in it.
+/// A card as it is carried: a little larger and shadowed, so it is above
+/// the board rather than in it. Held square — tipped a degree or two, as
+/// Jira's are, it was asked to stop looking crooked.
 class _Lifted extends StatelessWidget {
   final double width;
   final Widget child;
@@ -422,25 +423,22 @@ class _Lifted extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: Transform.rotate(
-        angle: 0.03,
-        child: Transform.scale(
-          scale: 1.03,
-          child: Material(
-            type: MaterialType.transparency,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(BoardCard.radius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: child,
+      child: Transform.scale(
+        scale: 1.03,
+        child: Material(
+          type: MaterialType.transparency,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(BoardCard.radius),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
+            child: child,
           ),
         ),
       ),

@@ -1097,7 +1097,8 @@ Changing them back will be noticed.
   corners, the title across the top and along the foot a square in the
   task's colour where Jira puts the issue type (ticked once done), the
   date, and the marks — repeat, checklist count, priority as Jira's
-  chevrons. A carried card tilts and shadows; the lane under it is ringed.
+  chevrons. A carried card is lifted and shadowed but held square — it tilted,
+  as Jira's do, and was "crooked"; the lane under it is ringed.
   An empty lane is just empty. Two looks came before it: grey panels with
   inked cards and done ones crossed out ("it looks bad"), then bare
   columns on the black with inked cards — simpler, but not Jira. The cards
