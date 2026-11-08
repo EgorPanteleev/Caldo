@@ -1,5 +1,7 @@
 import 'dart:ui' show Color;
 
+import 'package:caldo/db/database.dart';
+import 'package:caldo/models/task.dart';
 import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,6 +49,41 @@ void main() {
       expect(after.completedAt, isNotNull);
     },
   );
+
+  test('high priority leads a day nobody has arranged', () async {
+    final provider = TaskProvider();
+    await provider.loadLists();
+    final day = dayOf(DateTime.now()).add(const Duration(days: 2));
+    final list = provider.lists.first.id!;
+    Future<void> add(String title, Priority priority, {int? hour}) =>
+        provider.add(
+          Task(
+            listId: list,
+            title: title,
+            priority: priority,
+            dueAt: (hour == null ? day : day.add(Duration(hours: hour)))
+                .millisecondsSinceEpoch,
+            hasTime: hour != null,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+    await add('Morning', Priority.none, hour: 8);
+    await add('All day', Priority.low);
+    await add('Urgent', Priority.high, hour: 18);
+    await add('Soon', Priority.medium, hour: 12);
+    List<String> titles() => [
+      for (final t in provider.allUpcomingByDay[day]!) t.title,
+    ];
+    expect(titles(), ['Urgent', 'Soon', 'All day', 'Morning']);
+
+    // Dragged into an order of its own, the day keeps it.
+    final ids = [
+      for (final t in provider.allUpcomingByDay[day]!.reversed) t.id!,
+    ];
+    await AppDatabase.instance.setOrder(ids);
+    await provider.loadTasks();
+    expect(titles(), ['Morning', 'All day', 'Soon', 'Urgent']);
+  });
 
   test('a one-off task is closed and can be reopened', () async {
     final provider = await seedProvider();

@@ -276,8 +276,9 @@ class TaskProvider extends ChangeNotifier {
     return map;
   }
 
-  /// Open before done, then where the day was dragged into, then earlier
-  /// before later and all-day before timed.
+  /// Open before done, then where the day was dragged into, then high
+  /// priority before low, then earlier before later and all-day before
+  /// timed.
   ///
   /// A finished task goes to the end of its day, under the ones still to do —
   /// asked for, once the move was something to watch rather than a jump: the
@@ -292,6 +293,10 @@ class TaskProvider extends ChangeNotifier {
   /// of any hand placement: the one just ticked off is the one that slides
   /// to the very end, rather than to wherever its creation date put it among
   /// the others already done.
+  ///
+  /// Priority comes under the hand placement and over the time: a day
+  /// somebody has arranged stays as they arranged it, and in one nobody
+  /// has, the high-priority tasks lead whatever hour they are at.
   static int _compare(Task a, Task b) {
     if (a.done != b.done) return a.done ? 1 : -1;
     if (a.done) {
@@ -302,6 +307,10 @@ class TaskProvider extends ChangeNotifier {
       if (a.sortOrder == null) return 1;
       if (b.sortOrder == null) return -1;
       return a.sortOrder!.compareTo(b.sortOrder!);
+    }
+    // Higher priority first among what nobody has placed by hand.
+    if (a.priority != b.priority) {
+      return b.priority.index.compareTo(a.priority.index);
     }
     if (a.hasTime != b.hasTime) return a.hasTime ? 1 : -1;
     final byDue = (a.dueAt ?? 0).compareTo(b.dueAt ?? 0);

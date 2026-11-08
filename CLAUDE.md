@@ -808,6 +808,14 @@ Changing them back will be noticed.
   screen, so Schedule read as a list that could not be dragged at all.
   Holidays sit in the list but cannot be picked up or displaced: nobody placed
   them there.
+- **High priority leads a day nobody has arranged** (`TaskProvider._compare`,
+  the database's `_order`). Under the hand placement and over the time:
+  a day dragged into an order keeps it, and in one that has not been, a
+  high task at six in the evening comes before an ordinary one at eight in
+  the morning. Asked for as "sort high first", from three options (a mark
+  on the cards and setting it from the add field were the others). The
+  overdue backlog and the undated tail, which the database orders, follow
+  the same rule.
 - **A hand placement is read before the date, not after it** (the database's
   `_order`). A run that has been arranged is made of tasks from different
   days, and sorting on the date first would quietly undo the arranging. The
@@ -1359,7 +1367,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 197 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 198 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

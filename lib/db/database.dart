@@ -411,9 +411,10 @@ class AppDatabase {
     _db = null;
   }
 
-  /// Open first, then by due date (undated last), then newest first.
-  /// A hand-placed task goes where it was put; one that has never been
-  /// dragged falls through to the ordinary rules, after the placed ones.
+  /// Open first, then by priority, highest first, then by due date (undated
+  /// last), then newest first. A hand-placed task goes where it was put;
+  /// one that has never been dragged falls through to the ordinary rules,
+  /// after the placed ones.
   ///
   /// The placement is read before the date, not after it. A run the user has
   /// arranged by hand — the overdue backlog, the undated tail — is made of
@@ -426,7 +427,7 @@ class AppDatabase {
   /// and changes nothing.
   static const _order =
       'done ASC, CASE WHEN done = 1 THEN completed_at END ASC, '
-      '(sort_order IS NULL) ASC, sort_order ASC, '
+      '(sort_order IS NULL) ASC, sort_order ASC, priority DESC, '
       '(due_at IS NULL) ASC, due_at ASC, created_at DESC';
 
   /// Writes the order a day was dragged into: the position of each id in
