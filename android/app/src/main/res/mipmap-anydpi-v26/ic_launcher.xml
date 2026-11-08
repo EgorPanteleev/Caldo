@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Drawn from assets/icon/src. Nothing behind the page: the Samsung
-     calendar it is matched to is a page standing free in its icon's room,
-     rings above the header, and One UI leaves a transparent ground
-     transparent. Filling the ground with the sheet's colour made the
-     page the launcher's squircle instead. -->
+<!-- Drawn from assets/icon/src/caldo*. The page fills the launcher's
+     shape: the header and rings over the sheet's colour, so whatever shape
+     a launcher cuts is the page. Every phone but a Samsung is given this
+     one (LauncherIcon), since a transparent ground is filled black there
+     and the free page's corners are cut by the circle. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@android:color/transparent"/>
+  <background android:drawable="@color/ic_launcher_page"/>
   <foreground android:drawable="@drawable/ic_launcher_foreground"/>
   <monochrome android:drawable="@drawable/ic_launcher_monochrome"/>
 </adaptive-icon>

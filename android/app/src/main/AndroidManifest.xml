@@ -54,11 +54,33 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+        </activity>
+        <!-- The launcher's two ways in, each with its own icon, one on at a
+             time (LauncherIcon): the page standing free on a Samsung, whose
+             launcher keeps a transparent ground, and the page filling the
+             shape everywhere else, where the ground would be filled black. -->
+        <activity-alias
+            android:name=".LauncherFree"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_free"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".LauncherFilled"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <!-- Shows a reminder when its alarm goes off, and puts the alarms
              back after a reboot or an update — a scheduled notification is
              held by the system, and the system forgets them both times. -->

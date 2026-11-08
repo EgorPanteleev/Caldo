@@ -1,14 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- The page alone, on nothing: the Samsung calendar it is drawn from is
-       a page standing free inside its icon's room, with the rings rising
-       above the header, not a sheet that fills the launcher's shape. Every
-       edge is measured off a screenshot of the two side by side, taking the
-       launcher's squircle as the middle 72dp of this layer. -->
-  <rect x="214" y="240" width="596" height="539" rx="72" fill="#CAD6DA"/>
-  <path d="M214 312 a72 72 0 0 1 72 -72 h452 a72 72 0 0 1 72 72 v48 h-596 z" fill="#DE414A"/>
-  <g fill="#243044">
-    <rect x="305" y="183" width="42" height="94" rx="12"/>
-    <rect x="491" y="183" width="42" height="94" rx="12"/>
-    <rect x="677" y="183" width="42" height="94" rx="12"/>
+  <!-- The page is the whole icon: the background layer is the sheet's
+       colour, so whatever shape the launcher cuts out is the page, and this
+       layer is its red header and the three rings in it. The rings keep to
+       where a round mask still leaves the header whole. -->
+  <rect width="1024" height="355" fill="#E04545"/>
+  <g fill="#1F2B4A">
+    <rect x="312" y="228" width="47" height="102" rx="13"/>
+    <rect x="489" y="228" width="47" height="102" rx="13"/>
+    <rect x="666" y="228" width="47" height="102" rx="13"/>
   </g>
 </svg>

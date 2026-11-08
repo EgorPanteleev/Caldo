@@ -155,6 +155,27 @@ class MainActivity : FlutterActivity() {
     override fun onStop() {
         super.onStop()
         overLock(false)
+        if (leftForGood()) LauncherIcon.pick(this)
+    }
+
+    /**
+     * Whether this stop is the user leaving Caldo rather than something
+     * opening over it, which is the only moment the launcher icon can be
+     * switched (LauncherIcon): Android closes a task whose launcher entry
+     * is switched off. Done on opening, it threw the first launch back to
+     * the home screen; on onUserLeaveHint, it did the same under the
+     * notification permission's prompt, which counts as the user leaving.
+     * So: the screen still on (switched as it goes off, unlocking would
+     * land on the home screen), and nothing of another app's over this one
+     * in its own task — the backup's document picker, an event opened in
+     * the calendar app — which would be closed along with it.
+     */
+    private fun leftForGood(): Boolean {
+        if (isChangingConfigurations) return false
+        if (!(getSystemService(POWER_SERVICE) as PowerManager).isInteractive) return false
+        val top = (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)
+            .appTasks.firstOrNull { it.taskInfo.taskId == taskId }?.taskInfo?.topActivity
+        return top?.className == MainActivity::class.java.name
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

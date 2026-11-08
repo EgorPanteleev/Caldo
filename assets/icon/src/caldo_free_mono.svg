@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Android's themed icon: one colour, so the header is told from the
+       sheet by a seam cut between them, and the rings by a gap cut round
+       each where it crosses the header. -->
+  <defs>
+    <mask id="cut">
+      <rect width="1024" height="1024" fill="#FFFFFF"/>
+      <rect x="214" y="360" width="596" height="18" fill="#000000"/>
+      <g fill="#000000">
+        <rect x="291" y="169" width="70" height="122" rx="26"/>
+        <rect x="477" y="169" width="70" height="122" rx="26"/>
+        <rect x="663" y="169" width="70" height="122" rx="26"/>
+      </g>
+    </mask>
+  </defs>
+  <g fill="#FFFFFF">
+    <rect x="214" y="240" width="596" height="539" rx="72" mask="url(#cut)"/>
+    <rect x="305" y="183" width="42" height="94" rx="12"/>
+    <rect x="491" y="183" width="42" height="94" rx="12"/>
+    <rect x="677" y="183" width="42" height="94" rx="12"/>
+  </g>
+</svg>

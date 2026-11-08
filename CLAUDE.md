@@ -53,8 +53,9 @@ lib/
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
 widget launches, the phone's calendars, backups), `PhoneEvents.kt` (the
 calendar query the app and the widget share), `TodayWidget.kt` (the widget and the `Headless` engine its
-ticks run on), `TodayWidgetRuns.kt` (its runs and cards) and `CaldoApplication.kt`
-(redraws the widget when its copy changes).
+ticks run on), `TodayWidgetRuns.kt` (its runs and cards), `CaldoApplication.kt`
+(redraws the widget when its copy changes) and `LauncherIcon.kt` (which of
+the two launcher icons a phone gets).
 
 The launcher icon is drawn in SVG under `assets/icon/src` and turned into
 Android's sizes by `tool/make_icon.sh` (needs `rsvg-convert`); the PNGs it
@@ -1446,27 +1447,40 @@ Changing them back will be noticed.
   says when a backup was last saved ("Never saved" until one is). No
   automatic backups yet: Android's own may or may not cover the database,
   and nothing here relies on it.
-- **The icon is the Samsung calendar's page, standing free, with nothing
-  behind it**: a pale blue-grey sheet with round corners, a red header
-  across its top, and three navy rings rising out of the header above the
-  sheet — no tick, no gradient, no tile. It replaced Dicty's sibling
-  (graphite square, white page, a violet tile with a tick over its corner).
-  The adaptive icon's background is transparent and its foreground the
-  whole page, measured edge by edge off a screenshot of Caldo and the
-  user's Samsung Calendar in one folder ("it's not the same, but must be
-  the same"), taking the launcher's squircle as the middle 72dp of the
-  layer: within a pixel or two of it at that size. The page fills about
-  nine tenths of the squircle's width and the ring tops come close to its
-  shoulders, as Samsung's own does. Three steps came before: the page small
-  on a slate tile ("too small"); a transparent ground with the page drawn
-  at 90%, reported as filled black by the Pixel launcher; and the sheet's
-  colour as the background so the page *was* the squircle, rings tucked
-  inside the header — a misreading of the reference, which is a page
-  inside the icon's room, not one cut to its shape. The cost is the Pixel
-  launcher's round mask, which cuts the page's corners; the phone it is
-  matched on is a Samsung. The monochrome layer for Android 13's themed
-  icons is the sheet and rings in one colour, the header told apart by a
-  seam cut across the page and the rings by a gap cut round each.
+- **The icon is the Samsung calendar's page — standing free on a Samsung,
+  filling the shape everywhere else** (`LauncherIcon.kt`, two
+  `activity-alias`es, `assets/icon/src/caldo*` and `caldo_free*`). On a
+  Samsung: a pale blue-grey sheet with round corners, a red header, and
+  three navy rings rising out of it above the sheet, on a transparent
+  ground — measured edge by edge off a screenshot of Caldo and the user's
+  Samsung Calendar in one folder ("it's not the same, but must be the
+  same"), the launcher's squircle taken as the layer's middle 72dp, and
+  within a pixel or two of it at that size. Elsewhere: the header and
+  rings over the sheet's colour (`@color/ic_launcher_page`), so the page
+  is whatever shape the launcher cuts. Plain Android cannot show the free
+  page: the Pixel launcher fills a transparent ground black and its
+  circle cuts the page's corners ("on pure android is there no ability to
+  make part of it transparent?").
+  The free page is the alias on out of the box; a phone that is not a
+  Samsung switches to the other **as the user leaves the app**
+  (`MainActivity.onStop`, `leftForGood`), because Android closes a task
+  whose launcher entry is switched off. Switched in `onCreate`, the first
+  launch went straight back to the home screen; in `onUserLeaveHint`, it
+  did the same under the notification permission's prompt, which Android
+  counts as leaving. So not with the screen off, and not with another
+  app's activity (the document picker, the calendar app) on top of
+  Caldo's task. Until it has been left once, a fresh install off a Samsung
+  shows the free page. A launcher may drop a home-screen icon when the
+  entry under it changes: on a Samsung that happens once, on the update
+  that moved the launcher entry off `MainActivity`.
+  Before this: Dicty's sibling (graphite square, white page, a violet
+  tick tile); the page small on a slate tile ("too small"); and the
+  sheet's colour as the ground everywhere, rings tucked inside the
+  header — a misreading of the reference, which is a page inside the
+  icon's room, not one cut to its shape. The monochrome layers for Android
+  13's themed icons are the sheet and rings in one colour, the header told
+  apart by a seam cut across the page and the rings by a gap cut round
+  each.
 - **The window asks Android for the fastest display mode** (`MainActivity`).
   Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
   The ask is for the fastest mode at the resolution already in use — the
@@ -1552,6 +1566,9 @@ SD=~/Android/Sdk
 ANDROID_SDK_ROOT=$SD ANDROID_HOME=$SD $SD/emulator/emulator -avd pixel_api34 &
 adb install -r build/app/outputs/flutter-apk/app-release.apk
 adb shell monkey -p com.igor.caldo -c android.intent.category.LAUNCHER 1
+# monkey follows the launch with one random key, which can be Home — and
+# leaving the app is when LauncherIcon switches. To watch that, launch with
+# am start -a android.intent.action.MAIN -n com.igor.caldo/.LauncherFree
 adb exec-out screencap -p > shot.png     # then look at it
 ```
 

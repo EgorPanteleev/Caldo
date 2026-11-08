@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- The legacy icon is the adaptive one's middle 72dp: the same page,
+       drawn at 108/72 of caldo_free_fg.svg. -->
+  <g transform="translate(512 512) scale(1.5) translate(-512 -512)">
+  <rect x="214" y="240" width="596" height="539" rx="72" fill="#CAD6DA"/>
+  <path d="M214 312 a72 72 0 0 1 72 -72 h452 a72 72 0 0 1 72 72 v48 h-596 z" fill="#DE414A"/>
+  <g fill="#243044">
+    <rect x="305" y="183" width="42" height="94" rx="12"/>
+    <rect x="491" y="183" width="42" height="94" rx="12"/>
+    <rect x="677" y="183" width="42" height="94" rx="12"/>
+  </g>
+  </g>
+</svg>
