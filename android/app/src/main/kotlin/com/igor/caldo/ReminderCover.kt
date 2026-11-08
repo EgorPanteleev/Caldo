@@ -49,14 +49,19 @@ class ReminderCover(
 
     val shown get() = view != null
 
-    fun show(intent: Intent) {
+    /**
+     * Puts the reminder up, and says whether it did: one without the words
+     * the cover needs — set by a build from before it — is left to the
+     * notification, and the app must not then be let over the lock screen.
+     */
+    fun show(intent: Intent): Boolean {
         val id = intent.getIntExtra(NOTIFICATION_ID, -1)
         val words = try {
             JSONObject(intent.getStringExtra(PAYLOAD) ?: "")
         } catch (_: Exception) {
-            return
+            return false
         }
-        if (id < 0) return
+        if (id < 0) return false
         hide()
 
         val window = activity.window
@@ -74,6 +79,7 @@ class ReminderCover(
             ),
         )
         view = cover
+        return true
     }
 
     fun hide() {

@@ -84,8 +84,7 @@ class MainActivity : FlutterActivity() {
      */
     private fun wakeFor(intent: Intent?) {
         if (intent?.action != REMINDER_ACTION || !isLocked()) return
-        overLock(true)
-        cover.show(intent)
+        if (cover.show(intent)) overLock(true)
     }
 
     private fun isLocked(): Boolean {
