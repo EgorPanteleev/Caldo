@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
 import '../models/task.dart';
+import '../utils/dates.dart';
 import 'words_be.dart';
 import 'words_de.dart';
 import 'words_en.dart';
@@ -322,9 +323,57 @@ class S {
   String get dueDate => _word('dueDate');
   String get time => _word('time');
   String get none => _word('none');
-  String repeatField(Repeat repeat) =>
-      _fill('repeatField', {'repeat': _word('repeatInline.${repeat.name}')});
-  String repeatName(Repeat repeat) => _word('repeat.${repeat.name}');
+  String get repeatLabel => _word('repeatLabel');
+
+  /// A rule written out: "Every day", "Every 2 weeks · Mon, Thu", "Every
+  /// month · last day · until 31 Dec". Pieces after the first are joined
+  /// with a dot rather than built into one sentence, which twelve
+  /// languages' grammar would each want built differently.
+  String repeatName(Repeat repeat) {
+    if (repeat.isNone) return _word('repeat.none');
+    final weekdaysOnly = setEquals(
+      repeat.weekdays,
+      Repeat.weekdaysOnly.weekdays,
+    );
+    final base = repeat.every > 1
+        ? _count('repeatEvery.${repeat.unit.name}', repeat.every)
+        : repeat.unit == RepeatUnit.week && weekdaysOnly
+        ? _word('repeat.weekdays')
+        : _word('repeat.${_plainKey[repeat.unit]}');
+    final until = repeat.until;
+    return [
+      base,
+      if (repeat.unit == RepeatUnit.week &&
+          repeat.weekdays.isNotEmpty &&
+          !(weekdaysOnly && repeat.every == 1))
+        [
+          for (final d in repeat.weekdays.toList()..sort()) weekdayShort(d),
+        ].join(', '),
+      if (repeat.unit == RepeatUnit.month && repeat.monthEnd)
+        _word('repeatLastDay'),
+      if (until != null) _fill('repeatUntil', {'date': Dates.shortDay(until)}),
+      if (repeat.left case final left?) _count('repeatLeft', left),
+    ].join(' · ');
+  }
+
+  static const _plainKey = {
+    RepeatUnit.day: 'daily',
+    RepeatUnit.week: 'weekly',
+    RepeatUnit.month: 'monthly',
+    RepeatUnit.year: 'yearly',
+  };
+
+  /// A weekday's short name, by `DateTime.weekday`: "Mon", "пн".
+  String weekdayShort(int weekday) =>
+      DateFormat.E().format(DateTime(2024, 1, weekday));
+
+  String unitName(RepeatUnit unit) => _word('unit.${unit.name}');
+  String get repeatEveryLabel => _word('repeatEveryLabel');
+  String repeatOnDay(int day) => _fill('repeatOnDay', {'n': day});
+  String get repeatOnLastDay => _word('repeatOnLastDay');
+  String get repeatEnds => _word('repeatEnds');
+  String get endsOn => _word('endsOn');
+  String endsAfter(int n) => _count('endsAfter', n);
   String remindLead(String lead) => _fill('remindLead', {'lead': lead});
   String remindOnDayAt(String time) => _fill('remindOnDayAt', {'time': time});
   String get remindDayBefore => _word('remindDayBefore');

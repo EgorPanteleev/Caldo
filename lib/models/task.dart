@@ -1,34 +1,209 @@
 import 'dart:convert';
 
-/// How often a task comes back after it is completed.
-enum Repeat {
-  none('Never'),
-  daily('Every day'),
-  weekly('Every week'),
-  monthly('Every month'),
-  yearly('Every year');
+import 'package:flutter/foundation.dart';
 
-  const Repeat(this.label);
+/// The unit a rule repeats by.
+enum RepeatUnit { none, day, week, month, year }
 
-  final String label;
+/// How often a task comes back after it is completed: every [every]
+/// [unit]s, on chosen [weekdays] when it is weekly, on the month's last day
+/// when [monthEnd], and until a date or for a number of rounds.
+///
+/// The five rules there were before this could say more are kept as
+/// constants and stored under their old names (`daily`, `weekly`…), so no
+/// row written before needed touching and a plain rule still reads plainly
+/// in the database. Anything richer is stored as a short RRULE-like string.
+@immutable
+class Repeat {
+  final RepeatUnit unit;
+  final int every;
 
-  static Repeat byName(String? name) => Repeat.values.firstWhere(
-    (r) => r.name == name,
-    orElse: () => Repeat.none,
+  /// `DateTime.weekday` values (1 Monday … 7 Sunday) a weekly rule falls
+  /// on. Empty means the weekday the task is due on, as it always was.
+  final Set<int> weekdays;
+
+  /// Whether a monthly rule falls on the last day of each month rather than
+  /// on the due date's day.
+  final bool monthEnd;
+
+  /// The last day a round may fall on, or null for no end.
+  final DateTime? until;
+
+  /// How many rounds are left, this one included, or null for no count.
+  final int? left;
+
+  const Repeat({
+    this.unit = RepeatUnit.none,
+    this.every = 1,
+    this.weekdays = const {},
+    this.monthEnd = false,
+    this.until,
+    this.left,
+  });
+
+  static const none = Repeat();
+  static const daily = Repeat(unit: RepeatUnit.day);
+  static const weekly = Repeat(unit: RepeatUnit.week);
+  static const monthly = Repeat(unit: RepeatUnit.month);
+  static const yearly = Repeat(unit: RepeatUnit.year);
+  static const weekdaysOnly = Repeat(
+    unit: RepeatUnit.week,
+    weekdays: {1, 2, 3, 4, 5},
   );
 
-  /// The next due date after [from], or null when the task does not repeat.
-  DateTime? next(DateTime from) {
-    return switch (this) {
-      Repeat.none => null,
-      Repeat.daily => from.add(const Duration(days: 1)),
-      Repeat.weekly => from.add(const Duration(days: 7)),
-      // Clamps to the last day of the target month (31 Jan -> 28/29 Feb).
-      Repeat.monthly => _shiftMonths(from, 1),
-      Repeat.yearly => _shiftMonths(from, 12),
-    };
+  bool get isNone => unit == RepeatUnit.none;
+
+  /// Whether this is one of the five plain rules, which are stored by name.
+  bool get _plain =>
+      every == 1 &&
+      weekdays.isEmpty &&
+      !monthEnd &&
+      until == null &&
+      left == null;
+
+  static const _names = {
+    'none': RepeatUnit.none,
+    'daily': RepeatUnit.day,
+    'weekly': RepeatUnit.week,
+    'monthly': RepeatUnit.month,
+    'yearly': RepeatUnit.year,
+  };
+
+  static const _freq = {
+    RepeatUnit.day: 'DAILY',
+    RepeatUnit.week: 'WEEKLY',
+    RepeatUnit.month: 'MONTHLY',
+    RepeatUnit.year: 'YEARLY',
+  };
+
+  /// What is written to the `repeat_rule` column.
+  String toRule() {
+    if (isNone) return 'none';
+    if (_plain) {
+      return _names.entries.firstWhere((e) => e.value == unit).key;
+    }
+    final u = until;
+    return [
+      'FREQ=${_freq[unit]}',
+      if (every != 1) 'INTERVAL=$every',
+      if (weekdays.isNotEmpty) 'BYDAY=${(weekdays.toList()..sort()).join(',')}',
+      if (monthEnd) 'BYMONTHDAY=-1',
+      if (u != null)
+        'UNTIL=${u.year.toString().padLeft(4, '0')}'
+            '${u.month.toString().padLeft(2, '0')}'
+            '${u.day.toString().padLeft(2, '0')}',
+      if (left != null) 'COUNT=$left',
+    ].join(';');
   }
 
+  /// Reads back what [toRule] wrote. Anything unreadable does not repeat:
+  /// a task is worth more than a rule that will not parse.
+  static Repeat fromRule(String? rule) {
+    if (rule == null) return none;
+    final plain = _names[rule];
+    if (plain != null) return Repeat(unit: plain);
+    final parts = {
+      for (final part in rule.split(';'))
+        if (part.split('=') case [final key, final value]) key: value,
+    };
+    final unit = _freq.entries
+        .where((e) => e.value == parts['FREQ'])
+        .firstOrNull
+        ?.key;
+    if (unit == null) return none;
+    final untilText = parts['UNTIL'];
+    return Repeat(
+      unit: unit,
+      every: int.tryParse(parts['INTERVAL'] ?? '')?.clamp(1, 999) ?? 1,
+      weekdays: (parts['BYDAY'] ?? '')
+          .split(',')
+          .map(int.tryParse)
+          .whereType<int>()
+          .where((n) => n >= 1 && n <= 7)
+          .toSet(),
+      monthEnd: parts['BYMONTHDAY'] == '-1',
+      until: untilText != null && untilText.length == 8
+          ? DateTime.tryParse(untilText)
+          : null,
+      left: int.tryParse(parts['COUNT'] ?? ''),
+    );
+  }
+
+  Repeat copyWith({
+    RepeatUnit? unit,
+    int? every,
+    Set<int>? weekdays,
+    bool? monthEnd,
+    DateTime? until,
+    bool clearUntil = false,
+    int? left,
+    bool clearLeft = false,
+  }) => Repeat(
+    unit: unit ?? this.unit,
+    every: every ?? this.every,
+    weekdays: weekdays ?? this.weekdays,
+    monthEnd: monthEnd ?? this.monthEnd,
+    until: clearUntil ? null : (until ?? this.until),
+    left: clearLeft ? null : (left ?? this.left),
+  );
+
+  /// The rule as it stands for the round after this one: a count of rounds
+  /// goes down by the one just done.
+  Repeat rolled() => left == null ? this : copyWith(left: left! - 1);
+
+  /// The next due date after [from], or null when there is none — the task
+  /// does not repeat, its end date has passed, or this was its last round.
+  DateTime? next(DateTime from) {
+    if (isNone || (left != null && left! <= 1)) return null;
+    final DateTime next = switch (unit) {
+      RepeatUnit.none => from,
+      RepeatUnit.day => _onDay(from, from.day + every),
+      RepeatUnit.week when weekdays.isEmpty => _onDay(
+        from,
+        from.day + 7 * every,
+      ),
+      RepeatUnit.week => _nextWeekday(from),
+      RepeatUnit.month =>
+        monthEnd ? _monthEnd(from, every) : _shiftMonths(from, every),
+      RepeatUnit.year => _shiftMonths(from, 12 * every),
+    };
+    final end = until;
+    if (end != null &&
+        DateTime(
+          next.year,
+          next.month,
+          next.day,
+        ).isAfter(DateTime(end.year, end.month, end.day))) {
+      return null;
+    }
+    return next;
+  }
+
+  /// [from]'s time of day on day [day] of its month, which may run past
+  /// the month's end and on into the next — as `DateTime` allows.
+  static DateTime _onDay(DateTime from, int day) =>
+      DateTime(from.year, from.month, day, from.hour, from.minute);
+
+  /// The next chosen weekday after [from]: later in its own week if one is
+  /// left there, otherwise the first in the week [every] weeks on. Weeks
+  /// are counted from Monday.
+  DateTime _nextWeekday(DateTime from) {
+    for (var d = from.weekday + 1; d <= 7; d++) {
+      if (weekdays.contains(d)) {
+        return _onDay(from, from.day + d - from.weekday);
+      }
+    }
+    final monday = from.day - (from.weekday - 1) + 7 * every;
+    final first = weekdays.reduce((a, b) => a < b ? a : b);
+    return _onDay(from, monday + first - 1);
+  }
+
+  static DateTime _monthEnd(DateTime from, int months) {
+    final last = DateTime(from.year, from.month + months + 1, 0);
+    return DateTime(last.year, last.month, last.day, from.hour, from.minute);
+  }
+
+  // Clamps to the last day of the target month (31 Jan -> 28/29 Feb).
   static DateTime _shiftMonths(DateTime from, int months) {
     final total = from.month - 1 + months;
     final year = from.year + total ~/ 12;
@@ -42,6 +217,29 @@ enum Repeat {
       from.minute,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      other is Repeat &&
+      other.unit == unit &&
+      other.every == every &&
+      setEquals(other.weekdays, weekdays) &&
+      other.monthEnd == monthEnd &&
+      other.until == until &&
+      other.left == left;
+
+  @override
+  int get hashCode => Object.hash(
+    unit,
+    every,
+    Object.hashAllUnordered(weekdays),
+    monthEnd,
+    until,
+    left,
+  );
+
+  @override
+  String toString() => 'Repeat(${toRule()})';
 }
 
 /// Task importance. Shown as a coloured flag on the task row.
@@ -178,7 +376,7 @@ class Task {
 
   /// Whether ticking this task off rolls it on to its next date rather than
   /// closing it.
-  bool get rollsOn => !done && repeat != Repeat.none && dueAt != null;
+  bool get rollsOn => !done && dueAt != null && repeat.next(due!) != null;
 
   /// This task as it is written back once ticked off at [now]: on its next
   /// date with its checklist cleared, if it repeats, and done otherwise.
@@ -191,6 +389,7 @@ class Task {
     if (rollsOn) {
       return copyWith(
         dueAt: repeat.next(due!)!.millisecondsSinceEpoch,
+        repeat: repeat.rolled(),
         completedAt: now,
         clearSnoozedUntil: true,
         clearStartedAt: true,
@@ -315,7 +514,7 @@ class Task {
       'has_time': hasTime ? 1 : 0,
       'done': done ? 1 : 0,
       'priority': priority.index,
-      'repeat_rule': repeat.name,
+      'repeat_rule': repeat.toRule(),
       'style_id': styleId,
       'created_at': createdAt,
       'completed_at': completedAt,
@@ -337,7 +536,7 @@ class Task {
       hasTime: (map['has_time'] as int? ?? 0) == 1,
       done: (map['done'] as int? ?? 0) == 1,
       priority: Priority.byIndex(map['priority'] as int?),
-      repeat: Repeat.byName(map['repeat_rule'] as String?),
+      repeat: Repeat.fromRule(map['repeat_rule'] as String?),
       styleId: map['style_id'] as String?,
       createdAt: map['created_at'] as int? ?? 0,
       completedAt: map['completed_at'] as int?,

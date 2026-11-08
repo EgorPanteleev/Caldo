@@ -1031,6 +1031,23 @@ Changing them back will be noticed.
   **The plugin's `ActionBroadcastReceiver` is declared in the manifest by
   hand.** Without it the buttons are drawn and every tap on them is dropped
   without a word — that was the first build.
+- **A repeat is a rule, not one of five words** (`Repeat`, `RepeatUnit`,
+  `showRepeatSheet`). Every N days, weeks, months or years; a weekly one
+  on chosen weekdays ("Every weekday" is that, Monday to Friday); a monthly
+  one on the date or on the last day; and an end, by date or by a count of
+  rounds that goes down as each is ticked (`Repeat.left`, `rolled`). Its
+  last round closes the task instead of rolling it, and `Task.rollsOn` is
+  false for it, so the card leaves or stays as a one-off does. The five old
+  rules are constants stored under their old names; anything richer is a
+  short RRULE-like string in the same column, so no row changed. Picked in
+  one sheet from the form's Repeat row: the presets as chips across the
+  top, everything they stand for laid out under them, and the rule written
+  back at the top as the cards will write it ("Every 2 weeks · Mon, Thu ·
+  5 times left"). Pieces after the first are joined with a dot rather than
+  built into a sentence, which twelve grammars would each build
+  differently. Weeks for an every-other-week rule are counted from Monday.
+  A monthly rule on the 31st still clamps and then keeps the clamped day,
+  as it always did; "last day" is the way to stay on the month's end.
 - **A task can be announced ahead of its time** (`Task.remindBefore`,
   `SettingsProvider.reminderLead`, `_ReminderField`, `Dates.lead`). Null
   follows Settings ("Timed tasks at the time" by default, which is what it
@@ -1342,7 +1359,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 188 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 197 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

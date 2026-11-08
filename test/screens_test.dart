@@ -1,3 +1,4 @@
+import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/models/task.dart';
 import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/settings_provider.dart';
@@ -448,9 +449,7 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('a swipe on the week turns a week, not a month', (
-    tester,
-  ) async {
+  testWidgets('a swipe on the week turns a week, not a month', (tester) async {
     await pumpScreen(tester, const CalendarScreen());
     final today = dayOf(DateTime.now());
     MonthGrid shown() =>
@@ -1039,6 +1038,80 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pump();
     expect(provider.updated?.remindBefore, Task.silent);
+  });
+
+  testWidgets('a repeat is built in its sheet and saved with the task', (
+    tester,
+  ) async {
+    late _CapturingProvider provider;
+    Task? ship;
+    await tester.runAsync(() async {
+      await seedProvider();
+      provider = _CapturingProvider();
+      await provider.loadLists();
+      ship = await taskNamed('Ship');
+    });
+    tester.view.physicalSize = narrow;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: TaskEditScreen(task: ship),
+        ),
+      ),
+    );
+    await tester.pump();
+    final form = find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+
+    await tester.scrollUntilVisible(find.text('Repeat'), 100, scrollable: form);
+    await tester.tap(find.text('Repeat'));
+    await tester.pumpAndSettle();
+
+    // Weekly on Mondays and Thursdays, every other week, five times.
+    await tester.tap(find.text('Every week').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add).last);
+    await tester.pumpAndSettle();
+    final today = DateTime.now().weekday;
+    for (final day in {1, 4}.difference({today})) {
+      await tester.tap(find.text(S.current.weekdayShort(day)));
+      await tester.pumpAndSettle();
+    }
+    if (today != 1 && today != 4) {
+      await tester.tap(find.text(S.current.weekdayShort(today)));
+      await tester.pumpAndSettle();
+    }
+    await tester.ensureVisible(find.text('After 5 times'));
+    await tester.tap(find.text('After 5 times'));
+    await tester.pumpAndSettle();
+    const rule = Repeat(
+      unit: RepeatUnit.week,
+      every: 2,
+      weekdays: {1, 4},
+      left: 5,
+    );
+    expect(find.text('Every 2 weeks · Mon, Thu · 5 times left'), findsWidgets);
+    await tester.ensureVisible(find.text('Save').last);
+    await tester.tap(find.text('Save').last);
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('Save'), 100, scrollable: form);
+    await tester.ensureVisible(find.text('Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    expect(provider.updated?.repeat, rule);
   });
 
   /// Pumps [screen] over a provider that records a move rather than making

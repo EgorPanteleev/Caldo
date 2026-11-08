@@ -1,3 +1,4 @@
+import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/models/task.dart';
 import 'package:caldo/services/reminders.dart';
 import 'package:caldo/utils/dates.dart';
@@ -14,6 +15,126 @@ void main() {
     done: done,
     createdAt: 0,
   );
+
+  group('richer repeat rules', () {
+    // A Wednesday.
+    final wed = DateTime(2026, 11, 4, 8, 15);
+
+    test('every few days, weeks, months or years', () {
+      expect(
+        const Repeat(unit: RepeatUnit.day, every: 3).next(wed),
+        DateTime(2026, 11, 7, 8, 15),
+      );
+      expect(
+        const Repeat(unit: RepeatUnit.week, every: 2).next(wed),
+        DateTime(2026, 11, 18, 8, 15),
+      );
+      expect(
+        const Repeat(unit: RepeatUnit.month, every: 3).next(wed),
+        DateTime(2027, 2, 4, 8, 15),
+      );
+      expect(
+        const Repeat(unit: RepeatUnit.year, every: 2).next(wed),
+        DateTime(2028, 11, 4, 8, 15),
+      );
+    });
+
+    test('on chosen weekdays, later in the week or in the next one', () {
+      const mwf = Repeat(unit: RepeatUnit.week, weekdays: {1, 3, 5});
+      expect(mwf.next(wed), DateTime(2026, 11, 6, 8, 15)); // Friday
+      expect(mwf.next(DateTime(2026, 11, 6)), DateTime(2026, 11, 9)); // Mon
+      // Fortnightly: past the week's last chosen day, a week is skipped.
+      const fortnight = Repeat(
+        unit: RepeatUnit.week,
+        every: 2,
+        weekdays: {1, 3},
+      );
+      expect(fortnight.next(DateTime(2026, 11, 2)), DateTime(2026, 11, 4));
+      expect(fortnight.next(wed), DateTime(2026, 11, 16, 8, 15));
+      // Weekdays only: Friday rolls on to Monday.
+      expect(
+        Repeat.weekdaysOnly.next(DateTime(2026, 11, 6, 9)),
+        DateTime(2026, 11, 9, 9),
+      );
+    });
+
+    test('on the last day of the month', () {
+      const end = Repeat(unit: RepeatUnit.month, monthEnd: true);
+      expect(end.next(DateTime(2026, 1, 31)), DateTime(2026, 2, 28));
+      expect(end.next(DateTime(2026, 2, 28)), DateTime(2026, 3, 31));
+      expect(end.next(DateTime(2026, 4, 30)), DateTime(2026, 5, 31));
+    });
+
+    test('ends on a date: the last round closes the task', () {
+      final rule = Repeat(unit: RepeatUnit.week, until: DateTime(2026, 11, 15));
+      final task = taskDue(wed).copyWith(repeat: rule);
+      final second = task.completed(1);
+      expect(second.done, isFalse);
+      expect(second.due, DateTime(2026, 11, 11, 8, 15));
+      // The 18th is past the end, so this round is the last.
+      expect(second.rollsOn, isFalse);
+      expect(second.completed(2).done, isTrue);
+    });
+
+    test('ends after a number of rounds, counting down', () {
+      final task = taskDue(
+        wed,
+      ).copyWith(repeat: const Repeat(unit: RepeatUnit.day, left: 3));
+      final second = task.completed(1);
+      expect(second.repeat.left, 2);
+      final third = second.completed(2);
+      expect(third.repeat.left, 1);
+      expect(third.done, isFalse);
+      final closed = third.completed(3);
+      expect(closed.done, isTrue);
+      expect(closed.dueAt, third.dueAt);
+    });
+
+    test('plain rules are stored under their old names', () {
+      expect(Repeat.weekly.toRule(), 'weekly');
+      expect(Repeat.none.toRule(), 'none');
+      expect(Repeat.fromRule('monthly'), Repeat.monthly);
+    });
+
+    test('a richer rule survives the database', () {
+      for (final rule in [
+        Repeat.weekdaysOnly,
+        const Repeat(unit: RepeatUnit.week, every: 2, weekdays: {7, 2}),
+        const Repeat(unit: RepeatUnit.month, monthEnd: true, left: 4),
+        Repeat(unit: RepeatUnit.day, every: 10, until: DateTime(2027, 3, 9)),
+      ]) {
+        expect(Repeat.fromRule(rule.toRule()), rule, reason: rule.toRule());
+        final back = Task.fromMap(taskDue(wed).copyWith(repeat: rule).toMap());
+        expect(back.repeat, rule);
+      }
+    });
+
+    test('is written out on the cards', () {
+      final s = S.forCode('en');
+      expect(s.repeatName(Repeat.daily), 'Every day');
+      expect(s.repeatName(Repeat.weekdaysOnly), 'Every weekday');
+      expect(
+        s.repeatName(
+          const Repeat(unit: RepeatUnit.week, every: 2, weekdays: {3, 1}),
+        ),
+        'Every 2 weeks · Mon, Wed',
+      );
+      expect(
+        s.repeatName(const Repeat(unit: RepeatUnit.month, monthEnd: true)),
+        'Every month · last day',
+      );
+      expect(
+        s.repeatName(const Repeat(unit: RepeatUnit.day, left: 3)),
+        'Every day · 3 times left',
+      );
+      expect(
+        s.repeatName(
+          Repeat(unit: RepeatUnit.year, until: DateTime(2030, 6, 1)),
+        ),
+        'Every year · until Jun 1',
+      );
+    });
+  });
 
   group('Repeat.next', () {
     test('adds a day, a week', () {
@@ -134,7 +255,8 @@ void main() {
     });
 
     test('an unknown repeat rule falls back to none', () {
-      expect(Repeat.byName('fortnightly'), Repeat.none);
+      expect(Repeat.fromRule('fortnightly'), Repeat.none);
+      expect(Repeat.fromRule('FREQ=HOURLY'), Repeat.none);
       expect(Priority.byIndex(99), Priority.none);
     });
   });

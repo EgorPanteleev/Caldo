@@ -44,7 +44,11 @@ void main() {
       final s = S.current;
       expect(s.dueLine(time: '15:00', past: false), 'Срок: сегодня в 15:00');
       expect(s.dueLine(day: s.tomorrowInline, past: false), 'Срок: завтра');
-      expect(s.repeatField(Repeat.weekly), 'Повтор: каждую неделю');
+      expect(s.repeatName(Repeat.weekly), 'Каждую неделю');
+      expect(
+        s.repeatName(const Repeat(unit: RepeatUnit.week, every: 3)),
+        'Каждые 3 недели',
+      );
     });
   });
 
@@ -53,7 +57,7 @@ void main() {
     final s = S.current;
     expect(s.dueLine(time: '3:00 PM', past: false), 'Due at 3:00 PM');
     expect(s.dueLine(day: 'tomorrow', past: false), 'Due tomorrow');
-    expect(s.repeatField(Repeat.weekly), 'Repeat: every week');
+    expect(s.repeatName(Repeat.weekly), 'Every week');
     expect(Dates.lead(60), '1 hour before');
     expect(Dates.monthTitle(DateTime(DateTime.now().year, 11)), 'Nov');
   });

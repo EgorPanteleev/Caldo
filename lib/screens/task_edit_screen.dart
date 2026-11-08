@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
+import '../widgets/repeat_sheet.dart';
 import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart'
     show GroundFade, KeyboardLift, KeyboardRoom;
@@ -191,6 +192,20 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         _time = picked;
         _date ??= dayOf(DateTime.now());
       });
+    }
+  }
+
+  Future<void> _pickRepeat() async {
+    final date = _date;
+    if (date == null) return;
+    final picked = await showRepeatSheet(
+      context: context,
+      initial: _repeat,
+      due: date,
+    );
+    if (picked != null && picked != _repeat) {
+      _touched();
+      setState(() => _repeat = picked);
     }
   }
 
@@ -418,13 +433,27 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                       },
                               ),
                               const SizedBox(height: 12),
-                              _RepeatField(
-                                value: _repeat,
-                                enabled: _date != null,
-                                onChanged: (v) {
-                                  _touched();
-                                  setState(() => _repeat = v);
-                                },
+                              // A task with no date has nothing to repeat
+                              // from, so the row waits for one.
+                              Opacity(
+                                opacity: _date == null ? 0.5 : 1,
+                                child: IgnorePointer(
+                                  ignoring: _date == null,
+                                  child: _FieldTile(
+                                    icon: Icons.repeat,
+                                    label: s.repeatLabel,
+                                    value: s.repeatName(_repeat),
+                                    onTap: _pickRepeat,
+                                    onClear: _repeat.isNone
+                                        ? null
+                                        : () {
+                                            _touched();
+                                            setState(
+                                              () => _repeat = Repeat.none,
+                                            );
+                                          },
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 12),
                               _ReminderField(
@@ -767,69 +796,6 @@ class _FieldTile extends StatelessWidget {
                 ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Repeat rule chooser. Disabled until the task has a date, since a recurring
-/// task needs something to recur from.
-class _RepeatField extends StatelessWidget {
-  final Repeat value;
-  final bool enabled;
-  final ValueChanged<Repeat> onChanged;
-
-  const _RepeatField({
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Opacity(
-      opacity: enabled ? 1 : 0.5,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: p.panel,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: p.border),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.repeat, size: 20, color: p.muted),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<Repeat>(
-                  value: value,
-                  isExpanded: true,
-                  dropdownColor: p.panel,
-                  borderRadius: BorderRadius.circular(10),
-                  icon: Icon(Icons.expand_more, color: p.muted),
-                  style: TextStyle(
-                    color: p.text,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  items: Repeat.values
-                      .map(
-                        (r) => DropdownMenuItem(
-                          value: r,
-                          child: Text(S.of(context).repeatField(r)),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: enabled
-                      ? (v) => onChanged(v ?? Repeat.none)
-                      : null,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

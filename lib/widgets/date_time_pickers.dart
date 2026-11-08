@@ -176,17 +176,17 @@ class _DateSheetState extends State<_DateSheet> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _QuickChip(
+              QuickChip(
                 label: S.of(context).today,
                 onTap: () => Navigator.of(context).pop(today),
               ),
-              _QuickChip(
+              QuickChip(
                 label: S.of(context).tomorrow,
                 onTap: () => Navigator.of(
                   context,
                 ).pop(today.add(const Duration(days: 1))),
               ),
-              _QuickChip(
+              QuickChip(
                 label: S.of(context).nextWeek,
                 onTap: () => Navigator.of(
                   context,
@@ -397,7 +397,7 @@ class _TimeSheetState extends State<_TimeSheet> {
             alignment: WrapAlignment.center,
             children: [
               for (final preset in _presets)
-                _QuickChip(
+                QuickChip(
                   label: Dates.clock(preset, h24: _h24),
                   selected: preset.hour == _hour && preset.minute == _minute,
                   onTap: () => _apply(preset),
@@ -598,12 +598,13 @@ class _SheetHeader extends StatelessWidget {
 }
 
 /// A small pill shortcut inside a picker sheet.
-class _QuickChip extends StatelessWidget {
+class QuickChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  const _QuickChip({
+  const QuickChip({
+    super.key,
     required this.label,
     required this.onTap,
     this.selected = false,
