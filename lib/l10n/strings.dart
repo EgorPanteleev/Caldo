@@ -329,6 +329,8 @@ class S {
       hours == 1 ? _word('hourBefore') : _count('hoursBefore', hours);
   String daysBefore(int days) =>
       days == 1 ? _word('dayBefore') : _count('daysBefore', days);
+  String weeksBefore(int weeks) =>
+      weeks == 1 ? _word('weekBefore') : _count('weeksBefore', weeks);
   String get selectTime => _word('selectTime');
   String get nextWeek => _word('nextWeek');
   String get nextMonth => _word('nextMonth');

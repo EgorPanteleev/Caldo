@@ -192,6 +192,8 @@ const Map<String, Object> kk = {
   'hoursBefore': ["{n} сағат бұрын"],
   'dayBefore': "1 күн бұрын",
   'daysBefore': ["{n} күн бұрын"],
+  'weekBefore': "1 апта бұрын",
+  'weeksBefore': ["{n} апта бұрын"],
   'selectTime': "Уақытты таңдау",
   'nextWeek': "Келесі апта",
   'nextMonth': "Келесі ай",

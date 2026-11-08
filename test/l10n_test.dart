@@ -88,6 +88,7 @@ void main() {
       expect(S.current.hoursBefore(21), '21 godzin wcześniej');
       S.use('uk');
       expect(S.current.daysBefore(3), 'за 3 дні');
+      expect(Dates.lead(14 * Duration.minutesPerDay), 'за 2 тижні');
       S.use('fr');
       expect(S.current.daysInARow(0), 'jour d’affilée');
       expect(S.current.daysInARow(2), 'jours d’affilée');

@@ -182,6 +182,8 @@ const Map<String, Object> en = {
   'hoursBefore': ["{n} hour before", "{n} hours before"],
   'dayBefore': "1 day before",
   'daysBefore': ["{n} day before", "{n} days before"],
+  'weekBefore': "1 week before",
+  'weeksBefore': ["{n} week before", "{n} weeks before"],
   'selectTime': "Select time",
   'nextWeek': "Next week",
   'nextMonth': "Next month",

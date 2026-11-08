@@ -191,6 +191,8 @@ const Map<String, Object> tr = {
   'hoursBefore': ["{n} saat önce"],
   'dayBefore': "1 gün önce",
   'daysBefore': ["{n} gün önce"],
+  'weekBefore': "1 hafta önce",
+  'weeksBefore': ["{n} hafta önce"],
   'selectTime': "Saat seçin",
   'nextWeek': "Gelecek hafta",
   'nextMonth': "Sonraki ay",

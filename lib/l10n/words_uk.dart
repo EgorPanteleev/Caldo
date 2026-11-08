@@ -199,6 +199,8 @@ const Map<String, Object> uk = {
   'hoursBefore': ["за {n} годину", "за {n} години", "за {n} годин"],
   'dayBefore': "за день",
   'daysBefore': ["за {n} день", "за {n} дні", "за {n} днів"],
+  'weekBefore': "за тиждень",
+  'weeksBefore': ["за {n} тиждень", "за {n} тижні", "за {n} тижнів"],
   'selectTime': "Час",
   'nextWeek': "Через тиждень",
   'nextMonth': "Наступний місяць",

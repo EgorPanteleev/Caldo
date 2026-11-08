@@ -199,6 +199,8 @@ const Map<String, Object> ru = {
   'hoursBefore': ["за {n} час", "за {n} часа", "за {n} часов"],
   'dayBefore': "за день",
   'daysBefore': ["за {n} день", "за {n} дня", "за {n} дней"],
+  'weekBefore': "за неделю",
+  'weeksBefore': ["за {n} неделю", "за {n} недели", "за {n} недель"],
   'selectTime': "Время",
   'nextWeek': "Через неделю",
   'nextMonth': "Следующий месяц",

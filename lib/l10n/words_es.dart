@@ -197,6 +197,8 @@ const Map<String, Object> es = {
   'hoursBefore': ["{n} hora antes", "{n} horas antes"],
   'dayBefore': "1 día antes",
   'daysBefore': ["{n} día antes", "{n} días antes"],
+  'weekBefore': "1 semana antes",
+  'weeksBefore': ["{n} semana antes", "{n} semanas antes"],
   'selectTime': "Elegir hora",
   'nextWeek': "La próxima semana",
   'nextMonth': "Mes siguiente",

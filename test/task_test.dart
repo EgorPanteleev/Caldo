@@ -235,6 +235,21 @@ void main() {
         ),
         DateTime(2026, 4, 30, 9),
       );
+      // Days and weeks ahead, for a birthday that wants a present bought.
+      expect(
+        Reminders.whenToAnnounce(
+          task.copyWith(remindBefore: 3 * Duration.minutesPerDay),
+          nine,
+        ),
+        DateTime(2026, 5, 1, 9),
+      );
+      expect(
+        Reminders.whenToAnnounce(
+          task.copyWith(remindBefore: 14 * Duration.minutesPerDay),
+          nine,
+        ),
+        DateTime(2026, 4, 20, 9),
+      );
     });
 
     test('a silent task is never announced, and a snooze always wins', () {
@@ -312,6 +327,9 @@ void main() {
       expect(Dates.lead(60), '1 hour before');
       expect(Dates.lead(120), '2 hours before');
       expect(Dates.lead(Duration.minutesPerDay), '1 day before');
+      expect(Dates.lead(3 * Duration.minutesPerDay), '3 days before');
+      expect(Dates.lead(7 * Duration.minutesPerDay), '1 week before');
+      expect(Dates.lead(14 * Duration.minutesPerDay), '2 weeks before');
     });
   });
 }

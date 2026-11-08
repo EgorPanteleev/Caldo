@@ -1025,8 +1025,10 @@ Changing them back will be noticed.
   always was); `Task.silent` is never. An all-day task takes only whole days
   of a lead — on its day or the day before, at the all-day hour — and none
   of the default, since "fifteen minutes before nine" on a day with no time
-  in it means nothing. The form offers minutes for a timed task and "the day
-  before" for an all-day one.
+  in it means nothing. The form offers minutes for a timed task, and both
+  kinds 1, 2 or 3 days or 1 or 2 weeks ahead (`SettingsProvider.dayLeads`) —
+  "the day before" alone was too little for a birthday, which is what it was
+  asked for.
 - **The home-screen widget is Schedule in small** (`TodayWidget.kt`,
   `TodayWidgetRuns.kt`): Overdue, Today, Tomorrow and each later day with
   something on it, the cards inked as the app inks them, a tick that works

@@ -197,6 +197,8 @@ const Map<String, Object> nl = {
   'hoursBefore': ["{n} uur van tevoren", "{n} uur van tevoren"],
   'dayBefore': "1 dag van tevoren",
   'daysBefore': ["{n} dag van tevoren", "{n} dagen van tevoren"],
+  'weekBefore': "1 week van tevoren",
+  'weeksBefore': ["{n} week van tevoren", "{n} weken van tevoren"],
   'selectTime': "Tijd kiezen",
   'nextWeek': "Volgende week",
   'nextMonth': "Volgende maand",

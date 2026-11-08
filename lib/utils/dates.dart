@@ -137,10 +137,12 @@ class Dates {
       Dates.time(DateTime(2000, 1, 1, time.hour, time.minute), h24: h24);
 
   /// How far ahead a reminder comes: "at the time", "15 min before",
-  /// "1 hour before", "1 day before".
+  /// "1 hour before", "1 day before", "1 week before".
   static String lead(int minutes) {
     final s = S.current;
     if (minutes <= 0) return s.atTheTime;
+    const week = Duration.minutesPerDay * DateTime.daysPerWeek;
+    if (minutes % week == 0) return s.weeksBefore(minutes ~/ week);
     if (minutes % Duration.minutesPerDay == 0) {
       return s.daysBefore(minutes ~/ Duration.minutesPerDay);
     }

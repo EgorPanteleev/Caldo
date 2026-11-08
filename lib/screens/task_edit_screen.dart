@@ -837,9 +837,9 @@ class _RepeatField extends StatelessWidget {
 }
 
 /// When the task is announced. What is offered depends on whether it has a
-/// time: a timed task can be announced minutes, an hour or a day ahead; an
-/// all-day one is announced at the hour Settings names, on its day or the
-/// day before. Either can follow Settings, which is where a task starts, or
+/// time: a timed task can be announced minutes, hours or days ahead; an
+/// all-day one is announced at the hour Settings names, on its day or up to
+/// two weeks before. Either can follow Settings, which is where a task starts, or
 /// be left unannounced.
 class _ReminderField extends StatelessWidget {
   final int? value;
@@ -870,17 +870,24 @@ class _ReminderField extends StatelessWidget {
           ? s.remindLead(Dates.lead(settings.reminderLead))
           : s.remindOnDayAt(Dates.clock(settings.reminderTime, h24: h24)),
       if (timed)
-        for (final lead in [...SettingsProvider.leads, _day])
+        for (final lead in SettingsProvider.leads)
           if (lead != settings.reminderLead)
             lead: s.remindLead(Dates.lead(lead)),
-      if (!timed) _day: s.remindDayBefore,
+      for (final lead in SettingsProvider.dayLeads)
+        lead: !timed && lead == _day
+            ? s.remindDayBefore
+            : s.remindLead(Dates.lead(lead)),
       Task.silent: s.noReminder,
     };
     // A lead chosen for a timed task and kept when its time is taken off
-    // reads as the nearest thing an all-day task can do with it.
+    // reads as the nearest thing an all-day task can do with it: the
+    // longest whole-day lead that does not go past it.
     var shown = value ?? _followSettings;
     if (!options.containsKey(shown)) {
-      shown = !timed && shown >= _day ? _day : _followSettings;
+      shown = SettingsProvider.dayLeads.lastWhere(
+        (lead) => lead <= shown,
+        orElse: () => _followSettings,
+      );
     }
     return Opacity(
       opacity: enabled ? 1 : 0.5,

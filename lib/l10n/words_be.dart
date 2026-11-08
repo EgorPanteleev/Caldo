@@ -198,6 +198,8 @@ const Map<String, Object> be = {
   'hoursBefore': ["за {n} гадзіну", "за {n} гадзіны", "за {n} гадзін"],
   'dayBefore': "за дзень",
   'daysBefore': ["за {n} дзень", "за {n} дні", "за {n} дзён"],
+  'weekBefore': "за тыдзень",
+  'weeksBefore': ["за {n} тыдзень", "за {n} тыдні", "за {n} тыдняў"],
   'selectTime': "Час",
   'nextWeek': "Праз тыдзень",
   'nextMonth': "Наступны месяц",

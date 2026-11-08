@@ -95,6 +95,17 @@ class SettingsProvider extends ChangeNotifier {
   /// The leads offered, here and on the task form.
   static const leads = [0, 5, 10, 15, 30, 60];
 
+  /// The leads of whole days the task form offers on top of [leads] — the
+  /// only ones an all-day task can take. A birthday or a deadline wants
+  /// warning days ahead, not the day before alone.
+  static const dayLeads = [
+    Duration.minutesPerDay,
+    2 * Duration.minutesPerDay,
+    3 * Duration.minutesPerDay,
+    7 * Duration.minutesPerDay,
+    14 * Duration.minutesPerDay,
+  ];
+
   /// Whether times are written on a 24-hour clock, or null for as the phone
   /// does until a choice is made here.
   bool? _use24Hour;
