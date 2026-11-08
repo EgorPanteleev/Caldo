@@ -102,8 +102,8 @@ class TodayWidget {
       'done': task.done,
       // A repeating task rolls on to its next date when ticked, so on the
       // widget, as in the app, its card leaves the run rather than sliding
-      // to the end of it.
-      'repeats': task.repeat != Repeat.none,
+      // to the end of it — unless this is its last round, which closes it.
+      'repeats': task.rollsOn,
       'colour': colorOfTask(
         task,
         tasks.listById(task.listId),
