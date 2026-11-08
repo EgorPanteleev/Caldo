@@ -34,6 +34,9 @@ const Map<String, Object> en = {
   'allowInstall': "Allow Caldo to install apps, then tap Update again",
   'downloadFailed': "Download failed — tap to try again",
   'update': "Update",
+  'updateInstalled': "Caldo {version} is installed",
+  'tapToOpen': "Tap to open",
+  'updatesChannel': "Updates",
   'notNow': "Not now",
 
   'nothingScheduled': "Nothing scheduled",

@@ -35,6 +35,9 @@ const Map<String, Object> tr = {
       "Caldo'nun uygulama yüklemesine izin verin, sonra yeniden Güncelle'ye dokunun",
   'downloadFailed': "İndirme başarısız — yeniden denemek için dokunun",
   'update': "Güncelle",
+  'updateInstalled': "Caldo {version} yüklendi",
+  'tapToOpen': "Açmak için dokunun",
+  'updatesChannel': "Güncellemeler",
   'notNow': "Şimdi değil",
 
   'nothingScheduled': "Planlanmış bir şey yok",

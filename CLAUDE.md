@@ -1014,13 +1014,13 @@ Changing them back will be noticed.
   that is granted on install) and fall back to inexact if a device refuses —
   a reminder that arrives whenever the system next wakes up is worth having,
   but only as a fallback.
-- **A newer release is offered in a banner, fetched in the app, and handed
-  to Android's installer** (`services/updates.dart`, `_UpdateBanner`, the
-  `caldo/updates` channel in `MainActivity`). On opening, the app asks the
+- **A newer release is offered in a banner, fetched in the app, and
+  installed by Caldo itself** (`services/updates.dart`, `_UpdateBanner`, the
+  `caldo/updates` channel in `MainActivity`, `SelfUpdate.kt`). On opening, the app asks the
   GitHub API for the latest release; if its tag is newer than the installed
   version, a banner sits above whichever screen is open. Tapping it downloads
   the APK built for the phone's processor into the app's cache, with
-  progress, and opens the system installer on it through a `FileProvider`.
+  progress, and writes it into an install session of Caldo's own.
   The first time, Android wants Caldo allowed to install apps; the settings
   page for that is opened instead and the banner says to tap again. Closing
   the banner hides it until the next opening and no longer — an update put
@@ -1042,6 +1042,26 @@ Changing them back will be noticed.
   cleartext allowed, in the test builds only): one task after "Open".
   The version doing the updating decides this, so the first update away
   from a build without the fix still shows the old behaviour once.
+  **It is not handed to the system installer any more** ("every update i
+  should give the app permissions, that i already gave"): an update
+  installed by that app turns full-screen reminders off on Android 14, and
+  only that — the "Allow" banner was back after every update. Measured on
+  the emulator: `appops` read `Uid mode: USE_FULL_SCREEN_INTENT: deny`
+  after an update through the installer, and `allow` after the same APK
+  through `adb` or through Caldo's own session, which says the permission
+  is granted (`setPermissionState`). An app updating itself is also let
+  through without the "Do you want to update" prompt (Android 12+,
+  `USER_ACTION_NOT_REQUIRED`), so a tap on Update is the whole of it. **The
+  cost is "Open"**: Android stops the app to replace it and refuses to
+  start it again afterwards — from the session's answer and from
+  `MY_PACKAGE_REPLACED` alike (`BAL_BLOCK` in the log) — so the update ends
+  on the home screen with a notification saying it is in, which opens
+  Caldo when tapped (`UpdateDone`). Its words are handed over in the app's
+  language before the commit, since the new version wakes without Dart.
+  To try it, `adb root` works on this AVD: install a build labelled lower
+  than the latest release, and put the build to update to in its
+  `cache/updates/` as `Caldo-<latest>.apk` (chowned to the app), which the
+  banner then installs instead of downloading.
   Measured end to end on the emulator: a build labelled 1.3.12 offered
   1.3.13, downloaded the universal APK with progress, asked once to be
   allowed to install, and came back as 1.3.13. It only offers what a GitHub

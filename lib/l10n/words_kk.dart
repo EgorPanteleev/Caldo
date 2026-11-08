@@ -35,6 +35,9 @@ const Map<String, Object> kk = {
       "Caldo-ға қолданба орнатуға рұқсат беріп, «Жаңарту» түймесін қайта басыңыз",
   'downloadFailed': "Жүктеу сәтсіз — қайталау үшін басыңыз",
   'update': "Жаңарту",
+  'updateInstalled': "Caldo {version} орнатылды",
+  'tapToOpen': "Ашу үшін түртіңіз",
+  'updatesChannel': "Жаңартулар",
   'notNow': "Қазір емес",
 
   'nothingScheduled': "Ештеңе жоспарланбаған",

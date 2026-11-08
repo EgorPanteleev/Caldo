@@ -183,6 +183,13 @@ class S {
   String downloading(String version, int percent) =>
       _fill('downloading', {'version': version, 'percent': percent});
   String get allowInstall => _word('allowInstall');
+
+  /// The notification an update leaves behind: Android stops Caldo to
+  /// replace it and will not let it open itself again afterwards.
+  String updateInstalled(String version) =>
+      _fill('updateInstalled', {'version': version});
+  String get tapToOpen => _word('tapToOpen');
+  String get updatesChannel => _word('updatesChannel');
   String get downloadFailed => _word('downloadFailed');
   String get update => _word('update');
   String get notNow => _word('notNow');

@@ -20,7 +20,6 @@ import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.annotation.RequiresApi
-import androidx.core.content.FileProvider
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -73,6 +72,7 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         useFastestRefreshRate()
         wakeFor(intent)
+        SelfUpdate.answer(this, intent)
     }
 
     /** The reminder over the lock screen, while one is up. */
@@ -177,7 +177,11 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "info" -> result.success(updateInfo())
-                    "install" -> result.success(install(call.argument<String>("path")!!))
+                    "install" -> install(
+                        call.argument<String>("path")!!,
+                        call.argument<Map<String, String>>("words") ?: emptyMap(),
+                        result,
+                    )
                     else -> result.notImplemented()
                 }
             }
@@ -426,6 +430,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
+        if (SelfUpdate.answer(this, intent)) return
         // Before the plugins hear of it, so the cover is up by the time Dart
         // asks whether the reminder is on one.
         wakeFor(intent)
@@ -460,12 +465,13 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Opens the system installer on a downloaded APK. Android lets an app do
-     * that only once the user has said it may install apps; until then the
-     * settings page for exactly that is opened instead, and Dart is told so
-     * it can say why nothing was installed.
+     * Installs a downloaded APK over this one ([SelfUpdate]). Android lets
+     * an app do that only once the user has said it may install apps; until
+     * then the settings page for exactly that is opened instead, and Dart is
+     * told so it can say why nothing was installed. The copy into the
+     * session is twenty to sixty megabytes, so it is made off this thread.
      */
-    private fun install(path: String): String {
+    private fun install(path: String, words: Map<String, String>, result: MethodChannel.Result) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !packageManager.canRequestPackageInstalls()
         ) {
@@ -475,22 +481,18 @@ class MainActivity : FlutterActivity() {
                     Uri.parse("package:$packageName"),
                 ),
             )
-            return "needs-permission"
+            result.success("needs-permission")
+            return
         }
-        val uri = FileProvider.getUriForFile(this, "$packageName.updates", File(path))
-        // A task of its own, kept out of the recent apps: left in them, it
-        // outlived the install as a blank card beside Caldo. Not in Caldo's
-        // own task either — the update clears that task out from under it,
-        // and its "Open" then landed on the home screen.
-        startActivity(
-            Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
-            },
-        )
-        return "started"
+        Thread {
+            val outcome = runCatching { SelfUpdate.install(applicationContext, File(path), words) }
+            runOnUiThread {
+                outcome.fold(
+                    { result.success("started") },
+                    { result.error("install", it.message, null) },
+                )
+            }
+        }.start()
     }
 
     /**

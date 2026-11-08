@@ -18,15 +18,17 @@
     <!-- The one thing the app goes online for: asking GitHub whether a newer
          release than the installed one exists, and downloading its APK when
          the banner that says so is tapped. Everything else stays on the
-         device. Installing it is Android's own installer, which an app may
-         only open for an APK if it says so here — and the user still has to
-         allow Caldo to install apps, once, in settings. -->
+         device. Caldo installs it itself (SelfUpdate), which an app may only
+         do if it says so here — and the user still has to allow Caldo to
+         install apps, once, in settings. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Events from the phone's own calendars are shown beside the tasks,
          read-only, once Settings has been asked to and the user has said
          yes. Nothing is ever written to them. -->
     <uses-permission android:name="android.permission.READ_CALENDAR"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Lets an update Caldo installed itself go over it without asking. -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"/>
 
     <application
         android:label="Caldo"
@@ -57,18 +59,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Hands a downloaded update to the system installer. The file sits
-             in the app's own cache, which nothing else can read, so it is
-             shared through a content URI for the length of the install. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.updates"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/update_paths"/>
-        </provider>
         <!-- Shows a reminder when its alarm goes off, and puts the alarms
              back after a reboot or an update — a scheduled notification is
              held by the system, and the system forgets them both times. -->
@@ -95,6 +85,16 @@
         <!-- The home-screen widget, and the service that hands it its rows.
              The receiver also takes the widget's taps and its midnight
              redraw, so it is exported only as far as the launcher needs. -->
+        <!-- Says an update from inside the app is in (SelfUpdate): Android
+             will not let the app open itself again after replacing it. -->
+        <receiver
+            android:name=".UpdateDone"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".TodayWidget"
             android:exported="false">

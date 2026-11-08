@@ -34,6 +34,9 @@ const Map<String, Object> be = {
       "Дазвольце Caldo ўсталёўваць праграмы і зноў націсніце «Абнавіць»",
   'downloadFailed': "Не ўдалося загрузіць — націсніце яшчэ раз",
   'update': "Абнавіць",
+  'updateInstalled': "Caldo {version} усталявана",
+  'tapToOpen': "Націсніце, каб адкрыць",
+  'updatesChannel': "Абнаўленні",
   'notNow': "Не зараз",
 
   'nothingScheduled': "Нічога не запланавана",

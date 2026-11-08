@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/strings.dart';
+
 /// A newer release than the one installed, and the file of it this phone
 /// should fetch.
 @immutable
@@ -20,7 +22,7 @@ class Update {
 typedef DownloadProgress = double?;
 
 /// Finds out whether a newer Caldo has been released, fetches it, and hands
-/// it to Android's installer.
+/// it to Android to install over this one.
 ///
 /// Releases are the GitHub ones, read from the public API with no account
 /// and no token: the repository is public for exactly this reason, since an
@@ -97,8 +99,8 @@ class Updates {
     }
   }
 
-  /// Fetches [update] into the app's own cache and opens the installer on
-  /// it. Returns false when Android first wants the user to allow Caldo to
+  /// Fetches [update] into the app's own cache and installs it over this
+  /// one. Returns false when Android first wants the user to allow Caldo to
   /// install apps — the settings page for that has been opened instead, and
   /// tapping again once it is allowed carries on.
   Future<bool> install(Update update) async {
@@ -146,6 +148,11 @@ class Updates {
 
     final outcome = await _channel.invokeMethod<String>('install', {
       'path': file.path,
+      'words': {
+        'title': S.current.updateInstalled(update.version),
+        'text': S.current.tapToOpen,
+        'channel': S.current.updatesChannel,
+      },
     });
     return outcome == 'started';
   }

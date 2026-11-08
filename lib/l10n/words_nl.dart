@@ -34,6 +34,9 @@ const Map<String, Object> nl = {
       "Sta Caldo toe apps te installeren en tik daarna opnieuw op Bijwerken",
   'downloadFailed': "Downloaden mislukt — tik om het opnieuw te proberen",
   'update': "Bijwerken",
+  'updateInstalled': "Caldo {version} is geïnstalleerd",
+  'tapToOpen': "Tik om te openen",
+  'updatesChannel': "Updates",
   'notNow': "Niet nu",
 
   'nothingScheduled': "Niets gepland",

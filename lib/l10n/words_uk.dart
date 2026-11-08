@@ -34,6 +34,9 @@ const Map<String, Object> uk = {
       "Дозвольте Caldo встановлювати застосунки й знову натисніть «Оновити»",
   'downloadFailed': "Не вдалося завантажити — натисніть ще раз",
   'update': "Оновити",
+  'updateInstalled': "Caldo {version} встановлена",
+  'tapToOpen': "Торкніться, щоб відкрити",
+  'updatesChannel': "Оновлення",
   'notNow': "Не зараз",
 
   'nothingScheduled': "Нічого не заплановано",

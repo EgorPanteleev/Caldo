@@ -320,7 +320,7 @@ class _UpdateBanner extends StatefulWidget {
 
 class _UpdateBannerState extends State<_UpdateBanner> {
   /// Said in place of the usual line when the last tap did not end in the
-  /// installer — why not, and what to do about it.
+  /// install — why not, and what to do about it.
   String? _note;
 
   Future<void> _install() async {

@@ -34,6 +34,9 @@ const Map<String, Object> fr = {
       "Autorisez Caldo à installer des applis, puis touchez de nouveau Mettre à jour",
   'downloadFailed': "Échec du téléchargement — touchez pour réessayer",
   'update': "Mettre à jour",
+  'updateInstalled': "Caldo {version} est installé",
+  'tapToOpen': "Touchez pour ouvrir",
+  'updatesChannel': "Mises à jour",
   'notNow': "Plus tard",
 
   'nothingScheduled': "Rien de prévu",
