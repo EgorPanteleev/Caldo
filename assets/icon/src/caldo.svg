@@ -1,14 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- A calendar page and nothing behind it: the sheet is the icon's
-       shape, as the reference's was. Its pale sheet, its red header, and
-       three rings standing up out of the header, flat. -->
+  <!-- The legacy icon is the adaptive one's middle 72dp: the same page,
+       drawn at 108/72 of caldo_fg.svg. -->
   <g transform="translate(512 512) scale(1.5) translate(-512 -512)">
-  <rect x="205" y="258" width="614" height="560" rx="59" fill="#CAD6DA"/>
-  <path d="M205 317 a59 59 0 0 1 59 -59 h496 a59 59 0 0 1 59 59 v69 h-614 z" fill="#E04545"/>
-  <g fill="#1F2B4A">
-    <rect x="301" y="206" width="41" height="107" rx="11"/>
-    <rect x="492" y="206" width="41" height="107" rx="11"/>
-    <rect x="683" y="206" width="41" height="107" rx="11"/>
+  <rect x="214" y="240" width="596" height="539" rx="72" fill="#CAD6DA"/>
+  <path d="M214 312 a72 72 0 0 1 72 -72 h452 a72 72 0 0 1 72 72 v48 h-596 z" fill="#DE414A"/>
+  <g fill="#243044">
+    <rect x="305" y="183" width="42" height="94" rx="12"/>
+    <rect x="491" y="183" width="42" height="94" rx="12"/>
+    <rect x="677" y="183" width="42" height="94" rx="12"/>
   </g>
   </g>
 </svg>

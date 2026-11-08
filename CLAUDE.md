@@ -1446,25 +1446,27 @@ Changing them back will be noticed.
   says when a backup was last saved ("Never saved" until one is). No
   automatic backups yet: Android's own may or may not cover the database,
   and nothing here relies on it.
-- **The icon is a flat calendar page, drawn from a picture the user
-  supplied, and the page is the whole icon**: a pale blue-grey sheet with a
-  red header across its top and three navy rings in it — no tick, no
-  gradient, nothing behind it. It replaced Dicty's sibling (graphite square,
-  white page, a violet tile with a tick over its corner). The adaptive
-  icon's background is the sheet's colour (`@color/ic_launcher_page`) and
-  its foreground the header and rings, so whatever shape the launcher cuts
-  is the page — matched to a screenshot of the reference calendar on the
-  user's Samsung, whose page fills its squircle: "i wanna caldo icon's be
-  like calendar's". Two steps came before: the page small on a slate tile
-  (a page inside a second shape, "too small", then inset 7% rather than
-  Dicty's 16%), and a transparent ground with the page drawn at 90%, which
-  the Pixel launcher filled black and cut at the corners. The rings stand
-  inside the header rather than above it, as the reference's do, because
-  nothing outside the mask is drawn; they sit at 24/50/76% across, as far
-  out as a round mask leaves them whole. The monochrome layer for Android
-  13's themed icons is the sheet and rings in one colour, the header told
-  apart by a seam cut across the page and the rings by a gap cut round
-  each.
+- **The icon is the Samsung calendar's page, standing free, with nothing
+  behind it**: a pale blue-grey sheet with round corners, a red header
+  across its top, and three navy rings rising out of the header above the
+  sheet — no tick, no gradient, no tile. It replaced Dicty's sibling
+  (graphite square, white page, a violet tile with a tick over its corner).
+  The adaptive icon's background is transparent and its foreground the
+  whole page, measured edge by edge off a screenshot of Caldo and the
+  user's Samsung Calendar in one folder ("it's not the same, but must be
+  the same"), taking the launcher's squircle as the middle 72dp of the
+  layer: within a pixel or two of it at that size. The page fills about
+  nine tenths of the squircle's width and the ring tops come close to its
+  shoulders, as Samsung's own does. Three steps came before: the page small
+  on a slate tile ("too small"); a transparent ground with the page drawn
+  at 90%, reported as filled black by the Pixel launcher; and the sheet's
+  colour as the background so the page *was* the squircle, rings tucked
+  inside the header — a misreading of the reference, which is a page
+  inside the icon's room, not one cut to its shape. The cost is the Pixel
+  launcher's round mask, which cuts the page's corners; the phone it is
+  matched on is a Samsung. The monochrome layer for Android 13's themed
+  icons is the sheet and rings in one colour, the header told apart by a
+  seam cut across the page and the rings by a gap cut round each.
 - **The window asks Android for the fastest display mode** (`MainActivity`).
   Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
   The ask is for the fastest mode at the resolution already in use — the

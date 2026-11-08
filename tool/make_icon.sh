@@ -1,8 +1,8 @@
 #!/bin/sh
 # Draws the launcher icon from assets/icon/src into every size Android asks
 # for: the legacy square at each density, and the two drawn layers of the
-# adaptive icon (the header and rings, and the one-colour layer Android 13
-# themes; under them is the page's colour, @color/ic_launcher_page). Needs rsvg-convert. Run from the repository
+# adaptive icon (the page, on a transparent background, and the one-colour
+# layer Android 13 themes). Needs rsvg-convert. Run from the repository
 # root after editing an SVG; the PNGs it writes are checked in.
 set -e
 SRC=assets/icon/src

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Drawn from assets/icon/src. The page fills the launcher's shape, as the
-     calendar it was drawn from fills its own: on a slate tile it sat small
-     inside a second shape. A transparent ground was tried first and the
-     Pixel launcher drew it black, with the page's corners cut by the
-     circle. -->
+<!-- Drawn from assets/icon/src. Nothing behind the page: the Samsung
+     calendar it is matched to is a page standing free in its icon's room,
+     rings above the header, and One UI leaves a transparent ground
+     transparent. Filling the ground with the sheet's colour made the
+     page the launcher's squircle instead. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@color/ic_launcher_page"/>
+  <background android:drawable="@android:color/transparent"/>
   <foreground android:drawable="@drawable/ic_launcher_foreground"/>
   <monochrome android:drawable="@drawable/ic_launcher_monochrome"/>
 </adaptive-icon>
