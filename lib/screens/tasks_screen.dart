@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/carry.dart';
 import '../widgets/groups.dart';
+import '../widgets/put_off.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/reorderable_task_list.dart';
 import '../widgets/screen_header.dart';
@@ -114,17 +115,20 @@ class _TasksScreenState extends State<TasksScreen> {
       scope: 'schedule',
       id: task.id ?? task,
       trigger: provider.rearranging,
-      child: AsShown(
+      child: PutOff(
         task: task,
-        builder: (context, shown) => TaskCard(
-          task: shown,
-          list: provider.listById(task.listId),
-          onTap: () => _openEditor(task),
-          onToggle: () => tickOff(context, shown),
-          ticking: provider.isTicking(task),
-          leaving: provider.isLeaving(
-            task,
-            fromOverdue: overdueIds.contains(task.id),
+        child: AsShown(
+          task: task,
+          builder: (context, shown) => TaskCard(
+            task: shown,
+            list: provider.listById(task.listId),
+            onTap: () => _openEditor(task),
+            onToggle: () => tickOff(context, shown),
+            ticking: provider.isTicking(task),
+            leaving: provider.isLeaving(
+              task,
+              fromOverdue: overdueIds.contains(task.id),
+            ),
           ),
         ),
       ),

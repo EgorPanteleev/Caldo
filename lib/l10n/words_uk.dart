@@ -277,4 +277,6 @@ const Map<String, Object> uk = {
   'repeatOnLastDay': "В останній день",
   'endsOn': "До дати",
   'endsAfter': ["Після {n} разу", "Після {n} разів", "Після {n} разів"],
+  'putOffDay': "+1 день",
+  'pickDay': "Вибрати",
 };

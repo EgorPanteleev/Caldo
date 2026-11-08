@@ -13,6 +13,7 @@ import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/menu_button.dart';
+import 'package:caldo/widgets/put_off.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:caldo/widgets/reorderable_task_list.dart';
 import 'package:caldo/widgets/task_card.dart';
@@ -1147,6 +1148,62 @@ void main() {
     return provider;
   }
 
+  testWidgets('a card swiped left on Schedule is put off to tomorrow', (
+    tester,
+  ) async {
+    final provider = await pumpCapturing(tester, const TasksScreen());
+    final today = dayOf(DateTime.now());
+    final ship = find.text('Ship');
+
+    // A short pull opens on the two actions and moves nothing.
+    await tester.drag(ship, const Offset(-120, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Tomorrow'), findsWidgets);
+    expect(find.text('Pick day'), findsOneWidget);
+    expect(provider.moved, isNull);
+    // A tap on the card then closes it rather than opening the task.
+    // Its title has slid off the left edge, so on what is left of it.
+    await tester.tapAt(Offset(60, tester.getCenter(ship).dy));
+    await tester.pumpAndSettle();
+    expect(find.text('Pick day'), findsNothing);
+    expect(find.byType(TaskEditScreen), findsNothing);
+
+    // Pulled most of the way across, it goes to tomorrow, and is offered
+    // back in the add row.
+    await tester.drag(ship, const Offset(-700, 0));
+    // Not settled: that would run out the four seconds of the offer.
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(provider.moved?.title, 'Ship');
+    expect(provider.movedTo, today.add(const Duration(days: 1)));
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    expect(provider.putBackTask?.title, 'Ship');
+    await tester.pumpAndSettle();
+  });
+
+  test('putting off goes to tomorrow, or a day past a later date', () {
+    final now = DateTime(2026, 11, 8, 10);
+    Task due(DateTime? day) => Task(
+      listId: 1,
+      title: 't',
+      dueAt: day?.millisecondsSinceEpoch,
+      createdAt: 0,
+    );
+    expect(
+      PutOff.nextDay(due(DateTime(2026, 11, 2)), now),
+      DateTime(2026, 11, 9),
+    );
+    expect(
+      PutOff.nextDay(due(DateTime(2026, 11, 8)), now),
+      DateTime(2026, 11, 9),
+    );
+    expect(PutOff.nextDay(due(null), now), DateTime(2026, 11, 9));
+    expect(
+      PutOff.nextDay(due(DateTime(2026, 11, 20)), now),
+      DateTime(2026, 11, 21),
+    );
+  });
+
   /// Picks a card up the way a finger does — held, then moved — and lets it
   /// go at [to].
   Future<void> carry(WidgetTester tester, Offset from, Offset to) async {
@@ -1530,6 +1587,11 @@ class _CapturingProvider extends TaskProvider {
 
   @override
   Future<void> restore(Task original) async => restored = original;
+
+  Task? putBackTask;
+
+  @override
+  Future<void> putBack(Task original) async => putBackTask = original;
 
   Task? moved;
   List<Task>? movedAll;

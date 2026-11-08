@@ -25,12 +25,25 @@ void tickOff(BuildContext context, Task task) {
   final completing = !task.done;
   provider.toggleDone(task);
   if (!completing) return;
+  offerUndo(context, task, onUndo: () => provider.restore(task));
+}
+
+/// Offers [onUndo] for a change just made to [task], in the same place and
+/// for the same four seconds a tick's offer stands — a card put off to
+/// another day is offered back this way. [icon] stands where a tick's
+/// check mark does, to say what is being undone.
+void offerUndo(
+  BuildContext context,
+  Task task, {
+  required VoidCallback onUndo,
+  IconData? icon,
+}) {
   final spot = context.getInheritedWidgetOfExactType<_UndoSpot>()?.offer;
   if (spot == null) return;
   // One offer at a time, whichever screen it stands on: the new one takes
   // the old one's place.
   _offered?.value = null;
-  spot.value = _Offer(task: task, onUndo: () => provider.restore(task));
+  spot.value = _Offer(task: task, onUndo: onUndo, icon: icon);
   _offered = spot;
 }
 
@@ -42,8 +55,9 @@ const _undoFor = Duration(seconds: 4);
 class _Offer {
   final Task task;
   final VoidCallback onUndo;
+  final IconData? icon;
 
-  const _Offer({required this.task, required this.onUndo});
+  const _Offer({required this.task, required this.onUndo, this.icon});
 }
 
 /// The reach of a tick's offer: a tick made on a card under it is offered
@@ -205,6 +219,7 @@ class _UndoSlotState extends State<UndoSlot>
                     key: ObjectKey(shown),
                     task: shown.task,
                     onUndo: shown.onUndo,
+                    icon: shown.icon,
                     away: _away,
                     onGone: () => _withdraw(shown),
                     onField: () {
@@ -241,6 +256,9 @@ class _UndoBar extends StatefulWidget {
   final Task task;
   final VoidCallback onUndo;
 
+  /// Drawn in the tick's place, for an offer that is not a tick's.
+  final IconData? icon;
+
   /// Called once, however it left.
   final VoidCallback onGone;
 
@@ -254,6 +272,7 @@ class _UndoBar extends StatefulWidget {
     super.key,
     required this.task,
     required this.onUndo,
+    this.icon,
     required this.onGone,
     required this.onField,
     required this.away,
@@ -445,9 +464,11 @@ class _UndoBarState extends State<_UndoBar> with TickerProviderStateMixin {
             Center(
               child: SizedBox.square(
                 dimension: _UndoBar._tick,
-                child: CustomPaint(
-                  painter: CheckMark(progress: 1, color: p.muted),
-                ),
+                child: widget.icon == null
+                    ? CustomPaint(
+                        painter: CheckMark(progress: 1, color: p.muted),
+                      )
+                    : Icon(widget.icon, size: _UndoBar._tick, color: p.muted),
               ),
             ),
             const SizedBox(width: 14),

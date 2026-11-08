@@ -42,7 +42,8 @@ lib/
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
                          colour_selector, groups,
-                         date_time_pickers, day_sheet, menu_button,
+                         date_time_pickers, repeat_sheet, day_sheet,
+                         menu_button, put_off,
                          quick_add_bar, screen_header, selection_bar,
                          theme_switcher, slide_into_place,
                          tick_off (+ AsShown), carry, selection
@@ -746,6 +747,24 @@ Changing them back will be noticed.
   group, and by opening the menu, since the screens stay alive behind it
   and one left holding a selection would have Back answer to it from out
   of sight. Not on the board, whose cards are moved between lanes.
+- **A card on Schedule swiped left is put off** (`PutOff`, `offerUndo`,
+  `TaskProvider.putBack`). Chosen from three options (a "Move to today"
+  on the Overdue heading, or both, were the others). Pulled part of the
+  way it stays open on two neutral actions, the next day and Pick day (the
+  calendar sheet); pulled past 55% of the card or thrown, it does the first
+  at once. "The next day" is tomorrow for anything due by today or undated,
+  and the day after its own for anything later — tomorrow would have
+  brought that forward. The card springs back and then slides to its new
+  run as the list is read back, and the add row offers the move back as it
+  does a tick, with the arrow in the tick's place; Undo writes the task
+  back as it was (`putBack`, not `restore`, which would take a tick out of
+  the Done log). The actions' strip is only as wide as the gap the card
+  leaves: under the card, its grey would show through the translucent ink.
+  Open, a tap on the card closes it rather than opening the task; one card
+  open at a time. A done card, or one while tasks are picked out, does not
+  answer the swipe — asked when the drag starts, so the card's widgets do
+  not change with its state and a tick plays out undisturbed. Schedule
+  only: under the calendar a sideways swipe turns the day.
 - **A card carried to another day moves to that day** (`Carry`,
   `CarryArea`, `CarryMark`, `TaskProvider.moveToDay`). This was ruled out
   once — "a change of date wearing the clothes of a change of order" — and
@@ -1367,7 +1386,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 198 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 200 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

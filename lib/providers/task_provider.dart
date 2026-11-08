@@ -513,6 +513,15 @@ class TaskProvider extends ChangeNotifier {
   /// is written for the whole run, the moved task included. Without, the
   /// task lets go of the place it had in its old day and goes after whatever
   /// the new one already has arranged, the way a task added to it would.
+  /// Writes [original] back as it was before a move, for the Undo a card
+  /// put off offers. Not [restore], which takes a tick out of the Done log:
+  /// a move made no tick.
+  Future<void> putBack(Task original) async {
+    await _db.update(original);
+    rearranging.value++;
+    await _reloadAll();
+  }
+
   Future<void> moveToDay(Task task, DateTime? day, {List<Task>? among}) =>
       moveAllToDay([task], day, among: among);
 

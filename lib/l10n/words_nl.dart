@@ -260,4 +260,6 @@ const Map<String, Object> nl = {
   'repeatOnLastDay': "Op de laatste dag",
   'endsOn': "Op een datum",
   'endsAfter': ["Na {n} keer", "Na {n} keer"],
+  'putOffDay': "+1 dag",
+  'pickDay': "Kies dag",
 };

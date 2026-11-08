@@ -323,6 +323,8 @@ class S {
   String get dueDate => _word('dueDate');
   String get time => _word('time');
   String get none => _word('none');
+  String get putOffDay => _word('putOffDay');
+  String get pickDay => _word('pickDay');
   String get repeatLabel => _word('repeatLabel');
 
   /// A rule written out: "Every day", "Every 2 weeks · Mon, Thu", "Every

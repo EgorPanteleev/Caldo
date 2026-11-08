@@ -254,4 +254,6 @@ const Map<String, Object> kk = {
   'repeatOnLastDay': "Соңғы күні",
   'endsOn': "Күнге дейін",
   'endsAfter': ["{n} реттен кейін"],
+  'putOffDay': "+1 күн",
+  'pickDay': "Таңдау",
 };

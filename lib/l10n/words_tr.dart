@@ -253,4 +253,6 @@ const Map<String, Object> tr = {
   'repeatOnLastDay': "Ayın son günü",
   'endsOn': "Bir tarihte",
   'endsAfter': ["{n} kez sonra"],
+  'putOffDay': "+1 gün",
+  'pickDay': "Gün seç",
 };

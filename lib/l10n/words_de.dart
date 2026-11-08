@@ -264,4 +264,6 @@ const Map<String, Object> de = {
   'repeatOnLastDay': "Am letzten Tag",
   'endsOn': "An einem Datum",
   'endsAfter': ["Nach {n} Mal", "Nach {n} Mal"],
+  'putOffDay': "+1 Tag",
+  'pickDay': "Tag wählen",
 };
