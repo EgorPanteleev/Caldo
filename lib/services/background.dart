@@ -69,13 +69,15 @@ class Background {
     await _prepare();
     final db = AppDatabase.instance;
     final task = await db.getTask(id);
+    final tasks = TaskProvider();
+    await tasks.loadLists();
+    // Read first, so a snoozed task comes back lit in its group's colour.
+    Reminders.instance.lists = tasks.lists;
     if (task == null) {
       await Reminders.instance.dismiss(id);
     } else {
       await Reminders.instance.reset(await change(db, task));
     }
-    final tasks = TaskProvider();
-    await tasks.loadLists();
     await tasks.readAgenda();
     await TodayWidget.publish(tasks);
     IsolateNameServer.lookupPortByName(_port)?.send(null);

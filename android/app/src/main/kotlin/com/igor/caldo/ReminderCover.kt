@@ -4,16 +4,16 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.graphics.Typeface
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.os.Build
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -21,19 +21,30 @@ import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver
-import io.flutter.embedding.android.FlutterActivity
 import org.json.JSONObject
 
 /**
- * A reminder over the lock screen, taking the whole of it as an alarm does,
- * with the phone's wallpaper showing through it.
+ * A reminder over the lock screen, taking the whole of it as an alarm does:
+ * glass buttons over a blurred glow in the task's own colour.
  *
- * Drawn here rather than in Flutter for two reasons. Showing what lies
- * behind would take a Flutter view that draws transparently, which is a
- * change to how every frame of the app is put on the screen, not only this
- * one's. And while it is up the app's own view is hidden outright, so
- * nothing of the app is ever shown on a phone that has not been unlocked —
- * not for the frame or two Flutter would take to draw over it.
+ * It was to show the wallpaper through it, blurred ("a bit transparent …
+ * add blur"), and cannot: over the lock screen Android draws the wallpaper
+ * behind an app black, with only a ghost of its outline — measured on the
+ * emulator at 1/255 where the lock screen itself showed it at 200, with the
+ * window translucent and the wallpaper targeted at it. A translucent
+ * activity does not cover the lock screen at all, which then draws over it.
+ * So the blur is of shapes drawn here, and is real where Android 12 can
+ * blur a view.
+ *
+ * Drawn natively rather than in Flutter, and opaque, over the app's own
+ * view: nothing of the app is ever shown on a phone that has not been
+ * unlocked, not for the frame or two Flutter would take to draw over it.
+ * The cover being opaque is the whole of that guarantee. Hiding the app's
+ * view instead was tried twice: Flutter's own `onStart` shows it again (a
+ * workaround of theirs for some OnePlus phones), so the Schedule showed
+ * through a dimmed cover; and on a cold start Flutter holds the window's
+ * first draw until it has drawn a frame of its own, which a hidden view
+ * never does, so the phone sat on the splash screen.
  *
  * Its buttons are the notification's: each sends the same broadcast a tap on
  * one of those does, so the answer goes through the same code (Dart's
@@ -45,7 +56,9 @@ class ReminderCover(
     private val onAnswered: () -> Unit,
 ) {
     private var view: View? = null
-    private var background: Drawable? = null
+
+    /** The system bars' backdrops, cleared while the cover is up. */
+    private var bars: Pair<Int, Int>? = null
 
     val shown get() = view != null
 
@@ -64,13 +77,18 @@ class ReminderCover(
         if (id < 0) return false
         hide()
 
-        val window = activity.window
-        background = window.decorView.background
-        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-        activity.findViewById<View>(FlutterActivity.FLUTTER_VIEW_ID)?.visibility = View.INVISIBLE
-
         val cover = build(id, words)
+        // The status bar's backdrop drew a band of its own across the top of
+        // the glow, which reaches under it; the navigation bar's strip lies
+        // below the content, where the glow does not reach, and is the black
+        // the glow fades to there — cleared, it showed the window's white.
+        val window = activity.window
+        @Suppress("DEPRECATION")
+        bars = window.statusBarColor to window.navigationBarColor
+        @Suppress("DEPRECATION")
+        window.statusBarColor = Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = Color.BLACK
         activity.addContentView(
             cover,
             ViewGroup.LayoutParams(
@@ -86,10 +104,13 @@ class ReminderCover(
         val cover = view ?: return
         (cover.parent as? ViewGroup)?.removeView(cover)
         view = null
-        val window = activity.window
-        window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-        window.setBackgroundDrawable(background)
-        activity.findViewById<View>(FlutterActivity.FLUTTER_VIEW_ID)?.visibility = View.VISIBLE
+        bars?.let { (status, navigation) ->
+            @Suppress("DEPRECATION")
+            activity.window.statusBarColor = status
+            @Suppress("DEPRECATION")
+            activity.window.navigationBarColor = navigation
+        }
+        bars = null
     }
 
     private fun answer(id: Int, action: String) {
@@ -105,12 +126,18 @@ class ReminderCover(
 
     private fun build(id: Int, words: JSONObject): View {
         val white = Color.WHITE
+        // Opaque, on the app's true black: whatever happens to the app's view
+        // under it, none of it shows through.
         val root = FrameLayout(activity).apply {
-            // The wallpaper, dimmed enough that white type reads on any of
-            // them.
-            setBackgroundColor(Color.argb(150, 0, 0, 0))
+            setBackgroundColor(Color.BLACK)
             isClickable = true
         }
+        root.addView(glow(words.optInt("colour", ACCENT)), FrameLayout.LayoutParams(MATCH, MATCH))
+        // Enough dark over the glow that white type reads on any colour.
+        root.addView(
+            View(activity).apply { setBackgroundColor(Color.argb(70, 0, 0, 0)) },
+            FrameLayout.LayoutParams(MATCH, MATCH),
+        )
         val column = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -130,10 +157,7 @@ class ReminderCover(
                 imageTintList = ColorStateList.valueOf(white)
                 scaleType = ImageView.ScaleType.CENTER_INSIDE
                 setPadding(dp(20), dp(20), dp(20), dp(20))
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.argb(40, 255, 255, 255))
-                }
+                background = glass(GradientDrawable.OVAL)
             },
             LinearLayout.LayoutParams(dp(76), dp(76)),
         )
@@ -162,7 +186,7 @@ class ReminderCover(
         val snoozes = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
         for ((i, action) in listOf("snooze-15", "snooze-60").withIndex()) {
             snoozes.addView(
-                button(words.optString(action), Color.argb(42, 255, 255, 255), white) {
+                button(words.optString(action), Color.TRANSPARENT, white, glass = true) {
                     answer(id, action)
                 },
                 LinearLayout.LayoutParams(0, dp(56), 1f).apply {
@@ -194,11 +218,90 @@ class ReminderCover(
             if (bold) typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
 
-    private fun button(words: String, fill: Int, ink: Int, onTap: () -> Unit) =
+    /**
+     * The glow the cover stands on: three soft shapes in the task's colour,
+     * a lighter and a deeper one beside it, blurred into each other. Where a
+     * view cannot be blurred (before Android 12) each is a radial gradient
+     * instead, soft at the edge on its own.
+     */
+    private fun glow(colour: Int): View {
+        val canBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        val layer = FrameLayout(activity)
+        val shapes = listOf(
+            // colour, size, x, y, strength
+            Blob(colour, 380, -110, -70, 0.95f),
+            Blob(mix(colour, Color.WHITE, 0.35f), 300, 190, 240, 0.55f),
+            Blob(mix(colour, Color.BLACK, 0.35f), 420, -60, 520, 0.8f),
+        )
+        for (blob in shapes) {
+            val tint = withAlpha(blob.colour, blob.strength)
+            layer.addView(
+                View(activity).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        if (canBlur) {
+                            setColor(tint)
+                        } else {
+                            gradientType = GradientDrawable.RADIAL_GRADIENT
+                            gradientRadius = dp(blob.size) / 2f
+                            colors = intArrayOf(tint, Color.TRANSPARENT)
+                        }
+                    }
+                    translationX = dp(blob.x).toFloat()
+                    translationY = dp(blob.y).toFloat()
+                },
+                FrameLayout.LayoutParams(dp(blob.size), dp(blob.size)),
+            )
+        }
+        if (canBlur) {
+            val radius = dp(90).toFloat()
+            layer.setRenderEffect(
+                RenderEffect.createBlurEffect(radius, radius, Shader.TileMode.DECAL),
+            )
+        }
+        return layer
+    }
+
+    private class Blob(
+        val colour: Int,
+        val size: Int,
+        val x: Int,
+        val y: Int,
+        val strength: Float,
+    )
+
+    /** A pane of frosted glass: a little white, and a hairline edge. */
+    private fun glass(shape: Int) = GradientDrawable().apply {
+        this.shape = shape
+        if (shape == GradientDrawable.RECTANGLE) cornerRadius = dp(18).toFloat()
+        setColor(Color.argb(38, 255, 255, 255))
+        setStroke(dp(1), Color.argb(56, 255, 255, 255))
+    }
+
+    private fun mix(a: Int, b: Int, t: Float) = Color.rgb(
+        (Color.red(a) + (Color.red(b) - Color.red(a)) * t).toInt(),
+        (Color.green(a) + (Color.green(b) - Color.green(a)) * t).toInt(),
+        (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).toInt(),
+    )
+
+    private fun withAlpha(colour: Int, alpha: Float) =
+        Color.argb((alpha * 255).toInt(), Color.red(colour), Color.green(colour), Color.blue(colour))
+
+    private fun button(
+        words: String,
+        fill: Int,
+        ink: Int,
+        glass: Boolean = false,
+        onTap: () -> Unit,
+    ) =
         text(words, 15.5f, ink, bold = true).apply {
-            val shape = GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
-                setColor(fill)
+            val shape = if (glass) {
+                glass(GradientDrawable.RECTANGLE)
+            } else {
+                GradientDrawable().apply {
+                    cornerRadius = dp(18).toFloat()
+                    setColor(fill)
+                }
             }
             val mask = GradientDrawable().apply {
                 cornerRadius = dp(18).toFloat()
@@ -220,6 +323,9 @@ class ReminderCover(
         ).toInt()
 
     private companion object {
+        /** The app's own accent, for a reminder that came without a colour. */
+        const val ACCENT = 0xFF7B61E8.toInt()
+
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 

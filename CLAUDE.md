@@ -975,16 +975,31 @@ Changing them back will be noticed.
 - **A reminder takes the whole screen only while the phone is locked**
   (`fullScreenIntent`, `ReminderCover.kt`, `MainActivity.wakeFor`), as an
   alarm does — asked for as "full screen … only if my phone is locked …
-  a bit transparent". It is drawn natively over the wallpaper, dimmed, with
-  the Flutter view hidden: see-through from Flutter would have meant a
-  transparent FlutterView for every frame of the app, and hiding the view
-  means nothing of the app shows on a locked phone. Its buttons send the
-  plugin's own action broadcast, so they run `onReminderAction` exactly as
-  the notification's do; its words ride in the payload, in the app's
-  language. A tap on the notification with the phone in use opens the task
-  (Dart asks `covered`). On by default, a switch on Settings' Reminders page;
-  if Android does not allow full screen, a banner on opening offers Allow
-  (`_FullScreenBanner`), rechecked on every return.
+  a bit transparent … add blur". It is drawn natively and opaque over the
+  app: glass buttons on a glow in the task's own colour (`Reminders.lists`
+  resolves it; it rides in the payload), blurred with `RenderEffect` from
+  Android 12 and radial gradients before. **It cannot show the wallpaper or
+  the lock screen through it**: over the lock screen Android draws the
+  wallpaper behind an app black — measured at 1/255 where the lock screen
+  showed it at 200, with the window translucent and the wallpaper targeted
+  at it — and a translucent activity does not cover the lock screen at
+  all, which then draws over it. **Do not hide the app's view under it**:
+  Flutter's `onStart` shows it again (the Schedule showed through a dimmed
+  cover on a locked phone), and on a cold start Flutter holds the window's
+  first draw until its own first frame, so a hidden view left the phone on
+  the splash screen. The cover being opaque is the whole guarantee. The
+  status bar's backdrop is cleared and the navigation strip set to black
+  while it is up. Its buttons send the plugin's own action broadcast, so
+  they run `onReminderAction` exactly as the notification's do; its words
+  ride in the payload, in the app's language, and a reminder without them
+  is left to the notification without letting the app over the lock
+  screen. A tap on the notification with the phone in use opens the task
+  (Dart asks `covered`). On by default, a switch on Settings' Reminders
+  page; if Android does not allow full screen, a banner on opening offers
+  Allow (`_FullScreenBanner`), rechecked on every return. To try it without
+  waiting for an alarm, lock the emulator and hand the activity the
+  plugin's intent: `am start -n com.igor.caldo/.MainActivity -a
+  SELECT_NOTIFICATION --ei notificationId 999 --es payload '{"title":…}'`.
 - **The buttons are answered off the app's screens** (`Background`). They are answered on the
   notification plugin's own isolate whether or not the app is open, so that
   isolate does the whole of a change itself (`Background._change`): writes

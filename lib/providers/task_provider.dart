@@ -255,6 +255,7 @@ class TaskProvider extends ChangeNotifier {
   /// The home-screen widget is redrawn from the same read, for the same
   /// reason the alarms are: every change ends here.
   Future<void> _afterRead() async {
+    Reminders.instance.lists = _lists;
     await Reminders.instance.sync([..._allOverdue, ..._allUpcoming]);
     await TodayWidget.publish(this);
   }

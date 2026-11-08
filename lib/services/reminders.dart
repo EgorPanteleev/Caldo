@@ -13,7 +13,9 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../l10n/strings.dart';
 import '../models/task.dart';
+import '../models/task_list.dart';
 import '../providers/task_provider.dart' show TaskProvider, dayOf;
+import '../theme/app_theme.dart' show AppColors;
 import '../utils/dates.dart';
 import 'background.dart';
 
@@ -92,6 +94,16 @@ class Reminders {
   static const _lock = MethodChannel('caldo/reminder');
 
   bool get ready => _ready;
+
+  /// The groups the tasks are in, for the colour the full-screen reminder is
+  /// lit in — a task's own, or else its group's. Handed over by whoever
+  /// holds them: the app's provider, or the isolate answering a button.
+  List<TaskList> lists = const [];
+
+  int _colourOf(Task task) {
+    final list = lists.where((l) => l.id == task.listId).firstOrNull;
+    return colorOfTask(task, list, fallback: AppColors.accent).toARGB32();
+  }
 
   /// Whether a reminder takes the whole screen when the phone is locked,
   /// the way an alarm does. Android decides: in use, the phone shows it as
@@ -277,7 +289,7 @@ class Reminders {
           wanted[task.id!] = (
             at,
             task,
-            '${at.toIso8601String()}|${task.title}|$body|$_exact|$_fullScreen|${S.current.code}',
+            '${at.toIso8601String()}|${task.title}|$body|$_exact|$_fullScreen|${_colourOf(task)}|${S.current.code}',
           );
         }
       }
@@ -346,6 +358,7 @@ class Reminders {
         payload: jsonEncode({
           'title': task.title,
           'text': describe(task, at),
+          'colour': _colourOf(task),
           done: S.current.reminderDone,
           for (final MapEntry(key: id, value: minutes) in snoozes.entries)
             id: snoozeLabel(minutes),
