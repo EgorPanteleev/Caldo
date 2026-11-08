@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- A calendar page: the pale sheet, its red header, and three rings
-       standing up out of the header. Flat, as the reference was. -->
-  <rect x="242" y="289" width="540" height="492" rx="52" fill="#CAD6DA"/>
-  <path d="M242 341 a52 52 0 0 1 52 -52 h436 a52 52 0 0 1 52 52 v60 h-540 z" fill="#E04545"/>
+  <!-- The page is the whole icon: the background layer is the sheet's
+       colour, so whatever shape the launcher cuts out is the page, and this
+       layer is its red header and the three rings in it. The rings keep to
+       where a round mask still leaves the header whole. -->
+  <rect width="1024" height="355" fill="#E04545"/>
   <g fill="#1F2B4A">
-    <rect x="326" y="243" width="36" height="94" rx="10"/>
-    <rect x="494" y="243" width="36" height="94" rx="10"/>
-    <rect x="662" y="243" width="36" height="94" rx="10"/>
+    <rect x="312" y="228" width="47" height="102" rx="13"/>
+    <rect x="489" y="228" width="47" height="102" rx="13"/>
+    <rect x="666" y="228" width="47" height="102" rx="13"/>
   </g>
 </svg>

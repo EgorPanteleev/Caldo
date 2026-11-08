@@ -5,18 +5,18 @@
   <defs>
     <mask id="cut">
       <rect width="1024" height="1024" fill="#FFFFFF"/>
-      <rect x="242" y="393" width="540" height="18" fill="#000000"/>
+      <rect x="205" y="377" width="614" height="20" fill="#000000"/>
       <g fill="#000000">
-        <rect x="314" y="231" width="60" height="118" rx="22"/>
-        <rect x="482" y="231" width="60" height="118" rx="22"/>
-        <rect x="650" y="231" width="60" height="118" rx="22"/>
+        <rect x="287" y="192" width="69" height="135" rx="25"/>
+        <rect x="478" y="192" width="69" height="135" rx="25"/>
+        <rect x="669" y="192" width="69" height="135" rx="25"/>
       </g>
     </mask>
   </defs>
   <g fill="#FFFFFF">
-    <rect x="242" y="289" width="540" height="492" rx="52" mask="url(#cut)"/>
-    <rect x="326" y="243" width="36" height="94" rx="10"/>
-    <rect x="494" y="243" width="36" height="94" rx="10"/>
-    <rect x="662" y="243" width="36" height="94" rx="10"/>
+    <rect x="205" y="258" width="614" height="560" rx="59" mask="url(#cut)"/>
+    <rect x="301" y="206" width="41" height="107" rx="11"/>
+    <rect x="492" y="206" width="41" height="107" rx="11"/>
+    <rect x="683" y="206" width="41" height="107" rx="11"/>
   </g>
 </svg>

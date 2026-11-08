@@ -1,17 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Drawn from assets/icon/src. The inset is as little as keeps the page's
-     corners inside the 66dp every launcher's mask leaves whole; Dicty's 16%
-     drew it at half the circle, smaller than every icon around it. -->
+<!-- Drawn from assets/icon/src. The page fills the launcher's shape, as the
+     calendar it was drawn from fills its own: on a slate tile it sat small
+     inside a second shape. A transparent ground was tried first and the
+     Pixel launcher drew it black, with the page's corners cut by the
+     circle. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@drawable/ic_launcher_background"/>
-  <foreground>
-      <inset
-          android:drawable="@drawable/ic_launcher_foreground"
-          android:inset="7%" />
-  </foreground>
-  <monochrome>
-      <inset
-          android:drawable="@drawable/ic_launcher_monochrome"
-          android:inset="7%" />
-  </monochrome>
+  <background android:drawable="@color/ic_launcher_page"/>
+  <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+  <monochrome android:drawable="@drawable/ic_launcher_monochrome"/>
 </adaptive-icon>
