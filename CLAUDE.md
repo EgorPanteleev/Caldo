@@ -1430,9 +1430,11 @@ Changing them back will be noticed.
   supplied**: a slate ground, a pale blue-grey sheet, a red header across
   its top and three navy rings standing up out of it — no tick, no
   gradient. It replaced Dicty's sibling (graphite square, white page, a
-  violet tile with a tick over its corner). The page keeps the old one's
-  size inside the adaptive icon, so it stays within what a round launcher
-  shows. The monochrome layer for Android 13's themed icons is the sheet
+  violet tile with a tick over its corner). The adaptive icon insets the
+  page 7%, which is as close as its corners can come to the 66dp every
+  launcher's mask leaves whole. It was 16%, Dicty's, and the page filled
+  barely half the circle — "too small" beside Google Calendar's; at 7% the
+  two pages are one size. The monochrome layer for Android 13's themed icons is the sheet
   and rings in one colour, the header told apart by a seam cut across the
   page and the rings by a gap cut round each.
 - **The window asks Android for the fastest display mode** (`MainActivity`).
