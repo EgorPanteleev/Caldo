@@ -639,6 +639,13 @@ class TaskProvider extends ChangeNotifier {
   }
 
   /// Reloads whatever the UI currently has on screen after a mutation.
+  /// Reads everything back after the database has been replaced under it
+  /// by a restore. The group on show may not exist any more, so all are.
+  Future<void> reloadRestored() {
+    _group = null;
+    return _reloadAll();
+  }
+
   Future<void> _reloadAll() async {
     _lists = await _db.getLists();
     // One notify for the lot. It was one for the month and another for the

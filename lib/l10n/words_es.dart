@@ -223,4 +223,27 @@ const Map<String, Object> es = {
   'wasDue.at': "Vencía a las {time}",
   'wasDue.day': "Vencía {day}",
   'wasDue.dayAt': "Vencía {day} a las {time}",
+
+  'pageBackup': "Copia de seguridad",
+  'backupNever': "Nunca guardada",
+  'backupLast': "Última copia: {day}",
+  'backupSave': "Guardar una copia",
+  'backupSaveHint': "Todas las tareas, grupos y ajustes en un archivo",
+  'backupRestore': "Restaurar una copia",
+  'backupRestoreHint': "Sustituir todo lo de aquí por un archivo guardado",
+  'backupNote':
+      "Caldo lo guarda todo solo en este teléfono. Guarda de vez en cuando una copia en Drive o en un ordenador, y un teléfono perdido o una reinstalación no se llevarán tus tareas.",
+  'backupSaved': "Copia guardada",
+  'backupNotSaved': "No se pudo guardar la copia",
+  'backupNotCaldo': "Ese archivo no es una copia de Caldo",
+  'backupNewer':
+      "Esa copia es de un Caldo más reciente. Actualiza primero y luego restáurala.",
+  'backupUnreadable': "No se pudo leer el archivo",
+  'restoreQuestion': "¿Restaurar esta copia?",
+  'restoreWarning':
+      "Guardada {day}: {tasks}, {groups}. Todo lo que hay ahora en Caldo se sustituirá. No se puede deshacer.",
+  'restore': "Restaurar",
+  'backupTasks': ["{n} tarea", "{n} tareas"],
+  'backupGroups': ["{n} grupo", "{n} grupos"],
+  'restored': ["{n} tarea restaurada", "{n} tareas restauradas"],
 };

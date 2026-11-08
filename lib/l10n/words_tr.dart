@@ -216,4 +216,27 @@ const Map<String, Object> tr = {
   'wasDue.at': "Saati geçti: {time}",
   'wasDue.day': "Günü geçti: {day}",
   'wasDue.dayAt': "Saati geçti: {day}, {time}",
+
+  'pageBackup': "Yedek",
+  'backupNever': "Hiç kaydedilmedi",
+  'backupLast': "Son yedek: {day}",
+  'backupSave': "Yedek kaydet",
+  'backupSaveHint': "Tüm görevler, gruplar ve ayarlar tek dosyada",
+  'backupRestore': "Yedekten geri yükle",
+  'backupRestoreHint': "Buradaki her şeyi kaydedilmiş bir dosyayla değiştir",
+  'backupNote':
+      "Caldo her şeyi yalnızca bu telefonda tutar. Arada bir Drive'a ya da bilgisayara yedek kaydedin; telefon kaybolsa ya da uygulama yeniden kurulsa da görevleriniz gitmez.",
+  'backupSaved': "Yedek kaydedildi",
+  'backupNotSaved': "Yedek kaydedilemedi",
+  'backupNotCaldo': "Bu dosya bir Caldo yedeği değil",
+  'backupNewer':
+      "Bu yedek daha yeni bir Caldo'dan. Önce güncelleyin, sonra geri yükleyin.",
+  'backupUnreadable': "Dosya okunamadı",
+  'restoreQuestion': "Bu yedek geri yüklensin mi?",
+  'restoreWarning':
+      "Kaydedildiği gün {day}: {tasks}, {groups}. Caldo'da şu an olan her şey bununla değiştirilecek. Bu geri alınamaz.",
+  'restore': "Geri yükle",
+  'backupTasks': ["{n} görev"],
+  'backupGroups': ["{n} grup"],
+  'restored': ["{n} görev geri yüklendi"],
 };

@@ -1,6 +1,7 @@
 package com.igor.caldo
 
 import android.Manifest
+import android.app.Activity
 import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
@@ -64,6 +65,10 @@ class MainActivity : FlutterActivity() {
 
     /** A request to read the calendars, waiting on the user's answer. */
     private var askingCalendars: MethodChannel.Result? = null
+
+    /** The backup waiting on the document picker, and what it is to write. */
+    private var backupAnswer: MethodChannel.Result? = null
+    private var backupText: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -193,6 +198,32 @@ class MainActivity : FlutterActivity() {
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALENDARS_CHANNEL)
             .setMethodCallHandler(::calendarCall)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BACKUP_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "save" -> {
+                        backupText = call.argument<String>("text")!!
+                        pick(
+                            Intent(Intent.ACTION_CREATE_DOCUMENT)
+                                .addCategory(Intent.CATEGORY_OPENABLE)
+                                .setType("application/json")
+                                .putExtra(Intent.EXTRA_TITLE, call.argument<String>("name")),
+                            SAVE_BACKUP,
+                            result,
+                        )
+                    }
+                    // Any type: Drive and the rest do not all call a .json
+                    // file JSON, and Dart says whether it is a backup.
+                    "open" -> pick(
+                        Intent(Intent.ACTION_OPEN_DOCUMENT)
+                            .addCategory(Intent.CATEGORY_OPENABLE)
+                            .setType("*/*"),
+                        OPEN_BACKUP,
+                        result,
+                    )
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -237,6 +268,77 @@ class MainActivity : FlutterActivity() {
             )
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * A backup is a file the user keeps somewhere else, chosen in Android's
+     * own picker, which can hand over a document on Drive as readily as one
+     * in Downloads and needs no storage permission. Answered with null when
+     * the picker is backed out of.
+     */
+    private fun pick(intent: Intent, code: Int, result: MethodChannel.Result) {
+        backupAnswer?.success(null)
+        backupAnswer = result
+        try {
+            startActivityForResult(intent, code)
+        } catch (_: ActivityNotFoundException) {
+            backupAnswer = null
+            result.success(null)
+        }
+    }
+
+    @Deprecated("Flutter's activity is not an AndroidX one, so it has no result API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != SAVE_BACKUP && requestCode != OPEN_BACKUP) return
+        val result = backupAnswer ?: return
+        val text = backupText
+        backupAnswer = null
+        backupText = null
+        val uri = data?.data
+        if (resultCode != Activity.RESULT_OK || uri == null) {
+            result.success(null)
+            return
+        }
+        // Off the main thread: the document may be on Drive.
+        Thread {
+            val answer: Any? = try {
+                if (requestCode == SAVE_BACKUP) {
+                    contentResolver.openOutputStream(uri, "w")!!.use {
+                        it.write(text!!.toByteArray())
+                    }
+                    true
+                } else {
+                    contentResolver.openInputStream(uri)!!.use(::readBackup)
+                }
+            } catch (e: Exception) {
+                e
+            }
+            runOnUiThread {
+                if (answer is Exception) {
+                    result.error("io", answer.message, null)
+                } else {
+                    result.success(answer)
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * The file as text, or nothing past [BACKUP_LIMIT]: one picked by
+     * mistake can be a film, and a backup of years of tasks is a few
+     * megabytes. Nothing is a file Dart turns down as not a backup.
+     */
+    private fun readBackup(input: java.io.InputStream): String {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            out.write(buffer, 0, n)
+            if (out.size() > BACKUP_LIMIT) return ""
+        }
+        return out.toString(Charsets.UTF_8.name())
     }
 
     private fun canReadCalendars() =
@@ -574,10 +676,14 @@ class MainActivity : FlutterActivity() {
         const val WIDGET_CHANNEL = "caldo/widget"
         const val CALENDARS_CHANNEL = "caldo/calendars"
         const val REMINDER_CHANNEL = "caldo/reminder"
+        const val BACKUP_CHANNEL = "caldo/backup"
 
         /** What the notification plugin calls the intent on a reminder. */
         const val REMINDER_ACTION = "SELECT_NOTIFICATION"
         const val ASK_CALENDARS = 7
+        const val SAVE_BACKUP = 8
+        const val OPEN_BACKUP = 9
+        const val BACKUP_LIMIT = 64 * 1024 * 1024
 
         /** What a measurement may be out by and still be believed. */
         const val SLACK = 2

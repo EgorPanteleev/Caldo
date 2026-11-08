@@ -238,4 +238,31 @@ const Map<String, Object> pl = {
   'wasDue.at': "Termin minął: dziś o {time}",
   'wasDue.day': "Termin minął: {day}",
   'wasDue.dayAt': "Termin minął: {day} o {time}",
+
+  'pageBackup': "Kopia zapasowa",
+  'backupNever': "Jeszcze nie zapisano",
+  'backupLast': "Ostatnia kopia: {day}",
+  'backupSave': "Zapisz kopię",
+  'backupSaveHint': "Wszystkie zadania, grupy i ustawienia w jednym pliku",
+  'backupRestore': "Przywróć z kopii",
+  'backupRestoreHint': "Zastąp wszystko tutaj zapisanym plikiem",
+  'backupNote':
+      "Caldo trzyma wszystko tylko na tym telefonie. Co jakiś czas zapisz kopię na Dysku lub komputerze, a zgubiony telefon czy ponowna instalacja nie zabiorą zadań ze sobą.",
+  'backupSaved': "Kopia zapisana",
+  'backupNotSaved': "Nie udało się zapisać kopii",
+  'backupNotCaldo': "Ten plik nie jest kopią Caldo",
+  'backupNewer':
+      "Ta kopia pochodzi z nowszego Caldo. Najpierw zaktualizuj aplikację.",
+  'backupUnreadable': "Nie udało się odczytać pliku",
+  'restoreQuestion': "Przywrócić tę kopię?",
+  'restoreWarning':
+      "Zapisana {day}: {tasks}, {groups}. Wszystko, co jest teraz w Caldo, zostanie zastąpione. Tego nie można cofnąć.",
+  'restore': "Przywróć",
+  'backupTasks': ["{n} zadanie", "{n} zadania", "{n} zadań"],
+  'backupGroups': ["{n} grupa", "{n} grupy", "{n} grup"],
+  'restored': [
+    "Przywrócono {n} zadanie",
+    "Przywrócono {n} zadania",
+    "Przywrócono {n} zadań",
+  ],
 };

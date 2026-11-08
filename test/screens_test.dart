@@ -184,15 +184,20 @@ void main() {
       ('Calendar', 'Start week on Monday'),
       ('Tasks', 'Clear completed tasks'),
       ('Reminders', 'Timed tasks'),
+      ('Backup', 'Save a backup'),
     ]) {
       expect(find.text(row), findsNothing, reason: 'not on the list');
+      await tester.ensureVisible(find.text(page));
+      await tester.pumpAndSettle();
       await tester.tap(find.text(page));
       await tester.pumpAndSettle();
       expect(find.text(row), findsOneWidget, reason: '$page has $row');
       await tester.tap(find.byIcon(Icons.arrow_back));
       await tester.pumpAndSettle();
     }
+    await tester.scrollUntilVisible(find.text('ABOUT'), 100);
     expect(find.text('ABOUT'), findsOneWidget);
+    expect(find.text('Never saved'), findsOneWidget);
   });
 
   testWidgets('a screen switched off in settings leaves the menu', (

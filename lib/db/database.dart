@@ -359,6 +359,51 @@ class AppDatabase {
     return db.delete(_tasks, where: 'done = 1');
   }
 
+  // ---- Backups ------------------------------------------------------------
+
+  /// The tables a backup carries, in the order they are written back: a
+  /// task names its group and a tick names its task.
+  static const backedUp = [_lists, _tasks, _completions];
+
+  static int get schema => _dbVersion;
+
+  /// Every row of every table, as the database holds it. Rows rather than
+  /// models, so a column added later is carried without anyone remembering
+  /// to add it here.
+  Future<Map<String, List<Map<String, Object?>>>> dump() async {
+    final db = await database;
+    return {for (final table in backedUp) table: await db.query(table)};
+  }
+
+  /// Replaces everything with [tables], in one transaction: a restore that
+  /// fails halfway leaves what was there, not half of each.
+  ///
+  /// Only the columns this schema has are written. A backup from before a
+  /// column existed leaves it to its default, which is what the migration
+  /// that added it would have done.
+  Future<void> replaceAll(
+    Map<String, List<Map<String, Object?>>> tables,
+  ) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final table in backedUp.reversed) {
+        await txn.delete(table);
+      }
+      for (final table in backedUp) {
+        final columns = {
+          for (final c in await txn.rawQuery('PRAGMA table_info($table)'))
+            c['name'] as String,
+        };
+        for (final row in tables[table] ?? const []) {
+          await txn.insert(table, {
+            for (final MapEntry(:key, :value) in row.entries)
+              if (columns.contains(key)) key: value,
+          });
+        }
+      }
+    });
+  }
+
   /// Closes the connection, so the next access reopens the file. Used by
   /// tests, which start each case from a fresh database.
   Future<void> close() async {

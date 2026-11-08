@@ -35,6 +35,7 @@ lib/
   services/today_widget.dart  the copy of the agenda the widget draws from
   services/device_calendars.dart  the phone's own calendars, read-only
   services/updates.dart  the newer-release check, download and install
+  services/backup.dart   everything as one JSON file, saved and restored
   screens/               home (shell + menu), tasks (Schedule), calendar,
                          board, done, search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
@@ -1292,6 +1293,27 @@ Changing them back will be noticed.
   fades rather than pushing. The translations were written without a native
   speaker's review.
 
+- **Everything can be saved to a file and read back** (`Backup`,
+  `AppDatabase.dump`/`replaceAll`, `SettingsProvider.exported`/`restore`,
+  the `caldo/backup` channel, Settings' Backup page). Caldo keeps nothing
+  anywhere but the phone, so a lost phone or an update that had to be
+  installed by uninstalling took every task with it. The file is JSON of the
+  database's own rows, not of the models — a column added later is carried
+  without anyone remembering to — with the schema version beside them: a
+  newer one is refused, an older one restores with its missing columns left
+  to their defaults, and a column nothing knows any more is dropped. Restore
+  is one transaction, so a bad file leaves what was there. The settings go
+  with it, all but the phone's own calendars (their ids are the phone's, and
+  showing them needs a permission a new phone has not given); a setting the
+  backup does not have goes back to its default. It is written and read
+  through Android's document picker (`ACTION_CREATE_DOCUMENT`/
+  `OPEN_DOCUMENT`), which reaches Drive as readily as Downloads and needs no
+  storage permission; nothing over 64MB is read. Restore says what the file
+  holds — when it was saved, how many tasks and groups — before it replaces
+  anything, since that is how a wrong file is caught. The Settings list
+  says when a backup was last saved ("Never saved" until one is). No
+  automatic backups yet: Android's own may or may not cover the database,
+  and nothing here relies on it.
 - **The icon is Dicty's sibling**: the same graphite rounded square and the
   same two overlapping tiles, here a white calendar page with its rings and
   a grid of days, and over its corner the violet tile with a white tick — a
@@ -1309,7 +1331,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 181 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 187 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1352,6 +1374,19 @@ Do not raise it. Stop the daemon when you are done:
 flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
 (cd android && ./gradlew --stop)
 ```
+
+**Releases are signed with `~/keys/caldo-release.jks`, named by
+`android/key.properties`** (both outside git). It holds the key the app
+was signed with from the start — Flutter's debug key on this machine,
+copied out with its own alias and password — so every install already on
+a phone takes the next release as an update. Android refuses an update
+signed by any other key unless the app is uninstalled first, which deletes
+every task: **lose those two files and no release can be installed over
+Caldo again.** Keep a copy of both somewhere off this machine. A release
+build without `key.properties` fails on purpose (AGP would otherwise build
+it unsigned, and falling back to the debug key would sign it with whatever
+key a fresh `~/.android` generated). Debug builds still use the debug key,
+which is the same key for as long as `~/.android/debug.keystore` survives.
 
 **Releases are made when the user asks for one, and not otherwise.** Commit
 each change as it is made, but do not bump the version, build, or publish
@@ -1475,5 +1510,3 @@ Three things that look like bugs and are not:
   speaking ones and Canada, which is English only.
 - The debug keyboard numbers (long press on the Settings title) are English
   in either language.
-- Signing uses the debug keys (Flutter's default), so installs warn about an
-  unknown developer.

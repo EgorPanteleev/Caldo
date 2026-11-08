@@ -208,4 +208,27 @@ const Map<String, Object> en = {
   'wasDue.at': "Was due at {time}",
   'wasDue.day': "Was due {day}",
   'wasDue.dayAt': "Was due {day} at {time}",
+
+  'pageBackup': "Backup",
+  'backupNever': "Never saved",
+  'backupLast': "Last saved {day}",
+  'backupSave': "Save a backup",
+  'backupSaveHint': "Every task, group and setting, in one file",
+  'backupRestore': "Restore from a backup",
+  'backupRestoreHint': "Replace everything here with a saved file",
+  'backupNote':
+      "Caldo keeps everything on this phone and nowhere else. Save a backup to Drive or a computer now and then, and a lost phone or a reinstall won't take your tasks with it.",
+  'backupSaved': "Backup saved",
+  'backupNotSaved': "The backup could not be saved",
+  'backupNotCaldo': "That file is not a Caldo backup",
+  'backupNewer':
+      "That backup is from a newer Caldo. Update first, then restore it.",
+  'backupUnreadable': "The file could not be read",
+  'restoreQuestion': "Restore this backup?",
+  'restoreWarning':
+      "Saved {day}: {tasks}, {groups}. Everything in Caldo now will be replaced by it. This cannot be undone.",
+  'restore': "Restore",
+  'backupTasks': ["{n} task", "{n} tasks"],
+  'backupGroups': ["{n} group", "{n} groups"],
+  'restored': ["Restored {n} task", "Restored {n} tasks"],
 };

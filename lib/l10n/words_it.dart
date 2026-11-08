@@ -223,4 +223,27 @@ const Map<String, Object> it = {
   'wasDue.at': "Scadeva alle {time}",
   'wasDue.day': "Scadeva {day}",
   'wasDue.dayAt': "Scadeva {day} alle {time}",
+
+  'pageBackup': "Backup",
+  'backupNever': "Mai salvato",
+  'backupLast': "Ultimo salvataggio: {day}",
+  'backupSave': "Salva un backup",
+  'backupSaveHint': "Tutte le attività, i gruppi e le impostazioni in un file",
+  'backupRestore': "Ripristina da un backup",
+  'backupRestoreHint': "Sostituisci tutto qui con un file salvato",
+  'backupNote':
+      "Caldo tiene tutto solo su questo telefono. Salva ogni tanto un backup su Drive o su un computer, e un telefono perso o una reinstallazione non si porteranno via le tue attività.",
+  'backupSaved': "Backup salvato",
+  'backupNotSaved': "Impossibile salvare il backup",
+  'backupNotCaldo': "Questo file non è un backup di Caldo",
+  'backupNewer':
+      "Questo backup viene da un Caldo più recente. Aggiorna prima, poi ripristinalo.",
+  'backupUnreadable': "Impossibile leggere il file",
+  'restoreQuestion': "Ripristinare questo backup?",
+  'restoreWarning':
+      "Salvato {day}: {tasks}, {groups}. Tutto ciò che c'è ora in Caldo verrà sostituito. Non si può annullare.",
+  'restore': "Ripristina",
+  'backupTasks': ["{n} attività", "{n} attività"],
+  'backupGroups': ["{n} gruppo", "{n} gruppi"],
+  'restored': ["{n} attività ripristinata", "{n} attività ripristinate"],
 };

@@ -223,4 +223,27 @@ const Map<String, Object> nl = {
   'wasDue.at': "Was om {time}",
   'wasDue.day': "Was {day}",
   'wasDue.dayAt': "Was {day} om {time}",
+
+  'pageBackup': "Back-up",
+  'backupNever': "Nog nooit opgeslagen",
+  'backupLast': "Laatst opgeslagen: {day}",
+  'backupSave': "Back-up opslaan",
+  'backupSaveHint': "Alle taken, groepen en instellingen in één bestand",
+  'backupRestore': "Back-up terugzetten",
+  'backupRestoreHint': "Alles hier vervangen door een opgeslagen bestand",
+  'backupNote':
+      "Caldo bewaart alles alleen op deze telefoon. Sla af en toe een back-up op in Drive of op een computer, dan neemt een verloren telefoon of een herinstallatie je taken niet mee.",
+  'backupSaved': "Back-up opgeslagen",
+  'backupNotSaved': "De back-up kon niet worden opgeslagen",
+  'backupNotCaldo': "Dat bestand is geen Caldo-back-up",
+  'backupNewer':
+      "Die back-up komt van een nieuwere Caldo. Werk eerst bij en zet hem dan terug.",
+  'backupUnreadable': "Het bestand kon niet worden gelezen",
+  'restoreQuestion': "Deze back-up terugzetten?",
+  'restoreWarning':
+      "Opgeslagen {day}: {tasks}, {groups}. Alles wat nu in Caldo staat, wordt erdoor vervangen. Dit kan niet ongedaan worden gemaakt.",
+  'restore': "Terugzetten",
+  'backupTasks': ["{n} taak", "{n} taken"],
+  'backupGroups': ["{n} groep", "{n} groepen"],
+  'restored': ["{n} taak teruggezet", "{n} taken teruggezet"],
 };

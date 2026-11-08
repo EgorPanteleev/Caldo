@@ -224,4 +224,30 @@ const Map<String, Object> de = {
   'wasDue.at': "War fällig um {time}",
   'wasDue.day': "War fällig {day}",
   'wasDue.dayAt': "War fällig {day} um {time}",
+
+  'pageBackup': "Sicherung",
+  'backupNever': "Noch nie gesichert",
+  'backupLast': "Zuletzt gesichert: {day}",
+  'backupSave': "Sicherung speichern",
+  'backupSaveHint': "Alle Aufgaben, Gruppen und Einstellungen in einer Datei",
+  'backupRestore': "Aus Sicherung wiederherstellen",
+  'backupRestoreHint': "Alles hier durch eine gespeicherte Datei ersetzen",
+  'backupNote':
+      "Caldo speichert alles nur auf diesem Telefon. Speichere ab und zu eine Sicherung in Drive oder auf einem Computer, dann nimmt ein verlorenes Telefon oder eine Neuinstallation deine Aufgaben nicht mit.",
+  'backupSaved': "Sicherung gespeichert",
+  'backupNotSaved': "Die Sicherung konnte nicht gespeichert werden",
+  'backupNotCaldo': "Diese Datei ist keine Caldo-Sicherung",
+  'backupNewer':
+      "Diese Sicherung stammt von einem neueren Caldo. Erst aktualisieren, dann wiederherstellen.",
+  'backupUnreadable': "Die Datei konnte nicht gelesen werden",
+  'restoreQuestion': "Diese Sicherung wiederherstellen?",
+  'restoreWarning':
+      "Gesichert {day}: {tasks}, {groups}. Alles, was jetzt in Caldo ist, wird dadurch ersetzt. Das lässt sich nicht rückgängig machen.",
+  'restore': "Wiederherstellen",
+  'backupTasks': ["{n} Aufgabe", "{n} Aufgaben"],
+  'backupGroups': ["{n} Gruppe", "{n} Gruppen"],
+  'restored': [
+    "{n} Aufgabe wiederhergestellt",
+    "{n} Aufgaben wiederhergestellt",
+  ],
 };

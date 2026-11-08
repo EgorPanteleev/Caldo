@@ -5,6 +5,7 @@ import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/backup.dart';
 import '../services/device_calendars.dart';
 import '../services/reminders.dart';
 import '../services/updates.dart';
@@ -37,7 +38,7 @@ class SettingsScreen extends StatelessWidget {
 
   const SettingsScreen({super.key, this.onMenu});
 
-  void _open(BuildContext context, String title, _Rows rows) {
+  void _open(BuildContext context, String Function(S s) title, _Rows rows) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _Page(title: title, rows: rows),
@@ -86,7 +87,7 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.menu_open_rounded,
                 title: s.pageScreens,
                 value: shown.join(', '),
-                onTap: () => _open(context, s.pageScreens, _screens),
+                onTap: () => _open(context, (s) => s.pageScreens, _screens),
               ),
               _Row(
                 icon: Icons.tune_rounded,
@@ -94,13 +95,14 @@ class SettingsScreen extends StatelessWidget {
                 value:
                     '${S.names[settings.languageInForce]} · '
                     '${_timeFormats[settings.use24Hour]}',
-                onTap: () => _open(context, s.pageGeneral, _general),
+                onTap: () => _open(context, (s) => s.pageGeneral, _general),
               ),
               _Row(
                 icon: Icons.palette_outlined,
                 title: s.pageAppearance,
                 value: _themeNames(s)[settings.themeMode],
-                onTap: () => _open(context, s.pageAppearance, _appearance),
+                onTap: () =>
+                    _open(context, (s) => s.pageAppearance, _appearance),
               ),
               _Row(
                 icon: Icons.calendar_month_outlined,
@@ -108,7 +110,7 @@ class SettingsScreen extends StatelessWidget {
                 value: settings.weekStartsMonday
                     ? s.weeksMonSun
                     : s.weeksSunSat,
-                onTap: () => _open(context, s.calendar, _calendar),
+                onTap: () => _open(context, (s) => s.calendar, _calendar),
               ),
               _Row(
                 icon: Icons.task_alt_rounded,
@@ -116,13 +118,26 @@ class SettingsScreen extends StatelessWidget {
                 value: settings.showCompleted
                     ? s.completedShown
                     : s.completedHidden,
-                onTap: () => _open(context, s.pageTasks, _tasks),
+                onTap: () => _open(context, (s) => s.pageTasks, _tasks),
               ),
               _Row(
                 icon: Icons.notifications_none,
                 title: s.pageReminders,
                 value: settings.reminders ? s.remindOn : s.remindOff,
-                onTap: () => _open(context, s.pageReminders, _reminders),
+                onTap: () => _open(context, (s) => s.pageReminders, _reminders),
+              ),
+            ],
+          ),
+          _Group(
+            children: [
+              _Row(
+                icon: Icons.backup_outlined,
+                title: s.pageBackup,
+                value: switch (settings.lastBackup) {
+                  final day? => s.backupLast(Dates.dayDate(day)),
+                  null => s.backupNever,
+                },
+                onTap: () => _open(context, (s) => s.pageBackup, _backup),
               ),
             ],
           ),
@@ -144,7 +159,8 @@ typedef _Rows =
 /// One kind of setting on a page of its own, pushed over the shell, with a
 /// way back to the list.
 class _Page extends StatelessWidget {
-  final String title;
+  /// Named in the language in force, which the page itself can change.
+  final String Function(S s) title;
   final _Rows rows;
 
   const _Page({required this.title, required this.rows});
@@ -157,7 +173,7 @@ class _Page extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            ScreenHeader(title: title, showBack: true),
+            ScreenHeader(title: title(S.of(context)), showBack: true),
             ...rows(context, settings, S.of(context)),
           ],
         ),
@@ -491,6 +507,96 @@ Future<void> _clearCompleted(BuildContext context) async {
       ),
     ),
   );
+}
+
+/// Saving everything to a file kept somewhere else, and reading it back.
+/// A panel of its own on the list rather than a row among the settings:
+/// it is the one thing on it that is not a setting, and the one that says
+/// how long it has been left.
+List<Widget> _backup(BuildContext context, SettingsProvider settings, S s) => [
+  _Group(
+    footnote: s.backupNote,
+    children: [
+      _Row(
+        icon: Icons.save_alt_rounded,
+        title: s.backupSave,
+        value: s.backupSaveHint,
+        onTap: () => _saveBackup(context),
+      ),
+      _Row(
+        icon: Icons.settings_backup_restore_rounded,
+        title: s.backupRestore,
+        value: s.backupRestoreHint,
+        onTap: () => _restoreBackup(context),
+      ),
+    ],
+  ),
+];
+
+String _backupProblem(S s, BackupProblem problem) => switch (problem) {
+  BackupProblem.notCaldo => s.backupNotCaldo,
+  BackupProblem.newer => s.backupNewer,
+  BackupProblem.unreadable => s.backupUnreadable,
+};
+
+void _say(BuildContext context, String text) =>
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+Future<void> _saveBackup(BuildContext context) async {
+  final s = S.of(context);
+  final bool saved;
+  try {
+    saved = await Backup.save(context.read<SettingsProvider>());
+  } on BackupException {
+    if (context.mounted) _say(context, s.backupNotSaved);
+    return;
+  }
+  if (saved && context.mounted) _say(context, s.backupSaved);
+}
+
+/// Reads the file first and says what is in it before anything is
+/// replaced: a restore cannot be taken back, and the date and the count are
+/// how a wrong file is caught.
+Future<void> _restoreBackup(BuildContext context) async {
+  final s = S.of(context);
+  final Backup? backup;
+  try {
+    backup = await Backup.open();
+  } on BackupException catch (e) {
+    if (context.mounted) _say(context, _backupProblem(s, e.problem));
+    return;
+  }
+  if (backup == null || !context.mounted) return;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.restoreQuestion),
+      content: Text(
+        s.restoreWarning(
+          day: Dates.dayDate(backup!.savedAt),
+          tasks: backup.taskCount,
+          groups: backup.groupCount,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(s.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(s.restore),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  await backup.restore(
+    context.read<SettingsProvider>(),
+    context.read<TaskProvider>(),
+  );
+  // In the restored language, which may not be the one the tap was made in.
+  if (context.mounted) _say(context, S.current.restored(backup.taskCount));
 }
 
 /// Whether tasks are announced, and when.

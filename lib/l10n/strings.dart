@@ -276,6 +276,31 @@ class S {
   String get sectionAbout => _word('sectionAbout');
   String get about => _word('about');
   String version(String version) => _fill('version', {'version': version});
+  String get pageBackup => _word('pageBackup');
+  String get backupNever => _word('backupNever');
+  String backupLast(String day) => _fill('backupLast', {'day': day});
+  String get backupSave => _word('backupSave');
+  String get backupSaveHint => _word('backupSaveHint');
+  String get backupRestore => _word('backupRestore');
+  String get backupRestoreHint => _word('backupRestoreHint');
+  String get backupNote => _word('backupNote');
+  String get backupSaved => _word('backupSaved');
+  String get backupNotSaved => _word('backupNotSaved');
+  String get backupNotCaldo => _word('backupNotCaldo');
+  String get backupNewer => _word('backupNewer');
+  String get backupUnreadable => _word('backupUnreadable');
+  String get restoreQuestion => _word('restoreQuestion');
+  String restoreWarning({
+    required String day,
+    required int tasks,
+    required int groups,
+  }) => _fill('restoreWarning', {
+    'day': day,
+    'tasks': _count('backupTasks', tasks),
+    'groups': _count('backupGroups', groups),
+  });
+  String get restore => _word('restore');
+  String restored(int count) => _count('restored', count);
 
   // ---- The task form -------------------------------------------------------
   String get editTask => _word('editTask');

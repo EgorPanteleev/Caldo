@@ -39,6 +39,27 @@ class SettingsProvider extends ChangeNotifier {
   static const _kDeviceEvents = 'show_device_events';
   static const _kHiddenCalendars = 'hidden_calendars';
   static const _kLanguage = 'language';
+  static const _kLastBackup = 'last_backup';
+
+  /// The settings a backup carries. The phone's own calendars are left
+  /// behind: their ids belong to the phone, and showing them needs a
+  /// permission that a new phone has not been given.
+  static const _portable = [
+    _kStartScreen,
+    _kHiddenScreens,
+    _kThemeMode,
+    _kAccent,
+    _kWeekStart,
+    _kShowCompleted,
+    _kHolidayCountry,
+    _kShowHolidays,
+    _kReminders,
+    _kReminderAt,
+    _kReminderLead,
+    _kFullScreen,
+    _kClock,
+    _kLanguage,
+  ];
 
   /// The screen the app opens on. Schedule out of the box: it is the one
   /// that answers "what now", which is what opening a to-do list is usually
@@ -113,6 +134,9 @@ class SettingsProvider extends ChangeNotifier {
   /// The language chosen here, or null for the phone's.
   String? _language;
 
+  /// When a backup was last saved, or null if one never has been.
+  DateTime? _lastBackup;
+
   /// Whether times are written on a 24-hour clock: the choice made here, or
   /// the phone's own until there is one.
   bool get use24Hour =>
@@ -163,6 +187,7 @@ class SettingsProvider extends ChangeNotifier {
   int get reminderMinutes => _reminderMinutes;
   int get reminderLead => _reminderLead;
   bool get fullScreenReminders => _fullScreen;
+  DateTime? get lastBackup => _lastBackup;
 
   /// Whether the stored settings have been read yet. Until they have, every
   /// one of them is its default, which is not what the user chose.
@@ -256,6 +281,51 @@ class SettingsProvider extends ChangeNotifier {
     _language = prefs.getString(_kLanguage);
     _showDeviceEvents = prefs.getBool(_kDeviceEvents) ?? _showDeviceEvents;
     _hiddenCalendars = {...?prefs.getStringList(_kHiddenCalendars)};
+    final backup = prefs.getInt(_kLastBackup);
+    _lastBackup = backup == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(backup);
+  }
+
+  /// The settings a backup carries, as stored. One that was never set is
+  /// left out, and restoring puts it back to its default.
+  static Future<Map<String, Object?>> exported() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {for (final key in _portable) key: ?prefs.get(key)};
+  }
+
+  /// Puts back the settings [values] holds and every other one to its
+  /// default, and puts them in force as [load] does — short of asking for
+  /// permission, which was settled on this phone already.
+  Future<void> restore(Map<String, Object?> values) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final key in _portable) {
+      switch (values[key]) {
+        case final bool v:
+          await prefs.setBool(key, v);
+        case final int v:
+          await prefs.setInt(key, v);
+        case final String v:
+          await prefs.setString(key, v);
+        case final List<Object?> v:
+          await prefs.setStringList(key, [...v.whereType<String>()]);
+        default:
+          await prefs.remove(key);
+      }
+    }
+    _read(prefs);
+    S.use(languageInForce);
+    Dates.use24Hour = use24Hour;
+    await _tellReminders();
+    notifyListeners();
+  }
+
+  /// Notes that a backup was saved at [when], for Settings to say so.
+  Future<void> backedUp(DateTime when) async {
+    _lastBackup = when;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kLastBackup, when.millisecondsSinceEpoch);
+    notifyListeners();
   }
 
   Future<void> update({

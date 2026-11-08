@@ -224,4 +224,27 @@ const Map<String, Object> fr = {
   'wasDue.at': "Prévue à {time}",
   'wasDue.day': "Prévue {day}",
   'wasDue.dayAt': "Prévue {day} à {time}",
+
+  'pageBackup': "Sauvegarde",
+  'backupNever': "Jamais enregistrée",
+  'backupLast': "Dernière sauvegarde : {day}",
+  'backupSave': "Enregistrer une sauvegarde",
+  'backupSaveHint': "Toutes les tâches, groupes et réglages dans un fichier",
+  'backupRestore': "Restaurer une sauvegarde",
+  'backupRestoreHint': "Remplacer tout ici par un fichier enregistré",
+  'backupNote':
+      "Caldo garde tout sur ce téléphone et nulle part ailleurs. Enregistrez de temps en temps une sauvegarde sur Drive ou un ordinateur : un téléphone perdu ou une réinstallation n'emportera pas vos tâches.",
+  'backupSaved': "Sauvegarde enregistrée",
+  'backupNotSaved': "La sauvegarde n'a pas pu être enregistrée",
+  'backupNotCaldo': "Ce fichier n'est pas une sauvegarde Caldo",
+  'backupNewer':
+      "Cette sauvegarde vient d'un Caldo plus récent. Mettez à jour d'abord, puis restaurez-la.",
+  'backupUnreadable': "Le fichier n'a pas pu être lu",
+  'restoreQuestion': "Restaurer cette sauvegarde ?",
+  'restoreWarning':
+      "Enregistrée {day} : {tasks}, {groups}. Tout ce qui est dans Caldo sera remplacé. C'est irréversible.",
+  'restore': "Restaurer",
+  'backupTasks': ["{n} tâche", "{n} tâches"],
+  'backupGroups': ["{n} groupe", "{n} groupes"],
+  'restored': ["{n} tâche restaurée", "{n} tâches restaurées"],
 };
