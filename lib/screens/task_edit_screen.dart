@@ -13,8 +13,7 @@ import '../widgets/repeat_sheet.dart';
 import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart'
     show GroundFade, KeyboardLift, KeyboardRoom;
-import '../widgets/task_card.dart' show CheckMark;
-import '../widgets/task_row.dart' show PriorityFlag;
+import '../widgets/task_card.dart' show CheckMark, TaskCard;
 
 /// Add a new task or edit an existing one. When [task] is null this is a
 /// creation form; otherwise the fields are pre-filled for editing.
@@ -1025,7 +1024,7 @@ class _PriorityChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = priority == Priority.none
         ? palette.muted
-        : PriorityFlag.colorOf(priority);
+        : TaskCard.priorityColor(priority);
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,

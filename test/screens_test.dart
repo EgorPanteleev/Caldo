@@ -18,7 +18,6 @@ import 'package:caldo/widgets/put_off.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:caldo/widgets/reorderable_task_list.dart';
 import 'package:caldo/widgets/task_card.dart';
-import 'package:caldo/widgets/task_row.dart';
 import 'package:caldo/widgets/tick_off.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
@@ -1408,7 +1407,7 @@ void main() {
     await tester.pumpAndSettle();
     // Scoped to a result row: the field itself now reads "Ship" too.
     expect(
-      find.descendant(of: find.byType(TaskRow), matching: find.text('Ship')),
+      find.descendant(of: find.byType(TaskCard), matching: find.text('Ship')),
       findsOneWidget,
     );
 
@@ -1417,6 +1416,57 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
     expect(find.text('Nothing found'), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('search lays out what it finds as Schedule lays out days', (
+    tester,
+  ) async {
+    final provider = await pumpScreen(tester, const SearchScreen());
+    final today = dayOf(DateTime.now());
+    await tester.runAsync(() async {
+      final listId = provider.lists.first.id!;
+      Future<void> add(String title, DateTime? day, {bool done = false}) =>
+          provider.add(
+            Task(
+              listId: listId,
+              title: title,
+              dueAt: day?.millisecondsSinceEpoch,
+              done: done,
+              createdAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+      await add('Find undated', null);
+      await add(
+        'Find finished',
+        today.subtract(const Duration(days: 9)),
+        done: true,
+      );
+      await add('Find later', today.add(const Duration(days: 5)));
+      await add('Find late', today.subtract(const Duration(days: 3)));
+    });
+
+    await tester.enterText(find.byKey(searchFieldKey), 'Find');
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+
+    // The first of each: an undated card says "No date" under its title too.
+    double top(String text) => tester.getTopLeft(find.text(text).first).dy;
+    // Still to do first: the backlog, the days ahead, the undated; what
+    // was finished long ago after all of them.
+    final order = [
+      'Overdue',
+      'Find late',
+      'Find later',
+      'No date',
+      'Find undated',
+      'Find finished',
+    ].map(top).toList();
+    for (var i = 1; i < order.length; i++) {
+      expect(order[i], greaterThan(order[i - 1]));
+    }
+    expect(find.byType(TaskCard), findsNWidgets(4));
     await drainDatabase(tester);
   });
 

@@ -40,11 +40,11 @@ lib/
                          board, done, search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
-  widgets/               month_grid, task_card (+ HolidayCard), task_row,
+  widgets/               month_grid, task_card (+ HolidayCard),
                          colour_selector, groups,
                          date_time_pickers, repeat_sheet, day_sheet, day_hours,
                          menu_button, put_off,
-                         quick_add_bar, screen_header (+ TodayButton), selection_bar,
+                         quick_add_bar, screen_header (+ TodayButton),
                          theme_switcher, slide_into_place,
                          tick_off (+ AsShown), carry, selection,
                          reorderable_task_list
@@ -940,6 +940,15 @@ Changing them back will be noticed.
   one scroll, still lazy, and still auto-scrolls while a card is near the edge
   — `ListView(children: [...])` constructs every row on every build, and this
   screen rebuilds on each frame of the keyboard sliding in.
+- **Search lays out what it finds as Schedule lays out days**
+  (`SearchScreen`, `_Results`): the same cards under the same headings —
+  Overdue, the days from today on, No date, then days gone by, latest
+  first, since a search is more often after something still to do. A
+  tick there is a tick like any other (`tickOff`, `AsShown`), and the
+  results are read again when the provider reads its lists back. It was
+  bordered rows with round ticks in an outlined field (`TaskRow`), the
+  last screen left in the app's first style.
+
 - **Schedule's header carries Search and Today**, the same pair the calendar
   has, and its quick-add field at the foot files on today. Today is a scroll
   home here, since today is the top of the run.
@@ -1431,7 +1440,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 207 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 204 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1450,8 +1459,7 @@ Things that will bite you:
   widths; assert layout invariants instead (e.g. "the title is given all the
   width the controls leave").
 - Widget keys are exported for tests: `monthTitleKey`, `calendarHandleKey`,
-  `daySheetKey`, `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `checkKey`,
-  `taskCardTickKey`.
+  `daySheetKey`, `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`.
 
 ## Building
 
