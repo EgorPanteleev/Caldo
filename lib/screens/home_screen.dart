@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -102,6 +104,20 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) => _openReminder());
     WidgetsBinding.instance.addObserver(this);
     _checkFullScreen();
+    _waitForMidnight();
+  }
+
+  /// Wakes the lists at the turn of the day, for an app left open across
+  /// it; one left in the background is caught up on its return instead.
+  Timer? _midnight;
+
+  void _waitForMidnight() {
+    final now = DateTime.now();
+    final next = DateTime(now.year, now.month, now.day + 1);
+    _midnight = Timer(next.difference(now) + const Duration(seconds: 1), () {
+      context.read<TaskProvider>().catchUp();
+      _waitForMidnight();
+    });
   }
 
   /// Whether Android lets a reminder take the screen, once asked; asked on
@@ -121,7 +137,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _checkFullScreen();
+    if (state != AppLifecycleState.resumed) return;
+    _checkFullScreen();
+    context.read<TaskProvider>().catchUp();
   }
 
   /// A reminder tapped with the phone in use opens its task, as a row of
@@ -154,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _midnight?.cancel();
     Reminders.opened.removeListener(_openReminder);
     _menu.dispose();
     _boardShown.dispose();

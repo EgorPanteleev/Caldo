@@ -943,6 +943,12 @@ Changing them back will be noticed.
   has, and its quick-add field at the foot files on today. Today is a scroll
   home here, since today is the top of the run.
 
+- **The lists are read again when the date moves on** (`TaskProvider.catchUp`,
+  on every return to the app and at midnight while it is open). Left in the
+  background overnight, it came back with yesterday as Today, yesterday's
+  leftovers not yet overdue, and the today badge a day behind, until some
+  change happened to read the lists back.
+
 - **The month is laid out once and only moved while the calendar changes
   state** (`MonthGrid.animation`, `_RenderRows`). Every week row is laid out
   at its opened height and clipped to the height it has now, each behind a

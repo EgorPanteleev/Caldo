@@ -46,6 +46,9 @@ class TaskProvider extends ChangeNotifier {
   /// Open tasks whose due date has already passed.
   List<Task> _allOverdue = [];
 
+  /// The day the agenda was last read on, which its runs were sorted against.
+  DateTime? _readOn;
+
   /// Dated tasks from today onwards (done ones included, so a day's progress
   /// is visible), backing the Tasks screen and the calendar.
   List<Task> _allUpcoming = [];
@@ -220,12 +223,25 @@ class TaskProvider extends ChangeNotifier {
     await _afterRead();
   }
 
+  /// Reads everything again if the date has moved on since the agenda was
+  /// read. An app left in the background overnight came back with yesterday
+  /// as Today and yesterday's leftovers not yet in the backlog, until some
+  /// change happened to read the lists back.
+  Future<void> catchUp() async {
+    if (_readOn == null || _readOn == dayOf(DateTime.now())) return;
+    await _readMonth(_month);
+    await readAgenda();
+    notifyListeners();
+    await _afterRead();
+  }
+
   /// Reads the agenda in whole before any of it is put in place, so nothing
   /// that rebuilds in between sees a backlog from after a change beside days
   /// from before it. Public for the background isolates, which read it to
   /// redraw the widget and tell nobody.
   Future<void> readAgenda() async {
     final today = dayOf(DateTime.now());
+    _readOn = today;
     final to = today.add(const Duration(days: agendaDays));
     final overdue = await _db.getOverdue(today.millisecondsSinceEpoch);
     final upcoming = await _db.getTasksInRange(
