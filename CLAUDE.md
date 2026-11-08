@@ -1473,7 +1473,8 @@ Changing them back will be noticed.
   shows the free page. **The application's own icon is the free page**, because
   Samsung's launcher draws an app with that rather than with the launcher
   entry's: 2.8.4 had the filled one there and went on showing the filled
-  page on a Samsung, in the folder and the apps list, through a reboot.
+  page on a Samsung, in the folder and the apps list, through a reboot;
+  2.8.5, with the free page there, showed it on the user's phone.
   On a Pixel the entry's icon wins in the launcher, and only App info and
   the recent apps show the free page, on the black the Pixel puts under
   it. A launcher may drop a home-screen icon when the
