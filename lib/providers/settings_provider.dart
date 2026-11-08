@@ -328,6 +328,16 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whether the phone's events are shown, and which calendars are left
+  /// out, as stored — for the widget's copy, which is also written from
+  /// isolates that have no provider to ask.
+  static ({bool on, List<String> hidden}) storedEvents(
+    SharedPreferences prefs,
+  ) => (
+    on: prefs.getBool(_kDeviceEvents) ?? false,
+    hidden: prefs.getStringList(_kHiddenCalendars) ?? const [],
+  );
+
   /// Notes that a backup was saved at [when], for Settings to say so.
   Future<void> backedUp(DateTime when) async {
     _lastBackup = when;
@@ -436,6 +446,11 @@ class SettingsProvider extends ChangeNotifier {
     if (hiddenCalendars != null) {
       _hiddenCalendars = hiddenCalendars;
       await prefs.setStringList(_kHiddenCalendars, [...hiddenCalendars]);
+    }
+    // The widget reads the phone's events itself, as it is drawn, but which
+    // of them are wanted comes on its copy.
+    if (showDeviceEvents != null || hiddenCalendars != null) {
+      await TodayWidget.republish();
     }
     if (dayAsHours != null) {
       _dayAsHours = dayAsHours;

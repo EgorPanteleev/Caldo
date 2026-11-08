@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -75,9 +76,17 @@ class TodayWidget {
       final prefs = await SharedPreferences.getInstance();
       // The language goes with it: the widget is drawn by the launcher, in
       // the phone's language, which need not be the one chosen here.
+      // So is whether the phone's events are wanted, and from which
+      // calendars: the widget reads the events themselves as it is drawn,
+      // since they change in other apps and this copy only when Caldo does.
+      final events = SettingsProvider.storedEvents(prefs);
       await prefs.setString(
         key,
-        jsonEncode({'lang': S.current.code, 'tasks': rows}),
+        jsonEncode({
+          'lang': S.current.code,
+          'tasks': rows,
+          'events': {'on': events.on, 'hidden': events.hidden},
+        }),
       );
     } catch (error, stack) {
       debugPrint('Could not update the widget: $error\n$stack');

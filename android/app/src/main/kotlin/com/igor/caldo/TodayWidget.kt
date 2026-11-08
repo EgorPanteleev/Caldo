@@ -66,6 +66,17 @@ class TodayWidget : AppWidgetProvider() {
                         },
                     )
                     OP_OPEN -> context.startActivity(openApp(context, id))
+                    OP_EVENT -> try {
+                        context.startActivity(
+                            PhoneEvents.view(
+                                intent.getLongExtra(EXTRA_EVENT, -1),
+                                intent.getLongExtra(EXTRA_BEGIN, 0),
+                                intent.getLongExtra(EXTRA_END, 0),
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        // No app on the phone keeps a calendar to open it in.
+                    }
                 }
             }
             ACTION_MIDNIGHT -> refresh(context)
@@ -192,6 +203,10 @@ class TodayWidget : AppWidgetProvider() {
         const val EXTRA_TASK = "task"
         const val OP_TOGGLE = "toggle"
         const val OP_OPEN = "open"
+        const val OP_EVENT = "event"
+        const val EXTRA_EVENT = "event"
+        const val EXTRA_BEGIN = "begin"
+        const val EXTRA_END = "end"
 
         /**
          * From the tap to the card being crossed out: the tick drawn, then

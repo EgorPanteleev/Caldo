@@ -5,7 +5,6 @@ import android.app.Activity
 import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
-import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -403,61 +402,24 @@ class MainActivity : FlutterActivity() {
         return found
     }
 
-    /**
-     * Every instance of every event between [from] and [to] — a repeating
-     * event is a row per time it happens, which is what Instances is for.
-     */
-    private fun events(from: Long, to: Long): List<Map<String, Any?>> {
-        val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().also {
-            ContentUris.appendId(it, from)
-            ContentUris.appendId(it, to)
-        }.build()
-        val columns = arrayOf(
-            CalendarContract.Instances.EVENT_ID,
-            CalendarContract.Instances.BEGIN,
-            CalendarContract.Instances.END,
-            CalendarContract.Instances.ALL_DAY,
-            CalendarContract.Instances.TITLE,
-            CalendarContract.Instances.DISPLAY_COLOR,
-            CalendarContract.Instances.CALENDAR_ID,
-            CalendarContract.Instances.CALENDAR_DISPLAY_NAME,
-        )
-        val found = mutableListOf<Map<String, Any?>>()
-        contentResolver.query(
-            uri,
-            columns,
-            "${CalendarContract.Instances.VISIBLE} = 1",
-            null,
-            "${CalendarContract.Instances.BEGIN} ASC",
-        )?.use { c ->
-            while (c.moveToNext()) {
-                found.add(
-                    mapOf(
-                        "id" to c.getLong(0),
-                        "begin" to c.getLong(1),
-                        "end" to c.getLong(2),
-                        "allDay" to (c.getInt(3) != 0),
-                        "title" to (c.getString(4) ?: ""),
-                        "colour" to c.getInt(5),
-                        "calendar" to c.getLong(6).toString(),
-                        "calendarName" to c.getString(7),
-                    ),
-                )
-            }
+    /** Every event between [from] and [to], as Dart reads them. */
+    private fun events(from: Long, to: Long): List<Map<String, Any?>> =
+        PhoneEvents.between(this, from, to).map {
+            mapOf(
+                "id" to it.id,
+                "begin" to it.begin,
+                "end" to it.end,
+                "allDay" to it.allDay,
+                "title" to it.title,
+                "colour" to it.colour,
+                "calendar" to it.calendar,
+                "calendarName" to it.calendarName,
+            )
         }
-        return found
-    }
 
     /** Shows an event in whichever app keeps the calendar. */
     private fun openEvent(id: Long, begin: Long, end: Long): Boolean = try {
-        startActivity(
-            Intent(
-                Intent.ACTION_VIEW,
-                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id),
-            )
-                .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, begin)
-                .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end),
-        )
+        startActivity(PhoneEvents.view(id, begin, end))
         true
     } catch (_: ActivityNotFoundException) {
         false

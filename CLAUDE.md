@@ -50,7 +50,8 @@ lib/
 ```
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
-widget launches, the phone's calendars), `TodayWidget.kt` (the widget and the `Headless` engine its
+widget launches, the phone's calendars, backups), `PhoneEvents.kt` (the
+calendar query the app and the widget share), `TodayWidget.kt` (the widget and the `Headless` engine its
 ticks run on), `TodayWidgetRuns.kt` (its runs and cards) and `CaldoApplication.kt`
 (redraws the widget when its copy changes).
 
@@ -1341,7 +1342,19 @@ Changing them back will be noticed.
   at local midnight — read in the local zone, west of Greenwich, they land
   a day early (`events_test.dart` passes under `TZ=America/Los_Angeles`).
   Screens read the provider as nullable, so a test that pumps a screen
-  without it still draws. The home-screen widget does not show events.
+  without it still draws. **The home-screen widget shows them too**
+  (`PhoneEvents.kt`, shared with `MainActivity`; `layout/widget_event.xml`):
+  each one a card ahead of its day's tasks, inked in its colour with a
+  calendar mark where a task has its tick, and a tap that opens it in the
+  calendar app. The widget reads them itself as it is drawn, for today and
+  the agenda's thirty days after — they change in other apps, and the copy
+  only changes when Caldo does — but whether they are wanted and which
+  calendars are left out ride on the copy (`SettingsProvider.storedEvents`,
+  re-published when either changes). An all-day event is on each day it
+  covers; a timed one on the day it starts. A day with only events gets a
+  run. Their keys start at a billion, clear of the tasks' ids, one per
+  event per day. They are as fresh as the widget's last drawing: the copy,
+  midnight, or Android's half-hourly update.
 
 - **Caldo speaks the language of every country it keeps holidays for**
   (`S`, `l10n/strings.dart`, `l10n/words_*.dart`): English, Russian,

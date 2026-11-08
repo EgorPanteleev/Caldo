@@ -18,7 +18,9 @@ import android.widget.TextView
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * The widget's runs, read from the copy the app leaves: Overdue, then Today,
@@ -81,6 +83,8 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         val colour: Int,
         /** Its time written in red, as the app writes an overdue task's. */
         val late: Boolean,
+        /** Set for an event from the phone's calendars, which is no task. */
+        val event: PhoneEvents.Event? = null,
     )
 
     private var rows: List<Run> = emptyList()
@@ -112,7 +116,8 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         // what is this morning's backlog.
         val overdue = mutableListOf<Item>()
         val days = linkedMapOf<String, MutableList<Item>>()
-        val tasks = JSONObject(copy).getJSONArray("tasks")
+        val read = JSONObject(copy)
+        val tasks = read.getJSONArray("tasks")
         for (i in 0 until tasks.length()) {
             val task = tasks.getJSONObject(i)
             val day = task.getString("day")
@@ -136,6 +141,13 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
             }
         }
 
+        // A day's events go ahead of its tasks, as Schedule puts them, and a
+        // day with only events on it has a run of its own.
+        val events = eventsByDay(read.optJSONObject("events"), iso, today)
+        val all = (days.keys + events.keys).toSortedSet().associateWith {
+            events[it].orEmpty() + days[it].orEmpty()
+        }
+
         // "Sat, 4 Oct", and the year as well when it is not this one, as
         // `Dates.dayDate` writes it.
         val label = SimpleDateFormat(TodayWidget.pattern(locale, "EEEdMMM", "EEE, d MMM"), locale)
@@ -154,11 +166,11 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
             // Today is said even when it is empty, once there is anything
             // else to show: a list that opens on Tomorrow leaves today to be
             // guessed at.
-            if (today !in days && (overdue.isNotEmpty() || days.isNotEmpty())) {
+            if (today !in all && (overdue.isNotEmpty() || all.isNotEmpty())) {
                 val heading = Heading(words.getString(R.string.widget_today), date(today), overdue = false)
                 add(Run(key(today), heading, words.getString(R.string.widget_nothing_today), emptyList()))
             }
-            for ((day, items) in days) {
+            for ((day, items) in all) {
                 val word = when (day) {
                     today -> words.getString(R.string.widget_today)
                     tomorrow -> words.getString(R.string.widget_tomorrow)
@@ -168,6 +180,73 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
             }
         }.let(::trimmed)
     }
+
+    /**
+     * The phone's events for today and the agenda's days after it, by day,
+     * all-day ones first and then by when they start. Read here, as the
+     * widget is drawn, rather than from the copy: they change in other apps,
+     * and the copy only changes when Caldo does. The copy says whether they
+     * are wanted, and which calendars are left out ([wanted]).
+     *
+     * An all-day event is on every day it covers; a timed one on the day it
+     * starts, with its end written only when it ends that day.
+     */
+    private fun eventsByDay(
+        wanted: JSONObject?,
+        iso: SimpleDateFormat,
+        today: String,
+    ): Map<String, List<Item>> {
+        if (wanted == null || !wanted.optBoolean("on")) return emptyMap()
+        val hidden = wanted.optJSONArray("hidden")
+            ?.let { list -> (0 until list.length()).map { list.getString(it) }.toSet() }
+            .orEmpty()
+        val start = iso.parse(today)!!.time
+        val to = Calendar.getInstance().apply {
+            timeInMillis = start
+            add(Calendar.DAY_OF_MONTH, DAYS)
+        }.timeInMillis
+        // All-day events are stored at midnight UTC on their dates, which is
+        // the day before somewhere west of Greenwich: read off in UTC.
+        val utc = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val byDay = sortedMapOf<String, MutableList<Item>>()
+        fun put(day: String, item: Item) = byDay.getOrPut(day) { mutableListOf() }.add(item)
+        for (event in PhoneEvents.between(context, start, to)) {
+            if (event.calendar in hidden) continue
+            if (event.allDay) {
+                var at = event.begin
+                while (at < event.end) {
+                    val day = utc.format(Date(at))
+                    if (day >= today) put(day, eventItem(event, day, null, null))
+                    at += DAY_MS
+                }
+                continue
+            }
+            if (event.begin < start) continue
+            val from = Calendar.getInstance().apply { timeInMillis = event.begin }
+            val until = Calendar.getInstance().apply { timeInMillis = event.end }
+            val day = iso.format(from.time)
+            fun minute(at: Calendar) = at.get(Calendar.HOUR_OF_DAY) * 60 + at.get(Calendar.MINUTE)
+            val sameDay = iso.format(until.time) == day
+            put(day, eventItem(event, day, minute(from), if (sameDay) minute(until) else null))
+        }
+        for (items in byDay.values) items.sortBy { it.minute ?: -1 }
+        return byDay
+    }
+
+    private fun eventItem(event: PhoneEvents.Event, day: String, minute: Int?, end: Int?) = Item(
+        // Kept clear of the tasks' ids and the headings' negative keys, and
+        // one for each day an event is on.
+        id = EVENT_KEYS + (event.id % 100_000) * 1_000 + day.replace("-", "").toLong() % 1_000,
+        title = event.title,
+        minute = minute,
+        end = end,
+        done = false,
+        colour = event.colour,
+        late = false,
+        event = event,
+    )
 
     /**
      * The runs cut down to [MOST] cards: the list scrolls them, but it is
@@ -196,7 +275,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             for (run in rows) {
                 views.addView(container, heading(run))
-                for (item in run.items) views.addView(container, item(item))
+                for (item in run.items) {
+                    views.addView(container, if (item.event != null) event(item) else item(item))
+                }
             }
             return
         }
@@ -211,10 +292,16 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
             laid += Laid(headingKey(run), head, top, leaving = false)
             top += fit(head, width, "head|${run.heading.word}|${run.heading.date}|${run.note}")
             for (item in run.items) {
-                val card = box(item)
+                val isEvent = item.event != null
+                val card = if (isEvent) event(item) else box(item)
                 val going = item.id in leaving
                 laid += Laid(item.id.toInt(), card, top, going)
-                val height = fit(card, width, "card|${item.title}")
+                val height = fit(
+                    card,
+                    width,
+                    "${if (isEvent) "event" else "card"}|${item.title}",
+                    crossed = !isEvent,
+                )
                 if (!going) top += height
             }
         }
@@ -288,7 +375,7 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
      * one the widget is told, and a title that wrapped there and not here
      * would make the card taller than the room left for it.
      */
-    private fun fit(views: RemoteViews, width: Int, what: String): Int {
+    private fun fit(views: RemoteViews, width: Int, what: String, crossed: Boolean = true): Int {
         // Laid out once for each text, width and text size, not on every
         // drawing: a list of fifty cards is drawn twice in a tick.
         val config = context.resources.configuration
@@ -304,7 +391,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         }
         if (lines > 0) {
             views.setInt(R.id.widget_title, "setLines", lines)
-            views.setInt(R.id.widget_title_done, "setLines", lines)
+            // Only a task's row has a crossed-out title: an action on a view
+            // a row does not have fails the whole widget.
+            if (crossed) views.setInt(R.id.widget_title_done, "setLines", lines)
         }
         return height
     }
@@ -339,6 +428,31 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         setOnClickFillInIntent(R.id.widget_card, fillIn(TodayWidget.OP_OPEN, row.id))
     }
 
+    /**
+     * An event from the phone's calendars: its colour's ink and mark, its
+     * title and time, and a tap that opens it in the calendar app.
+     */
+    private fun event(row: Item) = RemoteViews(context.packageName, R.layout.widget_event).apply {
+        val event = row.event!!
+        card(row)
+        setInt(R.id.widget_event_icon, "setColorFilter", row.colour)
+        setTextViewText(R.id.widget_title, row.title)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            setOnClickFillInIntent(R.id.widget_card, opening(fillIn(TodayWidget.OP_EVENT, row.id), event))
+        } else {
+            setOnClickPendingIntent(
+                R.id.widget_card,
+                tap(TodayWidget.OP_EVENT, row.id) { opening(it, event) },
+            )
+        }
+    }
+
+    /** [intent], saying which occurrence of [event] to open. */
+    private fun opening(intent: Intent, event: PhoneEvents.Event) = intent
+        .putExtra(TodayWidget.EXTRA_EVENT, event.id)
+        .putExtra(TodayWidget.EXTRA_BEGIN, event.begin)
+        .putExtra(TodayWidget.EXTRA_END, event.end)
+
     /** Which task, and which tap, for the list's intent. */
     private fun fillIn(op: String, id: Long) = Intent()
         .putExtra(TodayWidget.EXTRA_OP, op)
@@ -348,7 +462,11 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
      * A tap on a card before Android 12: an intent of its own, one per task
      * and tap, since there is no list to hold a template.
      */
-    private fun tap(op: String, id: Long): PendingIntent = PendingIntent.getBroadcast(
+    private fun tap(
+        op: String,
+        id: Long,
+        more: (Intent) -> Intent = { it },
+    ): PendingIntent = PendingIntent.getBroadcast(
         context,
         0,
         Intent(context, TodayWidget::class.java)
@@ -356,7 +474,8 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
             // One intent per task and tap, not one shared and overwritten.
             .setData(Uri.parse("caldo://widget/$op/$id"))
             .putExtra(TodayWidget.EXTRA_OP, op)
-            .putExtra(TodayWidget.EXTRA_TASK, id),
+            .putExtra(TodayWidget.EXTRA_TASK, id)
+            .let(more),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
     )
 
@@ -442,6 +561,13 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         private const val INK_DONE = 18
 
         private const val MOST = 60
+
+        /** How many days past today events are read for: the agenda's. */
+        private const val DAYS = 31
+        private const val DAY_MS = 24 * 60 * 60 * 1000L
+
+        /** Where events' keys start, clear of any task's id. */
+        private const val EVENT_KEYS = 1_000_000_000L
 
         /**
          * Where each widget last laid out each heading and card, by key, so
