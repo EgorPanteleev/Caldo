@@ -1325,15 +1325,15 @@ Changing them back will be noticed.
   says when a backup was last saved ("Never saved" until one is). No
   automatic backups yet: Android's own may or may not cover the database,
   and nothing here relies on it.
-- **The icon is Dicty's sibling**: the same graphite rounded square and the
-  same two overlapping tiles, here a white calendar page with its rings and
-  a grid of days, and over its corner the violet tile with a white tick — a
-  done task's filled square. One accent tile and nothing else in colour. It
-  is adaptive with the same 16% inset as Dicty's, so the two stand at one
-  size on a home screen, and it carries a monochrome layer for Android 13's
-  themed icons, with the tick and the seam cut out. On the emulator's dock
-  it wears a lavender ring: that is the launcher marking a suggested app in
-  that slot, not part of the icon — the app drawer shows it without.
+- **The icon is a flat calendar page, drawn from a picture the user
+  supplied**: a slate ground, a pale blue-grey sheet, a red header across
+  its top and three navy rings standing up out of it — no tick, no
+  gradient. It replaced Dicty's sibling (graphite square, white page, a
+  violet tile with a tick over its corner). The page keeps the old one's
+  size inside the adaptive icon, so it stays within what a round launcher
+  shows. The monochrome layer for Android 13's themed icons is the sheet
+  and rings in one colour, the header told apart by a seam cut across the
+  page and the rings by a gap cut round each.
 - **The window asks Android for the fastest display mode** (`MainActivity`).
   Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
   The ask is for the fastest mode at the resolution already in use — the
