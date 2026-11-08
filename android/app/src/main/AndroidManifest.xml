@@ -30,10 +30,17 @@
     <!-- Lets an update Caldo installed itself go over it without asking. -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"/>
 
+    <!-- The app's own icon is the free page, not the filled one: Samsung's
+         launcher draws an app with the application's icon rather than the
+         launcher entry's, so with the filled one here, 2.8.4 went on
+         showing the filled page on a Samsung, in the folder and the apps
+         list alike, through a reboot. Elsewhere the launcher entry's icon
+         wins (LauncherFilled), and only Settings and the recent apps show
+         this one. -->
     <application
         android:label="Caldo"
         android:name=".CaldoApplication"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher_free">
         <!-- No taskAffinity="" here, though Flutter's template has one. An
              empty affinity matches no task, so the installer's "Open" after
              an update started a second Caldo beside the one the update was

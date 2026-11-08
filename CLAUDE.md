@@ -1470,7 +1470,13 @@ Changing them back will be noticed.
   counts as leaving. So not with the screen off, and not with another
   app's activity (the document picker, the calendar app) on top of
   Caldo's task. Until it has been left once, a fresh install off a Samsung
-  shows the free page. A launcher may drop a home-screen icon when the
+  shows the free page. **The application's own icon is the free page**, because
+  Samsung's launcher draws an app with that rather than with the launcher
+  entry's: 2.8.4 had the filled one there and went on showing the filled
+  page on a Samsung, in the folder and the apps list, through a reboot.
+  On a Pixel the entry's icon wins in the launcher, and only App info and
+  the recent apps show the free page, on the black the Pixel puts under
+  it. A launcher may drop a home-screen icon when the
   entry under it changes: on a Samsung that happens once, on the update
   that moved the launcher entry off `MainActivity`.
   Before this: Dicty's sibling (graphite square, white page, a violet
