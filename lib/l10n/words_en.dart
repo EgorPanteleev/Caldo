@@ -150,6 +150,7 @@ const Map<String, Object> en = {
   'remindLead': "Remind {lead}",
   'remindOnDayAt': "Remind on the day, at {time}",
   'remindDayBefore': "Remind the day before",
+  'reminderLabel': "Reminder",
   'noReminder': "No reminder",
   'sectionPriority': "PRIORITY",
   'priority.none': "None",

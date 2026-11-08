@@ -162,6 +162,7 @@ const Map<String, Object> be = {
   'remindLead': "Напомніць {lead}",
   'remindOnDayAt': "Напомніць у той жа дзень у {time}",
   'remindDayBefore': "Напомніць напярэдадні",
+  'reminderLabel': "Напамін",
   'noReminder': "Без напаміну",
   'sectionPriority': "ПРЫЯРЫТЭТ",
   'priority.none': "Няма",

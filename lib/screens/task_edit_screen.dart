@@ -8,6 +8,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/colour_selector.dart';
+import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/repeat_sheet.dart';
 import '../widgets/groups.dart';
@@ -810,10 +811,11 @@ class _FieldTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final VoidCallback? onClear;
 
   const _FieldTile({
+    super.key,
     required this.icon,
     required this.label,
     required this.value,
@@ -889,14 +891,13 @@ class _ReminderField extends StatelessWidget {
     required this.onChanged,
   });
 
-  /// Stands for null in the dropdown, which takes null as "nothing chosen".
+  /// Stands for null in the sheet, which gives null back for "put away".
   static const _followSettings = -2;
 
   static const _day = Duration.minutesPerDay;
 
   @override
   Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
     final settings = context.watch<SettingsProvider>();
     final h24 = MediaQuery.alwaysUse24HourFormatOf(context);
     final s = S.of(context);
@@ -926,58 +927,35 @@ class _ReminderField extends StatelessWidget {
     }
     return Opacity(
       opacity: enabled ? 1 : 0.5,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: p.panel,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: p.border),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              shown == Task.silent
-                  ? Icons.notifications_off_outlined
-                  : Icons.notifications_none,
-              size: 20,
-              color: p.muted,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  key: reminderFieldKey,
-                  value: shown,
-                  isExpanded: true,
-                  dropdownColor: p.panel,
-                  borderRadius: BorderRadius.circular(10),
-                  icon: Icon(Icons.expand_more, color: p.muted),
-                  style: TextStyle(
-                    color: p.text,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  items: [
+      child: _FieldTile(
+        key: reminderFieldKey,
+        icon: shown == Task.silent
+            ? Icons.notifications_off_outlined
+            : Icons.notifications_none,
+        label: s.reminderLabel,
+        value: options[shown]!,
+        onTap: enabled
+            ? () async {
+                final picked = await choose<int>(
+                  context,
+                  title: s.reminderLabel,
+                  selected: shown,
+                  options: [
                     for (final MapEntry(key: lead, value: label)
                         in options.entries)
-                      DropdownMenuItem(value: lead, child: Text(label)),
+                      Option(lead, label),
                   ],
-                  onChanged: enabled
-                      ? (v) => onChanged(
-                          v == null || v == _followSettings ? null : v,
-                        )
-                      : null,
-                ),
-              ),
-            ),
-          ],
-        ),
+                );
+                if (picked == null || picked == shown) return;
+                onChanged(picked == _followSettings ? null : picked);
+              }
+            : null,
       ),
     );
   }
 }
 
-/// The form's reminder dropdown.
+/// The form's reminder row.
 const reminderFieldKey = Key('reminder-field');
 
 /// A row of priority chips — a segmented control that wraps instead of

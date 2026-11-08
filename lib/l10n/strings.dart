@@ -382,6 +382,7 @@ class S {
   String remindLead(String lead) => _fill('remindLead', {'lead': lead});
   String remindOnDayAt(String time) => _fill('remindOnDayAt', {'time': time});
   String get remindDayBefore => _word('remindDayBefore');
+  String get reminderLabel => _word('reminderLabel');
   String get noReminder => _word('noReminder');
   String get sectionPriority => _word('sectionPriority');
   String priorityName(Priority priority) => _word('priority.${priority.name}');

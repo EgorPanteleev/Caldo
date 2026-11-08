@@ -160,6 +160,7 @@ const Map<String, Object> kk = {
   'remindLead': "Еске салу: {lead}",
   'remindOnDayAt': "Сол күні {time} еске салу",
   'remindDayBefore': "Бір күн бұрын еске салу",
+  'reminderLabel': "Еске салу",
   'noReminder': "Еске салусыз",
   'sectionPriority': "БАСЫМДЫҚ",
   'priority.none': "Жоқ",

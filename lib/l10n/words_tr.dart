@@ -159,6 +159,7 @@ const Map<String, Object> tr = {
   'remindLead': "Hatırlat: {lead}",
   'remindOnDayAt': "Aynı gün saat {time}'da hatırlat",
   'remindDayBefore': "Bir gün önce hatırlat",
+  'reminderLabel': "Hatırlatıcı",
   'noReminder': "Hatırlatma yok",
   'sectionPriority': "ÖNCELİK",
   'priority.none': "Yok",

@@ -165,6 +165,7 @@ const Map<String, Object> nl = {
   'remindLead': "Herinneren {lead}",
   'remindOnDayAt': "Herinneren op de dag zelf om {time}",
   'remindDayBefore': "Herinneren de dag ervoor",
+  'reminderLabel': "Herinnering",
   'noReminder': "Geen herinnering",
   'sectionPriority': "PRIORITEIT",
   'priority.none': "Geen",

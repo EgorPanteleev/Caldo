@@ -11,6 +11,7 @@ import '../services/reminders.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
@@ -204,13 +205,13 @@ List<Widget> _screens(BuildContext context, SettingsProvider settings, S s) {
           title: s.startScreen,
           value: _screenName(s, settings.startScreen),
           onTap: () async {
-            final screen = await _choose(
+            final screen = await choose(
               context,
               title: s.startScreen,
               selected: settings.startScreen,
               options: [
                 for (final screen in shown)
-                  _Option(
+                  Option(
                     screen,
                     _screenName(s, screen),
                     icon: menuItems[screen.index].icon,
@@ -258,16 +259,16 @@ List<Widget> _general(BuildContext context, SettingsProvider settings, S s) {
               ? s.followPhone(phone)
               : S.names[settings.language]!,
           onTap: () async {
-            final code = await _choose(
+            final code = await choose(
               context,
               title: s.language,
               selected: settings.language ?? '',
               // Each named in itself, so whichever language is on screen,
               // the way back to one's own can be read.
               options: [
-                _Option('', s.followPhone(phone)),
+                Option('', s.followPhone(phone)),
                 for (final MapEntry(key: code, value: name) in S.names.entries)
-                  _Option(code, name),
+                  Option(code, name),
               ],
             );
             if (code == null) return;
@@ -285,14 +286,14 @@ List<Widget> _general(BuildContext context, SettingsProvider settings, S s) {
           title: s.timesWritten,
           value: _timeFormats[settings.use24Hour]!,
           onTap: () async {
-            final h24 = await _choose(
+            final h24 = await choose(
               context,
               title: s.timesWritten,
               selected: settings.use24Hour,
               options: [
                 for (final MapEntry(key: h24, value: name)
                     in _timeFormats.entries)
-                  _Option(h24, name),
+                  Option(h24, name),
               ],
             );
             if (h24 != null) settings.update(use24Hour: h24);
@@ -316,22 +317,22 @@ List<Widget> _appearance(
         title: s.theme,
         value: _themeNames(s)[settings.themeMode]!,
         onTap: () async {
-          final mode = await _choose(
+          final mode = await choose(
             context,
             title: s.theme,
             selected: settings.themeMode,
             options: [
-              _Option(
+              Option(
                 ThemeMode.dark,
                 s.themeDark,
                 icon: Icons.dark_mode_outlined,
               ),
-              _Option(
+              Option(
                 ThemeMode.light,
                 s.themeLight,
                 icon: Icons.light_mode_outlined,
               ),
-              _Option(
+              Option(
                 ThemeMode.system,
                 s.themeSystem,
                 icon: Icons.brightness_auto_outlined,
@@ -394,15 +395,15 @@ List<Widget> _calendar(BuildContext context, SettingsProvider settings, S s) {
                     Holidays.countries[settings.holidayCountry]!,
                   ),
             onTap: () async {
-              final code = await _choose(
+              final code = await choose(
                 context,
                 title: s.holidayCountry,
                 selected: settings.holidayCountry ?? '',
                 options: [
-                  _Option('', followCountry),
+                  Option('', followCountry),
                   for (final MapEntry(key: code, value: name)
                       in Holidays.countries.entries)
-                    _Option(code, s.country(code, name)),
+                    Option(code, s.country(code, name)),
                 ],
               );
               if (code == null) return;
@@ -635,7 +636,7 @@ List<Widget> _reminders(
           value: _capital(Dates.lead(settings.reminderLead)),
           onTap: () async {
             const leads = SettingsProvider.leads;
-            final lead = await _choose(
+            final lead = await choose(
               context,
               title: s.timedTasks,
               selected: leads.contains(settings.reminderLead)
@@ -643,7 +644,7 @@ List<Widget> _reminders(
                   : leads.first,
               options: [
                 for (final lead in leads)
-                  _Option(lead, _capital(Dates.lead(lead))),
+                  Option(lead, _capital(Dates.lead(lead))),
               ],
             );
             if (lead != null) settings.update(reminderLead: lead);
@@ -873,134 +874,6 @@ class _SwitchRow extends StatelessWidget {
         value: value,
         onChanged: enabled ? onChanged : null,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      ),
-    );
-  }
-}
-
-/// One of the choices a sheet offers.
-class _Option<T> {
-  final T value;
-  final String label;
-  final IconData? icon;
-
-  const _Option(this.value, this.label, {this.icon});
-}
-
-/// Offers [options] in a sheet from the foot of the screen, the one in force
-/// ticked, and gives back the one tapped — or null if the sheet was put away.
-Future<T?> _choose<T>(
-  BuildContext context, {
-  required String title,
-  required T selected,
-  required List<_Option<T>> options,
-}) {
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * 0.7,
-    ),
-    builder: (_) => PickerSheet(
-      child: _Choices<T>(title: title, selected: selected, options: options),
-    ),
-  );
-}
-
-class _Choices<T> extends StatefulWidget {
-  final String title;
-  final T selected;
-  final List<_Option<T>> options;
-
-  const _Choices({
-    required this.title,
-    required this.selected,
-    required this.options,
-  });
-
-  @override
-  State<_Choices<T>> createState() => _ChoicesState<T>();
-}
-
-class _ChoicesState<T> extends State<_Choices<T>> {
-  final _ticked = GlobalKey();
-
-  @override
-  void initState() {
-    super.initState();
-    // A long list opens on the choice in force rather than at its top: the
-    // holiday countries run past the sheet, and the one ticked may be among
-    // the last of them.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ticked = _ticked.currentContext;
-      if (ticked != null) Scrollable.ensureVisible(ticked, alignment: 0.5);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 8),
-            child: Text(
-              widget.title,
-              style: TextStyle(
-                color: p.text,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          for (final option in widget.options)
-            _Choice(
-              key: option.value == widget.selected ? _ticked : null,
-              option: option,
-              ticked: option.value == widget.selected,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Choice<T> extends StatelessWidget {
-  final _Option<T> option;
-  final bool ticked;
-
-  const _Choice({super.key, required this.option, required this.ticked});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return InkWell(
-      onTap: () => Navigator.pop(context, option.value),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 14, 20, 14),
-        child: Row(
-          children: [
-            if (option.icon != null) ...[
-              Icon(option.icon, size: 21, color: ticked ? p.text : p.muted),
-              const SizedBox(width: 16),
-            ],
-            Expanded(
-              child: Text(
-                option.label,
-                style: TextStyle(
-                  color: ticked ? p.text : p.muted,
-                  fontSize: 15.5,
-                  fontWeight: ticked ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-            ),
-            if (ticked) Icon(Icons.check_rounded, size: 22, color: p.text),
-          ],
-        ),
       ),
     );
   }

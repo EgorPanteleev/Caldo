@@ -45,7 +45,7 @@ lib/
                          date_time_pickers, repeat_sheet, day_sheet, day_hours,
                          menu_button, put_off,
                          quick_add_bar, screen_header (+ TodayButton),
-                         theme_switcher, slide_into_place,
+                         theme_switcher, slide_into_place, choice_sheet,
                          tick_off (+ AsShown), carry, selection,
                          reorderable_task_list
 ```
@@ -244,7 +244,7 @@ Changing them back will be noticed.
   holidays and the phone's calendars a panel each, clearing completed
   tasks on its own away from the switch above it.
 - **Every page of Settings is a panel per section, the way the phone's own are drawn**
-  (`_Group`, `_Row`, `_SwitchRow`, `_choose`): a row is an icon, what it is,
+  (`_Group`, `_Row`, `_SwitchRow`, `choose`): a row is an icon, what it is,
   and under that what it is set to; a tap flips its switch or opens a sheet
   of the choices, the one in force ticked. Asked for as "make settings better
   at all". It was a stack of separately outlined boxes with a segmented bar,
@@ -1126,7 +1126,10 @@ Changing them back will be noticed.
   in it means nothing. The form offers minutes for a timed task, and both
   kinds 1, 2 or 3 days or 1 or 2 weeks ahead (`SettingsProvider.dayLeads`) —
   "the day before" alone was too little for a birthday, which is what it was
-  asked for.
+  asked for. The choice is a row of the form like Due date and Repeat,
+  opening the sheet Settings chooses from (`choose`, `choice_sheet.dart`);
+  it was a Material dropdown, the one control on the form that was not a
+  row opening a sheet.
 - **The home-screen widget is Schedule in small** (`TodayWidget.kt`,
   `TodayWidgetRuns.kt`): Overdue, Today, Tomorrow and each later day with
   something on it, the cards inked as the app inks them, a tick that works

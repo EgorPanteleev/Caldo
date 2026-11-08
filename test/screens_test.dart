@@ -1027,6 +1027,8 @@ void main() {
           .first,
     );
     expect(find.text('Remind at the time'), findsOneWidget);
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
     await tester.tap(field);
     await tester.pumpAndSettle();
     expect(find.text('Remind 15 min before'), findsWidgets);
@@ -1034,7 +1036,7 @@ void main() {
     expect(find.text('Remind 3 days before'), findsWidgets);
     expect(find.text('Remind 2 weeks before'), findsWidgets);
     expect(find.text('Remind the day before'), findsNothing);
-    // The menu is long enough now to scroll on a small phone.
+    // The sheet is long enough to scroll on a small phone.
     await tester.ensureVisible(find.text('No reminder').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('No reminder').last);

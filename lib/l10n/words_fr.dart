@@ -166,6 +166,7 @@ const Map<String, Object> fr = {
   'remindLead': "Rappel {lead}",
   'remindOnDayAt': "Rappel le jour même à {time}",
   'remindDayBefore': "Rappel la veille",
+  'reminderLabel': "Rappel",
   'noReminder': "Pas de rappel",
   'sectionPriority': "PRIORITÉ",
   'priority.none': "Aucune",
