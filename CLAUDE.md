@@ -178,6 +178,17 @@ Changing them back will be noticed.
   jumped to; watching a month of days fly past says nothing. The two pagers
   each ignore the change the other has already made, which is what keeps a
   swipe across a month boundary from bouncing.
+- **In the week, a sideways swipe turns a week** (`_weekController`,
+  `_weekShown`). While the grid rests on the week a second pager lies over
+  the month's, a page per week, each drawing the same `MonthGrid` held at
+  its week state — so the swap at rest changes no pixel. A swipe keeps to
+  the weekday picked (Tuesday to Tuesday) and cuts the day panel and the
+  hidden month across rather than sliding them: seven day pages passing
+  under the grid in a quarter second was a smear. The month pager takes
+  over again the moment the grid moves off the week, and while a card is
+  carried, since the carry turns months and finds its days through the
+  month's layout. It is driven to the selected week like the other two
+  pagers (`_selectDay`), and ignored while driven (`_driving`).
 - **Week rules only arrive at the end of the opening** (`weekRuleAlpha`, last
   quarter) and never while the month is shrinking.
 - **Which screen the app opens on is a setting** — any of Schedule,
@@ -1331,7 +1342,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 187 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 188 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1505,7 +1516,6 @@ Three things that look like bugs and are not:
 
 ## Known gaps
 
-- In week view, swiping sideways still pages by **month**, not by week.
 - Holiday names are in each country's own language, except the English-
   speaking ones and Canada, which is English only.
 - The debug keyboard numbers (long press on the Settings title) are English

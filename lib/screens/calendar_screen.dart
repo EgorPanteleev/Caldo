@@ -60,6 +60,19 @@ class _CalendarScreenState extends State<CalendarScreen>
   late final DateTime _baseDay;
   late final PageController _dayController;
 
+  /// The week pager, which takes the grid's sideways swipes while it is down
+  /// to a week, so a swipe there turns a week rather than a month. Page
+  /// [_baseWeekPage] is the week [_baseDay] falls in.
+  static const _baseWeekPage = 6000;
+  late final PageController _weekController;
+
+  /// Whether the week pager is the one on show: only while the grid rests
+  /// on the week, and not while a card is carried — the carry turns months
+  /// and finds its days through the month's layout. It draws the same
+  /// `MonthGrid` the month pager does, held at the week, so swapping one
+  /// for the other at rest changes no pixel.
+  final _weekShown = ValueNotifier<bool>(false);
+
   /// Where the grid sits between its three states: -1 is the selected day's
   /// week alone, 0 the compact month with the day's tasks below it, and 1 the
   /// month opened to the full screen with each day's tasks written out.
@@ -89,6 +102,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     _controller = PageController(initialPage: _basePage);
     _baseDay = dayOf(now);
     _dayController = PageController(initialPage: _baseDayPage);
+    _weekController = PageController(initialPage: _baseWeekPage);
     _expansion = AnimationController(
       vsync: this,
       lowerBound: -1,
@@ -98,6 +112,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     );
     _expansion.addListener(_leaveWeek);
     _carry.addListener(_watchEdges);
+    _carry.addListener(_showWeek);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<TaskProvider>().loadMonth(_baseMonth);
@@ -113,6 +128,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     _carry.dispose();
     _controller.dispose();
     _dayController.dispose();
+    _weekController.dispose();
+    _weekShown.dispose();
     _expansion.dispose();
     _dayLists.dispose();
     _quickAdd.dispose();
@@ -245,6 +262,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     final atWeek = _expansion.value <= -1 + 1e-6;
     if (atWeek == _atWeek) return;
     _atWeek = atWeek;
+    _showWeek();
     if (atWeek) return;
     for (final position in _dayLists.positions) {
       if (position.pixels <= position.minScrollExtent) continue;
@@ -255,6 +273,8 @@ class _CalendarScreenState extends State<CalendarScreen>
       );
     }
   }
+
+  void _showWeek() => _weekShown.value = _atWeek && _carry.task == null;
 
   void _onDrag(DragUpdateDetails details) => _dragBy(details.primaryDelta!);
 
@@ -331,8 +351,10 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   /// Moves to [day], sliding the day below the grid across to it and taking
-  /// the month with it when the day is in another one.
-  void _selectDay(DateTime day, {bool openSheet = true}) {
+  /// the month with it when the day is in another one. With [jump], both are
+  /// cut to instead: a week turned by a swipe has already moved the grid,
+  /// and seven days sliding past under it in a quarter second is a smear.
+  void _selectDay(DateTime day, {bool openSheet = true, bool jump = false}) {
     if (day != _selected) {
       setState(() => _selected = day);
       // Both pagers report every page their animation passes through, and a
@@ -340,7 +362,11 @@ class _CalendarScreenState extends State<CalendarScreen>
       // for a new pick and sent the other pager off after it, which is how
       // tapping Today moved the selection back but left the grid a month away.
       _driving = true;
-      Future.wait([_goToDayPage(day), _goToMonthOf(day)]).whenComplete(() {
+      Future.wait([
+        _goToDayPage(day, jump: jump),
+        _goToMonthOf(day, jump: jump),
+        _goToWeekOf(day),
+      ]).whenComplete(() {
         if (mounted) _driving = false;
       });
     }
@@ -377,12 +403,12 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// Slides the day panel to [day]. A neighbouring day slides across; a day
   /// weeks away is not worth watching every day in between scroll past, so it
   /// is cut to straight away.
-  Future<void> _goToDayPage(DateTime day) async {
+  Future<void> _goToDayPage(DateTime day, {bool jump = false}) async {
     if (!_dayController.hasClients) return;
     final page = _baseDayPage + _daysBetween(_baseDay, day);
     final current = _dayController.page?.round() ?? page;
     if (current == page) return;
-    if ((current - page).abs() <= 10) {
+    if (!jump && (current - page).abs() <= 10) {
       await _dayController.animateToPage(
         page,
         duration: const Duration(milliseconds: 280),
@@ -395,7 +421,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   /// Brings the grid round to the month [day] falls in, if it is not there.
   /// A couple of months slide past; a year is cut to, for the same reason.
-  Future<void> _goToMonthOf(DateTime day) async {
+  Future<void> _goToMonthOf(DateTime day, {bool jump = false}) async {
     final page =
         _basePage +
         (day.year - _baseMonth.year) * 12 +
@@ -403,11 +429,68 @@ class _CalendarScreenState extends State<CalendarScreen>
     if (!_controller.hasClients) return;
     final current = _controller.page?.round() ?? page;
     if (current == page) return;
-    if ((current - page).abs() <= 3) {
+    if (!jump && (current - page).abs() <= 3) {
       await _goToPage(page);
     } else {
       _controller.jumpToPage(page);
     }
+  }
+
+  /// The first day of the week [day] is in, as Settings starts weeks.
+  static DateTime _weekStartOf(DateTime day, bool mondayFirst) => DateTime(
+    day.year,
+    day.month,
+    day.day - (mondayFirst ? day.weekday - 1 : day.weekday % 7),
+  );
+
+  bool get _mondayFirst => context.read<SettingsProvider>().weekStartsMonday;
+
+  int _weekPageOf(DateTime day, bool mondayFirst) =>
+      _baseWeekPage +
+      _daysBetween(
+            _weekStartOf(_baseDay, mondayFirst),
+            _weekStartOf(day, mondayFirst),
+          ) ~/
+          7;
+
+  /// The day a week page stands for: the selected one's weekday in that
+  /// week, so turning weeks keeps to Tuesdays if a Tuesday was picked.
+  DateTime _dayOfWeekPage(int page, bool mondayFirst) {
+    final start = _weekStartOf(_baseDay, mondayFirst);
+    final weekday = _daysBetween(
+      _weekStartOf(_selected, mondayFirst),
+      _selected,
+    );
+    return DateTime(
+      start.year,
+      start.month,
+      start.day + (page - _baseWeekPage) * 7 + weekday,
+    );
+  }
+
+  /// Brings the week pager round to [day]'s week: a slide to the next or
+  /// last one while it is on show, a cut otherwise.
+  Future<void> _goToWeekOf(DateTime day) async {
+    if (!_weekController.hasClients) return;
+    final page = _weekPageOf(day, _mondayFirst);
+    final current = _weekController.page?.round() ?? page;
+    if (current == page) return;
+    if (_weekShown.value && (current - page).abs() == 1) {
+      await _weekController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _weekController.jumpToPage(page);
+    }
+  }
+
+  void _onWeekPageChanged(int i) {
+    if (_driving) return;
+    final day = _dayOfWeekPage(i, _mondayFirst);
+    if (day == _selected) return;
+    _selectDay(day, openSheet: false, jump: true);
   }
 
   /// A month arrives under the grid: load it, and move the selection into it
@@ -744,25 +827,79 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 onVerticalDragStart: _onDragStart,
                                 onVerticalDragUpdate: _onDrag,
                                 onVerticalDragEnd: _onDragEnd,
-                                child: PageView.builder(
-                                  controller: _controller,
-                                  onPageChanged: _onMonthPageChanged,
-                                  itemBuilder: (context, i) => MonthGrid(
-                                    month: _monthOfPage(i),
-                                    selected: _selected,
-                                    mondayFirst: mondayFirst,
-                                    tasksByDay: provider.tasksByDay,
-                                    holidaysByDay: Holidays.around(
-                                      country,
-                                      _monthOfPage(i),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    PageView.builder(
+                                      controller: _controller,
+                                      onPageChanged: _onMonthPageChanged,
+                                      itemBuilder: (context, i) => MonthGrid(
+                                        month: _monthOfPage(i),
+                                        selected: _selected,
+                                        mondayFirst: mondayFirst,
+                                        tasksByDay: provider.tasksByDay,
+                                        holidaysByDay: Holidays.around(
+                                          country,
+                                          _monthOfPage(i),
+                                        ),
+                                        eventsByDay: events?.byDay ?? const {},
+                                        lists: provider.lists,
+                                        animation: _expansion,
+                                        openHeight: opened,
+                                        compactHeight: month,
+                                        onSelect: _selectDay,
+                                      ),
                                     ),
-                                    eventsByDay: events?.byDay ?? const {},
-                                    lists: provider.lists,
-                                    animation: _expansion,
-                                    openHeight: opened,
-                                    compactHeight: month,
-                                    onSelect: _selectDay,
-                                  ),
+                                    // Over the month while the grid rests on
+                                    // the week, so a swipe there turns a week.
+                                    // Kept in the tree when hidden, so it can be
+                                    // driven to the selected week at any time.
+                                    ValueListenableBuilder<bool>(
+                                      valueListenable: _weekShown,
+                                      builder: (context, shown, pager) =>
+                                          Offstage(
+                                            offstage: !shown,
+                                            child: pager,
+                                          ),
+                                      child: ColoredBox(
+                                        color: p.calendar,
+                                        child: PageView.builder(
+                                          controller: _weekController,
+                                          onPageChanged: _onWeekPageChanged,
+                                          itemBuilder: (context, i) {
+                                            final day = _dayOfWeekPage(
+                                              i,
+                                              mondayFirst,
+                                            );
+                                            final shown = DateTime(
+                                              day.year,
+                                              day.month,
+                                            );
+                                            return MonthGrid(
+                                              month: shown,
+                                              selected: day,
+                                              mondayFirst: mondayFirst,
+                                              tasksByDay: provider.tasksByDay,
+                                              holidaysByDay: Holidays.around(
+                                                country,
+                                                shown,
+                                              ),
+                                              eventsByDay:
+                                                  events?.byDay ?? const {},
+                                              lists: provider.lists,
+                                              animation:
+                                                  const AlwaysStoppedAnimation(
+                                                    -1.0,
+                                                  ),
+                                              openHeight: opened,
+                                              compactHeight: month,
+                                              onSelect: _selectDay,
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               );
 

@@ -448,6 +448,53 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('a swipe on the week turns a week, not a month', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const CalendarScreen());
+    final today = dayOf(DateTime.now());
+    MonthGrid shown() =>
+        tester.widget<MonthGrid>(find.byType(MonthGrid).hitTestable().first);
+
+    // Down to the week.
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(shown().selected, today);
+
+    // A swipe towards the start goes on a week, keeping to the weekday.
+    await tester.fling(
+      find.byType(MonthGrid).hitTestable().first,
+      const Offset(-300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    final next = DateTime(today.year, today.month, today.day + 7);
+    expect(shown().selected, next);
+    expect(shown().month, DateTime(next.year, next.month));
+
+    // And back again.
+    await tester.fling(
+      find.byType(MonthGrid).hitTestable().first,
+      const Offset(300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(shown().selected, today);
+
+    // Opened from the week, the month is the one the week was in.
+    await tester.fling(
+      find.byType(MonthGrid).hitTestable().first,
+      const Offset(-300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byKey(calendarHandleKey), const Offset(0, 200));
+    await tester.pumpAndSettle();
+    expect(shown().selected, next);
+    expect(shown().month, DateTime(next.year, next.month));
+    await drainDatabase(tester);
+  });
+
   testWidgets('the fade over the day goes as the month opens out', (
     tester,
   ) async {
