@@ -255,4 +255,8 @@ const Map<String, Object> tr = {
   'endsAfter': ["{n} kez sonra"],
   'putOffDay': "+1 gün",
   'pickDay': "Gün seç",
+  'endsAt': "Bitiş",
+  'endBeforeStart': "Başlamadan önce bitemez",
+  'dayAsList': "Liste",
+  'dayAsHours': "Saatler",
 };

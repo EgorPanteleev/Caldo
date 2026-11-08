@@ -19,6 +19,7 @@ import '../widgets/carry.dart';
 import '../widgets/day_sheet.dart';
 import '../widgets/groups.dart';
 import '../widgets/menu_button.dart';
+import '../widgets/day_hours.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/selection.dart';
@@ -939,6 +940,9 @@ class _CalendarScreenState extends State<CalendarScreen>
                                       rearranging: provider.rearranging,
                                       onReorder: provider.reorder,
                                       carry: _carry,
+                                      hours: settings.dayAsHours,
+                                      onHours: (on) =>
+                                          settings.update(dayAsHours: on),
                                     );
                                   },
                                 ),
@@ -1358,6 +1362,11 @@ class _DayPanel extends StatelessWidget {
   final ValueChanged<List<Task>> onReorder;
   final Carry<DateTime> carry;
 
+  /// Whether the day is drawn as hours rather than as a list, and the
+  /// switch on the bar that changes it.
+  final bool hours;
+  final ValueChanged<bool> onHours;
+
   const _DayPanel({
     required this.date,
     required this.tasks,
@@ -1380,6 +1389,8 @@ class _DayPanel extends StatelessWidget {
     required this.rearranging,
     required this.onReorder,
     required this.carry,
+    required this.hours,
+    required this.onHours,
   });
 
   TaskList? _listOf(Task task) {
@@ -1401,7 +1412,7 @@ class _DayPanel extends StatelessWidget {
           onVerticalDragStart: onDragStart,
           onVerticalDragUpdate: onDrag,
           onVerticalDragEnd: onDragEnd,
-          child: _DayBar(date: date),
+          child: _DayBar(date: date, hours: hours, onHours: onHours),
         ),
         Expanded(
           child: NotificationListener<ScrollNotification>(
@@ -1435,7 +1446,19 @@ class _DayPanel extends StatelessWidget {
             // only the placeholder's own little scroll view answered — most
             // of the panel did nothing, and a drag on the words moved the
             // grid a few points and left it stuck between states.
-            child: tasks.isEmpty && holidays.isEmpty && events.isEmpty
+            child: hours
+                ? DayHours(
+                    date: date,
+                    tasks: tasks,
+                    holidays: holidays,
+                    events: events,
+                    lists: lists,
+                    onOpen: onOpen,
+                    onToggle: onToggle,
+                    isTicking: isTicking,
+                    isLeaving: isLeaving,
+                  )
+                : tasks.isEmpty && holidays.isEmpty && events.isEmpty
                 ? GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onVerticalDragStart: onDragStart,
@@ -1478,16 +1501,23 @@ class _DayPanel extends StatelessWidget {
 }
 
 /// The bar between the grid and the day's task list: the day it is showing,
-/// and nothing else. The count and the button beside it were noise on a bar
-/// whose whole job is to say which day is below it.
+/// and the switch between the day as a list and as hours. The count and the
+/// full-form button that were once beside it were noise on a bar whose job
+/// is to say which day is below it; the switch is about that day.
 ///
 /// It sits on the same ground as the day below it. A shade of its own made a
 /// band across the screen and cut the day in two — the date and the things on
 /// that date are one panel, and the bar is only the top of it.
 class _DayBar extends StatelessWidget {
   final DateTime date;
+  final bool hours;
+  final ValueChanged<bool> onHours;
 
-  const _DayBar({required this.date});
+  const _DayBar({
+    required this.date,
+    required this.hours,
+    required this.onHours,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1522,6 +1552,59 @@ class _DayBar extends StatelessWidget {
               letterSpacing: 1,
             ),
           ),
+          const Spacer(),
+          _ViewSwitch(hours: hours, onChanged: onHours),
+        ],
+      ),
+    );
+  }
+}
+
+/// The day as a list or as hours: two icons in one pill, the one in force
+/// lifted. Neutral, as the app's other controls are.
+class _ViewSwitch extends StatelessWidget {
+  final bool hours;
+  final ValueChanged<bool> onChanged;
+
+  const _ViewSwitch({required this.hours, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    Widget half(IconData icon, String label, bool on, bool value) => Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        selected: on,
+        label: label,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onChanged(value),
+          // As tall as the date beside it, so the bar keeps its height.
+          child: Container(
+            width: 38,
+            height: 24,
+            decoration: BoxDecoration(
+              color: on ? p.panelHi : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 16, color: on ? p.text : p.faint),
+          ),
+        ),
+      ),
+    );
+    return Container(
+      padding: const EdgeInsets.all(1),
+      decoration: BoxDecoration(
+        color: p.field,
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          half(Icons.view_agenda_outlined, s.dayAsList, !hours, false),
+          half(Icons.schedule, s.dayAsHours, hours, true),
         ],
       ),
     );

@@ -281,4 +281,8 @@ const Map<String, Object> pl = {
   'endsAfter': ["Po {n} razie", "Po {n} razach", "Po {n} razach"],
   'putOffDay': "+1 dzień",
   'pickDay': "Wybierz",
+  'endsAt': "Koniec",
+  'endBeforeStart': "Koniec nie może być przed początkiem",
+  'dayAsList': "Lista",
+  'dayAsHours': "Godziny",
 };

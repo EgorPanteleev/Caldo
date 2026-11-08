@@ -262,4 +262,8 @@ const Map<String, Object> nl = {
   'endsAfter': ["Na {n} keer", "Na {n} keer"],
   'putOffDay': "+1 dag",
   'pickDay': "Kies dag",
+  'endsAt': "Eindigt",
+  'endBeforeStart': "Het einde kan niet vóór het begin liggen",
+  'dayAsList': "Lijst",
+  'dayAsHours': "Uren",
 };

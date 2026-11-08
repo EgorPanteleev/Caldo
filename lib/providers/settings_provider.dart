@@ -40,6 +40,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kHiddenCalendars = 'hidden_calendars';
   static const _kLanguage = 'language';
   static const _kLastBackup = 'last_backup';
+  static const _kDayAsHours = 'day_as_hours';
 
   /// The settings a backup carries. The phone's own calendars are left
   /// behind: their ids belong to the phone, and showing them needs a
@@ -59,6 +60,7 @@ class SettingsProvider extends ChangeNotifier {
     _kFullScreen,
     _kClock,
     _kLanguage,
+    _kDayAsHours,
   ];
 
   /// The screen the app opens on. Schedule out of the box: it is the one
@@ -137,6 +139,10 @@ class SettingsProvider extends ChangeNotifier {
   /// When a backup was last saved, or null if one never has been.
   DateTime? _lastBackup;
 
+  /// Whether the calendar's day panel shows the day as hours rather than as
+  /// a list. Kept, since which one is wanted is a habit, not a moment.
+  bool _dayAsHours = false;
+
   /// Whether times are written on a 24-hour clock: the choice made here, or
   /// the phone's own until there is one.
   bool get use24Hour =>
@@ -188,6 +194,7 @@ class SettingsProvider extends ChangeNotifier {
   int get reminderLead => _reminderLead;
   bool get fullScreenReminders => _fullScreen;
   DateTime? get lastBackup => _lastBackup;
+  bool get dayAsHours => _dayAsHours;
 
   /// Whether the stored settings have been read yet. Until they have, every
   /// one of them is its default, which is not what the user chose.
@@ -281,6 +288,7 @@ class SettingsProvider extends ChangeNotifier {
     _language = prefs.getString(_kLanguage);
     _showDeviceEvents = prefs.getBool(_kDeviceEvents) ?? _showDeviceEvents;
     _hiddenCalendars = {...?prefs.getStringList(_kHiddenCalendars)};
+    _dayAsHours = prefs.getBool(_kDayAsHours) ?? false;
     final backup = prefs.getInt(_kLastBackup);
     _lastBackup = backup == null
         ? null
@@ -348,6 +356,7 @@ class SettingsProvider extends ChangeNotifier {
     bool clearLanguage = false,
     bool? showDeviceEvents,
     Set<String>? hiddenCalendars,
+    bool? dayAsHours,
 
     /// Go back to following the device's country.
     bool clearHolidayCountry = false,
@@ -427,6 +436,10 @@ class SettingsProvider extends ChangeNotifier {
     if (hiddenCalendars != null) {
       _hiddenCalendars = hiddenCalendars;
       await prefs.setStringList(_kHiddenCalendars, [...hiddenCalendars]);
+    }
+    if (dayAsHours != null) {
+      _dayAsHours = dayAsHours;
+      await prefs.setBool(_kDayAsHours, dayAsHours);
     }
     if (reminderLead != null) {
       _reminderLead = reminderLead;

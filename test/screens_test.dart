@@ -13,6 +13,7 @@ import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/menu_button.dart';
+import 'package:caldo/widgets/day_hours.dart';
 import 'package:caldo/widgets/put_off.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:caldo/widgets/reorderable_task_list.dart';
@@ -272,7 +273,10 @@ void main() {
     expect(find.text('Save'), findsNothing);
 
     // Changing anything takes the way back away and puts two words at the
-    // foot instead, so there is no exit that quietly drops the edit.
+    // foot instead, so there is no exit that quietly drops the edit. (Back
+    // up to the title first: the list builds only what is near the screen.)
+    await tester.drag(find.byType(ListView), const Offset(0, 1200));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, 'Shipped');
     await tester.pumpAndSettle();
     expect(leadingAllowed(), isFalse);
@@ -492,6 +496,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(shown().selected, next);
     expect(shown().month, DateTime(next.year, next.month));
+    await drainDatabase(tester);
+  });
+
+  testWidgets('the day bar switches the day to hours and back', (tester) async {
+    await pumpScreen(tester, const CalendarScreen());
+    expect(find.byType(DayHours), findsNothing);
+    await tester.tap(find.byTooltip('Hours').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(DayHours), findsWidgets);
+    // Ship is timed, so it is a block on the hours rather than a card.
+    expect(find.text('Ship'), findsOneWidget);
+    await tester.tap(find.byTooltip('List').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(DayHours), findsNothing);
     await drainDatabase(tester);
   });
 

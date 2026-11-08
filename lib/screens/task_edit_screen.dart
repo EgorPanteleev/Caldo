@@ -42,6 +42,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   int? _selectedListId;
   DateTime? _date;
   TimeOfDay? _time;
+
+  /// How many minutes the task lasts from [_time], or null for no end.
+  int? _duration;
   Priority _priority = Priority.none;
   Repeat _repeat = Repeat.none;
 
@@ -88,7 +91,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final due = task?.due;
     if (due != null) {
       _date = DateTime(due.year, due.month, due.day);
-      if (task!.hasTime) _time = TimeOfDay(hour: due.hour, minute: due.minute);
+      if (task!.hasTime) {
+        _time = TimeOfDay(hour: due.hour, minute: due.minute);
+        _duration = task.duration;
+      }
     } else if (task == null && widget.initialDate != null) {
       _date = dayOf(widget.initialDate!);
     }
@@ -195,6 +201,39 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     }
   }
 
+  /// When the task ends, worked out from its start and length.
+  TimeOfDay? get _endTime {
+    final start = _time;
+    final minutes = _duration;
+    if (start == null || minutes == null) return null;
+    final end = start.hour * 60 + start.minute + minutes;
+    return TimeOfDay(hour: end ~/ 60 % 24, minute: end % 60);
+  }
+
+  /// Asks for the end; what is kept is the length from the start, so moving
+  /// the start later carries the end with it. An end at or before the start
+  /// is turned down rather than taken for the next day: a task here lives
+  /// on one day.
+  Future<void> _pickEnd() async {
+    final start = _time;
+    if (start == null) return;
+    final from = start.hour * 60 + start.minute;
+    final initial =
+        _endTime ??
+        TimeOfDay(hour: (from + 60) ~/ 60 % 24, minute: (from + 60) % 60);
+    final picked = await showAppTimePicker(context: context, initial: initial);
+    if (picked == null || !mounted) return;
+    final minutes = picked.hour * 60 + picked.minute - from;
+    if (minutes <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(S.of(context).endBeforeStart)));
+      return;
+    }
+    _touched();
+    setState(() => _duration = minutes);
+  }
+
   Future<void> _pickRepeat() async {
     final date = _date;
     if (date == null) return;
@@ -235,6 +274,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           createdAt: DateTime.now().millisecondsSinceEpoch,
           subtasks: _subtasks,
           remindBefore: _remindBefore,
+          duration: _time == null ? null : _duration,
         ),
       );
     } else {
@@ -259,6 +299,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           remindBefore: _remindBefore,
           clearRemindBefore: _remindBefore == null,
           clearSnoozedUntil: reminderMoved,
+          duration: _time == null ? null : _duration,
+          clearDuration: _time == null || _duration == null,
         ),
       );
     }
@@ -408,6 +450,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                         setState(() {
                                           _date = null;
                                           _time = null;
+                                          _duration = null;
                                           _repeat = Repeat.none;
                                         });
                                       },
@@ -429,10 +472,37 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                     ? null
                                     : () {
                                         _touched();
-                                        setState(() => _time = null);
+                                        setState(() {
+                                          _time = null;
+                                          _duration = null;
+                                        });
                                       },
                               ),
                               const SizedBox(height: 12),
+                              // Only a task with a start can have an end.
+                              if (_time != null) ...[
+                                _FieldTile(
+                                  icon: Icons.timelapse_outlined,
+                                  label: s.endsAt,
+                                  value: _duration == null
+                                      ? s.none
+                                      : Dates.clock(
+                                          _endTime!,
+                                          h24:
+                                              MediaQuery.alwaysUse24HourFormatOf(
+                                                context,
+                                              ),
+                                        ),
+                                  onTap: _pickEnd,
+                                  onClear: _duration == null
+                                      ? null
+                                      : () {
+                                          _touched();
+                                          setState(() => _duration = null);
+                                        },
+                                ),
+                                const SizedBox(height: 12),
+                              ],
                               // A task with no date has nothing to repeat
                               // from, so the row waits for one.
                               Opacity(

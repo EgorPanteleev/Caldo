@@ -87,7 +87,10 @@ class TaskCard extends StatelessWidget {
   String _when(S s, bool h24) {
     final due = task.due;
     if (due == null) return s.noDate;
-    return task.hasTime ? Dates.time(due, h24: h24) : s.allDay;
+    if (!task.hasTime) return s.allDay;
+    final end = task.end;
+    final from = Dates.time(due, h24: h24);
+    return end == null ? from : '$from – ${Dates.time(end, h24: h24)}';
   }
 
   @override

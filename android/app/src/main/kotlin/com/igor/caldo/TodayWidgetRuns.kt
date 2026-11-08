@@ -75,6 +75,8 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         val id: Long,
         val title: String,
         val minute: Int?,
+        /** Where a task with a length ends, in minutes from midnight. */
+        val end: Int?,
         val done: Boolean,
         val colour: Int,
         /** Its time written in red, as the app writes an overdue task's. */
@@ -120,6 +122,7 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
                 id = task.getLong("id"),
                 title = task.getString("title"),
                 minute = minute,
+                end = if (task.isNull("end")) null else task.optInt("end"),
                 done = done,
                 colour = task.getLong("colour").toInt(),
                 // `Task.isOverdue`: an earlier day, or a time today gone by.
@@ -362,7 +365,12 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         setInt(R.id.widget_ink, "setColorFilter", row.colour)
         setTextViewText(
             R.id.widget_time,
-            if (row.minute == null) words.getString(R.string.widget_all_day) else time(row.minute),
+            when {
+                row.minute == null -> words.getString(R.string.widget_all_day)
+                row.end == null -> time(row.minute)
+                // As the app writes it on its cards.
+                else -> "${time(row.minute)} – ${time(row.end)}"
+            },
         )
         setTextColor(R.id.widget_time, if (row.late) OVERDUE else MUTED)
     }

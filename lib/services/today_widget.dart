@@ -99,6 +99,10 @@ class TodayWidget {
       'title': task.title,
       'day': '${due.year}-${two(due.month)}-${two(due.day)}',
       'time': task.hasTime ? due.hour * 60 + due.minute : null,
+      'end': switch (task.end) {
+        final end? => end.hour * 60 + end.minute,
+        null => null,
+      },
       'done': task.done,
       // A repeating task rolls on to its next date when ticked, so on the
       // widget, as in the app, its card leaves the run rather than sliding

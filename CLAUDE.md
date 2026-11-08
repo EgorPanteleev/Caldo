@@ -24,7 +24,7 @@ lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
   l10n/strings.dart      every word the app says; words_*.dart, a table
                          per language
-  db/database.dart       schema v7: lists, tasks, completions (+ migrations)
+  db/database.dart       schema v8: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart,
@@ -42,7 +42,7 @@ lib/
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard), task_row,
                          colour_selector, groups,
-                         date_time_pickers, repeat_sheet, day_sheet,
+                         date_time_pickers, repeat_sheet, day_sheet, day_hours,
                          menu_button, put_off,
                          quick_add_bar, screen_header, selection_bar,
                          theme_switcher, slide_into_place,
@@ -190,6 +190,28 @@ Changing them back will be noticed.
   carried, since the carry turns months and finds its days through the
   month's layout. It is driven to the selected week like the other two
   pagers (`_selectDay`), and ignored while driven (`_driving`).
+- **A timed task can have an end, and the day can be read as hours**
+  (`Task.duration`, schema v8; `DayHours`; `SettingsProvider.dayAsHours`).
+  The end is stored as a length in minutes, not a moment, so a move, a
+  roll on or a new start carries it with nothing to remember; it lives on
+  one day, and an end at or before the start is turned down on the form
+  ("Ends", under Time). Cards, the hours and the widget write it as
+  "15:00 – 16:30", as the app already wrote an event's span. The hours
+  view replaces the day panel's list when the bar is switched to it, and
+  the choice is kept: untimed tasks, holidays and all-day events as dense
+  cards across the top, then midnight to midnight with each timed task
+  and event a block from start to end (half an hour for one with no end,
+  enough for its title), overlapping ones side by side, a red line at now
+  on today. Tap a task's block to open it, an event's to open it in the
+  calendar app. It opens a little above what began in the two hours
+  before now, or now, on today; on another day above its first thing, or
+  at eight. Until a finger moves it, it is placed again whenever the day's
+  contents change — the phone's events arrive after the tasks, and an
+  all-day one landing above the timeline pushed it a card down from where
+  it had been placed. It scrolls whatever state the grid is in (held as
+  the list is, it would show nothing past five in the morning), and a pull
+  past either end still reaches the grid through the panel's listener.
+  The opened month's day sheet stays a list.
 - **Week rules only arrive at the end of the opening** (`weekRuleAlpha`, last
   quarter) and never while the month is shrinking.
 - **Which screen the app opens on is a setting** — any of Schedule,
@@ -484,10 +506,13 @@ Changing them back will be noticed.
   only the top of it. The strip under the add field follows, so it is the
   panel's grey while the day is on screen and the calendar's black once the
   month is opened out over it.
-- **The day bar names its day and nothing else.** The open-count and the
-  full-form button beside it were noise on a bar whose whole job is to say
-  which day is below it; the full form is still reached from the day card's
-  header, or by tapping a task.
+- **The day bar names its day, and switches it between a list and hours.**
+  The open-count and the full-form button once beside it were noise on a
+  bar whose whole job is to say which day is below it; the full form is
+  still reached from the day card's header, or by tapping a task. The
+  switch (`_ViewSwitch`) was chosen from mockups as the place for the
+  hours view; it is as tall as the date beside it, so the bar keeps its
+  height.
 - **The calendar's header is two rows**: the controls across the top — the
   menu button on the left, Search and Today on the right — and the month name
   alone on the row beneath. Sharing one row meant the name had to be kept clear
@@ -1386,7 +1411,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 200 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 207 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

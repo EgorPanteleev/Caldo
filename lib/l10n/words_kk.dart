@@ -256,4 +256,8 @@ const Map<String, Object> kk = {
   'endsAfter': ["{n} реттен кейін"],
   'putOffDay': "+1 күн",
   'pickDay': "Таңдау",
+  'endsAt': "Аяқталуы",
+  'endBeforeStart': "Аяқталуы басталуынан ерте бола алмайды",
+  'dayAsList': "Тізім",
+  'dayAsHours': "Сағат бойынша",
 };

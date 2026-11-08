@@ -276,4 +276,8 @@ const Map<String, Object> ru = {
   'endsAfter': ["После {n} раза", "После {n} раз", "После {n} раз"],
   'putOffDay': "+1 день",
   'pickDay': "Выбрать",
+  'endsAt': "Окончание",
+  'endBeforeStart': "Конец не может быть раньше начала",
+  'dayAsList': "Список",
+  'dayAsHours': "По часам",
 };

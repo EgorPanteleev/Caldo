@@ -323,6 +323,10 @@ class S {
   String get dueDate => _word('dueDate');
   String get time => _word('time');
   String get none => _word('none');
+  String get endsAt => _word('endsAt');
+  String get endBeforeStart => _word('endBeforeStart');
+  String get dayAsList => _word('dayAsList');
+  String get dayAsHours => _word('dayAsHours');
   String get putOffDay => _word('putOffDay');
   String get pickDay => _word('pickDay');
   String get repeatLabel => _word('repeatLabel');

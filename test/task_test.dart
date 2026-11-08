@@ -136,6 +136,27 @@ void main() {
     });
   });
 
+  group('a task with a length', () {
+    final start = DateTime(2026, 11, 4, 13);
+
+    test('ends its length after it starts, and only with a time', () {
+      final task = taskDue(start, hasTime: true).copyWith(duration: 90);
+      expect(task.end, DateTime(2026, 11, 4, 14, 30));
+      expect(taskDue(start).copyWith(duration: 90).end, isNull);
+      expect(taskDue(start, hasTime: true).end, isNull);
+      expect(Task.fromMap(task.toMap()).duration, 90);
+    });
+
+    test('keeps its length when it rolls on', () {
+      final task = taskDue(
+        start,
+        hasTime: true,
+      ).copyWith(duration: 45, repeat: Repeat.weekly);
+      final next = task.completed(1);
+      expect(next.end, DateTime(2026, 11, 11, 13, 45));
+    });
+  });
+
   group('Repeat.next', () {
     test('adds a day, a week', () {
       final from = DateTime(2026, 3, 10, 9, 30);

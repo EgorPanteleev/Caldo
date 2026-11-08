@@ -266,4 +266,8 @@ const Map<String, Object> de = {
   'endsAfter': ["Nach {n} Mal", "Nach {n} Mal"],
   'putOffDay': "+1 Tag",
   'pickDay': "Tag wählen",
+  'endsAt': "Endet",
+  'endBeforeStart': "Das Ende kann nicht vor dem Beginn liegen",
+  'dayAsList': "Liste",
+  'dayAsHours': "Stunden",
 };

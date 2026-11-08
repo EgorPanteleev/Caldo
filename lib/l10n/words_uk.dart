@@ -279,4 +279,8 @@ const Map<String, Object> uk = {
   'endsAfter': ["Після {n} разу", "Після {n} разів", "Після {n} разів"],
   'putOffDay': "+1 день",
   'pickDay': "Вибрати",
+  'endsAt': "Закінчення",
+  'endBeforeStart': "Кінець не може бути раніше за початок",
+  'dayAsList': "Список",
+  'dayAsHours': "По годинах",
 };

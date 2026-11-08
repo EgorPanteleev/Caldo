@@ -247,4 +247,8 @@ const Map<String, Object> en = {
   'endsAfter': ["After {n} time", "After {n} times"],
   'putOffDay': "+1 day",
   'pickDay': "Pick day",
+  'endsAt': "Ends",
+  'endBeforeStart': "It can't end before it starts",
+  'dayAsList': "List",
+  'dayAsHours': "Hours",
 };

@@ -279,4 +279,8 @@ const Map<String, Object> be = {
   'endsAfter': ["Пасля {n} разу", "Пасля {n} разоў", "Пасля {n} разоў"],
   'putOffDay': "+1 дзень",
   'pickDay': "Выбраць",
+  'endsAt': "Заканчэнне",
+  'endBeforeStart': "Канец не можа быць раней за пачатак",
+  'dayAsList': "Спіс",
+  'dayAsHours': "Па гадзінах",
 };

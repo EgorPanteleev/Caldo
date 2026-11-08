@@ -262,4 +262,8 @@ const Map<String, Object> es = {
   'endsAfter': ["Tras {n} vez", "Tras {n} veces"],
   'putOffDay': "+1 día",
   'pickDay': "Elegir",
+  'endsAt': "Termina",
+  'endBeforeStart': "No puede terminar antes de empezar",
+  'dayAsList': "Lista",
+  'dayAsHours': "Horas",
 };

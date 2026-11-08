@@ -263,4 +263,8 @@ const Map<String, Object> fr = {
   'endsAfter': ["Après {n} fois", "Après {n} fois"],
   'putOffDay': "+1 jour",
   'pickDay': "Choisir",
+  'endsAt': "Fin",
+  'endBeforeStart': "La fin ne peut pas précéder le début",
+  'dayAsList': "Liste",
+  'dayAsHours': "Heures",
 };

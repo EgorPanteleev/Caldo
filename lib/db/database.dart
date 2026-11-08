@@ -12,7 +12,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 7;
+  static const _dbVersion = 8;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -61,7 +61,8 @@ class AppDatabase {
             subtasks TEXT NOT NULL DEFAULT '[]',
             remind_before INTEGER,
             snoozed_until INTEGER,
-            started_at INTEGER
+            started_at INTEGER,
+            duration INTEGER
           )
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
@@ -111,6 +112,11 @@ class AppDatabase {
           // v6 -> a task can be put in progress on the board. Null for every
           // task there already is: none of them has been.
           await db.execute('ALTER TABLE $_tasks ADD COLUMN started_at INTEGER');
+        }
+        if (oldVersion < 8) {
+          // v7 -> a timed task can have a length, and so an end. Null for
+          // every task there already is: each only ever had a start.
+          await db.execute('ALTER TABLE $_tasks ADD COLUMN duration INTEGER');
         }
       },
     );

@@ -351,6 +351,12 @@ class Task {
   /// been started, and a done one is past being in progress.
   final int? startedAt;
 
+  /// How many minutes a timed task lasts, or null for one that only has a
+  /// start. Kept as a length rather than an end, so moving the task, rolling
+  /// it on or changing its start carries the end along with nothing to
+  /// remember.
+  final int? duration;
+
   /// [remindBefore] for a task that is never announced.
   static const silent = -1;
 
@@ -372,7 +378,16 @@ class Task {
     this.remindBefore,
     this.snoozedUntil,
     this.startedAt,
+    this.duration,
   });
+
+  /// When a timed task with a length ends, or null.
+  DateTime? get end {
+    final d = due;
+    final minutes = duration;
+    if (!hasTime || d == null || minutes == null) return null;
+    return d.add(Duration(minutes: minutes));
+  }
 
   /// Whether ticking this task off rolls it on to its next date rather than
   /// closing it.
@@ -478,6 +493,8 @@ class Task {
     bool clearSnoozedUntil = false,
     int? startedAt,
     bool clearStartedAt = false,
+    int? duration,
+    bool clearDuration = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -501,6 +518,7 @@ class Task {
           ? null
           : (snoozedUntil ?? this.snoozedUntil),
       startedAt: clearStartedAt ? null : (startedAt ?? this.startedAt),
+      duration: clearDuration ? null : (duration ?? this.duration),
     );
   }
 
@@ -523,6 +541,7 @@ class Task {
       'remind_before': remindBefore,
       'snoozed_until': snoozedUntil,
       'started_at': startedAt,
+      'duration': duration,
     };
   }
 
@@ -545,6 +564,7 @@ class Task {
       remindBefore: map['remind_before'] as int?,
       snoozedUntil: map['snoozed_until'] as int?,
       startedAt: map['started_at'] as int?,
+      duration: map['duration'] as int?,
     );
   }
 
