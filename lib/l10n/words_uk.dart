@@ -80,7 +80,6 @@ const Map<String, Object> uk = {
   'themeDark': "Темна",
   'themeLight': "Світла",
   'themeSystem': "Системна",
-  'sectionCalendar': "КАЛЕНДАР",
   'weekStartsMonday': "Тиждень з понеділка",
   'weeksMonSun': "З понеділка до неділі",
   'weeksSunSat': "З неділі до суботи",

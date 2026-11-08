@@ -160,7 +160,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       MaterialPageRoute(builder: (_) => const SearchScreen()),
                     ),
                   ),
-                  _TodayButton(onTap: _jumpToToday),
+                  TodayButton(onTap: _jumpToToday),
                   const SizedBox(width: 6),
                 ],
               ),
@@ -278,49 +278,6 @@ class _TasksScreenState extends State<TasksScreen> {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Back to today, drawn as today's date on a page.
-class _TodayButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _TodayButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Tooltip(
-      message: S.of(context).today,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(9),
-          child: Padding(
-            padding: const EdgeInsets.all(7),
-            child: Container(
-              width: 27,
-              height: 27,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(color: p.muted, width: 1.6),
-              ),
-              child: Text(
-                '${DateTime.now().day}',
-                style: TextStyle(
-                  color: p.text,
-                  fontSize: 13,
-                  height: 1,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
           ),
         ),
       ),

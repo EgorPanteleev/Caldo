@@ -44,9 +44,10 @@ lib/
                          colour_selector, groups,
                          date_time_pickers, repeat_sheet, day_sheet, day_hours,
                          menu_button, put_off,
-                         quick_add_bar, screen_header, selection_bar,
+                         quick_add_bar, screen_header (+ TodayButton), selection_bar,
                          theme_switcher, slide_into_place,
-                         tick_off (+ AsShown), carry, selection
+                         tick_off (+ AsShown), carry, selection,
+                         reorderable_task_list
 ```
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
@@ -656,7 +657,7 @@ Changing them back will be noticed.
   this is built for, black is black rather than a very dark grey. Everything
   above it is a raised grey instead.
 - **The controls are neutral; the accent is kept for what is rare**
-  (`AppTheme._build`'s segmented, text-button, filled-button, input-focus
+  (`AppTheme._build`'s text-button, filled-button, input-focus
   and selection themes; the menu's current entry; the carry marks). The
   selected segment and the open screen in the menu are lifted in `field` grey, a
   focused field is outlined in `muted`, and a dialog's buttons are plain

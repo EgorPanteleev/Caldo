@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/strings.dart';
 import '../theme/app_theme.dart';
 import 'menu_button.dart';
 
@@ -239,6 +240,51 @@ class DayHeader extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Back to today, drawn as today's date on a page — the same thing a desk
+/// calendar's torn-off sheet says, and it names the day it will take you to.
+/// Schedule and the calendar both carry it.
+class TodayButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const TodayButton({super.key, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Tooltip(
+      message: S.of(context).today,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(9),
+          child: Padding(
+            padding: const EdgeInsets.all(7),
+            child: Container(
+              width: 27,
+              height: 27,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: p.muted, width: 1.6),
+              ),
+              child: Text(
+                '${DateTime.now().day}',
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 13,
+                  height: 1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

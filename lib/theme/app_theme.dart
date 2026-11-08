@@ -9,8 +9,6 @@ import 'package:flutter/material.dart';
 class AppColors {
   // Accent (violet → indigo)
   static const accent = Color(0xFF7B61E8);
-  static const accent2 = Color(0xFF5B4BC4);
-  static const accentSoft = Color(0xFF9C87F0);
 
   // Dark surfaces. The ground is true black — the calendar's already was, and
   // the app around it reading a shade lighter put a seam down the screen on
@@ -381,20 +379,6 @@ class AppTheme {
       // finger), and the switches, which were asked to keep it: a switch
       // that is on is the one control whose state is read from across the
       // room.
-      segmentedButtonTheme: SegmentedButtonThemeData(
-        style: ButtonStyle(
-          backgroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.selected)
-                ? p.field
-                : Colors.transparent,
-          ),
-          foregroundColor: WidgetStateProperty.resolveWith(
-            (states) =>
-                states.contains(WidgetState.selected) ? p.text : p.muted,
-          ),
-          side: WidgetStatePropertyAll(BorderSide(color: p.border)),
-        ),
-      ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: p.text),
       ),

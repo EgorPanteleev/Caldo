@@ -79,7 +79,6 @@ const Map<String, Object> nl = {
   'themeDark': "Donker",
   'themeLight': "Licht",
   'themeSystem': "Systeem",
-  'sectionCalendar': "KALENDER",
   'weekStartsMonday': "Week begint op maandag",
   'weeksMonSun': "Weken van maandag tot zondag",
   'weeksSunSat': "Weken van zondag tot zaterdag",

@@ -77,7 +77,6 @@ const Map<String, Object> kk = {
   'themeDark': "Қараңғы",
   'themeLight': "Жарық",
   'themeSystem': "Жүйелік",
-  'sectionCalendar': "КҮНТІЗБЕ",
   'weekStartsMonday': "Апта дүйсенбіден басталады",
   'weeksMonSun': "Дүйсенбіден жексенбіге дейін",
   'weeksSunSat': "Жексенбіден сенбіге дейін",

@@ -237,7 +237,6 @@ class S {
   String get themeLight => _word('themeLight');
   String get themeSystem => _word('themeSystem');
   String get accent => _word('accent');
-  String get sectionCalendar => _word('sectionCalendar');
   String get weekStartsMonday => _word('weekStartsMonday');
   String get weeksMonSun => _word('weeksMonSun');
   String get weeksSunSat => _word('weeksSunSat');

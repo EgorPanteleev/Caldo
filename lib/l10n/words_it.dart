@@ -79,7 +79,6 @@ const Map<String, Object> it = {
   'themeDark': "Scuro",
   'themeLight': "Chiaro",
   'themeSystem': "Sistema",
-  'sectionCalendar': "CALENDARIO",
   'weekStartsMonday': "La settimana inizia di lunedì",
   'weeksMonSun': "Settimane da lunedì a domenica",
   'weeksSunSat': "Settimane da domenica a sabato",

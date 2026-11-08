@@ -77,7 +77,6 @@ const Map<String, Object> tr = {
   'themeDark': "Koyu",
   'themeLight': "Açık",
   'themeSystem': "Sistem",
-  'sectionCalendar': "TAKVİM",
   'weekStartsMonday': "Hafta pazartesi başlar",
   'weeksMonSun': "Pazartesiden pazara",
   'weeksSunSat': "Pazardan cumartesiye",
