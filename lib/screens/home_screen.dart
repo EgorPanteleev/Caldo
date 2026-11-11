@@ -238,7 +238,9 @@ class _HomeScreenState extends State<HomeScreen>
                 // The screen keeps every pixel it had; it has only moved, so
                 // nothing on it reflows as the menu opens.
                 onTapWhileOpen: _closeMenu,
-                isOpen: _menu,
+                // The slide's own curve, so the blur keeps pace with the
+                // menu rather than with the clock.
+                isOpen: _slide,
                 child: SafeArea(
                   // The strip at the foot of the screen stays reserved while
                   // the keyboard is over it. Android stops counting the
@@ -521,10 +523,11 @@ class _Screen extends StatelessWidget {
   }
 }
 
-/// The screen, with a blurred picture of it laid over as the menu opens.
+/// The screen, with blurred pictures of it laid over as the menu opens.
 ///
 /// The picture is taken once, when the menu starts to open, and blurred
-/// once; each frame of the slide only fades it in. Blurring the screen
+/// once at each of a few strengths; each frame of the slide only fades from
+/// one strength to the next. Blurring the screen
 /// itself (`ImageFiltered`) drew the whole of it offscreen and blurred that
 /// at full resolution on every frame, with a new radius each time — on the
 /// emulator it put 2–3ms of raster on every frame of the slide, and a third
@@ -562,11 +565,19 @@ class _RenderOutOfFocus extends RenderProxyBox {
   _RenderOutOfFocus(this._open, this.ground);
 
   /// How far out of focus the screen is with the menu all the way open.
-  static const _blur = 6.0;
+  /// It was 6, and "a little less blurry" was asked for.
+  static const _blur = 4.0;
 
-  /// Pixels per point the picture is taken at. A blur leaves nothing a
+  /// How many strengths the blur is taken at, evenly up to [_blur]. One,
+  /// faded in over the sharp screen, did not read as a blur growing: the
+  /// sharp edges show through until the picture is all but opaque, so the
+  /// blur seemed to arrive late and at once. Faded from each strength to
+  /// the next, it grows as the menu comes in.
+  static const _steps = 4;
+
+  /// Pixels per point the pictures are taken at. A blur leaves nothing a
   /// finer picture would show, and a quarter of the pixels is a quarter of
-  /// the work to take it and to draw it.
+  /// the work to take one and to draw it.
   static const _scale = 0.5;
 
   Animation<double> _open;
@@ -582,15 +593,20 @@ class _RenderOutOfFocus extends RenderProxyBox {
 
   Color ground;
 
-  ui.Image? _picture;
+  /// The screen at each strength, the weakest first.
+  List<ui.Image>? _pictures;
+
+  void _letGo() {
+    for (final picture in _pictures ?? const <ui.Image>[]) {
+      picture.dispose();
+    }
+    _pictures = null;
+  }
 
   void _changed() {
-    // Shut, it is let go of, so the next opening takes the screen as it is
-    // by then.
-    if (_open.value == 0) {
-      _picture?.dispose();
-      _picture = null;
-    }
+    // Shut, they are let go of, so the next opening takes the screen as it
+    // is by then.
+    if (_open.value <= 0) _letGo();
     markNeedsPaint();
   }
 
@@ -608,30 +624,42 @@ class _RenderOutOfFocus extends RenderProxyBox {
 
   @override
   void dispose() {
-    _picture?.dispose();
-    _picture = null;
+    _letGo();
     super.dispose();
   }
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final t = _open.value;
-    if (t > 0 && _picture == null && !size.isEmpty) _picture = _take();
+    final t = _open.value.clamp(0.0, 1.0);
+    if (t > 0 && _pictures == null && !size.isEmpty) _pictures = _take();
     super.paint(context, offset);
-    final picture = _picture;
-    if (t == 0 || picture == null) return;
-    context.canvas.drawImageRect(
+    final pictures = _pictures;
+    if (t == 0 || pictures == null) return;
+    // Every picture is opaque, so the weaker of the two neighbours is drawn
+    // whole and the stronger faded in over it; below the first, the live
+    // screen is the weaker one.
+    final at = t * _steps;
+    final below = at.floor().clamp(0, _steps);
+    final fraction = at - below;
+    if (below > 0) _draw(context.canvas, offset, pictures[below - 1], 1);
+    if (below < _steps && fraction > 0) {
+      _draw(context.canvas, offset, pictures[below], fraction);
+    }
+  }
+
+  void _draw(Canvas canvas, Offset offset, ui.Image picture, double alpha) {
+    canvas.drawImageRect(
       picture,
       Offset.zero & Size(picture.width.toDouble(), picture.height.toDouble()),
       offset & size,
       Paint()
-        ..color = Color.fromRGBO(0, 0, 0, t)
+        ..color = Color.fromRGBO(0, 0, 0, alpha)
         ..filterQuality = FilterQuality.low,
     );
   }
 
-  /// The screen at [_scale], on its ground, blurred.
-  ui.Image _take() {
+  /// The screen at [_scale], on its ground, blurred at each strength.
+  List<ui.Image> _take() {
     // Painted into a layer of its own and let go of again, as
     // `SnapshotWidget` does; the screen is then painted in place as usual.
     final layer = OffsetLayer();
@@ -642,9 +670,18 @@ class _RenderOutOfFocus extends RenderProxyBox {
     final sharp = layer.toImageSync(Offset.zero & size, pixelRatio: _scale);
     layer.dispose();
 
+    final w = sharp.width, h = sharp.height;
+    final pictures = [
+      for (var step = 1; step <= _steps; step++)
+        _blurred(sharp, w, h, _blur * _scale * step / _steps),
+    ];
+    sharp.dispose();
+    return pictures;
+  }
+
+  ui.Image _blurred(ui.Image sharp, int w, int h, double sigma) {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    final w = sharp.width, h = sharp.height;
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
       Paint()..color = ground,
@@ -654,8 +691,8 @@ class _RenderOutOfFocus extends RenderProxyBox {
       Offset.zero,
       Paint()
         ..imageFilter = ui.ImageFilter.blur(
-          sigmaX: _blur * _scale,
-          sigmaY: _blur * _scale,
+          sigmaX: sigma,
+          sigmaY: sigma,
           // Clamped, so the screen's edges do not fade into a dark rim
           // against the menu.
           tileMode: TileMode.clamp,
@@ -664,7 +701,6 @@ class _RenderOutOfFocus extends RenderProxyBox {
     final picture = recorder.endRecording();
     final blurred = picture.toImageSync(w, h);
     picture.dispose();
-    sharp.dispose();
     return blurred;
   }
 }

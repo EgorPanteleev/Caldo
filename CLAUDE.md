@@ -376,11 +376,15 @@ Changing them back will be noticed.
   behind the screen, which is why a test cannot tell open from closed by
   looking for its text and reads the screen's offset instead. Back closes it
   (`PopScope`), as does a tap or a leftward swipe on the screen.
-  **The screen goes out of focus under it** (`_OutOfFocus`, a blur of 6),
+  **The screen goes out of focus under it** (`_OutOfFocus`, a blur of 4),
   asked for as "blur other content": the menu is the one thing to read
   while it is open. A picture of the screen is taken at half a pixel per
-  point as the menu starts to open, blurred once, and faded in over the
-  live screen; it is let go of when the menu is shut. Blurring the screen
+  point as the menu starts to open, blurred once at each of four strengths,
+  and faded from one strength to the next over the live screen, on the
+  slide's own curve; they are let go of when the menu is shut. One picture
+  at the full blur, faded in alone, was "not linear": the sharp edges
+  showed through until it was all but opaque, so the blur came late and at
+  once. The blur was 6 and asked to be "a little less blurry". Blurring the screen
   itself (`ImageFiltered`, in 2.8.6) re-rendered and re-blurred all of it
   on every frame of the slide — "a bit laggy". Measured on the emulator
   with frame timings from a release build, opening and closing six times
