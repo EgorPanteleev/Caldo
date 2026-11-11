@@ -40,7 +40,8 @@ class TaskProvider extends ChangeNotifier {
   /// First day of the month the calendar is showing.
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
 
-  /// Dated tasks of [_month], grouped by the day they fall on.
+  /// Dated tasks of [_month] and its neighbours, grouped by the day they
+  /// fall on.
   Map<DateTime, List<Task>> _allByDay = {};
 
   /// Open tasks whose due date has already passed.
@@ -180,8 +181,11 @@ class TaskProvider extends ChangeNotifier {
 
   // ---- Calendar and agenda ------------------------------------------------
 
-  /// Loads the dated tasks of the month containing [date] (plus a little
-  /// padding, so days of adjacent months shown in the grid are populated too).
+  /// Loads the dated tasks of the month containing [date], and of the month
+  /// either side of it with a week beyond those for their grids' outer rows.
+  /// The neighbours are what is on screen while a swipe is under way, and
+  /// the month only changes halfway through it: read alone, the month going
+  /// out was emptied as it went.
   ///
   /// With [keep], that day's tasks stay as they were even if the new month's
   /// range does not reach it: a task being carried across months is still a
@@ -199,10 +203,13 @@ class TaskProvider extends ChangeNotifier {
 
   Future<void> _readMonth(DateTime date) async {
     _month = DateTime(date.year, date.month);
-    final from = _month.subtract(const Duration(days: 7));
+    final from = DateTime(
+      _month.year,
+      _month.month - 1,
+    ).subtract(const Duration(days: 7));
     final to = DateTime(
       _month.year,
-      _month.month + 1,
+      _month.month + 2,
     ).add(const Duration(days: 7));
     final tasks = await _db.getTasksInRange(
       from.millisecondsSinceEpoch,

@@ -118,6 +118,29 @@ void main() {
     expect(provider.tasksForDay(today.add(const Duration(days: 1))), isEmpty);
   });
 
+  test('the calendar keeps the months either side of it read', () async {
+    // Both neighbours are on screen while the grid is swiped, and the month
+    // changes halfway: the one going out lost its tasks as it went.
+    final provider = TaskProvider();
+    await provider.loadLists();
+    final month = DateTime(2026, 11);
+    final before = DateTime(2026, 10, 3);
+    final after = DateTime(2026, 12, 28);
+    for (final day in [before, after]) {
+      await provider.add(
+        Task(
+          listId: provider.lists.first.id!,
+          title: 'on ${day.month}',
+          dueAt: day.millisecondsSinceEpoch,
+          createdAt: 0,
+        ),
+      );
+    }
+    await provider.loadMonth(month);
+    expect(provider.tasksForDay(before).map((t) => t.title), ['on 10']);
+    expect(provider.tasksForDay(after).map((t) => t.title), ['on 12']);
+  });
+
   test('search leaves out done tasks when completed ones are hidden', () async {
     final provider = await seedProvider();
     await provider.toggleDone(await taskNamed('Someday idea'));

@@ -40,8 +40,8 @@ class EventsProvider extends ChangeNotifier {
     _read();
   }
 
-  /// Has the events of [month] read as well, with a week either side of
-  /// it, which is what the grid shows of its neighbours.
+  /// Has the events of [month] read as well, and of the month either side
+  /// with a week beyond, since those are on screen while it is swiped to.
   void cover(DateTime month) {
     final first = DateTime(month.year, month.month);
     if (first == _month) return;
@@ -65,8 +65,11 @@ class EventsProvider extends ChangeNotifier {
     var to = today.add(const Duration(days: TaskProvider.agendaDays + 1));
     final month = _month;
     if (month != null) {
-      final monthFrom = month.subtract(const Duration(days: 7));
-      final monthTo = DateTime(month.year, month.month + 1, 8);
+      final monthFrom = DateTime(
+        month.year,
+        month.month - 1,
+      ).subtract(const Duration(days: 7));
+      final monthTo = DateTime(month.year, month.month + 2, 8);
       if (monthFrom.isBefore(from)) from = monthFrom;
       if (monthTo.isAfter(to)) to = monthTo;
     }
