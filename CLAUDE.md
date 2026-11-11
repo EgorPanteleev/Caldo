@@ -376,11 +376,18 @@ Changing them back will be noticed.
   behind the screen, which is why a test cannot tell open from closed by
   looking for its text and reads the screen's offset instead. Back closes it
   (`PopScope`), as does a tap or a leftward swipe on the screen.
-  **The screen goes out of focus under it** (`_Screen._blur`, a blur of 6
-  at full open, rising with the slide), asked for as "blur other content":
-  the menu is the one thing to read while it is open. The filter stays in
-  the tree and is switched by `enabled`, since taking a parent out would
-  rebuild every screen under it.
+  **The screen goes out of focus under it** (`_OutOfFocus`, a blur of 6),
+  asked for as "blur other content": the menu is the one thing to read
+  while it is open. A picture of the screen is taken at half a pixel per
+  point as the menu starts to open, blurred once, and faded in over the
+  live screen; it is let go of when the menu is shut. Blurring the screen
+  itself (`ImageFiltered`, in 2.8.6) re-rendered and re-blurred all of it
+  on every frame of the slide — "a bit laggy". Measured on the emulator
+  with frame timings from a release build, opening and closing six times
+  on the calendar: 7.7–8.2ms of raster a frame on average with that, 4.9–6
+  with no blur at all, 4.3 with the picture. The live screen stays under
+  it, so one picked from the menu is there as the menu closes, with the
+  picture of the old one fading off it.
 - **Today is a badge, the selected day a thin neutral outline.** Accent on
   either was "too much". The badge takes the colour the day's own
   number would have had — red on a Sunday, light on every other day — since a

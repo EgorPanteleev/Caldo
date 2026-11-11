@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -477,17 +478,11 @@ class _FullScreenBanner extends StatelessWidget {
 /// one that is rounded and lit is the one the eye puts there.
 ///
 /// It goes out of focus as the menu comes over it, so the menu is the one
-/// thing to read while it is open. The blur is on for the whole of the
-/// slide and off at rest, through `enabled` rather than by taking the
-/// filter out of the tree: dropping a parent would rebuild every screen
-/// under it from scratch, scroll positions and fields included.
+/// thing to read while it is open ([_OutOfFocus]).
 class _Screen extends StatelessWidget {
   final Animation<double> isOpen;
   final VoidCallback onTapWhileOpen;
   final Widget child;
-
-  /// How far out of focus the screen is with the menu all the way open.
-  static const _blur = 6.0;
 
   const _Screen({
     required this.isOpen,
@@ -506,17 +501,7 @@ class _Screen extends StatelessWidget {
           decoration: BoxDecoration(color: p.bg),
           child: Stack(
             children: [
-              ImageFiltered(
-                enabled: t > 0,
-                imageFilter: ImageFilter.blur(
-                  sigmaX: _blur * t,
-                  sigmaY: _blur * t,
-                  // Clamped, so the screen's edges do not fade into a dark
-                  // rim against the menu.
-                  tileMode: TileMode.clamp,
-                ),
-                child: inner!,
-              ),
+              _OutOfFocus(open: isOpen, ground: p.bg, child: inner!),
               if (t > 0)
                 Positioned.fill(
                   child: GestureDetector(
@@ -533,6 +518,154 @@ class _Screen extends StatelessWidget {
       },
       child: child,
     );
+  }
+}
+
+/// The screen, with a blurred picture of it laid over as the menu opens.
+///
+/// The picture is taken once, when the menu starts to open, and blurred
+/// once; each frame of the slide only fades it in. Blurring the screen
+/// itself (`ImageFiltered`) drew the whole of it offscreen and blurred that
+/// at full resolution on every frame, with a new radius each time — on the
+/// emulator it put 2–3ms of raster on every frame of the slide, and a third
+/// of them past the 8ms a 120Hz phone has: "a bit laggy".
+///
+/// The live screen goes on being drawn under the picture rather than
+/// replaced by it, so a screen picked from the menu is already there as
+/// the menu closes, with the picture of the old one fading off it.
+class _OutOfFocus extends SingleChildRenderObjectWidget {
+  final Animation<double> open;
+
+  /// Painted under the picture, so it is opaque: through a blurred letter's
+  /// soft edge, the sharp one underneath would show.
+  final Color ground;
+
+  const _OutOfFocus({
+    required this.open,
+    required this.ground,
+    required super.child,
+  });
+
+  @override
+  _RenderOutOfFocus createRenderObject(BuildContext context) =>
+      _RenderOutOfFocus(open, ground);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderOutOfFocus render) {
+    render
+      ..open = open
+      ..ground = ground;
+  }
+}
+
+class _RenderOutOfFocus extends RenderProxyBox {
+  _RenderOutOfFocus(this._open, this.ground);
+
+  /// How far out of focus the screen is with the menu all the way open.
+  static const _blur = 6.0;
+
+  /// Pixels per point the picture is taken at. A blur leaves nothing a
+  /// finer picture would show, and a quarter of the pixels is a quarter of
+  /// the work to take it and to draw it.
+  static const _scale = 0.5;
+
+  Animation<double> _open;
+  set open(Animation<double> value) {
+    if (value == _open) return;
+    if (attached) {
+      _open.removeListener(_changed);
+      value.addListener(_changed);
+    }
+    _open = value;
+    _changed();
+  }
+
+  Color ground;
+
+  ui.Image? _picture;
+
+  void _changed() {
+    // Shut, it is let go of, so the next opening takes the screen as it is
+    // by then.
+    if (_open.value == 0) {
+      _picture?.dispose();
+      _picture = null;
+    }
+    markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _open.addListener(_changed);
+  }
+
+  @override
+  void detach() {
+    _open.removeListener(_changed);
+    super.detach();
+  }
+
+  @override
+  void dispose() {
+    _picture?.dispose();
+    _picture = null;
+    super.dispose();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final t = _open.value;
+    if (t > 0 && _picture == null && !size.isEmpty) _picture = _take();
+    super.paint(context, offset);
+    final picture = _picture;
+    if (t == 0 || picture == null) return;
+    context.canvas.drawImageRect(
+      picture,
+      Offset.zero & Size(picture.width.toDouble(), picture.height.toDouble()),
+      offset & size,
+      Paint()
+        ..color = Color.fromRGBO(0, 0, 0, t)
+        ..filterQuality = FilterQuality.low,
+    );
+  }
+
+  /// The screen at [_scale], on its ground, blurred.
+  ui.Image _take() {
+    // Painted into a layer of its own and let go of again, as
+    // `SnapshotWidget` does; the screen is then painted in place as usual.
+    final layer = OffsetLayer();
+    final context = PaintingContext(layer, Offset.zero & size);
+    super.paint(context, Offset.zero);
+    // ignore: invalid_use_of_protected_member
+    context.stopRecordingIfNeeded();
+    final sharp = layer.toImageSync(Offset.zero & size, pixelRatio: _scale);
+    layer.dispose();
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final w = sharp.width, h = sharp.height;
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+      Paint()..color = ground,
+    );
+    canvas.drawImage(
+      sharp,
+      Offset.zero,
+      Paint()
+        ..imageFilter = ui.ImageFilter.blur(
+          sigmaX: _blur * _scale,
+          sigmaY: _blur * _scale,
+          // Clamped, so the screen's edges do not fade into a dark rim
+          // against the menu.
+          tileMode: TileMode.clamp,
+        ),
+    );
+    final picture = recorder.endRecording();
+    final blurred = picture.toImageSync(w, h);
+    picture.dispose();
+    sharp.dispose();
+    return blurred;
   }
 }
 
