@@ -376,6 +376,11 @@ Changing them back will be noticed.
   behind the screen, which is why a test cannot tell open from closed by
   looking for its text and reads the screen's offset instead. Back closes it
   (`PopScope`), as does a tap or a leftward swipe on the screen.
+  **The screen goes out of focus under it** (`_Screen._blur`, a blur of 6
+  at full open, rising with the slide), asked for as "blur other content":
+  the menu is the one thing to read while it is open. The filter stays in
+  the tree and is switched by `enabled`, since taking a parent out would
+  rebuild every screen under it.
 - **Today is a badge, the selected day a thin neutral outline.** Accent on
   either was "too much". The badge takes the colour the day's own
   number would have had — red on a Sunday, light on every other day — since a

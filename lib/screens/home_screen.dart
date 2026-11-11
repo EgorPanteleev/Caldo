@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -474,10 +475,19 @@ class _FullScreenBanner extends StatelessWidget {
 /// It is deliberately square. Rounded, it read as the card on top — two
 /// rounded edges meeting flush say nothing about which is in front, and the
 /// one that is rounded and lit is the one the eye puts there.
+///
+/// It goes out of focus as the menu comes over it, so the menu is the one
+/// thing to read while it is open. The blur is on for the whole of the
+/// slide and off at rest, through `enabled` rather than by taking the
+/// filter out of the tree: dropping a parent would rebuild every screen
+/// under it from scratch, scroll positions and fields included.
 class _Screen extends StatelessWidget {
   final Animation<double> isOpen;
   final VoidCallback onTapWhileOpen;
   final Widget child;
+
+  /// How far out of focus the screen is with the menu all the way open.
+  static const _blur = 6.0;
 
   const _Screen({
     required this.isOpen,
@@ -496,7 +506,17 @@ class _Screen extends StatelessWidget {
           decoration: BoxDecoration(color: p.bg),
           child: Stack(
             children: [
-              inner!,
+              ImageFiltered(
+                enabled: t > 0,
+                imageFilter: ImageFilter.blur(
+                  sigmaX: _blur * t,
+                  sigmaY: _blur * t,
+                  // Clamped, so the screen's edges do not fade into a dark
+                  // rim against the menu.
+                  tileMode: TileMode.clamp,
+                ),
+                child: inner!,
+              ),
               if (t > 0)
                 Positioned.fill(
                   child: GestureDetector(
