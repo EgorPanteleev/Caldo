@@ -12,7 +12,6 @@ import 'package:caldo/screens/task_edit_screen.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
-import 'package:caldo/widgets/menu_button.dart';
 import 'package:caldo/widgets/day_hours.dart';
 import 'package:caldo/widgets/put_off.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
@@ -202,7 +201,7 @@ void main() {
     expect(find.text('Never saved'), findsOneWidget);
   });
 
-  testWidgets('a screen switched off in settings leaves the menu', (
+  testWidgets('a screen switched off in settings leaves the tab bar', (
     tester,
   ) async {
     await pumpScreen(tester, const HomeScreen());
@@ -210,8 +209,6 @@ void main() {
       tester.element(find.byType(HomeScreen)),
       listen: false,
     );
-    await tester.tap(find.byKey(menuButtonKey));
-    await tester.pumpAndSettle();
     expect(find.text('Board'), findsOneWidget);
 
     await tester.runAsync(
@@ -1666,33 +1663,41 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('the menu moves the screen aside rather than covering it', (
+  testWidgets('the tab bar swaps screens, and back returns to the first', (
     tester,
   ) async {
     await pumpScreen(tester, const HomeScreen());
-
-    // How far over the screen sits, read off something that belongs to it.
-    double screenLeft() => tester.getTopLeft(find.byKey(menuButtonKey)).dx;
-
-    expect(find.text('Schedule'), findsWidgets);
-    expect(screenLeft(), lessThan(40), reason: 'closed, it fills the width');
-
-    await tester.tap(find.byKey(menuButtonKey));
-    await tester.pumpAndSettle();
-
-    // The menu is always in the tree — it is behind the screen rather than
-    // laid over it — so what says it is open is where the screen has got to.
-    expect(screenLeft(), greaterThan(200), reason: 'open, it has moved over');
+    expect(find.byKey(monthTitleKey), findsNothing);
+    // The screens and nothing else.
     expect(find.text('Calendar'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
-    // The menu is the three destinations and nothing else.
     expect(find.text('Lists'), findsNothing);
 
-    // Picking one closes the menu and swaps the screen that comes back.
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
     expect(find.byKey(monthTitleKey), findsOneWidget);
-    expect(screenLeft(), lessThan(40), reason: 'and it is back in place');
+
+    // Back goes to the screen the app opened on before it leaves the app.
+    // Run for real, since going back to Schedule reads its days again.
+    final handled = await tester.runAsync(() async {
+      final handled = await tester.binding.handlePopRoute();
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      return handled;
+    });
+    await tester.pumpAndSettle();
+    expect(handled, isTrue);
+    expect(find.byKey(monthTitleKey), findsNothing);
+    expect(find.byKey(screenTitleKey), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('the field sits above the tab bar, and fields keep clear', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const HomeScreen());
+    final field = tester.getRect(find.byType(QuickAddBar).hitTestable());
+    final bar = tester.getRect(find.text('Schedule').last);
+    expect(field.bottom, lessThan(bar.top), reason: 'not under the bar');
     await drainDatabase(tester);
   });
 }

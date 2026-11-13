@@ -25,10 +25,7 @@ import 'task_edit_screen.dart';
 /// The landing screen: one run of days, each with what is on it — written out
 /// as the same cards the calendar puts under its grid.
 class TasksScreen extends StatefulWidget {
-  /// Opens the shell's menu; null when the screen is shown on its own.
-  final VoidCallback? onMenu;
-
-  const TasksScreen({super.key, this.onMenu});
+  const TasksScreen({super.key});
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -65,7 +62,12 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _addQuickTask(int? group) async {
     final title = _quickAdd.text;
     _quickAdd.clear();
-    await quickAddTask(context, day: dayOf(DateTime.now()), title: title, group: group);
+    await quickAddTask(
+      context,
+      day: dayOf(DateTime.now()),
+      title: title,
+      group: group,
+    );
   }
 
   /// Today is the top of the run, so this is a scroll home.
@@ -151,7 +153,6 @@ class _TasksScreenState extends State<TasksScreen> {
             children: [
               ScreenHeader(
                 title: S.of(context).schedule,
-                onMenu: widget.onMenu,
                 actions: [
                   IconButton(
                     icon: Icon(Icons.search, color: p.muted),
@@ -262,6 +263,8 @@ class _TasksScreenState extends State<TasksScreen> {
                         onSubmit: _addQuickTask,
                         onFullForm: () => _openEditor(null, today),
                       ),
+                      // Room for the shell's tab bar, which floats over it.
+                      SizedBox(height: BarRoom.of(context)),
                     ],
                   ),
                 ),

@@ -34,10 +34,7 @@ import 'home_screen.dart' show menuItems;
 /// bar, a dropdown or a switch each — three ways of choosing on one screen,
 /// and a box round every line of it.
 class SettingsScreen extends StatelessWidget {
-  /// Opens the shell's menu; null when the screen is shown on its own.
-  final VoidCallback? onMenu;
-
-  const SettingsScreen({super.key, this.onMenu});
+  const SettingsScreen({super.key});
 
   void _open(BuildContext context, String Function(S s) title, _Rows rows) {
     Navigator.of(context).push(
@@ -80,7 +77,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               );
             },
-            child: ScreenHeader(title: s.settings, onMenu: onMenu),
+            child: ScreenHeader(title: s.settings),
           ),
           _Group(
             children: [

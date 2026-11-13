@@ -38,14 +38,14 @@ lib/
   services/backup.dart   everything as one JSON file, saved and restored
   services/attachments.dart  files and photos on tasks: picked, copied in,
                          opened elsewhere, swept up
-  screens/               home (shell + menu), tasks (Schedule), calendar,
+  screens/               home (shell + tab bar), tasks (Schedule), calendar,
                          board, done, search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   utils/dates.dart       every date/time string the UI shows
   widgets/               month_grid, task_card (+ HolidayCard),
                          colour_selector, groups,
                          date_time_pickers, repeat_sheet, day_sheet, day_hours,
-                         menu_button, put_off,
+                         put_off,
                          quick_add_bar, screen_header (+ TodayButton),
                          theme_switcher, slide_into_place, choice_sheet,
                          tick_off (+ AsShown), carry, selection,
@@ -65,9 +65,9 @@ Android's sizes by `tool/make_icon.sh` (needs `rsvg-convert`); the PNGs it
 writes are checked in.
 
 Five destinations — **Schedule**, **Calendar**, **Board**, **Done**,
-**Settings** — in a drawer behind the menu button at the top left of each,
-and nothing else in it. Done was asked for as "a Done log or simple stats";
-Board came after it. Any of the first four can be taken out of the menu in
+**Settings** — in a tab bar floating along the foot of the window, and
+nothing else in it. Done was asked for as "a Done log or simple stats";
+Board came after it. Any of the first four can be taken out of the bar in
 Settings; Settings itself cannot.
 
 **Lists are groups, and there are still no list screens.** The Lists, list
@@ -237,14 +237,14 @@ Changing them back will be noticed.
   are read on their own first, and the shell takes the start as it is built
   and never again — a screen that jumped out from under the setting being
   changed would be startling, and the setting is about the next launch.
-- **Each of those four can be switched off, and leaves the menu**
+- **Each of those four can be switched off, and leaves the tab bar**
   (`hiddenScreens`, asked for as "set in settings which to show or hide in
   left list"). Never all four — the last one's switch is disabled and the
   provider refuses it — and Settings is always there, being the way back.
-  The start is always a screen in the menu: hide the one chosen and the app
+  The start is always a screen in the bar: hide the one chosen and the app
   opens on the first one left, but the choice is kept, so putting the screen
   back puts it back as the start (`SettingsProvider.startScreen`). The
-  overdue count moves from Schedule to Calendar while Schedule is out. A
+  overdue dot moves from Schedule to Calendar while Schedule is out. A
   hidden screen is still built behind the others; it is only unreachable.
 - **Settings is a list of six pages, not one long page** (`_Page`, and
   `_screens`, `_general`, `_appearance`, `_calendar`, `_tasks`, `_reminders`):
@@ -346,7 +346,7 @@ Changing them back will be noticed.
   taken for a move), and after the new layout each one that moved is drawn
   back at its old place and eased to the new one. Notes are keyed by
   (screen, task id): a reorderable list hands card state to a different task
-  when it reorders, and Schedule and Calendar are both alive under the menu.
+  when it reorders, and Schedule and Calendar are both alive at once in the shell.
   **The move is found while the card is painted** (`_RenderSlide`), in the
   frame that lays out the new order. Found after the frame, as it first was,
   that frame had already gone out with every card at its destination, and
@@ -365,44 +365,37 @@ Changing them back will be noticed.
   are read back, with one notify for month and agenda together, once the
   tick is over. That read-back is the one heavy frame left (8–10ms on the
   emulator), and it lands before the slide moves anything. Settings and the
-  menu `select` the one value each wants rather than watching the provider:
+  tab bar `select` the one value each wants rather than watching the provider:
   Settings, hidden in the stack, was being rebuilt in whole on every change
   to any task.
-- **The three screens live behind a menu button, not a bottom bar.** The
-  hamburger sits at the top left of each of them and carries a dot when
-  something is overdue — the one thing worth pulling the user back to a screen
-  they are not on.
-- **The menu moves the screen aside; it does not cover it.** Opening slides the
-  whole screen `_menuWidth` to the right and the menu in from off the left
-  edge, so what is on the screen stays legible instead of being hidden under a
-  panel. The menu is drawn **over** the screen, rounded down its leading edge
-  and shadowed, so it reads as a panel above the window rather than something
-  uncovered behind it. It laps over the screen by `_menuOverlap`: the screen
-  slides that much less than the menu is wide, so the menu's rounded corners
-  cut into it and its shadow falls across it. Flush, with both of them
-  rounded, nothing said which was in front — and the screen, being the rounded
-  lit one, read as the panel on top, which is backwards. The screen is square
-  now; its leading edge runs underneath.
-  This is not a Material `Drawer` — the menu is always in the tree,
-  behind the screen, which is why a test cannot tell open from closed by
-  looking for its text and reads the screen's offset instead. Back closes it
-  (`PopScope`), as does a tap or a leftward swipe on the screen.
-  **The screen goes out of focus under it** (`_OutOfFocus`, a blur of 4),
-  asked for as "blur other content": the menu is the one thing to read
-  while it is open. A picture of the screen is taken at half a pixel per
-  point as the menu starts to open, blurred once at each of four strengths,
-  and faded from one strength to the next over the live screen, on the
-  slide's own curve; they are let go of when the menu is shut. One picture
-  at the full blur, faded in alone, was "not linear": the sharp edges
-  showed through until it was all but opaque, so the blur came late and at
-  once. The blur was 6 and asked to be "a little less blurry". Blurring the screen
-  itself (`ImageFiltered`, in 2.8.6) re-rendered and re-blurred all of it
-  on every frame of the slide — "a bit laggy". Measured on the emulator
-  with frame timings from a release build, opening and closing six times
-  on the calendar: 7.7–8.2ms of raster a frame on average with that, 4.9–6
-  with no blur at all, 4.3 with the picture. The live screen stays under
-  it, so one picked from the menu is there as the menu closes, with the
-  picture of the old one fading off it.
+- **The screens are a tab bar floating along the foot, not a menu**
+  (`_TabBar`, `_Tab`, `BarRoom`). Asked for from a screenshot of another
+  app's bottom ("i strongly like bottoms like this"), and chosen from
+  mockups as "make a, but do not change bottom task bar": the add field is
+  as it was, and the bar sits under it. A pill with a hairline edge, each
+  screen an icon over its name, the one on show lifted in a grey pill that
+  slides to the one picked (240ms) — neutral, as the menu's current entry
+  was. Settings is the last tab. The red dot for something overdue sits on
+  Schedule's icon (Calendar's while Schedule is out). Names too long for a
+  fifth of a phone are shrunk, not cut. Back returns to the screen the app
+  opened on before it leaves the app, as in any app with tabs along the
+  foot, but a selection answers to it first (`Selection.anyActive`).
+  The bar floats over the screens rather than taking a slot under them, so
+  the ground a screen stands on runs on beneath it — the calendar's day
+  panel used to end at a band of black. Schedule and Calendar keep the
+  room clear under their field themselves, in their ground's colour
+  (`BarRoom.of`), and the other three are simply padded above it. The
+  keyboard comes up over the bar: the field still rides the keys, and
+  `KeyboardGap.of` takes the bar's room off the lift as it takes off the
+  gesture strip, since the keys cover the bar before they reach the field.
+  The form and the sheets are pushed over the bar and have no room to
+  subtract. The cost is about 72 points of height on every screen, which
+  on the calendar comes out of the day panel.
+  It replaced a hamburger at the top left of each screen that slid the
+  screen aside and blurred it under a menu (`_OutOfFocus`, measured to
+  4.3ms of raster a frame with a blurred picture against 7.7–8.2 with
+  `ImageFiltered`); that is in the history, from before 2.8.14, if it is
+  ever wanted back.
 - **Today is a badge, the selected day a thin neutral outline.** Accent on
   either was "too much". The badge takes the colour the day's own
   number would have had — red on a Sunday, light on every other day — since a
@@ -557,7 +550,7 @@ Changing them back will be noticed.
   goes into it — anywhere else, it would vanish as it was filed. The choice
   is held for the run of the app and not stored. The provider keeps the full
   lists beside the narrowed ones; alarms, the home-screen widget and the
-  menu's overdue dot read the full ones (`allOverdue`, `allUpcomingByDay`).
+  tab bar's overdue dot read the full ones (`allOverdue`, `allUpcomingByDay`).
   **A group's colour is its tasks' colour.** New tasks have no colour of
   their own, and moving a task to another group in the form puts it back on
   the group's. The Settings colour that every new task used to start in
@@ -583,7 +576,7 @@ Changing them back will be noticed.
   hours view; it is as tall as the date beside it, so the bar keeps its
   height.
 - **The calendar's header is two rows**: the controls across the top — the
-  menu button on the left, Search and Today on the right — and the month name
+  Search and Today on the right — and the month name
   alone on the row beneath. Sharing one row meant the name had to be kept clear
   of whatever sat beside it. The month chevrons are gone; the grid is swiped.
 - **Today is drawn as today's date on a page**, so the button names the day it
@@ -725,8 +718,8 @@ Changing them back will be noticed.
   above it is a raised grey instead.
 - **The controls are neutral; the accent is kept for what is rare**
   (`AppTheme._build`'s text-button, filled-button, input-focus
-  and selection themes; the menu's current entry; the carry marks). The
-  selected segment and the open screen in the menu are lifted in `field` grey, a
+  and selection themes; the tab bar's current screen; the carry marks). The
+  selected segment and the open screen in the tab bar are lifted in `field` grey, a
   focused field is outlined in `muted`, and a dialog's buttons are plain
   text beside a light filled one. Every one of those was the accent, and on
   a dark screen they added up to most of the colour there was — "too many
@@ -873,7 +866,7 @@ Changing them back will be noticed.
   carried to another day takes the rest with it (`Selection.carried`).
   Schedule, the calendar and the day sheet are each a scope; one
   selection at a time across them, put down by Back, by choosing another
-  group, and by opening the menu, since the screens stay alive behind it
+  group, and by changing screens, since the screens stay alive behind it
   and one left holding a selection would have Back answer to it from out
   of sight. Not on the board, whose cards are moved between lanes.
 - **A card on Schedule swiped left is put off** (`PutOff`, `offerUndo`,
@@ -1597,7 +1590,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 222 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 223 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1616,7 +1609,7 @@ Things that will bite you:
   widths; assert layout invariants instead (e.g. "the title is given all the
   width the controls leave").
 - Widget keys are exported for tests: `monthTitleKey`, `calendarHandleKey`,
-  `daySheetKey`, `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`.
+  `daySheetKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`.
 
 ## Building
 

@@ -429,7 +429,9 @@ class KeyboardGap {
     final reserved = MediaQueryData.fromView(
       View.of(context),
     ).viewPadding.bottom;
-    return math.max(0.0, covered - reserved);
+    // And less the shell's tab bar, which the field sits above: the keys
+    // cover the bar before they reach the field.
+    return math.max(0.0, covered - reserved - BarRoom.of(context));
   }
 
   /// Whether to draw the numbers above the bar. Off, and not stored: it is
@@ -444,6 +446,25 @@ class KeyboardGap {
   /// for the next.
   @visibleForTesting
   void forget() => covered.value = 0;
+}
+
+/// How much of the foot of a screen the shell's tab bar floats over.
+///
+/// The two screens with a field run their ground on under the bar, so the
+/// day panel's grey does not stop at a band of black; they keep this much
+/// clear below the field, and the keyboard has this much less to climb
+/// before it reaches it. Nothing above the shell provides one — the form
+/// and the sheets are pushed over the bar — so there it is nothing.
+class BarRoom extends InheritedWidget {
+  final double height;
+
+  const BarRoom({super.key, required this.height, required super.child});
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BarRoom>()?.height ?? 0;
+
+  @override
+  bool updateShouldNotify(BarRoom oldWidget) => oldWidget.height != height;
 }
 
 /// The numbers behind the lift, drawn above the bar while [showNumbers] is

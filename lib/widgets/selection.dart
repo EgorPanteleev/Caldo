@@ -54,8 +54,12 @@ class Selection extends ChangeNotifier {
   /// Every selection there is, so another screen's can be let go of.
   static final _live = <Selection>{};
 
-  /// Lets go of whatever is picked out anywhere — for the menu, which is
-  /// the way off a screen.
+  /// Whether anything is picked out on any screen, which back answers to
+  /// before the shell does.
+  static bool get anyActive => _live.any((s) => s.active);
+
+  /// Lets go of whatever is picked out anywhere — for the tab bar, which
+  /// is the way off a screen.
   static void dropAll() {
     for (final selection in _live) {
       selection.clear();

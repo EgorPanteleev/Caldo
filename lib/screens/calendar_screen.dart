@@ -18,7 +18,6 @@ import '../utils/dates.dart';
 import '../widgets/carry.dart';
 import '../widgets/day_sheet.dart';
 import '../widgets/groups.dart';
-import '../widgets/menu_button.dart';
 import '../widgets/day_hours.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
@@ -33,10 +32,7 @@ import 'task_edit_screen.dart';
 /// listed underneath. Swipe or use the arrows to move between months, and
 /// drag the grid down to open it up until every day spells out its tasks.
 class CalendarScreen extends StatefulWidget {
-  /// Opens the shell's menu; null when the screen is shown on its own.
-  final VoidCallback? onMenu;
-
-  const CalendarScreen({super.key, this.onMenu});
+  const CalendarScreen({super.key});
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -787,7 +783,6 @@ class _CalendarScreenState extends State<CalendarScreen>
                   children: [
                     _MonthBar(
                       title: Dates.monthTitle(shownMonth),
-                      onMenu: widget.onMenu,
                       onToday: _jumpToToday,
                       onSearch: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const SearchScreen()),
@@ -1120,6 +1115,10 @@ class _CalendarScreenState extends State<CalendarScreen>
                         onSubmit: _addQuickTask,
                         onFullForm: () => _openEditor(),
                       ),
+                      // The shell's tab bar floats over this, so the panel's
+                      // grey runs on under it rather than stopping at a band
+                      // of black.
+                      SizedBox(height: BarRoom.of(context)),
                     ],
                   ),
                 ),
@@ -1264,13 +1263,11 @@ const monthTitleKey = Key('month-title');
 /// narrow phone to buttons it was nowhere near.
 class _MonthBar extends StatelessWidget {
   final String title;
-  final VoidCallback? onMenu;
   final VoidCallback onToday;
   final VoidCallback onSearch;
 
   const _MonthBar({
     required this.title,
-    required this.onMenu,
     required this.onToday,
     required this.onSearch,
   });
@@ -1284,10 +1281,6 @@ class _MonthBar extends StatelessWidget {
           height: 48,
           child: Row(
             children: [
-              if (onMenu != null)
-                MenuButton(onTap: onMenu!)
-              else
-                const SizedBox(width: 12),
               const Spacer(),
               IconButton(
                 icon: Icon(Icons.search, color: p.muted),

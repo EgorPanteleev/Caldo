@@ -24,13 +24,10 @@ import 'task_edit_screen.dart';
 /// calendar: those are about when, and this is about how far along. It reads
 /// the tasks only while it is the screen on show, as Done does.
 class BoardScreen extends StatefulWidget {
-  /// Opens the shell's menu.
-  final VoidCallback? onMenu;
-
   /// Whether this is the screen on show; null when shown on its own.
   final ValueListenable<bool>? shown;
 
-  const BoardScreen({super.key, this.onMenu, this.shown});
+  const BoardScreen({super.key, this.shown});
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
@@ -202,7 +199,6 @@ class _BoardScreenState extends State<BoardScreen> {
         children: [
           ScreenHeader(
             title: s.board,
-            onMenu: widget.onMenu,
             actions: [
               IconButton(
                 icon: Icon(Icons.add, color: p.muted),

@@ -25,15 +25,12 @@ const _logDays = 366;
 /// a repeating task counts every time round and a task cleared away or
 /// deleted is still there.
 class DoneScreen extends StatefulWidget {
-  /// Opens the shell's menu.
-  final VoidCallback? onMenu;
-
   /// Whether this is the screen on show. The shell builds every screen at
   /// once, and a log nobody is looking at has no business being read on
   /// every change to every task. Null when shown on its own.
   final ValueListenable<bool>? shown;
 
-  const DoneScreen({super.key, this.onMenu, this.shown});
+  const DoneScreen({super.key, this.shown});
 
   @override
   State<DoneScreen> createState() => _DoneScreenState();
@@ -117,7 +114,7 @@ class _DoneScreenState extends State<DoneScreen> {
     return Scaffold(
       body: Column(
         children: [
-          ScreenHeader(title: S.of(context).done, onMenu: widget.onMenu),
+          ScreenHeader(title: S.of(context).done),
           Expanded(
             child: _log.isEmpty
                 ? EmptyState(
