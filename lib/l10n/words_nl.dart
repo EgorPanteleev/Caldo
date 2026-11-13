@@ -75,6 +75,9 @@ const Map<String, Object> nl = {
 
   'pageGeneral': "Algemeen",
   'startScreen': "Scherm bij openen",
+  'switchScreens': "Wisselen van scherm met",
+  'tabBar': "Balk onderaan",
+  'sideMenu': "Menu linksboven",
   'timesWritten': "Tijdnotatie",
   'language': "Taal",
   'followPhone': "Zoals de telefoon ({language})",

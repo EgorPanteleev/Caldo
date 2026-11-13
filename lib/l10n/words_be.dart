@@ -76,6 +76,9 @@ const Map<String, Object> be = {
 
   'pageGeneral': "Агульныя",
   'startScreen': "Экран пры запуску",
+  'switchScreens': "Пераход паміж экранамі",
+  'tabBar': "Панэль унізе",
+  'sideMenu': "Меню злева ўверсе",
   'timesWritten': "Фармат часу",
   'language': "Мова",
   'followPhone': "Як на тэлефоне ({language})",

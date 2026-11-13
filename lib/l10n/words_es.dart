@@ -75,6 +75,9 @@ const Map<String, Object> es = {
 
   'pageGeneral': "General",
   'startScreen': "Pantalla al abrir",
+  'switchScreens': "Cambiar de pantalla con",
+  'tabBar': "Barra inferior",
+  'sideMenu': "Menú arriba a la izquierda",
   'timesWritten': "Formato de hora",
   'language': "Idioma",
   'followPhone': "Como el teléfono ({language})",

@@ -218,6 +218,27 @@ List<Widget> _screens(BuildContext context, SettingsProvider settings, S s) {
             if (screen != null) settings.update(startScreen: screen);
           },
         ),
+        // The tab bar replaced the menu, and some like the menu: more of the
+        // screen, the calendar's day panel above all.
+        _Row(
+          icon: settings.screensInBar
+              ? Icons.call_to_action_outlined
+              : Icons.menu_rounded,
+          title: s.switchScreens,
+          value: settings.screensInBar ? s.tabBar : s.sideMenu,
+          onTap: () async {
+            final inBar = await choose(
+              context,
+              title: s.switchScreens,
+              selected: settings.screensInBar,
+              options: [
+                Option(true, s.tabBar, icon: Icons.call_to_action_outlined),
+                Option(false, s.sideMenu, icon: Icons.menu_rounded),
+              ],
+            );
+            if (inBar != null) settings.update(screensInBar: inBar);
+          },
+        ),
       ],
     ),
     _Group(

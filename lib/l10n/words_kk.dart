@@ -73,6 +73,9 @@ const Map<String, Object> kk = {
 
   'pageGeneral': "Жалпы",
   'startScreen': "Іске қосылғандағы экран",
+  'switchScreens': "Экрандар арасында ауысу",
+  'tabBar': "Төмендегі панель",
+  'sideMenu': "Сол жақ жоғарғы мәзір",
   'timesWritten': "Уақыт пішімі",
   'language': "Тіл",
   'followPhone': "Телефондағыдай ({language})",

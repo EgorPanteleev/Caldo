@@ -76,6 +76,9 @@ const Map<String, Object> ru = {
 
   'pageGeneral': "Общие",
   'startScreen': "Экран при запуске",
+  'switchScreens': "Переход между экранами",
+  'tabBar': "Панель внизу",
+  'sideMenu': "Меню слева вверху",
   'timesWritten': "Формат времени",
   'language': "Язык",
   'followPhone': "Как на телефоне ({language})",

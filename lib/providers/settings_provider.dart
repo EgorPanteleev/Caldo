@@ -43,6 +43,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kLastBackup = 'last_backup';
   static const _kDayAsHours = 'day_as_hours';
   static const _kCustomColours = 'custom_colours';
+  static const _kScreensInBar = 'screens_in_bar';
 
   /// The settings a backup carries. The phone's own calendars are left
   /// behind: their ids belong to the phone, and showing them needs a
@@ -64,6 +65,7 @@ class SettingsProvider extends ChangeNotifier {
     _kLanguage,
     _kDayAsHours,
     _kCustomColours,
+    _kScreensInBar,
   ];
 
   /// The screen the app opens on. Schedule out of the box: it is the one
@@ -146,6 +148,12 @@ class SettingsProvider extends ChangeNotifier {
   /// a list. Kept, since which one is wanted is a habit, not a moment.
   bool _dayAsHours = false;
 
+  /// Whether the screens are a tab bar along the foot, or the menu behind
+  /// a button at the top left they used to be. The bar out of the box.
+  /// Null until it has been read or set, which is what the shell waits for
+  /// before it takes this over from what was read before the first frame.
+  bool? _screensInBar;
+
   /// The colours last made on the custom sheet, latest first, offered
   /// beside the palette so one can be given to the next task as well.
   List<String> _customColours = const [];
@@ -206,6 +214,8 @@ class SettingsProvider extends ChangeNotifier {
   bool get fullScreenReminders => _fullScreen;
   DateTime? get lastBackup => _lastBackup;
   bool get dayAsHours => _dayAsHours;
+  bool get screensInBar => _screensInBar ?? true;
+  bool? get screensInBarIfKnown => _screensInBar;
   List<String> get customColours => _customColours;
 
   /// Whether the stored settings have been read yet. Until they have, every
@@ -236,6 +246,14 @@ class SettingsProvider extends ChangeNotifier {
       _startScreenFromString(prefs.getString(_kStartScreen)),
       _screensFrom(prefs.getStringList(_kHiddenScreens)),
     );
+  }
+
+  /// Whether the screens are in the tab bar, read before the first frame for
+  /// the reason the start screen is: a menu user would otherwise see the bar
+  /// for a frame or two before it went.
+  static Future<bool> storedScreensInBar() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kScreensInBar) ?? true;
   }
 
   /// Puts the stored settings where a background isolate needs them — the
@@ -301,6 +319,7 @@ class SettingsProvider extends ChangeNotifier {
     _showDeviceEvents = prefs.getBool(_kDeviceEvents) ?? _showDeviceEvents;
     _hiddenCalendars = {...?prefs.getStringList(_kHiddenCalendars)};
     _dayAsHours = prefs.getBool(_kDayAsHours) ?? false;
+    _screensInBar = prefs.getBool(_kScreensInBar) ?? true;
     _customColours = [
       ...?prefs
           .getStringList(_kCustomColours)
@@ -397,6 +416,7 @@ class SettingsProvider extends ChangeNotifier {
     bool? showDeviceEvents,
     Set<String>? hiddenCalendars,
     bool? dayAsHours,
+    bool? screensInBar,
 
     /// Go back to following the device's country.
     bool clearHolidayCountry = false,
@@ -485,6 +505,10 @@ class SettingsProvider extends ChangeNotifier {
     if (dayAsHours != null) {
       _dayAsHours = dayAsHours;
       await prefs.setBool(_kDayAsHours, dayAsHours);
+    }
+    if (screensInBar != null) {
+      _screensInBar = screensInBar;
+      await prefs.setBool(_kScreensInBar, screensInBar);
     }
     if (reminderLead != null) {
       _reminderLead = reminderLead;

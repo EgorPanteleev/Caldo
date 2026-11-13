@@ -234,6 +234,9 @@ class S {
   String get inMenuHint => _word('inMenuHint');
   String get pageGeneral => _word('pageGeneral');
   String get startScreen => _word('startScreen');
+  String get switchScreens => _word('switchScreens');
+  String get tabBar => _word('tabBar');
+  String get sideMenu => _word('sideMenu');
   String get timesWritten => _word('timesWritten');
   String get language => _word('language');
   String followPhone(String language) =>

@@ -76,6 +76,9 @@ const Map<String, Object> uk = {
 
   'pageGeneral': "Загальні",
   'startScreen': "Екран під час запуску",
+  'switchScreens': "Перехід між екранами",
+  'tabBar': "Панель унизу",
+  'sideMenu': "Меню зліва вгорі",
   'timesWritten': "Формат часу",
   'language': "Мова",
   'followPhone': "Як на телефоні ({language})",

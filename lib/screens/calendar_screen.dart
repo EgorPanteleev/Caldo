@@ -19,6 +19,7 @@ import '../widgets/carry.dart';
 import '../widgets/day_sheet.dart';
 import '../widgets/groups.dart';
 import '../widgets/day_hours.dart';
+import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/selection.dart';
@@ -1281,6 +1282,8 @@ class _MonthBar extends StatelessWidget {
           height: 48,
           child: Row(
             children: [
+              if (MenuScope.of(context) case final onMenu?)
+                MenuButton(onTap: onMenu),
               const Spacer(),
               IconButton(
                 icon: Icon(Icons.search, color: p.muted),

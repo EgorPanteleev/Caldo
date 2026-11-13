@@ -18,6 +18,7 @@ import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:caldo/widgets/reorderable_task_list.dart';
 import 'package:caldo/widgets/task_card.dart';
 import 'package:caldo/widgets/tick_off.dart';
+import 'package:caldo/widgets/menu_button.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/gestures.dart';
@@ -1688,6 +1689,46 @@ void main() {
     expect(handled, isTrue);
     expect(find.byKey(monthTitleKey), findsNothing);
     expect(find.byKey(screenTitleKey), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
+  testWidgets('with the menu chosen, it moves the screen aside', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const HomeScreen());
+    final settings = Provider.of<SettingsProvider>(
+      tester.element(find.byType(HomeScreen)),
+      listen: false,
+    );
+    expect(find.byKey(menuButtonKey), findsNothing, reason: 'the bar first');
+    await tester.runAsync(() => settings.update(screensInBar: false));
+    await tester.pumpAndSettle();
+    // The menu is always in the tree, off the edge, so its Board is there;
+    // the bar's is not.
+    expect(find.text('Board'), findsOneWidget, reason: 'the bar has gone');
+    expect(find.byKey(menuButtonKey), findsOneWidget);
+
+    // How far over the screen sits, read off something that belongs to it.
+    double screenLeft() => tester.getTopLeft(find.byKey(menuButtonKey)).dx;
+    expect(screenLeft(), lessThan(40), reason: 'closed, it fills the width');
+
+    await tester.tap(find.byKey(menuButtonKey));
+    await tester.pumpAndSettle();
+    // The menu is always in the tree — it is behind the screen rather than
+    // laid over it — so what says it is open is where the screen has got to.
+    expect(screenLeft(), greaterThan(200), reason: 'open, it has moved over');
+
+    // Back closes it rather than leaving the app.
+    expect(await tester.binding.handlePopRoute(), isTrue);
+    await tester.pumpAndSettle();
+    expect(screenLeft(), lessThan(40));
+
+    await tester.tap(find.byKey(menuButtonKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Calendar'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(monthTitleKey), findsOneWidget);
+    expect(screenLeft(), lessThan(40), reason: 'and it is back in place');
     await drainDatabase(tester);
   });
 

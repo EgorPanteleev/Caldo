@@ -73,6 +73,9 @@ const Map<String, Object> tr = {
 
   'pageGeneral': "Genel",
   'startScreen': "Açılış ekranı",
+  'switchScreens': "Ekranlar arası geçiş",
+  'tabBar': "Alttaki çubuk",
+  'sideMenu': "Sol üstteki menü",
   'timesWritten': "Saat biçimi",
   'language': "Dil",
   'followPhone': "Telefondaki gibi ({language})",

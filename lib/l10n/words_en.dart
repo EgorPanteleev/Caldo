@@ -75,6 +75,9 @@ const Map<String, Object> en = {
 
   'pageGeneral': "General",
   'startScreen': "Screen the app opens on",
+  'switchScreens': "Switch screens with",
+  'tabBar': "Bar along the bottom",
+  'sideMenu': "Menu at the top left",
   'timesWritten': "Times are written",
   'language': "Language",
   'followPhone': "As the phone ({language})",
