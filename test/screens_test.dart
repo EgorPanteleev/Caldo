@@ -1732,13 +1732,85 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('the field sits above the tab bar, and fields keep clear', (
+  testWidgets('with the tab bar, its plus brings up the field in its place', (
     tester,
   ) async {
     await pumpScreen(tester, const HomeScreen());
-    final field = tester.getRect(find.byType(QuickAddBar).hitTestable());
-    final bar = tester.getRect(find.text('Schedule').last);
-    expect(field.bottom, lessThan(bar.top), reason: 'not under the bar');
+    // The field rests in the bar's room, out of sight and out of reach.
+    expect(find.byType(TextField).hitTestable(), findsNothing);
+    final field = tester.getRect(find.byType(QuickAddBar));
+    final bar = tester.getRect(find.byKey(barAddKey));
+    expect(field.top, lessThanOrEqualTo(bar.top), reason: 'in the room');
+    expect(field.bottom, greaterThanOrEqualTo(bar.bottom));
+
+    await tester.tap(find.byKey(barAddKey));
+    await tester.pump();
+    final text = tester.widget<TextField>(find.byType(TextField));
+    expect(text.focusNode!.hasFocus, isTrue);
+    expect(find.byType(TaskEditScreen), findsNothing, reason: 'not the form');
+    text.focusNode!.unfocus();
+    await tester.pump();
+
+    // Held, it is the full form.
+    await tester.longPress(find.byKey(barAddKey));
+    await tester.pumpAndSettle();
+    expect(find.byType(TaskEditScreen), findsOneWidget);
+    Navigator.of(tester.element(find.byType(TaskEditScreen))).pop();
+    await tester.pumpAndSettle();
+
+    await drainDatabase(tester);
+  });
+
+  testWidgets('with the tab bar, a tick off is offered in its place', (
+    tester,
+  ) async {
+    late _CapturingProvider provider;
+    await tester.runAsync(() async {
+      await seedProvider();
+      provider = _CapturingProvider();
+      await provider.loadLists();
+      await provider.loadTasks();
+    });
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    final bar = tester.getRect(find.byKey(barAddKey));
+
+    // Plus and all: the offer stands in the whole bar's place.
+    final tick = find.descendant(
+      of: find.ancestor(of: find.text('Ship'), matching: find.byType(TaskCard)),
+      matching: find.byKey(taskCardTickKey),
+    );
+    await tester.tap(tick);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(provider.toggled?.title, 'Ship');
+    final undo = tester.getRect(find.text('Undo'));
+    expect(undo.center.dy, closeTo(bar.center.dy, 1));
+    expect(find.byKey(barAddKey).hitTestable(), findsNothing);
+
+    // A tap on it puts it away for the tabs under it, and opens nothing.
+    await tester.tap(
+      find.descendant(of: find.byType(UndoSlot), matching: find.text('Ship')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+    expect(find.byKey(barAddKey).hitTestable(), findsOneWidget);
+    final text = tester.widget<TextField>(find.byType(TextField));
+    expect(text.focusNode!.hasFocus, isFalse);
     await drainDatabase(tester);
   });
 }

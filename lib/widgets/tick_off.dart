@@ -50,6 +50,10 @@ void offerUndo(
 /// Where the offer standing now was made.
 ValueNotifier<_Offer?>? _offered;
 
+/// Takes back whatever offer is standing — for the tab bar, which is the
+/// way off a screen, and leaves nothing of that screen's in its place.
+void withdrawUndo() => _offered?.value = null;
+
 const _undoFor = Duration(seconds: 4);
 
 class _Offer {
@@ -69,12 +73,25 @@ class UndoScope extends StatefulWidget {
 
   const UndoScope({super.key, required this.child});
 
+  /// Where the scope over [context] makes its offers, if there is one.
+  static UndoPlace? placeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_UndoSpot>()?.place;
+
   @override
   State<UndoScope> createState() => _UndoScopeState();
 }
 
+/// Where a scope's offers are made, for an [UndoSlot] that is not under
+/// it: the shell's tab bar, which a screen's offers stand in the place of.
+class UndoPlace {
+  final ValueNotifier<_Offer?> _offer;
+
+  const UndoPlace._(this._offer);
+}
+
 class _UndoScopeState extends State<UndoScope> {
   final _offer = ValueNotifier<_Offer?>(null);
+  late final place = UndoPlace._(_offer);
 
   @override
   void dispose() {
@@ -85,13 +102,18 @@ class _UndoScopeState extends State<UndoScope> {
 
   @override
   Widget build(BuildContext context) =>
-      _UndoSpot(offer: _offer, child: widget.child);
+      _UndoSpot(offer: _offer, place: place, child: widget.child);
 }
 
 class _UndoSpot extends InheritedWidget {
   final ValueNotifier<_Offer?> offer;
+  final UndoPlace place;
 
-  const _UndoSpot({required this.offer, required super.child});
+  const _UndoSpot({
+    required this.offer,
+    required this.place,
+    required super.child,
+  });
 
   @override
   bool updateShouldNotify(_UndoSpot old) => old.offer != offer;
@@ -110,7 +132,16 @@ class UndoSlot extends StatefulWidget {
   final Widget child;
   final VoidCallback onField;
 
-  const UndoSlot({super.key, required this.onField, required this.child});
+  /// The scope whose offers stand here, for a slot that is not under it;
+  /// otherwise the one over the slot.
+  final UndoPlace? place;
+
+  const UndoSlot({
+    super.key,
+    required this.onField,
+    this.place,
+    required this.child,
+  });
 
   @override
   State<UndoSlot> createState() => _UndoSlotState();
@@ -143,10 +174,27 @@ class _UndoSlotState extends State<UndoSlot>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final spot = context.getInheritedWidgetOfExactType<_UndoSpot>()?.offer;
+    _follow();
+  }
+
+  @override
+  void didUpdateWidget(UndoSlot old) {
+    super.didUpdateWidget(old);
+    if (old.place != widget.place) _follow();
+  }
+
+  void _follow() {
+    final spot =
+        widget.place?._offer ??
+        context.getInheritedWidgetOfExactType<_UndoSpot>()?.offer;
     if (spot == _spot) return;
     _spot?.removeListener(_changed);
     _spot = spot?..addListener(_changed);
+    // Another screen's slot, in the shell: whatever it has standing is
+    // shown at once, and nothing is shown for one that has none.
+    _shown = spot?.value;
+    _away.value = 0;
+    _swap.value = _shown == null ? 0 : 1;
   }
 
   void _changed() {

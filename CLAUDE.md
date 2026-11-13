@@ -381,8 +381,7 @@ Changing them back will be noticed.
   each screen's constructor; with the bar there is no scope and no button.
   The bar: Asked for from a screenshot of another
   app's bottom ("i strongly like bottoms like this"), and chosen from
-  mockups as "make a, but do not change bottom task bar": the add field is
-  as it was, and the bar sits under it. A pill with a hairline edge, each
+  mockups as "make a, but do not change bottom task bar". A pill with a hairline edge, each
   screen an icon over its name, the one on show lifted in a grey pill that
   slides to the one picked (240ms) — neutral, as the menu's current entry
   was. Settings is the last tab. The red dot for something overdue sits on
@@ -393,14 +392,31 @@ Changing them back will be noticed.
   The bar floats over the screens rather than taking a slot under them, so
   the ground a screen stands on runs on beneath it — the calendar's day
   panel used to end at a band of black. Schedule and Calendar keep the
-  room clear under their field themselves, in their ground's colour
-  (`BarRoom.of`), and the other three are simply padded above it. The
-  keyboard comes up over the bar: the field still rides the keys, and
-  `KeyboardGap.of` takes the bar's room off the lift as it takes off the
-  gesture strip, since the keys cover the bar before they reach the field.
-  The form and the sheets are pushed over the bar and have no room to
-  subtract. The cost is about 72 points of height on every screen, which
-  on the calendar comes out of the day panel.
+  room under it in their ground's colour (`BarRoom`), and the other three
+  are simply padded above it. The cost is about 74 points of height on
+  every screen, which on the calendar comes out of the day panel.
+  **With the bar there is no add field at the foot; a round plus beside
+  the bar brings it up** (`_AddButton`, `BarFoot`, `_WhileWriting`,
+  `_WhileKeyboardDown`). The field sat over the bar as a second grey pill,
+  and the two read as one toolbar stacked on another — "badly fit … remove
+  add task bar and mb add smth else". Chosen from three: a plus beside the
+  bar, a plus as a sixth tab (squeezes every name, and is a tab that is not
+  a screen), or the field and the bar merged into one panel. The field now
+  rests in the bar's own room, drawn only while it is focused with the
+  keyboard up; the bar is put away while the keys are up and the field
+  rides them in its place. So `KeyboardGap.of` takes nothing off for the
+  bar. A tap on the plus opens the screen's field (or, with the field still
+  focused after Back, only asks for the keyboard back — asking for focus a
+  field already has does nothing); held, it opens the full form, as the
+  plus beside the field did. On the board, Done and Settings it is the
+  form on its own — undated on the board, whose header plus goes while the
+  bar has one, and on today on the other two. The screen's field lends the
+  shell its Undo and selection through its `BarFoot`, and those stand in
+  the whole bar's place, plus and all, as they stood in the field's. That
+  costs the tabs for Undo's four seconds, so a tap on it away from Undo
+  only puts it away rather than opening the field; moving to another
+  screen withdraws it (`withdrawUndo`), as it puts down a selection. The
+  menu keeps the field at the foot, as it always had it.
 - **With the menu, the hamburger sits at the top left of each screen** and
   carries a dot when something is overdue — the one thing worth pulling
   the user back to a screen they are not on. Back closes the menu, and
@@ -1632,7 +1648,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 224 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 225 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

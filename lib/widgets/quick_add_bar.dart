@@ -72,8 +72,38 @@ class _QuickAddBarState extends State<QuickAddBar> {
     });
   }
 
+  /// The shell's tab bar this field sits in the room of, if it has one.
+  BarFoot? _foot;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final foot = BarRoom.footOf(context);
+    if (foot != _foot) _foot?.detach(this);
+    _foot = foot
+      ?..attach(
+        this,
+        open: _openField,
+        form: () => widget.onFullForm(),
+        undo: UndoScope.placeOf(context),
+        selection: Selection.maybeOf(context),
+      );
+  }
+
+  /// Brings the field up on the keyboard. A field that still has the focus
+  /// — the keyboard put away by Back, or by an empty tick — only needs the
+  /// keyboard back: asking for the focus it already has does nothing at all.
+  void _openField() {
+    if (_focus.hasFocus) {
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    } else {
+      _focus.requestFocus();
+    }
+  }
+
   @override
   void dispose() {
+    _foot?.detach(this);
     _focus.dispose();
     super.dispose();
   }
@@ -126,58 +156,69 @@ class _QuickAddBarState extends State<QuickAddBar> {
       (t) => writing && t.group == null && t.lists.length > 1,
     );
 
-    final bar = Padding(
-      padding: widget.padding,
-      // Undo under the selection: a tick offered back while cards are being
-      // picked out waits beneath the bar for them.
-      child: SelectionSlot(
-        child: UndoSlot(
-          onField: _focus.requestFocus,
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: widget.controller,
-                  focusNode: _focus,
-                  textCapitalization: TextCapitalization.sentences,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(),
-                  style: TextStyle(color: p.text, fontSize: 14.5),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    filled: true,
-                    fillColor: p.field,
-                    hintText: S
-                        .of(context)
-                        .addTaskOn(Dates.shortDay(widget.date)),
-                    hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 14,
-                    ),
-                    // Nothing marks the focus but the cursor. An accent ring
-                    // around half the screen was the loudest thing on it, and a
-                    // neutral one on a grey field is a line nobody reads.
-                    border: border,
-                    enabledBorder: border,
-                    focusedBorder: border,
-                  ),
-                ),
+    final row = Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: widget.controller,
+            focusNode: _focus,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            style: TextStyle(color: p.text, fontSize: 14.5),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: p.field,
+              hintText: S.of(context).addTaskOn(Dates.shortDay(widget.date)),
+              hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 14,
               ),
-              const SizedBox(width: 10),
-              _ConfirmButton(
-                key: quickAddButtonKey,
-                icon: writing ? Icons.check_rounded : Icons.add,
-                tooltip: writing
-                    ? S.of(context).addTask
-                    : S.of(context).newTask,
-                onTap: _press,
-              ),
-            ],
+              // Nothing marks the focus but the cursor. An accent ring
+              // around half the screen was the loudest thing on it, and a
+              // neutral one on a grey field is a line nobody reads.
+              border: border,
+              enabledBorder: border,
+              focusedBorder: border,
+            ),
           ),
         ),
-      ),
+        const SizedBox(width: 10),
+        _ConfirmButton(
+          key: quickAddButtonKey,
+          icon: writing ? Icons.check_rounded : Icons.add,
+          tooltip: writing ? S.of(context).addTask : S.of(context).newTask,
+          onTap: _press,
+        ),
+      ],
     );
+
+    // In the tab bar's room the field is only there while it is being
+    // written in, and Undo and the selection stand in the bar's place
+    // instead of the field's — the shell draws those.
+    final bar = _foot != null
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(
+              BarRoom.side,
+              BarRoom.above,
+              BarRoom.side,
+              BarRoom.below,
+            ),
+            child: SizedBox(
+              height: BarRoom.pill,
+              child: _WhileWriting(open: _open, child: row),
+            ),
+          )
+        : Padding(
+            padding: widget.padding,
+            // Undo under the selection: a tick offered back while cards are
+            // being picked out waits beneath the bar for them.
+            child: SelectionSlot(
+              child: UndoSlot(onField: _openField, child: row),
+            ),
+          );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -187,8 +228,8 @@ class _QuickAddBarState extends State<QuickAddBar> {
             child: _GroupPick(
               picked: _group,
               padding: EdgeInsets.only(
-                left: widget.padding.left,
-                right: widget.padding.right,
+                left: _foot != null ? BarRoom.side : widget.padding.left,
+                right: _foot != null ? BarRoom.side : widget.padding.right,
                 top: 6,
               ),
               onPick: (id) => setState(() => _group = id),
@@ -225,6 +266,35 @@ class _WhileKeyboardUp extends StatelessWidget {
             ? child
             : const SizedBox(width: double.infinity),
       ),
+      child: child,
+    );
+  }
+}
+
+/// Draws the field in the tab bar's room only while it is being written in
+/// with the keyboard up, which is when the bar is out of the way: the shell
+/// puts the bar away while the keys are up, and the field takes its place
+/// and rides them. With the keyboard down the bar is back over it, and a
+/// field left focused by Back is not drawn round its edges.
+class _WhileWriting extends StatelessWidget {
+  final bool open;
+  final Widget child;
+
+  const _WhileWriting({required this.open, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<double>(
+      valueListenable: KeyboardGap.instance.covered,
+      builder: (context, _, child) {
+        final shown = open && KeyboardGap.of(context) > 0;
+        // Kept in the tree either way, so it keeps what is typed and its
+        // hold on the keyboard.
+        return IgnorePointer(
+          ignoring: !shown,
+          child: Opacity(opacity: shown ? 1 : 0, child: child),
+        );
+      },
       child: child,
     );
   }
@@ -429,9 +499,9 @@ class KeyboardGap {
     final reserved = MediaQueryData.fromView(
       View.of(context),
     ).viewPadding.bottom;
-    // And less the shell's tab bar, which the field sits above: the keys
-    // cover the bar before they reach the field.
-    return math.max(0.0, covered - reserved - BarRoom.of(context));
+    // Nothing is taken off for the shell's tab bar: with the bar, the field
+    // rests in the bar's own room, so it starts from the foot as well.
+    return math.max(0.0, covered - reserved);
   }
 
   /// Whether to draw the numbers above the bar. Off, and not stored: it is
@@ -448,23 +518,103 @@ class KeyboardGap {
   void forget() => covered.value = 0;
 }
 
-/// How much of the foot of a screen the shell's tab bar floats over.
+/// How much of the foot of a screen the shell's tab bar floats over, and
+/// the way between the bar and the screen's field.
 ///
 /// The two screens with a field run their ground on under the bar, so the
-/// day panel's grey does not stop at a band of black; they keep this much
-/// clear below the field, and the keyboard has this much less to climb
-/// before it reaches it. Nothing above the shell provides one — the form
-/// and the sheets are pushed over the bar — so there it is nothing.
+/// day panel's grey does not stop at a band of black, and their field rests
+/// in the bar's room rather than above it: it is drawn only while it is
+/// being written in, brought up by the plus beside the bar ([foot]). The
+/// field and the bar stacked one over the other at the foot of the screen
+/// were two grey pills fighting over one place — "badly fit". Nothing above
+/// the shell provides one — the form and the sheets are pushed over the bar
+/// — so there it is nothing.
 class BarRoom extends InheritedWidget {
   final double height;
 
-  const BarRoom({super.key, required this.height, required super.child});
+  /// Where a screen with a field hands the bar what its plus opens, and
+  /// what stands in the bar's place for a moment; null on the screens with
+  /// no field, and with the menu.
+  final BarFoot? foot;
+
+  const BarRoom({
+    super.key,
+    required this.height,
+    this.foot,
+    required super.child,
+  });
+
+  /// The bar's pill, and the room around it.
+  static const pill = 62.0;
+  static const above = 4.0;
+  static const below = 8.0;
+  static const side = 12.0;
+
+  /// The height the bar takes at the foot of a screen, gaps included.
+  static const room = above + pill + below;
 
   static double of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<BarRoom>()?.height ?? 0;
 
+  static BarFoot? footOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BarRoom>()?.foot;
+
   @override
-  bool updateShouldNotify(BarRoom oldWidget) => oldWidget.height != height;
+  bool updateShouldNotify(BarRoom oldWidget) =>
+      oldWidget.height != height || oldWidget.foot != foot;
+}
+
+/// What a screen's field lends the tab bar: how to open the field and the
+/// full form, which the plus does on a tap and a long press, and where the
+/// screen's Undo and selection are offered, which then stand in the bar's
+/// place as they stood in the field's.
+class BarFoot extends ChangeNotifier {
+  Object? _owner;
+  VoidCallback? open;
+  VoidCallback? form;
+  UndoPlace? undo;
+  Selection? selection;
+
+  void attach(
+    Object owner, {
+    required VoidCallback open,
+    required VoidCallback form,
+    required UndoPlace? undo,
+    required Selection? selection,
+  }) {
+    final changed =
+        owner != _owner || undo != this.undo || selection != this.selection;
+    _owner = owner;
+    this.open = open;
+    this.form = form;
+    this.undo = undo;
+    this.selection = selection;
+    if (changed) _tell();
+  }
+
+  void detach(Object owner) {
+    if (owner != _owner) return;
+    _owner = null;
+    open = null;
+    form = null;
+    undo = null;
+    selection = null;
+    _tell();
+  }
+
+  bool _disposed = false;
+
+  /// After the frame: the field attaches while the screens are being built,
+  /// and the bar is built beside them, not under them.
+  void _tell() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!_disposed) notifyListeners();
+  });
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 }
 
 /// The numbers behind the lift, drawn above the bar while [showNumbers] is

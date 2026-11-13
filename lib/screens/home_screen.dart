@@ -16,8 +16,9 @@ import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/menu_button.dart' show MenuScope;
-import '../widgets/quick_add_bar.dart' show BarRoom;
+import '../widgets/quick_add_bar.dart' show BarFoot, BarRoom, KeyboardGap;
 import '../widgets/selection.dart';
+import '../widgets/tick_off.dart' show UndoSlot, withdrawUndo;
 import 'board_screen.dart';
 import 'calendar_screen.dart';
 import 'done_screen.dart';
@@ -94,17 +95,51 @@ class _HomeScreenState extends State<HomeScreen>
     const SettingsScreen(),
   ];
 
+  /// What the two screens with a field lend the bar: their field, for the
+  /// plus, and their Undo and selection, for the bar's place.
+  final _feet = [BarFoot(), BarFoot()];
+
+  BarFoot? get _foot => _index < _feet.length ? _feet[_index] : null;
+
   /// A page with the room the bar takes at its foot. The two screens with a
-  /// field run their ground on under the bar and keep the room clear
-  /// themselves ([BarRoom]); the rest simply end above it. Both wrappers are
+  /// field run their ground on under the bar and rest their field in its
+  /// room ([BarRoom]); the rest simply end above it. Both wrappers are
   /// there with no bar as well, at nothing, so switching the setting keeps
   /// every screen's state.
-  Widget _room(int i, bool inBar) => i <= AppScreen.calendar.index
-      ? BarRoom(height: inBar ? _TabBar.room : 0, child: _pages[i])
-      : Padding(
-          padding: EdgeInsets.only(bottom: inBar ? _TabBar.room : 0),
-          child: _pages[i],
-        );
+  Widget _room(int i, bool inBar) => BarRoom(
+    height: inBar ? BarRoom.room : 0,
+    foot: inBar && i < _feet.length ? _feet[i] : null,
+    child: i < _feet.length
+        ? _pages[i]
+        : Padding(
+            padding: EdgeInsets.only(bottom: inBar ? BarRoom.room : 0),
+            child: _pages[i],
+          ),
+  );
+
+  /// The plus beside the bar: the field on a screen with one, brought up on
+  /// the keyboard, and the full form on the rest — undated on the board, as
+  /// its own plus did, and on today anywhere else.
+  void _add() {
+    final open = _foot?.open;
+    if (open != null) return open();
+    _newTask();
+  }
+
+  /// Held, it is the full form wherever it is.
+  void _addInFull() {
+    final form = _foot?.form;
+    if (form != null) return form();
+    _newTask();
+  }
+
+  void _newTask() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => TaskEditScreen(
+        initialDate: _index == _board ? null : dayOf(DateTime.now()),
+      ),
+    ),
+  );
 
   bool get _isOpen => _menu.value > 0.5;
 
@@ -208,6 +243,9 @@ class _HomeScreenState extends State<HomeScreen>
     _midnight?.cancel();
     Reminders.opened.removeListener(_openReminder);
     _menu.dispose();
+    for (final foot in _feet) {
+      foot.dispose();
+    }
     _boardShown.dispose();
     _doneShown.dispose();
     super.dispose();
@@ -219,6 +257,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// way off with no bar.
   void _openMenu() {
     Selection.dropAll();
+    withdrawUndo();
     _menu.forward();
   }
 
@@ -230,6 +269,7 @@ class _HomeScreenState extends State<HomeScreen>
     _closeMenu();
     if (i == _index) return;
     Selection.dropAll();
+    withdrawUndo();
     setState(() => _index = i);
     _boardShown.value = i == _board;
     _doneShown.value = i == _done;
@@ -313,17 +353,26 @@ class _HomeScreenState extends State<HomeScreen>
             ],
           ),
           // Over the screen rather than under it, so the ground the screen
-          // stands on runs on beneath the bar. The keyboard comes up over
-          // it: the field rides the keys and the bar stays behind.
+          // stands on runs on beneath the bar. It goes while the keyboard is
+          // up: the screen's field is brought up in its place and rides the
+          // keys, and the bar stays behind them.
           if (inBar)
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              child: _TabBar(
-                index: _index,
-                hidden: hidden,
-                onSelected: _select,
+              child: _WhileKeyboardDown(
+                child: ListenableBuilder(
+                  listenable: Listenable.merge([?_foot]),
+                  builder: (context, _) => _TabBar(
+                    index: _index,
+                    hidden: hidden,
+                    foot: _foot,
+                    onSelected: _select,
+                    onAdd: _add,
+                    onAddInFull: _addInFull,
+                  ),
+                ),
               ),
             ),
         ],
@@ -952,7 +1001,8 @@ class _MenuItem extends StatelessWidget {
 }
 
 /// The screens, in a pill floating along the foot of the window, the one on
-/// show lifted out in a pill of its own that slides to the one picked.
+/// show lifted out in a pill of its own that slides to the one picked, and
+/// a round plus beside it for a new task.
 ///
 /// The board comes after the two that are about when, being about how far
 /// along; Done after it, and Settings last: it is a place to look, not a
@@ -961,29 +1011,74 @@ class _MenuItem extends StatelessWidget {
 ///
 /// Neutral, as the menu is: the screen on show is lifted in grey, not the
 /// accent, which is kept for what is rare.
+///
+/// The plus is where the add field went. The field sat over the bar as a
+/// second pill of the same grey, and the two read as one toolbar stacked on
+/// another — "badly fit". Chosen over a plus as a sixth tab, which squeezed
+/// every name and was a tab that is not a screen. A tap brings up the
+/// screen's field on the keyboard, in the bar's place; held, it opens the
+/// full form, as the plus beside the field did. Undo and the selection
+/// stand in the whole bar's place, plus and all, as they stood in the
+/// field's — which costs the tabs for Undo's four seconds, unless it is
+/// tapped or brushed away.
 class _TabBar extends StatelessWidget {
   final int index;
   final Set<AppScreen> hidden;
+  final BarFoot? foot;
   final ValueChanged<int> onSelected;
+  final VoidCallback onAdd;
+  final VoidCallback onAddInFull;
 
   const _TabBar({
     required this.index,
     required this.hidden,
+    required this.foot,
     required this.onSelected,
+    required this.onAdd,
+    required this.onAddInFull,
   });
 
-  static const _height = 62.0;
-  static const _above = 4.0;
-  static const _below = 8.0;
-
-  /// The height the bar takes at the foot of a screen, gaps included.
-  static const room = _above + _height + _below;
+  static const _height = BarRoom.pill;
 
   /// Settings, after the screens [AppScreen] names.
   static final _settings = AppScreen.values.length;
 
   @override
   Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        BarRoom.side,
+        BarRoom.above,
+        BarRoom.side,
+        BarRoom.below,
+      ),
+      // Undo under the selection, as in the field's place: a tick offered
+      // back while cards are being picked out waits beneath the bar for
+      // them.
+      child: SelectionSlot(
+        selection: foot?.selection,
+        child: UndoSlot(
+          place: foot?.undo,
+          // A tap on it away from Undo only puts it away. It is over the
+          // tabs as well as the plus, and the tap is more likely to have
+          // been meant for them than for a new task.
+          onField: () {},
+          child: SizedBox(
+            height: _height,
+            child: Row(
+              children: [
+                Expanded(child: _screens(context)),
+                const SizedBox(width: 8),
+                _AddButton(onTap: onAdd, onLongPress: onAddInFull),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _screens(BuildContext context) {
     final p = AppTheme.of(context);
     // Whether there is anything, and nothing else: watching the whole
     // provider rebuilt the bar on every change to every task.
@@ -1002,54 +1097,122 @@ class _TabBar extends StatelessWidget {
         : AppScreen.calendar.index;
     final at = shown.indexOf(index);
     const inset = 4.0;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, _above, 12, _below),
-      child: Container(
-        height: _height,
-        padding: const EdgeInsets.all(inset),
-        decoration: BoxDecoration(
-          color: p.panelHi,
-          borderRadius: BorderRadius.circular(_height / 2),
-          border: Border.all(color: p.field),
-        ),
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final width = box.maxWidth / shown.length;
-            return Stack(
-              children: [
-                if (at >= 0)
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeOutCubic,
-                    left: width * at,
-                    top: 0,
-                    bottom: 0,
-                    width: width,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Color.lerp(p.field, p.muted, 0.18),
-                        borderRadius: BorderRadius.circular(_height / 2),
-                      ),
+    return Container(
+      padding: const EdgeInsets.all(inset),
+      decoration: BoxDecoration(
+        color: p.panelHi,
+        borderRadius: BorderRadius.circular(_height / 2),
+        border: Border.all(color: p.field),
+      ),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final width = box.maxWidth / shown.length;
+          return Stack(
+            children: [
+              if (at >= 0)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  left: width * at,
+                  top: 0,
+                  bottom: 0,
+                  width: width,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color.lerp(p.field, p.muted, 0.18),
+                      borderRadius: BorderRadius.circular(_height / 2),
                     ),
                   ),
-                Row(
-                  children: [
-                    for (final i in shown)
-                      Expanded(
-                        child: _Tab(
-                          item: menuItems[i],
-                          selected: index == i,
-                          dot: overdue && i == late,
-                          onTap: () => onSelected(i),
-                        ),
-                      ),
-                  ],
                 ),
-              ],
-            );
+              Row(
+                children: [
+                  for (final i in shown)
+                    Expanded(
+                      child: _Tab(
+                        item: menuItems[i],
+                        selected: index == i,
+                        dot: overdue && i == late,
+                        onTap: () => onSelected(i),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Identifies the plus beside the tab bar.
+const barAddKey = Key('bar-add');
+
+/// The plus, a disc the bar's height in the bar's own grey and edge, so the
+/// two read as a pair along the foot rather than a bar and a button stuck
+/// to it. Plain, as the plus beside the field was: it is pressed often and
+/// looked at rarely.
+class _AddButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _AddButton({required this.onTap, required this.onLongPress});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    // No tooltip: a long press is the full form, and a tooltip would take
+    // it.
+    return Semantics(
+      button: true,
+      label: S.of(context).newTask,
+      child: Material(
+        key: barAddKey,
+        color: p.panelHi,
+        shape: CircleBorder(side: BorderSide(color: p.field)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
           },
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            onLongPress();
+          },
+          customBorder: const CircleBorder(),
+          child: SizedBox.square(
+            dimension: BarRoom.pill,
+            child: Icon(Icons.add_rounded, color: p.text, size: 28),
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Draws [child] only while the keyboard is down. With it up, the screen's
+/// field is in the bar's place, riding the keys, and the bar is behind them
+/// anyway — but not for the first frames of a slide, when the field would
+/// be coming up through it. Reads the lift, so it is rebuilt on every frame
+/// of one; it is the smallest widget that can.
+class _WhileKeyboardDown extends StatelessWidget {
+  final Widget child;
+
+  const _WhileKeyboardDown({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<double>(
+      valueListenable: KeyboardGap.instance.covered,
+      builder: (context, _, child) {
+        final down = KeyboardGap.of(context) <= 0;
+        return IgnorePointer(
+          ignoring: !down,
+          child: Opacity(opacity: down ? 1 : 0, child: child),
+        );
+      },
+      child: child,
     );
   }
 }

@@ -195,7 +195,11 @@ class _SelectionScopeState extends State<SelectionScope> {
 class SelectionSlot extends StatefulWidget {
   final Widget child;
 
-  const SelectionSlot({super.key, required this.child});
+  /// The selection that stands here, for a slot that is not under its
+  /// scope; otherwise the one over the slot.
+  final Selection? selection;
+
+  const SelectionSlot({super.key, this.selection, required this.child});
 
   @override
   State<SelectionSlot> createState() => _SelectionSlotState();
@@ -220,7 +224,17 @@ class _SelectionSlotState extends State<SelectionSlot>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final selection = Selection.maybeOf(context);
+    _follow();
+  }
+
+  @override
+  void didUpdateWidget(SelectionSlot old) {
+    super.didUpdateWidget(old);
+    if (old.selection != widget.selection) _follow();
+  }
+
+  void _follow() {
+    final selection = widget.selection ?? Selection.maybeOf(context);
     if (selection == _selection) return;
     _selection?.removeListener(_changed);
     _selection = selection?..addListener(_changed);

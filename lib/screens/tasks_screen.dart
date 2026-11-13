@@ -263,8 +263,6 @@ class _TasksScreenState extends State<TasksScreen> {
                         onSubmit: _addQuickTask,
                         onFullForm: () => _openEditor(null, today),
                       ),
-                      // Room for the shell's tab bar, which floats over it.
-                      SizedBox(height: BarRoom.of(context)),
                     ],
                   ),
                 ),

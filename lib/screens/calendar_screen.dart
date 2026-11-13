@@ -1116,10 +1116,6 @@ class _CalendarScreenState extends State<CalendarScreen>
                         onSubmit: _addQuickTask,
                         onFullForm: () => _openEditor(),
                       ),
-                      // The shell's tab bar floats over this, so the panel's
-                      // grey runs on under it rather than stopping at a band
-                      // of black.
-                      SizedBox(height: BarRoom.of(context)),
                     ],
                   ),
                 ),
