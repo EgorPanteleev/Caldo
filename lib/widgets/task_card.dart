@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -199,10 +201,14 @@ class TaskCard extends StatelessWidget {
               key: ValueKey(('checklist', task.id)),
               task: task,
               color: color,
-              head: (count) => dense
+              onTick: onToggle,
+              // While tasks are being picked out the tick picks this one
+              // out, which leaves nothing for its steps to hold back.
+              holdsBack: !selecting,
+              head: (tick, count) => dense
                   ? Row(
                       children: [
-                        _Tick(done: task.done, color: color, onTap: onToggle),
+                        tick,
                         const SizedBox(width: 14),
                         Expanded(child: title),
                         if (started != null) ...[
@@ -234,7 +240,7 @@ class TaskCard extends StatelessWidget {
                   : Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        _Tick(done: task.done, color: color, onTap: onToggle),
+                        tick,
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
@@ -319,15 +325,28 @@ class TaskCard extends StatelessWidget {
 /// can be ticked without opening the task. Under the row rather than in it,
 /// so the card's own tick stays beside the title instead of sinking to the
 /// middle of a taller card.
+///
+/// The card's tick is made here too, because a checklist holds it back: a
+/// task with steps still open is not ticked off by the first tap on it. The
+/// tick shakes and the list opens, so what is left is in front of the reader,
+/// and a tap while it is open ticks the task off anyway. A task was ticked
+/// off with half its steps forgotten, and refusing outright would leave a
+/// step that turned out not to matter standing in the way.
 class _WithChecklist extends StatefulWidget {
   final Task task;
   final Color color;
-  final Widget Function(Widget? count) head;
+  final VoidCallback onTick;
+
+  /// Whether open steps hold the tick back at all.
+  final bool holdsBack;
+  final Widget Function(Widget tick, Widget? count) head;
 
   const _WithChecklist({
     super.key,
     required this.task,
     required this.color,
+    required this.onTick,
+    required this.holdsBack,
     required this.head,
   });
 
@@ -337,6 +356,22 @@ class _WithChecklist extends StatefulWidget {
 
 class _WithChecklistState extends State<_WithChecklist> {
   bool _open = false;
+
+  /// Counts the taps held back, so the tick shakes once for each.
+  int _heldBack = 0;
+
+  void _tick() {
+    final task = widget.task;
+    final left = task.subtasks.length - task.subtasksDone;
+    if (widget.holdsBack && !task.done && left > 0 && !_open) {
+      setState(() {
+        _open = true;
+        _heldBack++;
+      });
+      return;
+    }
+    widget.onTick();
+  }
 
   void _toggle(int index) {
     HapticFeedback.selectionClick();
@@ -354,7 +389,13 @@ class _WithChecklistState extends State<_WithChecklist> {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final steps = widget.task.subtasks;
-    if (steps.isEmpty) return widget.head(null);
+    final tick = _Tick(
+      done: widget.task.done,
+      color: widget.color,
+      shakes: _heldBack,
+      onTap: _tick,
+    );
+    if (steps.isEmpty) return widget.head(tick, null);
     // A done card has sunk back into the ground, and its pill goes with it.
     final ink = widget.task.done ? p.muted : p.text;
 
@@ -406,7 +447,7 @@ class _WithChecklistState extends State<_WithChecklist> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        widget.head(count),
+        widget.head(tick, count),
         AnimatedSize(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
@@ -547,20 +588,34 @@ class InProgressBadge extends StatelessWidget {
 class _Tick extends StatefulWidget {
   final bool done;
   final Color color;
+
+  /// Goes up by one each time a tap on the tick was held back, and the tick
+  /// shakes its head once for each.
+  final int shakes;
   final VoidCallback onTap;
 
-  const _Tick({required this.done, required this.color, required this.onTap});
+  const _Tick({
+    required this.done,
+    required this.color,
+    this.shakes = 0,
+    required this.onTap,
+  });
 
   @override
   State<_Tick> createState() => _TickState();
 }
 
-class _TickState extends State<_Tick> with SingleTickerProviderStateMixin {
+class _TickState extends State<_Tick> with TickerProviderStateMixin {
   late final AnimationController _draw = AnimationController(
     vsync: this,
     duration: _settle,
     reverseDuration: const Duration(milliseconds: 110),
     value: widget.done ? 1 : 0,
+  );
+
+  late final AnimationController _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
   );
 
   @override
@@ -569,11 +624,16 @@ class _TickState extends State<_Tick> with SingleTickerProviderStateMixin {
     if (widget.done != old.done) {
       widget.done ? _draw.forward() : _draw.reverse();
     }
+    if (widget.shakes != old.shakes) {
+      HapticFeedback.mediumImpact();
+      _shake.forward(from: 0);
+    }
   }
 
   @override
   void dispose() {
     _draw.dispose();
+    _shake.dispose();
     super.dispose();
   }
 
@@ -587,8 +647,11 @@ class _TickState extends State<_Tick> with SingleTickerProviderStateMixin {
       },
       behavior: HitTestBehavior.opaque,
       child: AnimatedBuilder(
-        animation: _draw,
+        animation: Listenable.merge([_draw, _shake]),
         builder: (context, _) {
+          // Three swings either way, dying out: a no, not a wobble.
+          final t = _shake.value;
+          final dx = 3.5 * math.sin(t * 6 * math.pi) * (1 - t);
           // The square fills first and the stroke follows it in, so the two
           // read as one movement rather than a fill with a mark dropped on
           // top of it.
@@ -596,21 +659,24 @@ class _TickState extends State<_Tick> with SingleTickerProviderStateMixin {
           final mark = Curves.easeOutCubic.transform(
             ((_draw.value - 0.25) / 0.75).clamp(0.0, 1.0),
           );
-          return Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: widget.color.withValues(alpha: fill),
-              borderRadius: BorderRadius.circular(7),
-              // Outlined in the task's own colour rather than a neutral grey:
-              // with the card itself plain, this is the only place the colour
-              // a task was given is still said, and an empty square is a
-              // small enough mark to say it without tinting the whole run.
-              border: Border.all(color: widget.color, width: 1.8),
-            ),
-            child: CustomPaint(
-              key: taskCardMarkKey,
-              painter: CheckMark(progress: mark),
+          return Transform.translate(
+            offset: Offset(dx, 0),
+            child: Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: widget.color.withValues(alpha: fill),
+                borderRadius: BorderRadius.circular(7),
+                // Outlined in the task's own colour rather than a neutral grey:
+                // with the card itself plain, this is the only place the colour
+                // a task was given is still said, and an empty square is a
+                // small enough mark to say it without tinting the whole run.
+                border: Border.all(color: widget.color, width: 1.8),
+              ),
+              child: CustomPaint(
+                key: taskCardMarkKey,
+                painter: CheckMark(progress: mark),
+              ),
             ),
           );
         },

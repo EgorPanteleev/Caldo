@@ -802,7 +802,15 @@ Changing them back will be noticed.
   its other controls. The count is a pill with a chevron, lifted out of
   the card in the text's colour: written in muted grey like the time beside
   it, it read as one more fact about the task and nobody found that it
-  opened. Search matches a step's words, but the JSON is
+  opened. **Open steps hold the first tick back** (`_WithChecklist._tick`):
+  a task with steps left is not ticked off by the first tap — the tick
+  shakes and the steps open under the title — and a tap while they are
+  open ticks it off anyway. Asked for after a task was ticked off with
+  steps forgotten; chosen over a sheet asking first, refusing outright, and
+  a warning on the Undo bar. Only the card's tick: carrying a card into the
+  board's Done, Mark done on a selection and a reminder's Done are
+  deliberate enough, and the widget does not draw the steps.
+  Search matches a step's words, but the JSON is
   filtered in Dart afterwards: a search for "done" or "title" would
   otherwise find every task with a checklist.
 - **A long press picks a card up; it used to open the editor**, which a tap
@@ -1559,7 +1567,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 213 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 214 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

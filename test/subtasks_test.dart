@@ -174,6 +174,51 @@ void main() {
     ]);
   });
 
+  testWidgets('open steps hold back the first tick and show what is left', (
+    tester,
+  ) async {
+    var ticks = 0;
+    Widget card(List<Subtask> subtasks) =>
+        ChangeNotifierProvider<TaskProvider>.value(
+          value: _Capture(),
+          child: MaterialApp(
+            theme: AppTheme.dark(AppAccent.presets.first),
+            home: Scaffold(
+              body: TaskCard(
+                task: Task(
+                  id: 1,
+                  listId: 1,
+                  title: 'Fence',
+                  createdAt: 0,
+                  subtasks: subtasks,
+                ),
+                onTap: () {},
+                onToggle: () => ticks++,
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(card(steps));
+    await tester.tap(find.byKey(taskCardTickKey));
+    await tester.pumpAndSettle();
+    // Not ticked off: the steps still to do are put in front of the reader.
+    expect(ticks, 0);
+    expect(find.text('Paint the fence'), findsOneWidget);
+
+    // Seen, and ticked off anyway.
+    await tester.tap(find.byKey(taskCardTickKey));
+    await tester.pumpAndSettle();
+    expect(ticks, 1);
+
+    // With every step done there is nothing to hold it back.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(card(const [Subtask('Buy paint', done: true)]));
+    await tester.tap(find.byKey(taskCardTickKey));
+    await tester.pumpAndSettle();
+    expect(ticks, 2);
+  });
+
   testWidgets('the form writes a checklist a line at a time', (tester) async {
     final capture = _Capture();
     tester.view.physicalSize = const Size(960, 1920);
