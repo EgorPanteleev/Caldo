@@ -395,13 +395,17 @@ Changing them back will be noticed.
   room under it in their ground's colour (`BarRoom`), and the other three
   are simply padded above it. The cost is about 74 points of height on
   every screen, which on the calendar comes out of the day panel.
-  **With the bar there is no add field at the foot; a round plus beside
-  the bar brings it up** (`_AddButton`, `BarFoot`, `_WhileWriting`,
-  `_WhileKeyboardDown`). The field sat over the bar as a second grey pill,
-  and the two read as one toolbar stacked on another — "badly fit … remove
-  add task bar and mb add smth else". Chosen from three: a plus beside the
-  bar, a plus as a sixth tab (squeezes every name, and is a tab that is not
-  a screen), or the field and the bar merged into one panel. The field now
+  **With the bar there is no add field at the foot; a round plus floating
+  above the bar's right end brings it up** (`_AddButton`, `BarFoot`,
+  `_WhileWriting`, `_WhileKeyboardDown`). The field sat over the bar as a
+  second grey pill, and the two read as one toolbar stacked on another —
+  "badly fit … remove add task bar and mb add smth else". Chosen from
+  three: a plus beside the bar, a plus as a sixth tab (squeezes every name,
+  and is a tab that is not a screen), or the field and the bar merged into
+  one panel. It was in the bar's row first, the bar's height, and was asked
+  up out of it ("mustn't be in the same row"): now a 56-point disc,
+  shadowed since it floats over the cards, its edge in line with the
+  bar's, and the bar has the whole width again. The field now
   rests in the bar's own room, drawn only while it is focused with the
   keyboard up; the bar is put away while the keys are up and the field
   rides them in its place. So `KeyboardGap.of` takes nothing off for the
@@ -412,7 +416,8 @@ Changing them back will be noticed.
   form on its own — undated on the board, whose header plus goes while the
   bar has one, and on today on the other two. The screen's field lends the
   shell its Undo and selection through its `BarFoot`, and those stand in
-  the whole bar's place, plus and all, as they stood in the field's. That
+  the bar's place, as they stood in the field's; the plus stays over Undo
+  and goes while tasks are picked out. That
   costs the tabs for Undo's four seconds, so a tap on it away from Undo
   only puts it away rather than opening the field; moving to another
   screen withdraws it (`withdrawUndo`), as it puts down a selection. The

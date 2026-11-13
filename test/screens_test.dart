@@ -1739,9 +1739,12 @@ void main() {
     // The field rests in the bar's room, out of sight and out of reach.
     expect(find.byType(TextField).hitTestable(), findsNothing);
     final field = tester.getRect(find.byType(QuickAddBar));
-    final bar = tester.getRect(find.byKey(barAddKey));
+    final bar = tester.getRect(find.byKey(tabBarKey));
     expect(field.top, lessThanOrEqualTo(bar.top), reason: 'in the room');
     expect(field.bottom, greaterThanOrEqualTo(bar.bottom));
+    // The plus is above the bar, not in its row.
+    final plus = tester.getRect(find.byKey(barAddKey));
+    expect(plus.bottom, lessThanOrEqualTo(bar.top));
 
     await tester.tap(find.byKey(barAddKey));
     await tester.pump();
@@ -1787,9 +1790,9 @@ void main() {
       ),
     );
     await tester.pump();
-    final bar = tester.getRect(find.byKey(barAddKey));
+    final bar = tester.getRect(find.byKey(tabBarKey));
 
-    // Plus and all: the offer stands in the whole bar's place.
+    // The offer stands in the bar's place; the plus above it stays.
     final tick = find.descendant(
       of: find.ancestor(of: find.text('Ship'), matching: find.byType(TaskCard)),
       matching: find.byKey(taskCardTickKey),
@@ -1800,7 +1803,8 @@ void main() {
     expect(provider.toggled?.title, 'Ship');
     final undo = tester.getRect(find.text('Undo'));
     expect(undo.center.dy, closeTo(bar.center.dy, 1));
-    expect(find.byKey(barAddKey).hitTestable(), findsNothing);
+    expect(find.text('Calendar').hitTestable(), findsNothing);
+    expect(find.byKey(barAddKey).hitTestable(), findsOneWidget);
 
     // A tap on it puts it away for the tabs under it, and opens nothing.
     await tester.tap(
@@ -1808,7 +1812,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Undo'), findsNothing);
-    expect(find.byKey(barAddKey).hitTestable(), findsOneWidget);
+    expect(find.text('Calendar').hitTestable(), findsOneWidget);
     final text = tester.widget<TextField>(find.byType(TextField));
     expect(text.focusNode!.hasFocus, isFalse);
     await drainDatabase(tester);

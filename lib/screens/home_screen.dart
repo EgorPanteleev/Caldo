@@ -363,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen>
               bottom: 0,
               child: _WhileKeyboardDown(
                 child: ListenableBuilder(
-                  listenable: Listenable.merge([?_foot]),
+                  listenable: Listenable.merge([?_foot, ?_foot?.selection]),
                   builder: (context, _) => _TabBar(
                     index: _index,
                     hidden: hidden,
@@ -1002,7 +1002,7 @@ class _MenuItem extends StatelessWidget {
 
 /// The screens, in a pill floating along the foot of the window, the one on
 /// show lifted out in a pill of its own that slides to the one picked, and
-/// a round plus beside it for a new task.
+/// a round plus floating above its far end for a new task.
 ///
 /// The board comes after the two that are about when, being about how far
 /// along; Done after it, and Settings last: it is a place to look, not a
@@ -1015,12 +1015,15 @@ class _MenuItem extends StatelessWidget {
 /// The plus is where the add field went. The field sat over the bar as a
 /// second pill of the same grey, and the two read as one toolbar stacked on
 /// another — "badly fit". Chosen over a plus as a sixth tab, which squeezed
-/// every name and was a tab that is not a screen. A tap brings up the
-/// screen's field on the keyboard, in the bar's place; held, it opens the
-/// full form, as the plus beside the field did. Undo and the selection
-/// stand in the whole bar's place, plus and all, as they stood in the
-/// field's — which costs the tabs for Undo's four seconds, unless it is
-/// tapped or brushed away.
+/// every name and was a tab that is not a screen. It sat in the bar's row
+/// at first, and was asked up out of it ("mustn't be in the same row"), so
+/// the bar has the whole width again. A tap brings up the screen's field on
+/// the keyboard, in the bar's place; held, it opens the full form, as the
+/// plus beside the field did. Undo and the selection stand in the bar's
+/// place, as they stood in the field's — which costs the tabs for Undo's
+/// four seconds, unless it is tapped or brushed away. The plus stays over
+/// Undo, and goes while tasks are picked out: nothing is added halfway
+/// through dealing with them.
 class _TabBar extends StatelessWidget {
   final int index;
   final Set<AppScreen> hidden;
@@ -1045,6 +1048,33 @@ class _TabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final picking = foot?.selection?.active ?? false;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: BarRoom.side, bottom: 10),
+          child: IgnorePointer(
+            ignoring: picking,
+            child: AnimatedScale(
+              scale: picking ? 0.6 : 1,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              child: AnimatedOpacity(
+                opacity: picking ? 0 : 1,
+                duration: const Duration(milliseconds: 200),
+                child: _AddButton(onTap: onAdd, onLongPress: onAddInFull),
+              ),
+            ),
+          ),
+        ),
+        _bar(context),
+      ],
+    );
+  }
+
+  Widget _bar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         BarRoom.side,
@@ -1060,18 +1090,13 @@ class _TabBar extends StatelessWidget {
         child: UndoSlot(
           place: foot?.undo,
           // A tap on it away from Undo only puts it away. It is over the
-          // tabs as well as the plus, and the tap is more likely to have
-          // been meant for them than for a new task.
+          // tabs, and the tap is more likely to have been meant for them
+          // than for a new task.
           onField: () {},
           child: SizedBox(
+            key: tabBarKey,
             height: _height,
-            child: Row(
-              children: [
-                Expanded(child: _screens(context)),
-                const SizedBox(width: 8),
-                _AddButton(onTap: onAdd, onLongPress: onAddInFull),
-              ],
-            ),
+            child: _screens(context),
           ),
         ),
       ),
@@ -1145,13 +1170,15 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-/// Identifies the plus beside the tab bar.
+/// Identifies the tab bar's pill.
+const tabBarKey = Key('tab-bar');
+
+/// Identifies the plus above the tab bar.
 const barAddKey = Key('bar-add');
 
-/// The plus, a disc the bar's height in the bar's own grey and edge, so the
-/// two read as a pair along the foot rather than a bar and a button stuck
-/// to it. Plain, as the plus beside the field was: it is pressed often and
-/// looked at rarely.
+/// The plus, a disc in the bar's own grey and edge, so the two read as a
+/// pair at the foot. Plain, as the plus beside the field was: it is pressed
+/// often and looked at rarely. Shadowed, since it floats over the cards.
 class _AddButton extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
@@ -1170,6 +1197,8 @@ class _AddButton extends StatelessWidget {
         key: barAddKey,
         color: p.panelHi,
         shape: CircleBorder(side: BorderSide(color: p.field)),
+        elevation: 6,
+        shadowColor: Colors.black,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () {
@@ -1182,7 +1211,7 @@ class _AddButton extends StatelessWidget {
           },
           customBorder: const CircleBorder(),
           child: SizedBox.square(
-            dimension: BarRoom.pill,
+            dimension: 56,
             child: Icon(Icons.add_rounded, color: p.text, size: 28),
           ),
         ),
