@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Written by tool/make_widget_ticks.py; edit that, not this. -->
+<!-- A task card in lime, as Schedule draws one: its ink behind, the tick,
+     the title and under it the time or "All day". The outer frame's padding
+     is the gap to the next card, and its top margin is where it stands in
+     the widget. Each part plays its piece of a tick as the app's card does,
+     on an animator started by flipping its enabled state (TodayWidgetRuns):
+     the row slides, the card fades when it is leaving, the ink sinks and
+     the title is crossed out. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingBottom="8dp"
+    android:stateListAnimator="@animator/widget_slide">
+
+    <FrameLayout
+        android:id="@+id/widget_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stateListAnimator="@animator/widget_leave">
+
+        <ImageView
+            android:id="@+id/widget_ink"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.24"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_ink"
+            android:stateListAnimator="@animator/widget_ink"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingEnd="14dp">
+
+            <!-- As tall as the card, so the tick is easy to hit without the
+                 rest of the card being taken for it. Its state is never
+                 saved: every card's box has this one id, and when the
+                 launcher rebuilt itself it restored one box's saved state
+                 into all of them, which ticked every open task as if each
+                 had been tapped. -->
+            <CheckBox
+                android:id="@+id/widget_tick"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="14dp"
+                android:background="@null"
+                android:button="@drawable/widget_check_lime"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingEnd="14dp"
+                android:saveEnabled="false"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp">
+
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/widget_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="2"
+                        android:textColor="#FFE9E9EB"
+                        android:textSize="15.5sp"
+                        android:stateListAnimator="@animator/widget_title_open"/>
+
+                    <TextView
+                        android:id="@+id/widget_title_done"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:alpha="0"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="2"
+                        android:textColor="#FFE9E9EB"
+                        android:textSize="15.5sp"
+                        android:stateListAnimator="@animator/widget_title_done"/>
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/widget_time"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FF9B9BA1"
+                    android:textSize="12.5sp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

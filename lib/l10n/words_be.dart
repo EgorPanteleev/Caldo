@@ -173,6 +173,7 @@ const Map<String, Object> be = {
   'priority.medium': "Сярэдні",
   'priority.high': "Высокі",
   'sectionColour': "КОЛЕР",
+  'customColour': "Свой колер",
   'list': "Спіс",
   'deleteTaskQuestion': "Выдаліць задачу?",
   'willBeRemoved': "Задача «{title}» будзе выдалена.",

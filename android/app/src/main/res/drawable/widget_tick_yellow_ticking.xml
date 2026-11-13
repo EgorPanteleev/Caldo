@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Written by tool/make_widget_ticks.py; edit that, not this. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/widget_tick_yellow_base">
+    <target android:name="fill" android:animation="@animator/widget_tick_fill_in"/>
+    <target android:name="check" android:animation="@animator/widget_tick_check_in"/>
+</animated-vector>

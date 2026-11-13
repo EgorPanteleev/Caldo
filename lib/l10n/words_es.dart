@@ -176,6 +176,7 @@ const Map<String, Object> es = {
   'priority.medium': "Media",
   'priority.high': "Alta",
   'sectionColour': "COLOR",
+  'customColour': "Color personalizado",
   'list': "Lista",
   'deleteTaskQuestion': "¿Eliminar la tarea?",
   'willBeRemoved': "Se eliminará «{title}».",

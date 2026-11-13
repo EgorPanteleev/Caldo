@@ -176,6 +176,7 @@ const Map<String, Object> it = {
   'priority.medium': "Media",
   'priority.high': "Alta",
   'sectionColour': "COLORE",
+  'customColour': "Colore personalizzato",
   'list': "Lista",
   'deleteTaskQuestion': "Eliminare l’attività?",
   'willBeRemoved': "«{title}» sarà eliminata.",

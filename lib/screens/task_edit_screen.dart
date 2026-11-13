@@ -602,7 +602,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                               const SizedBox(height: 10),
                               ColourSelector(
                                 value: _styleId,
-                                listColor:
+                                sample: _title.text.trim().isEmpty
+                                    ? s.taskField
+                                    : _title.text.trim(),
+                                groupColour:
                                     lists
                                         .where((l) => l.id == validId)
                                         .map((l) => l.style.color)

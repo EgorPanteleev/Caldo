@@ -394,6 +394,7 @@ class S {
   String get sectionPriority => _word('sectionPriority');
   String priorityName(Priority priority) => _word('priority.${priority.name}');
   String get sectionColour => _word('sectionColour');
+  String get customColour => _word('customColour');
   String get list => _word('list');
   String get deleteTaskQuestion => _word('deleteTaskQuestion');
   String willBeRemoved(String title) =>

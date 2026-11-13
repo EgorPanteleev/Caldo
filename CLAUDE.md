@@ -444,6 +444,24 @@ Changing them back will be noticed.
 - **A task may carry its own colour** (`Task.styleId`, same swatches a list
   wears) and falls back to its list's colour. Always resolve through
   `colorOfTask`.
+- **The palette is sixteen colours, and any other can be made**
+  (`ListStyle.presets`, `ColourSelector`, `showCustomColourSheet`). Eight
+  was "a limited kit", and four of the eight were blue or green. They are
+  laid out as two rows of eight round the wheel — red to graphite — with a
+  last row under them: the group's own colour (the link, on a task), the
+  colours last made, and a plus ringed with the wheel that opens a sheet
+  of a hue strip and five tones, over a sample card in the colour.
+  Chosen from three ways of doing it (a larger fixed set and a free picker
+  were the others). The tones are not a free square: a card is a quarter
+  of its colour over black, so a darker colour is a black card and a
+  paler one a grey card. A made colour is stored as `#RRGGBB` in the same
+  `style_id` column, so nothing in the schema changed, and the six last
+  made are kept in Settings (`customColours`) and go with a backup. The
+  first eight ids are the old ones, colours unchanged, and a new group is
+  still offered those first, in the old order (`ListStyle.freeFor`). The
+  widget's tick has a drawable per preset (`tool/make_widget_ticks.py`), so
+  a made colour's card is inked in its own colour and ticks in the
+  nearest preset's.
 - **The date and time pickers are our own sheets** — a month grid and scroll
   wheels. Material's dialog and clock dial were rejected by name.
 - **The clock's middle band is a window in a mask, not a panel.** Nothing is
@@ -1541,7 +1559,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 210 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 213 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

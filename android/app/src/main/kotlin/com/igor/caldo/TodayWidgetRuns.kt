@@ -590,16 +590,27 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
          */
         val leaving: MutableSet<Long> = mutableSetOf()
 
-        /** `ListStyle`'s swatches, each with its row (see [box]). */
+        /**
+         * `ListStyle`'s swatches, each with its row (see [box]). A colour
+         * made on the app's custom sheet ticks in the nearest of them.
+         */
         private val SWATCHES = mapOf(
-            0xFF7B61E8.toInt() to R.layout.widget_task_violet,
-            0xFF3B7DD8.toInt() to R.layout.widget_task_blue,
-            0xFF16A394.toInt() to R.layout.widget_task_teal,
-            0xFF35A06A.toInt() to R.layout.widget_task_green,
-            0xFFD99A2B.toInt() to R.layout.widget_task_amber,
-            0xFFD9528A.toInt() to R.layout.widget_task_pink,
-            0xFF1E94B0.toInt() to R.layout.widget_task_cyan,
+            0xFFD9473F.toInt() to R.layout.widget_task_red,
             0xFFDB7A33.toInt() to R.layout.widget_task_orange,
+            0xFFD99A2B.toInt() to R.layout.widget_task_amber,
+            0xFFCCB529.toInt() to R.layout.widget_task_yellow,
+            0xFF86AD34.toInt() to R.layout.widget_task_lime,
+            0xFF35A06A.toInt() to R.layout.widget_task_green,
+            0xFF16A394.toInt() to R.layout.widget_task_teal,
+            0xFF1E94B0.toInt() to R.layout.widget_task_cyan,
+            0xFF3B7DD8.toInt() to R.layout.widget_task_blue,
+            0xFF5560D6.toInt() to R.layout.widget_task_indigo,
+            0xFF7B61E8.toInt() to R.layout.widget_task_violet,
+            0xFFA057D9.toInt() to R.layout.widget_task_purple,
+            0xFFC451B5.toInt() to R.layout.widget_task_magenta,
+            0xFFD9528A.toInt() to R.layout.widget_task_pink,
+            0xFFA06E4E.toInt() to R.layout.widget_task_brown,
+            0xFF7F858D.toInt() to R.layout.widget_task_graphite,
         )
     }
 }

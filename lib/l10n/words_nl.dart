@@ -176,6 +176,7 @@ const Map<String, Object> nl = {
   'priority.medium': "Gemiddeld",
   'priority.high': "Hoog",
   'sectionColour': "KLEUR",
+  'customColour': "Eigen kleur",
   'list': "Lijst",
   'deleteTaskQuestion': "Taak verwijderen?",
   'willBeRemoved': "‘{title}’ wordt verwijderd.",

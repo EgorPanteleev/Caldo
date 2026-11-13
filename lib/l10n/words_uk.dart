@@ -174,6 +174,7 @@ const Map<String, Object> uk = {
   'priority.medium': "Середній",
   'priority.high': "Високий",
   'sectionColour': "КОЛІР",
+  'customColour': "Свій колір",
   'list': "Список",
   'deleteTaskQuestion': "Видалити завдання?",
   'willBeRemoved': "Завдання «{title}» буде видалено.",

@@ -174,6 +174,7 @@ const Map<String, Object> ru = {
   'priority.medium': "Средний",
   'priority.high': "Высокий",
   'sectionColour': "ЦВЕТ",
+  'customColour': "Свой цвет",
   'list': "Список",
   'deleteTaskQuestion': "Удалить задачу?",
   'willBeRemoved': "Задача «{title}» будет удалена.",

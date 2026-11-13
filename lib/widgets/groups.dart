@@ -9,6 +9,7 @@ import '../models/task_list.dart';
 import '../providers/events_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
+import 'colour_selector.dart';
 import 'date_time_pickers.dart' show PickerSheet, SheetAction;
 
 /// What a group is called on screen. The default group is made before
@@ -309,16 +310,11 @@ class _GroupSheetState extends State<_GroupSheet> {
     _name = TextEditingController(
       text: group == null ? '' : groupLabel(context, group),
     );
-    // A new group starts in a colour no group has yet, while there is one,
-    // so two groups made one after another can be told apart unasked.
-    final taken = {
-      for (final l in context.read<TaskProvider>().lists) l.styleId,
-    };
     _styleId =
         group?.styleId ??
-        ListStyle.presets
-            .map((s) => s.id)
-            .firstWhere((id) => !taken.contains(id), orElse: () => 'violet');
+        ListStyle.freeFor({
+          for (final l in context.read<TaskProvider>().lists) l.styleId,
+        });
   }
 
   @override
@@ -376,7 +372,6 @@ class _GroupSheetState extends State<_GroupSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
     final s = S.of(context);
     final group = widget.group;
     final deletable =
@@ -423,37 +418,12 @@ class _GroupSheetState extends State<_GroupSheet> {
               onSubmitted: (_) => _save(),
             ),
             const SizedBox(height: 18),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final style in ListStyle.presets)
-                  GestureDetector(
-                    onTap: () => setState(() => _styleId = style.id),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: style.color.withValues(
-                          alpha: _styleId == style.id ? 1 : 0.35,
-                        ),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: _styleId == style.id ? p.text : p.border,
-                          width: _styleId == style.id ? 2 : 1,
-                        ),
-                      ),
-                      child: _styleId == style.id
-                          ? const Icon(
-                              Icons.check,
-                              size: 18,
-                              color: Colors.white,
-                            )
-                          : null,
-                    ),
-                  ),
-              ],
+            ColourSelector(
+              value: _styleId,
+              sample: _name.text.trim().isEmpty
+                  ? s.groupName
+                  : _name.text.trim(),
+              onChanged: (v) => setState(() => _styleId = v!),
             ),
             const SizedBox(height: 14),
             Row(

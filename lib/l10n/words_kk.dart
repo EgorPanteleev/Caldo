@@ -171,6 +171,7 @@ const Map<String, Object> kk = {
   'priority.medium': "Орташа",
   'priority.high': "Жоғары",
   'sectionColour': "ТҮС",
+  'customColour': "Өз түсі",
   'list': "Тізім",
   'deleteTaskQuestion': "Тапсырма жойылсын ба?",
   'willBeRemoved': "«{title}» жойылады.",

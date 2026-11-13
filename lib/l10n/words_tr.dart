@@ -170,6 +170,7 @@ const Map<String, Object> tr = {
   'priority.medium': "Orta",
   'priority.high': "Yüksek",
   'sectionColour': "RENK",
+  'customColour': "Özel renk",
   'list': "Liste",
   'deleteTaskQuestion': "Görev silinsin mi?",
   'willBeRemoved': "\"{title}\" silinecek.",

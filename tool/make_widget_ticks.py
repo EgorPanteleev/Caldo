@@ -13,14 +13,22 @@ lib/models/task_list.dart; change one there, change it here and run this.
 import os
 
 SWATCHES = {
-    "violet": "#7B61E8",
-    "blue": "#3B7DD8",
-    "teal": "#16A394",
-    "green": "#35A06A",
-    "amber": "#D99A2B",
-    "pink": "#D9528A",
-    "cyan": "#1E94B0",
+    "red": "#D9473F",
     "orange": "#DB7A33",
+    "amber": "#D99A2B",
+    "yellow": "#CCB529",
+    "lime": "#86AD34",
+    "green": "#35A06A",
+    "teal": "#16A394",
+    "cyan": "#1E94B0",
+    "blue": "#3B7DD8",
+    "indigo": "#5560D6",
+    "violet": "#7B61E8",
+    "purple": "#A057D9",
+    "magenta": "#C451B5",
+    "pink": "#D9528A",
+    "brown": "#A06E4E",
+    "graphite": "#7F858D",
 }
 
 RES = os.path.join(os.path.dirname(__file__), "..", "android", "app", "src", "main", "res")

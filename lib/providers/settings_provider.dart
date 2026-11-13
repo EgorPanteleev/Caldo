@@ -42,6 +42,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kLanguage = 'language';
   static const _kLastBackup = 'last_backup';
   static const _kDayAsHours = 'day_as_hours';
+  static const _kCustomColours = 'custom_colours';
 
   /// The settings a backup carries. The phone's own calendars are left
   /// behind: their ids belong to the phone, and showing them needs a
@@ -62,6 +63,7 @@ class SettingsProvider extends ChangeNotifier {
     _kClock,
     _kLanguage,
     _kDayAsHours,
+    _kCustomColours,
   ];
 
   /// The screen the app opens on. Schedule out of the box: it is the one
@@ -144,6 +146,14 @@ class SettingsProvider extends ChangeNotifier {
   /// a list. Kept, since which one is wanted is a habit, not a moment.
   bool _dayAsHours = false;
 
+  /// The colours last made on the custom sheet, latest first, offered
+  /// beside the palette so one can be given to the next task as well.
+  List<String> _customColours = const [];
+
+  /// As many as fit on the swatches' last row beside the group's colour
+  /// and the plus.
+  static const _mostCustomColours = 6;
+
   /// Whether times are written on a 24-hour clock: the choice made here, or
   /// the phone's own until there is one.
   bool get use24Hour =>
@@ -196,6 +206,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get fullScreenReminders => _fullScreen;
   DateTime? get lastBackup => _lastBackup;
   bool get dayAsHours => _dayAsHours;
+  List<String> get customColours => _customColours;
 
   /// Whether the stored settings have been read yet. Until they have, every
   /// one of them is its default, which is not what the user chose.
@@ -290,6 +301,12 @@ class SettingsProvider extends ChangeNotifier {
     _showDeviceEvents = prefs.getBool(_kDeviceEvents) ?? _showDeviceEvents;
     _hiddenCalendars = {...?prefs.getStringList(_kHiddenCalendars)};
     _dayAsHours = prefs.getBool(_kDayAsHours) ?? false;
+    _customColours = [
+      ...?prefs
+          .getStringList(_kCustomColours)
+          ?.where(ListStyle.isCustom)
+          .take(_mostCustomColours),
+    ];
     final backup = prefs.getInt(_kLastBackup);
     _lastBackup = backup == null
         ? null
@@ -344,6 +361,18 @@ class SettingsProvider extends ChangeNotifier {
     _lastBackup = when;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kLastBackup, when.millisecondsSinceEpoch);
+    notifyListeners();
+  }
+
+  /// Puts [id], a colour just made on the custom sheet, first among those
+  /// offered again.
+  Future<void> rememberColour(String id) async {
+    _customColours = [
+      id,
+      ..._customColours.where((c) => c != id),
+    ].take(_mostCustomColours).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kCustomColours, _customColours);
     notifyListeners();
   }
 

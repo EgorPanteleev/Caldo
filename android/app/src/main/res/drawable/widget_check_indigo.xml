@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Written by tool/make_widget_ticks.py; edit that, not this. -->
+<!-- A widget task's tick in indigo: the square fills and the check is drawn
+     through it, as the app's card does, played by the launcher the moment
+     the box is tapped. -->
+<animated-selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/ticked"
+        android:drawable="@drawable/widget_tick_indigo_on"
+        android:state_checked="true"/>
+    <item
+        android:id="@+id/open"
+        android:drawable="@drawable/widget_tick_indigo_off"/>
+    <transition
+        android:drawable="@drawable/widget_tick_indigo_ticking"
+        android:fromId="@id/open"
+        android:toId="@id/ticked"/>
+    <transition
+        android:drawable="@drawable/widget_tick_indigo_unticking"
+        android:fromId="@id/ticked"
+        android:toId="@id/open"/>
+</animated-selector>
