@@ -8,6 +8,7 @@ import 'providers/events_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/task_provider.dart';
 import 'screens/home_screen.dart';
+import 'services/attachments.dart';
 import 'services/background.dart';
 import 'services/device_calendars.dart';
 import 'services/reminders.dart';
@@ -39,6 +40,10 @@ void main() async {
   TodayWidget.enable();
   Background.listen();
   DeviceCalendars.enable();
+  // Where the attachments are kept, before the first form can draw one;
+  // then the copies no task refers to any more are let go of.
+  await Attachments.instance.enable();
+  Attachments.instance.sweep();
   // Read before the first frame: the app has to open on the right screen,
   // not open on Schedule and swap a frame later. It is one small read, and
   // the provider reads the rest for itself once it is up.

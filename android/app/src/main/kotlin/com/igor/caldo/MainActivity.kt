@@ -68,6 +68,9 @@ class MainActivity : FlutterActivity() {
     private var backupAnswer: MethodChannel.Result? = null
     private var backupText: String? = null
 
+    /** The files and photos attached to tasks, and the pickers for them. */
+    private val attachments by lazy { Attachments(this) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         useFastestRefreshRate()
@@ -248,6 +251,8 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ATTACHMENTS_CHANNEL)
+            .setMethodCallHandler { call, result -> attachments.call(call, result) }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -314,6 +319,7 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Flutter's activity is not an AndroidX one, so it has no result API")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (attachments.answered(requestCode, resultCode, data)) return
         if (requestCode != SAVE_BACKUP && requestCode != OPEN_BACKUP) return
         val result = backupAnswer ?: return
         val text = backupText
@@ -662,6 +668,7 @@ class MainActivity : FlutterActivity() {
         const val CALENDARS_CHANNEL = "caldo/calendars"
         const val REMINDER_CHANNEL = "caldo/reminder"
         const val BACKUP_CHANNEL = "caldo/backup"
+        const val ATTACHMENTS_CHANNEL = "caldo/attachments"
 
         /** What the notification plugin calls the intent on a reminder. */
         const val REMINDER_ACTION = "SELECT_NOTIFICATION"

@@ -135,6 +135,19 @@
                 android:resource="@xml/today_widget_info"/>
         </receiver>
 
+        <!-- Hands a task's attachments to the app that opens them, and the
+             camera app a file to write a photo into (Attachments). It
+             serves the attachments directory and nothing else. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/attachment_paths"/>
+        </provider>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

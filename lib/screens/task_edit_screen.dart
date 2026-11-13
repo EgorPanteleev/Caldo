@@ -5,8 +5,10 @@ import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/attachments.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/attachments_field.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
@@ -59,6 +61,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   final _newStep = TextEditingController();
   final _newStepFocus = FocusNode();
 
+  /// What is attached, as it is being edited.
+  final List<Attachment> _attachments = [];
+
   /// Whether anything has been touched since the form opened. Until it has,
   /// the back arrow is the only way out and there is nothing to save; once it
   /// has, the arrow goes and the two words at the foot take over — leaving by
@@ -84,6 +89,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       _steps.add(_Draft(step.title, done: step.done, onEdit: _touched));
     }
     _newStep.addListener(_touched);
+    _attachments.addAll(task?.attachments ?? const []);
     // A new task takes its group's colour; an existing one keeps whatever
     // it was given.
     _styleId = task?.styleId;
@@ -157,6 +163,26 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         Subtask(step.title.text.trim(), done: step.done),
     if (_newStep.text.trim().isNotEmpty) Subtask(_newStep.text.trim()),
   ];
+
+  /// Has the user pick what to attach, and adds whatever comes back. The
+  /// keyboard goes first: left up, it comes back over the form when the
+  /// picker hands back to it.
+  Future<void> _attach(AttachFrom from) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final picked = await Attachments.instance.pick(from);
+    if (!mounted) return;
+    if (picked.attached.isNotEmpty) {
+      _touched();
+      setState(() => _attachments.addAll(picked.attached));
+    }
+    if (picked.tooBig.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(S.of(context).tooBigToAttach(picked.tooBig.join(', '))),
+        ),
+      );
+    }
+  }
 
   /// Moves the task into group [id]. Its colour goes back to following the
   /// group's: a task put into University is meant to look like University.
@@ -273,6 +299,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           styleId: _styleId,
           createdAt: DateTime.now().millisecondsSinceEpoch,
           subtasks: _subtasks,
+          attachments: List.of(_attachments),
           remindBefore: _remindBefore,
           duration: _time == null ? null : _duration,
         ),
@@ -296,6 +323,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           styleId: _styleId,
           clearStyleId: _styleId == null,
           subtasks: _subtasks,
+          attachments: List.of(_attachments),
           remindBefore: _remindBefore,
           clearRemindBefore: _remindBefore == null,
           clearSnoozedUntil: reminderMoved,
@@ -434,6 +462,25 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                   _touched();
                                   setState(() => _steps.remove(step));
                                   step.dispose();
+                                },
+                              ),
+                              const SizedBox(height: 22),
+                              Text(
+                                s.sectionAttachments,
+                                style: TextStyle(
+                                  color: p.faint,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              AttachmentsField(
+                                attachments: _attachments,
+                                onAdd: _attach,
+                                onRemove: (a) {
+                                  _touched();
+                                  setState(() => _attachments.remove(a));
                                 },
                               ),
                               const SizedBox(height: 20),

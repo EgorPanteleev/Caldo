@@ -24,7 +24,7 @@ lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
   l10n/strings.dart      every word the app says; words_*.dart, a table
                          per language
-  db/database.dart       schema v9: lists, tasks, completions (+ migrations)
+  db/database.dart       schema v10: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart,
@@ -36,6 +36,8 @@ lib/
   services/device_calendars.dart  the phone's own calendars, read-only
   services/updates.dart  the newer-release check, download and install
   services/backup.dart   everything as one JSON file, saved and restored
+  services/attachments.dart  files and photos on tasks: picked, copied in,
+                         opened elsewhere, swept up
   screens/               home (shell + menu), tasks (Schedule), calendar,
                          board, done, search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
@@ -47,12 +49,13 @@ lib/
                          quick_add_bar, screen_header (+ TodayButton),
                          theme_switcher, slide_into_place, choice_sheet,
                          tick_off (+ AsShown), carry, selection,
-                         reorderable_task_list
+                         reorderable_task_list, attachments_field
 ```
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
 widget launches, the phone's calendars, backups), `PhoneEvents.kt` (the
-calendar query the app and the widget share), `TodayWidget.kt` (the widget and the `Headless` engine its
+calendar query the app and the widget share), `Attachments.kt` (the pickers,
+the camera and the `FileProvider` behind a task's files), `TodayWidget.kt` (the widget and the `Headless` engine its
 ticks run on), `TodayWidgetRuns.kt` (its runs and cards), `CaldoApplication.kt`
 (redraws the widget when its copy changes) and `LauncherIcon.kt` (which of
 the two launcher icons a phone gets).
@@ -813,6 +816,33 @@ Changing them back will be noticed.
   Search matches a step's words, but the JSON is
   filtered in Dart afterwards: a search for "done" or "title" would
   otherwise find every task with a checklist.
+- **A task can carry files and photos** (`Attachment`, `Task.attachments`,
+  schema v10, `Attachments`, `Attachments.kt`, `AttachmentsField`). Kept as
+  JSON in a column of the task's own row, for the checklist's reason: Undo
+  and a repeat rolling on write the task back whole. The form has an
+  Attachments panel under Subtasks — photos as thumbnails, other files a
+  line each with their size, and Photo, Camera and File along its foot.
+  Photo is the system photo picker (images only: left to itself it offers
+  videos, which came back as files under "Photo"), File the document
+  picker, Camera the camera app writing into a file of ours; none needs a
+  permission, and Caldo declares no camera permission so that the camera
+  app can be started without one. What is picked is **copied** into
+  `files/attachments/<uuid>/<its own name>`: a picked document's link lasts
+  only as long as its grant, and the original can move. The folder per copy
+  is so another app shows and shares it by its name — the first build named
+  copies by UUID and the PDF viewer was titled "0a89f043-be94-…". Over 100MB
+  is refused with a word on the form. A thumbnail opens the task's photos
+  full screen (swipe, pinch, and open in another app); a file opens in
+  whatever app reads it, through a `FileProvider` that serves that
+  directory and nothing else, or says no app can. A copy whose file is not
+  on the phone is drawn as missing rather than failing. **Nothing deletes a
+  copy when a task lets go of it**: Undo, Cancel and a deleted task all
+  leave copies behind, and on each start `Attachments.sweep` deletes those
+  no task names, unless made within the hour (a form may be open, or the
+  process may have been put away under the picker). Cards and board cards
+  carry a paperclip, with a count past one. Search matches an
+  attachment's name, filtered in Dart as the checklist's words are.
+
 - **A long press picks a card up; it used to open the editor**, which a tap
   already does, so nothing was lost. There are no drag handles: the card is
   the handle, and a grip beside every row would be a column of furniture down
@@ -1567,7 +1597,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 214 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 222 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1742,6 +1772,13 @@ Three things that look like bugs and are not:
 - `flutter analyze` must be clean before a commit.
 
 ## Known gaps
+
+- **A backup carries what is attached, not the files themselves.** The
+  `attachments` column rides along with the rest of the row, so restored on
+  the same phone everything is there, but on a new phone each attachment is
+  drawn as missing ("Not on this phone"). Carrying the files would mean a
+  backup that is an archive rather than JSON, and photos would put it past
+  the 64MB a restore reads.
 
 - Holiday names are in each country's own language, except the English-
   speaking ones and Canada, which is English only.

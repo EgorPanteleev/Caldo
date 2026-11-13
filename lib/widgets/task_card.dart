@@ -12,6 +12,7 @@ import '../providers/task_provider.dart';
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'attachments_field.dart' show AttachmentMark;
 import 'selection.dart';
 
 /// A task as it appears under the calendar: a card inked with its list's
@@ -223,6 +224,13 @@ class TaskCard extends StatelessWidget {
                           Icon(Icons.repeat, size: 14, color: p.faint),
                           const SizedBox(width: 4),
                         ],
+                        if (task.attachments.isNotEmpty) ...[
+                          AttachmentMark(
+                            count: task.attachments.length,
+                            color: p.faint,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         Text(
                           _when(
                             S.of(context),
@@ -272,6 +280,13 @@ class TaskCard extends StatelessWidget {
                                       ),
                                     ),
                                   ),
+                                  if (task.attachments.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    AttachmentMark(
+                                      count: task.attachments.length,
+                                      color: p.muted,
+                                    ),
+                                  ],
                                   if (count != null) ...[
                                     const SizedBox(width: 10),
                                     count,

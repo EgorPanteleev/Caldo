@@ -293,6 +293,71 @@ class Subtask {
   int get hashCode => Object.hash(title, done);
 }
 
+/// A file or photo kept with a task. What is kept is a copy, in Caldo's own
+/// storage ([file] names it there; `Attachments` knows where that is), made
+/// when it was attached: a link to the original would break the moment it
+/// was moved or deleted, and the photo picker only lends a photo for as long
+/// as the app that asked is running.
+///
+/// Kept with the task, as its checklist is, for the same reason: a task is
+/// written back whole, and what is attached has to go with it.
+class Attachment {
+  /// Where the copy is in the attachments directory: a folder of its own,
+  /// and in it the copy under the name it came with.
+  final String file;
+
+  /// What it was called where it came from — what is shown.
+  final String name;
+
+  /// Its media type, as Android gave it.
+  final String mime;
+
+  /// Its size in bytes.
+  final int size;
+
+  const Attachment({
+    required this.file,
+    required this.name,
+    required this.mime,
+    this.size = 0,
+  });
+
+  bool get isImage => mime.startsWith('image/');
+
+  Map<String, Object?> toJson() => {
+    'file': file,
+    'name': name,
+    'mime': mime,
+    'size': size,
+  };
+
+  static Attachment? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final file = json['file'];
+    if (file is! String || file.isEmpty) return null;
+    final name = json['name'];
+    final mime = json['mime'];
+    final size = json['size'];
+    return Attachment(
+      file: file,
+      name: name is String ? name : file,
+      mime: mime is String ? mime : 'application/octet-stream',
+      size: size is int ? size : 0,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is Attachment &&
+      other.file == file &&
+      other.name == name &&
+      other.mime == mime &&
+      other.size == size;
+
+  @override
+  int get hashCode => Object.hash(file, name, mime, size);
+}
+
 /// A single to-do item: a title, optional notes, an optional due date (with or
 /// without a time of day) and a repeat rule.
 class Task {
@@ -335,6 +400,9 @@ class Task {
   /// The task's checklist, in the order it was written.
   final List<Subtask> subtasks;
 
+  /// The files and photos attached to it, in the order they were added.
+  final List<Attachment> attachments;
+
   /// How many minutes ahead of its time the task is announced, or null to
   /// follow Settings. [silent] for a task that is never announced. An all-day
   /// task counts only whole days of it: it is announced at the hour Settings
@@ -375,6 +443,7 @@ class Task {
     this.completedAt,
     this.sortOrder,
     this.subtasks = const [],
+    this.attachments = const [],
     this.remindBefore,
     this.snoozedUntil,
     this.startedAt,
@@ -487,6 +556,7 @@ class Task {
     int? sortOrder,
     bool clearSortOrder = false,
     List<Subtask>? subtasks,
+    List<Attachment>? attachments,
     int? remindBefore,
     bool clearRemindBefore = false,
     int? snoozedUntil,
@@ -511,6 +581,7 @@ class Task {
       completedAt: clearCompletedAt ? null : (completedAt ?? this.completedAt),
       sortOrder: clearSortOrder ? null : (sortOrder ?? this.sortOrder),
       subtasks: subtasks ?? this.subtasks,
+      attachments: attachments ?? this.attachments,
       remindBefore: clearRemindBefore
           ? null
           : (remindBefore ?? this.remindBefore),
@@ -538,6 +609,7 @@ class Task {
       'completed_at': completedAt,
       'sort_order': sortOrder,
       'subtasks': jsonEncode([for (final s in subtasks) s.toJson()]),
+      'attachments': jsonEncode([for (final a in attachments) a.toJson()]),
       'remind_before': remindBefore,
       'snoozed_until': snoozedUntil,
       'started_at': startedAt,
@@ -560,7 +632,11 @@ class Task {
       createdAt: map['created_at'] as int? ?? 0,
       completedAt: map['completed_at'] as int?,
       sortOrder: map['sort_order'] as int?,
-      subtasks: _subtasksFrom(map['subtasks'] as String?),
+      subtasks: _listFrom(map['subtasks'] as String?, Subtask.fromJson),
+      attachments: _listFrom(
+        map['attachments'] as String?,
+        Attachment.fromJson,
+      ),
       remindBefore: map['remind_before'] as int?,
       snoozedUntil: map['snoozed_until'] as int?,
       startedAt: map['started_at'] as int?,
@@ -568,14 +644,15 @@ class Task {
     );
   }
 
-  /// The stored checklist, or none if there is none or it cannot be read — a
-  /// task is worth more than a checklist that will not parse.
-  static List<Subtask> _subtasksFrom(String? text) {
+  /// A stored checklist or list of attachments, or none if there is none or
+  /// it cannot be read — a task is worth more than a list that will not
+  /// parse.
+  static List<T> _listFrom<T>(String? text, T? Function(Object?) read) {
     if (text == null || text.isEmpty) return const [];
     try {
       final decoded = jsonDecode(text);
       if (decoded is! List) return const [];
-      return [for (final item in decoded) ?Subtask.fromJson(item)];
+      return [for (final item in decoded) ?read(item)];
     } on FormatException {
       return const [];
     }

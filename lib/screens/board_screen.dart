@@ -11,6 +11,7 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/attachments_field.dart' show AttachmentMark;
 import '../widgets/groups.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart' show TaskCard;
@@ -693,6 +694,15 @@ class BoardCard extends StatelessWidget {
       const Spacer(),
       if (task.repeat != Repeat.none) ...[
         Icon(Icons.repeat_rounded, size: 16, color: p.muted),
+        const SizedBox(width: 10),
+      ],
+      if (task.attachments.isNotEmpty) ...[
+        AttachmentMark(
+          count: task.attachments.length,
+          color: p.muted,
+          size: 16,
+          fontSize: 12,
+        ),
         const SizedBox(width: 10),
       ],
       if (task.subtasks.isNotEmpty) ...[

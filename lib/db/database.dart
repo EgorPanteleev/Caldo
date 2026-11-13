@@ -12,7 +12,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 9;
+  static const _dbVersion = 10;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -60,6 +60,7 @@ class AppDatabase {
             completed_at INTEGER,
             sort_order INTEGER,
             subtasks TEXT NOT NULL DEFAULT '[]',
+            attachments TEXT NOT NULL DEFAULT '[]',
             remind_before INTEGER,
             snoozed_until INTEGER,
             started_at INTEGER,
@@ -123,6 +124,12 @@ class AppDatabase {
           // v8 -> the groups can be put in an order of the user's own. Null
           // until they are, so they stay in the order they were made.
           await db.execute('ALTER TABLE $_lists ADD COLUMN sort_order INTEGER');
+        }
+        if (oldVersion < 10) {
+          // v9 -> a task can carry files and photos, as JSON beside it.
+          await db.execute(
+            "ALTER TABLE $_tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'",
+          );
         }
       },
     );
@@ -212,7 +219,7 @@ class AppDatabase {
   // ---- Tasks --------------------------------------------------------------
 
   /// Every task, which is what the search screen asks for. [query] matches
-  /// the title, the notes or a subtask; when [includeDone] is false only open
+  /// the title, the notes, a subtask or an attachment's name; when [includeDone] is false only open
   /// tasks come back.
   Future<List<Task>> getTasks({
     String query = '',
@@ -223,11 +230,11 @@ class AppDatabase {
     final args = <Object?>[];
     if (!includeDone) where.write(' AND done = 0');
     if (query.isNotEmpty) {
-      where.write(' AND (title LIKE ? OR notes LIKE ? OR subtasks LIKE ?)');
-      args
-        ..add('%$query%')
-        ..add('%$query%')
-        ..add('%$query%');
+      where.write(
+        ' AND (title LIKE ? OR notes LIKE ? OR subtasks LIKE ? '
+        'OR attachments LIKE ?)',
+      );
+      args.addAll(List.filled(4, '%$query%'));
     }
     final rows = await db.query(
       _tasks,
@@ -237,14 +244,18 @@ class AppDatabase {
     );
     final tasks = rows.map(Task.fromMap).toList();
     if (query.isEmpty) return tasks;
-    // The checklist is stored as JSON, so a search for "done" or "title"
-    // matches every task that has one. Those are let through the query and
-    // only kept here if a subtask's own title has the words in it.
+    // The checklist and the attachments are stored as JSON, so a search for
+    // "done" or "mime" matches every task that has either. Those are let
+    // through the query and only kept here if a subtask's own title, or an
+    // attachment's name, has the words in it.
     final needle = query.toLowerCase();
     bool has(String text) => text.toLowerCase().contains(needle);
     return [
       for (final t in tasks)
-        if (has(t.title) || has(t.notes) || t.subtasks.any((s) => has(s.title)))
+        if (has(t.title) ||
+            has(t.notes) ||
+            t.subtasks.any((s) => has(s.title)) ||
+            t.attachments.any((a) => has(a.name)))
           t,
     ];
   }

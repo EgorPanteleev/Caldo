@@ -316,6 +316,16 @@ class S {
   String get notesField => _word('notesField');
   String get sectionSubtasks => _word('sectionSubtasks');
   String get addSubtask => _word('addSubtask');
+  String get sectionAttachments => _word('sectionAttachments');
+  String get attachPhoto => _word('attachPhoto');
+  String get attachCamera => _word('attachCamera');
+  String get attachFile => _word('attachFile');
+  String get attachmentMissing => _word('attachmentMissing');
+  String get noAppOpens => _word('noAppOpens');
+  String tooBigToAttach(String name) => _fill('tooBigToAttach', {'name': name});
+  String get openInApp => _word('openInApp');
+  String kilobytes(String n) => _fill('kilobytes', {'n': n});
+  String megabytes(String n) => _fill('megabytes', {'n': n});
   String get allGroups => _word('allGroups');
   String get newGroup => _word('newGroup');
   String get editGroup => _word('editGroup');
