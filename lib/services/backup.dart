@@ -38,7 +38,9 @@ class BackupException implements Exception {
 ///
 /// It is written and read through Android's own document picker (the
 /// `caldo/backup` channel in `MainActivity`), which can put it on Drive or
-/// in Downloads and needs no storage permission.
+/// in Downloads and needs no storage permission. The automatic ones go
+/// into a folder picked the same way once, which Caldo is let keep writing
+/// into ([autoIfDue]).
 class Backup {
   /// When the backup was taken.
   final DateTime savedAt;
@@ -140,6 +142,82 @@ class Backup {
     if (saved != true) return false;
     await settings.backedUp(backup.savedAt);
     return true;
+  }
+
+  /// What the automatic backups are called, ahead of their date. Kept apart
+  /// from a saved one's name so that clearing out the old ones can never
+  /// take a file the user saved by hand into the same folder.
+  static const autoPrefix = 'caldo-auto-';
+
+  /// How many automatic backups are left in the folder: a week of them
+  /// daily, about two months weekly. Each is a few hundred kilobytes.
+  static const autoKept = 7;
+
+  /// One automatic backup at a time: the app can come back to the front
+  /// while the last one is still being written.
+  static bool _writing = false;
+
+  /// Has the user pick a folder for the automatic backups and lets Caldo
+  /// keep writing into it, or null if they backed out.
+  static Future<({String uri, String name})?> chooseFolder() async {
+    final Map<Object?, Object?>? folder;
+    try {
+      folder = await _channel.invokeMapMethod<Object?, Object?>('folder');
+    } on PlatformException {
+      throw const BackupException(BackupProblem.unreadable);
+    }
+    if (folder == null) return null;
+    return (uri: folder['uri'] as String, name: folder['name'] as String);
+  }
+
+  /// Whether a backup taken every [every] days, the last at [last], is due
+  /// again at [now]. Counted in days on the calendar, so a daily one is
+  /// due on the first opening of each day rather than 24 hours after the
+  /// last.
+  static bool due(int every, DateTime? last, DateTime now) {
+    if (every <= 0) return false;
+    if (last == null) return true;
+    // In UTC, so a clock change between the two is not an hour short of a
+    // day.
+    final from = DateTime.utc(last.year, last.month, last.day);
+    final to = DateTime.utc(now.year, now.month, now.day);
+    return to.difference(from).inDays >= every;
+  }
+
+  /// Saves a backup into the chosen folder if one is due, or at once when
+  /// [now] is asked for — a folder just chosen should have one in it.
+  ///
+  /// Asked on opening and on every return to the app, rather than by a job
+  /// in the background: nothing changes while Caldo is shut but what a
+  /// reminder's buttons or the widget's ticks do, and those are in the next
+  /// one. A copy that cannot be written is said in Settings and tried again
+  /// on the next return.
+  static Future<void> autoIfDue(
+    SettingsProvider settings, {
+    bool now = false,
+  }) async {
+    if (_writing) return;
+    final plan = await SettingsProvider.storedAutoBackup();
+    final folder = plan.folder;
+    if (folder == null || plan.every <= 0) return;
+    if (!now && !due(plan.every, plan.last, DateTime.now())) return;
+    _writing = true;
+    try {
+      final backup = await take();
+      final day = backup.savedAt.toIso8601String().substring(0, 10);
+      await _channel.invokeMethod<bool>('write', {
+        'folder': folder,
+        'name': '$autoPrefix$day.json',
+        'prefix': autoPrefix,
+        'text': backup.encode(),
+        'keep': autoKept,
+      });
+      await settings.autoBackedUp(backup.savedAt);
+    } on PlatformException {
+      await settings.autoBackupNotSaved();
+    } finally {
+      _writing = false;
+    }
   }
 
   /// Has the user pick a backup and reads it, or null if they backed out.

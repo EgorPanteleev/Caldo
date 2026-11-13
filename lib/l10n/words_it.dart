@@ -246,6 +246,15 @@ const Map<String, Object> it = {
       "Caldo tiene tutto solo su questo telefono. Salva ogni tanto un backup su Drive o su un computer, e un telefono perso o una reinstallazione non si porteranno via le tue attività.",
   'backupSaved': "Backup salvato",
   'backupNotSaved': "Impossibile salvare il backup",
+  'backupAuto': "Backup automatico",
+  'backupAutoOff': "Disattivato",
+  'backupDaily': "Ogni giorno",
+  'backupWeekly': "Ogni settimana",
+  'backupFolder': "Cartella",
+  'backupAutoFailed':
+      "Impossibile salvare l'ultimo backup. Scegli di nuovo la cartella.",
+  'backupAutoNote':
+      "Un backup viene salvato in questa cartella quando Caldo viene aperto ed è il momento, e si tengono gli ultimi sette. Una cartella sincronizzata con un computer o con il cloud li conserva anche fuori dal telefono.",
   'backupNotCaldo': "Questo file non è un backup di Caldo",
   'backupNewer':
       "Questo backup viene da un Caldo più recente. Aggiorna prima, poi ripristinalo.",

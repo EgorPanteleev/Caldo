@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.CalendarContract
+import android.provider.DocumentsContract
 import android.provider.Settings
 import android.view.View
 import android.view.WindowInsets
@@ -248,6 +249,35 @@ class MainActivity : FlutterActivity() {
                         OPEN_BACKUP,
                         result,
                     )
+                    // A folder for the automatic backups, kept for good:
+                    // they are written with nobody there to pick a file.
+                    "folder" -> pick(
+                        Intent(Intent.ACTION_OPEN_DOCUMENT_TREE),
+                        PICK_FOLDER,
+                        result,
+                    )
+                    "write" -> {
+                        val folder = Uri.parse(call.argument<String>("folder")!!)
+                        val name = call.argument<String>("name")!!
+                        val prefix = call.argument<String>("prefix")!!
+                        val text = call.argument<String>("text")!!
+                        val keep = call.argument<Int>("keep")!!
+                        Thread {
+                            val failure = try {
+                                writeInto(folder, name, prefix, text, keep)
+                                null
+                            } catch (e: Exception) {
+                                e
+                            }
+                            runOnUiThread {
+                                if (failure != null) {
+                                    result.error("io", failure.message, null)
+                                } else {
+                                    result.success(true)
+                                }
+                            }
+                        }.start()
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -320,7 +350,11 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (attachments.answered(requestCode, resultCode, data)) return
-        if (requestCode != SAVE_BACKUP && requestCode != OPEN_BACKUP) return
+        if (requestCode != SAVE_BACKUP && requestCode != OPEN_BACKUP &&
+            requestCode != PICK_FOLDER
+        ) {
+            return
+        }
         val result = backupAnswer ?: return
         val text = backupText
         backupAnswer = null
@@ -328,6 +362,10 @@ class MainActivity : FlutterActivity() {
         val uri = data?.data
         if (resultCode != Activity.RESULT_OK || uri == null) {
             result.success(null)
+            return
+        }
+        if (requestCode == PICK_FOLDER) {
+            result.success(keepFolder(uri))
             return
         }
         // Off the main thread: the document may be on Drive.
@@ -352,6 +390,78 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }.start()
+    }
+
+    /**
+     * Holds on to [tree] across restarts and lets go of any folder held
+     * before it, since only one is written into. Answered with the folder's
+     * address and the name it goes by, for Settings to show.
+     */
+    private fun keepFolder(tree: Uri): Map<String, String>? {
+        val both = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        try {
+            contentResolver.takePersistableUriPermission(tree, both)
+        } catch (_: SecurityException) {
+            return null
+        }
+        for (held in contentResolver.persistedUriPermissions) {
+            if (held.uri != tree && DocumentsContract.isTreeUri(held.uri)) {
+                contentResolver.releasePersistableUriPermission(held.uri, both)
+            }
+        }
+        val folder = DocumentsContract.buildDocumentUriUsingTree(
+            tree,
+            DocumentsContract.getTreeDocumentId(tree),
+        )
+        val name = contentResolver.query(
+            folder,
+            arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { if (it.moveToFirst()) it.getString(0) else null }
+        return mapOf("uri" to tree.toString(), "name" to (name ?: tree.lastPathSegment ?: ""))
+    }
+
+    /**
+     * Writes [text] into [tree] as [name], over a file of that name if there
+     * is one, and then deletes all but the latest [keep] files starting with
+     * [prefix]. The names carry the date, so the latest sort last; files of
+     * any other name are the user's and are left alone.
+     */
+    private fun writeInto(tree: Uri, name: String, prefix: String, text: String, keep: Int) {
+        val id = DocumentsContract.getTreeDocumentId(tree)
+        val ours = sortedMapOf<String, Uri>()
+        contentResolver.query(
+            DocumentsContract.buildChildDocumentsUriUsingTree(tree, id),
+            arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            ),
+            null,
+            null,
+            null,
+        )?.use {
+            while (it.moveToNext()) {
+                val child = it.getString(1) ?: continue
+                if (child.startsWith(prefix) && child.endsWith(".json")) {
+                    ours[child] = DocumentsContract.buildDocumentUriUsingTree(tree, it.getString(0))
+                }
+            }
+        }
+        val file = ours[name] ?: DocumentsContract.createDocument(
+            contentResolver,
+            DocumentsContract.buildDocumentUriUsingTree(tree, id),
+            "application/json",
+            name,
+        ) ?: throw java.io.IOException("$name could not be made")
+        // "wt" cuts an older, longer copy of the same day down to this one.
+        contentResolver.openOutputStream(file, "wt")!!.use { it.write(text.toByteArray()) }
+        ours[name] = file
+        for (old in ours.keys.toList().dropLast(keep)) {
+            DocumentsContract.deleteDocument(contentResolver, ours[old]!!)
+        }
     }
 
     /**
@@ -675,6 +785,7 @@ class MainActivity : FlutterActivity() {
         const val ASK_CALENDARS = 7
         const val SAVE_BACKUP = 8
         const val OPEN_BACKUP = 9
+        const val PICK_FOLDER = 12
         const val BACKUP_LIMIT = 64 * 1024 * 1024
 
         /** What a measurement may be out by and still be believed. */

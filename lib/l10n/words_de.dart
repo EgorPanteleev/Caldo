@@ -247,6 +247,15 @@ const Map<String, Object> de = {
       "Caldo speichert alles nur auf diesem Telefon. Speichere ab und zu eine Sicherung in Drive oder auf einem Computer, dann nimmt ein verlorenes Telefon oder eine Neuinstallation deine Aufgaben nicht mit.",
   'backupSaved': "Sicherung gespeichert",
   'backupNotSaved': "Die Sicherung konnte nicht gespeichert werden",
+  'backupAuto': "Automatisch sichern",
+  'backupAutoOff': "Aus",
+  'backupDaily': "Täglich",
+  'backupWeekly': "Wöchentlich",
+  'backupFolder': "Ordner",
+  'backupAutoFailed':
+      "Die letzte Sicherung konnte nicht gespeichert werden. Wähle den Ordner erneut.",
+  'backupAutoNote':
+      "Beim Öffnen von Caldo wird eine Sicherung in diesem Ordner gespeichert, wenn eine fällig ist; die letzten sieben bleiben erhalten. Ein Ordner, der mit einem Computer oder der Cloud synchronisiert wird, bewahrt sie auch außerhalb des Telefons.",
   'backupNotCaldo': "Diese Datei ist keine Caldo-Sicherung",
   'backupNewer':
       "Diese Sicherung stammt von einem neueren Caldo. Erst aktualisieren, dann wiederherstellen.",

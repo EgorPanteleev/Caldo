@@ -41,13 +41,20 @@ class SettingsProvider extends ChangeNotifier {
   static const _kHiddenCalendars = 'hidden_calendars';
   static const _kLanguage = 'language';
   static const _kLastBackup = 'last_backup';
+  static const _kAutoBackup = 'auto_backup_days';
+  static const _kBackupFolder = 'auto_backup_folder';
+  static const _kBackupFolderName = 'auto_backup_folder_name';
+  static const _kLastAutoBackup = 'last_auto_backup';
+  static const _kAutoBackupFailed = 'auto_backup_failed';
   static const _kDayAsHours = 'day_as_hours';
   static const _kCustomColours = 'custom_colours';
   static const _kScreensInBar = 'screens_in_bar';
 
   /// The settings a backup carries. The phone's own calendars are left
   /// behind: their ids belong to the phone, and showing them needs a
-  /// permission that a new phone has not been given.
+  /// permission that a new phone has not been given. So is the automatic
+  /// backup, for the same reason: its folder is one this phone was let
+  /// write into.
   static const _portable = [
     _kStartScreen,
     _kHiddenScreens,
@@ -144,6 +151,19 @@ class SettingsProvider extends ChangeNotifier {
   /// When a backup was last saved, or null if one never has been.
   DateTime? _lastBackup;
 
+  /// Every how many days a backup is saved into [backupFolder] on its own,
+  /// or 0 for never. Off out of the box: it needs a folder chosen first.
+  int _autoBackup = 0;
+
+  /// The folder the automatic backups go into, as Android names it, and as
+  /// it is shown.
+  String? _backupFolder;
+  String? _backupFolderName;
+
+  /// The last automatic backup could not be written — the folder was
+  /// deleted, or Caldo's hold on it was taken away.
+  bool _autoBackupFailed = false;
+
   /// Whether the calendar's day panel shows the day as hours rather than as
   /// a list. Kept, since which one is wanted is a habit, not a moment.
   bool _dayAsHours = false;
@@ -213,6 +233,10 @@ class SettingsProvider extends ChangeNotifier {
   int get reminderLead => _reminderLead;
   bool get fullScreenReminders => _fullScreen;
   DateTime? get lastBackup => _lastBackup;
+  int get autoBackup => _autoBackup;
+  String? get backupFolder => _backupFolder;
+  String? get backupFolderName => _backupFolderName;
+  bool get autoBackupFailed => _autoBackupFailed;
   bool get dayAsHours => _dayAsHours;
   bool get screensInBar => _screensInBar ?? true;
   bool? get screensInBarIfKnown => _screensInBar;
@@ -330,6 +354,23 @@ class SettingsProvider extends ChangeNotifier {
     _lastBackup = backup == null
         ? null
         : DateTime.fromMillisecondsSinceEpoch(backup);
+    _autoBackup = prefs.getInt(_kAutoBackup) ?? 0;
+    _backupFolder = prefs.getString(_kBackupFolder);
+    _backupFolderName = prefs.getString(_kBackupFolderName);
+    _autoBackupFailed = prefs.getBool(_kAutoBackupFailed) ?? false;
+  }
+
+  /// The automatic backup as stored, for deciding whether one is due
+  /// without waiting for [load].
+  static Future<({int every, String? folder, DateTime? last})>
+  storedAutoBackup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final last = prefs.getInt(_kLastAutoBackup);
+    return (
+      every: prefs.getInt(_kAutoBackup) ?? 0,
+      folder: prefs.getString(_kBackupFolder),
+      last: last == null ? null : DateTime.fromMillisecondsSinceEpoch(last),
+    );
   }
 
   /// The settings a backup carries, as stored. One that was never set is
@@ -380,6 +421,42 @@ class SettingsProvider extends ChangeNotifier {
     _lastBackup = when;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kLastBackup, when.millisecondsSinceEpoch);
+    notifyListeners();
+  }
+
+  /// Notes that an automatic backup was saved at [when]. It is a backup
+  /// like any other, so Settings says so where it says when the last one
+  /// was saved.
+  Future<void> autoBackedUp(DateTime when) async {
+    _autoBackupFailed = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kLastAutoBackup, when.millisecondsSinceEpoch);
+    await prefs.remove(_kAutoBackupFailed);
+    await backedUp(when);
+  }
+
+  Future<void> autoBackupNotSaved() async {
+    _autoBackupFailed = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kAutoBackupFailed, true);
+    notifyListeners();
+  }
+
+  /// Saves a backup every [days] days, or never for 0.
+  Future<void> setAutoBackup(int days) async {
+    _autoBackup = days;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kAutoBackup, days);
+    notifyListeners();
+  }
+
+  /// The folder the automatic backups go into from now on.
+  Future<void> setBackupFolder(String uri, String name) async {
+    _backupFolder = uri;
+    _backupFolderName = name;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kBackupFolder, uri);
+    await prefs.setString(_kBackupFolderName, name);
     notifyListeners();
   }
 

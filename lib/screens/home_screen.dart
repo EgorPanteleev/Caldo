@@ -10,6 +10,7 @@ import '../l10n/strings.dart';
 import '../db/database.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/backup.dart';
 import '../services/reminders.dart';
 import '../services/today_widget.dart';
 import '../services/updates.dart';
@@ -156,6 +157,9 @@ class _HomeScreenState extends State<HomeScreen>
     _menu.addStatusListener((_) => setState(() {}));
     _checkFullScreen();
     _waitForMidnight();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Backup.autoIfDue(context.read<SettingsProvider>()),
+    );
   }
 
   /// Wakes the lists at the turn of the day, for an app left open across
@@ -191,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (state != AppLifecycleState.resumed) return;
     _checkFullScreen();
     context.read<TaskProvider>().catchUp();
+    Backup.autoIfDue(context.read<SettingsProvider>());
   }
 
   /// A reminder tapped with the phone in use opens its task, as a row of

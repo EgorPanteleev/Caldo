@@ -550,7 +550,89 @@ List<Widget> _backup(BuildContext context, SettingsProvider settings, S s) => [
       ),
     ],
   ),
+  _Group(
+    footnote: settings.autoBackup > 0 ? s.backupAutoNote : null,
+    children: [
+      _Row(
+        icon: Icons.update_rounded,
+        title: s.backupAuto,
+        value: _autoBackupNames(s)[settings.autoBackup],
+        onTap: () => _chooseAutoBackup(context, settings),
+      ),
+      if (settings.autoBackup > 0)
+        _Row(
+          icon: Icons.folder_outlined,
+          title: s.backupFolder,
+          value: settings.autoBackupFailed
+              ? s.backupAutoFailed
+              : settings.backupFolderName,
+          warn: settings.autoBackupFailed,
+          onTap: () => _chooseBackupFolder(context, settings),
+        ),
+    ],
+  ),
 ];
+
+Map<int, String> _autoBackupNames(S s) => {
+  0: s.backupAutoOff,
+  1: s.backupDaily,
+  7: s.backupWeekly,
+};
+
+/// Turning it on asks for the folder first, when there is none yet: with
+/// nowhere to write, a switch left on would be a backup that never happens.
+Future<void> _chooseAutoBackup(
+  BuildContext context,
+  SettingsProvider settings,
+) async {
+  final s = S.of(context);
+  final days = await choose(
+    context,
+    title: s.backupAuto,
+    selected: settings.autoBackup,
+    options: [
+      for (final MapEntry(key: days, value: name) in _autoBackupNames(
+        s,
+      ).entries)
+        Option(days, name),
+    ],
+  );
+  if (days == null || days == settings.autoBackup || !context.mounted) return;
+  final first = settings.autoBackup == 0 && days > 0;
+  if (first && settings.backupFolder == null) {
+    if (!await _pickBackupFolder(context, settings)) return;
+  }
+  await settings.setAutoBackup(days);
+  // One now, so the folder is seen to fill.
+  if (first) await Backup.autoIfDue(settings, now: true);
+}
+
+Future<void> _chooseBackupFolder(
+  BuildContext context,
+  SettingsProvider settings,
+) async {
+  if (await _pickBackupFolder(context, settings)) {
+    await Backup.autoIfDue(settings, now: true);
+  }
+}
+
+/// False if no folder was chosen.
+Future<bool> _pickBackupFolder(
+  BuildContext context,
+  SettingsProvider settings,
+) async {
+  final s = S.of(context);
+  final ({String uri, String name})? folder;
+  try {
+    folder = await Backup.chooseFolder();
+  } on BackupException {
+    if (context.mounted) _say(context, s.backupNotSaved);
+    return false;
+  }
+  if (folder == null) return false;
+  await settings.setBackupFolder(folder.uri, folder.name);
+  return true;
+}
 
 String _backupProblem(S s, BackupProblem problem) => switch (problem) {
   BackupProblem.notCaldo => s.backupNotCaldo,
@@ -790,6 +872,9 @@ class _Row extends StatelessWidget {
   /// Drawn in red, for the one thing here that cannot be taken back.
   final bool danger;
 
+  /// The value in red, for a setting that is not doing what it says.
+  final bool warn;
+
   const _Row({
     this.icon,
     this.leading,
@@ -798,6 +883,7 @@ class _Row extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.danger = false,
+    this.warn = false,
   });
 
   /// Where the titles start, from the panel's edge.
@@ -838,7 +924,7 @@ class _Row extends StatelessWidget {
                       Text(
                         value!,
                         style: TextStyle(
-                          color: p.muted,
+                          color: warn ? AppColors.overdue : p.muted,
                           fontSize: 13,
                           height: 1.3,
                         ),

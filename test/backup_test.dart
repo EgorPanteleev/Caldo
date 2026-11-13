@@ -187,4 +187,38 @@ void main() {
       problem(BackupProblem.newer),
     );
   });
+
+  test('a daily backup is due on each new day, a weekly one a week on', () {
+    final evening = DateTime(2026, 11, 13, 23, 50);
+    expect(Backup.due(1, null, evening), isTrue);
+    expect(Backup.due(0, null, evening), isFalse);
+    // Ten minutes later is the next day: due, though not 24 hours on.
+    expect(Backup.due(1, evening, DateTime(2026, 11, 14, 0, 0)), isTrue);
+    expect(Backup.due(1, evening, DateTime(2026, 11, 13, 23, 59)), isFalse);
+    expect(Backup.due(7, evening, DateTime(2026, 11, 19, 23, 59)), isFalse);
+    expect(Backup.due(7, evening, DateTime(2026, 11, 20, 0, 1)), isTrue);
+    // Across the clocks going back, a day is still a day.
+    expect(
+      Backup.due(1, DateTime(2026, 10, 24, 22), DateTime(2026, 10, 25, 0, 30)),
+      isTrue,
+    );
+  });
+
+  test('nothing is backed up on its own until a folder is chosen', () async {
+    final settings = SettingsProvider();
+    await settings.setAutoBackup(1);
+    // With no folder there is nothing to write into, and the channel —
+    // which nothing answers in a test — is never asked.
+    await Backup.autoIfDue(settings, now: true);
+    expect(settings.lastBackup, isNull);
+    expect(settings.autoBackupFailed, isFalse);
+  });
+
+  test('the automatic backup stays with the phone, not the file', () async {
+    final settings = SettingsProvider();
+    await settings.setAutoBackup(7);
+    await settings.setBackupFolder('content://tree/x', 'Caldo');
+    final exported = await SettingsProvider.exported();
+    expect(exported.keys.where((k) => k.contains('auto_backup')), isEmpty);
+  });
 }

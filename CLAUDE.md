@@ -1608,9 +1608,27 @@ Changing them back will be noticed.
   storage permission; nothing over 64MB is read. Restore says what the file
   holds — when it was saved, how many tasks and groups — before it replaces
   anything, since that is how a wrong file is caught. The Settings list
-  says when a backup was last saved ("Never saved" until one is). No
-  automatic backups yet: Android's own may or may not cover the database,
-  and nothing here relies on it.
+  says when a backup was last saved ("Never saved" until one is).
+  **It can also save itself every day or week** (`Backup.autoIfDue`,
+  "Back up automatically" on the Backup page; asked for as "making a
+  backup time to time"). Turning it on asks for a folder once, through
+  Android's folder picker (`ACTION_OPEN_DOCUMENT_TREE`), and Caldo keeps
+  its hold on it (`takePersistableUriPermission`), letting go of any folder
+  held before. A copy is written there as `caldo-auto-<date>.json` on
+  opening and on every return to the app when one is due — counted in
+  calendar days, so a daily one is the first opening of each day — and
+  one at once when the folder is chosen. The last seven are kept; only
+  files with that prefix are ever deleted, so one saved by hand into the
+  same folder is left alone. No job in the background: nothing changes
+  while Caldo is shut but a reminder's buttons and the widget's ticks, and
+  the next opening carries those. A copy that cannot be written (the
+  folder deleted, the hold taken away) is said in red on the Folder row
+  and tried again on the next return. Drive does not offer itself to the
+  folder picker; a folder a sync app watches is the way off the phone.
+  The interval and the folder are not in a backup, being this phone's.
+  Tried on the emulator: the first copy, a day-old one rewritten on a
+  cold start with the oldest two of nine pruned and a hand-saved file
+  kept, and a folder with no hold showing the red row.
 - **The icon is the Samsung calendar's page — standing free on a Samsung,
   filling the shape everywhere else** (`LauncherIcon.kt`, two
   `activity-alias`es, `assets/icon/src/caldo*` and `caldo_free*`). On a
@@ -1660,7 +1678,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 226 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 229 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

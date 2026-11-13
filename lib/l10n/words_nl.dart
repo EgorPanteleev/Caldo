@@ -246,6 +246,15 @@ const Map<String, Object> nl = {
       "Caldo bewaart alles alleen op deze telefoon. Sla af en toe een back-up op in Drive of op een computer, dan neemt een verloren telefoon of een herinstallatie je taken niet mee.",
   'backupSaved': "Back-up opgeslagen",
   'backupNotSaved': "De back-up kon niet worden opgeslagen",
+  'backupAuto': "Automatisch back-uppen",
+  'backupAutoOff': "Uit",
+  'backupDaily': "Elke dag",
+  'backupWeekly': "Elke week",
+  'backupFolder': "Map",
+  'backupAutoFailed':
+      "De laatste back-up kon niet worden opgeslagen. Kies de map opnieuw.",
+  'backupAutoNote':
+      "Er wordt een back-up in deze map opgeslagen als Caldo wordt geopend en er een nodig is; de laatste zeven blijven bewaard. Een map die met een computer of de cloud synchroniseert, bewaart ze ook buiten de telefoon.",
   'backupNotCaldo': "Dat bestand is geen Caldo-back-up",
   'backupNewer':
       "Die back-up komt van een nieuwere Caldo. Werk eerst bij en zet hem dan terug.",

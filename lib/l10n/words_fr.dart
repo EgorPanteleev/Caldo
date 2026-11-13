@@ -247,6 +247,15 @@ const Map<String, Object> fr = {
       "Caldo garde tout sur ce téléphone et nulle part ailleurs. Enregistrez de temps en temps une sauvegarde sur Drive ou un ordinateur : un téléphone perdu ou une réinstallation n'emportera pas vos tâches.",
   'backupSaved': "Sauvegarde enregistrée",
   'backupNotSaved': "La sauvegarde n'a pas pu être enregistrée",
+  'backupAuto': "Sauvegarder automatiquement",
+  'backupAutoOff': "Désactivé",
+  'backupDaily': "Chaque jour",
+  'backupWeekly': "Chaque semaine",
+  'backupFolder': "Dossier",
+  'backupAutoFailed':
+      "La dernière sauvegarde n'a pas pu être enregistrée. Choisissez à nouveau le dossier.",
+  'backupAutoNote':
+      "Une sauvegarde est enregistrée dans ce dossier à l'ouverture de Caldo quand elle est due, et les sept dernières sont gardées. Un dossier synchronisé avec un ordinateur ou le cloud les garde aussi hors du téléphone.",
   'backupNotCaldo': "Ce fichier n'est pas une sauvegarde Caldo",
   'backupNewer':
       "Cette sauvegarde vient d'un Caldo plus récent. Mettez à jour d'abord, puis restaurez-la.",

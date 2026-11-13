@@ -261,6 +261,15 @@ const Map<String, Object> pl = {
       "Caldo trzyma wszystko tylko na tym telefonie. Co jakiś czas zapisz kopię na Dysku lub komputerze, a zgubiony telefon czy ponowna instalacja nie zabiorą zadań ze sobą.",
   'backupSaved': "Kopia zapisana",
   'backupNotSaved': "Nie udało się zapisać kopii",
+  'backupAuto': "Kopia automatyczna",
+  'backupAutoOff': "Wyłączona",
+  'backupDaily': "Codziennie",
+  'backupWeekly': "Co tydzień",
+  'backupFolder': "Folder",
+  'backupAutoFailed':
+      "Nie udało się zapisać ostatniej kopii. Wybierz folder ponownie.",
+  'backupAutoNote':
+      "Kopia jest zapisywana w tym folderze przy otwarciu Caldo, gdy przyszła na nią pora; zostaje siedem ostatnich. Folder synchronizowany z komputerem lub chmurą przechowa je także poza telefonem.",
   'backupNotCaldo': "Ten plik nie jest kopią Caldo",
   'backupNewer':
       "Ta kopia pochodzi z nowszego Caldo. Najpierw zaktualizuj aplikację.",

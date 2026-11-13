@@ -239,6 +239,14 @@ const Map<String, Object> tr = {
       "Caldo her şeyi yalnızca bu telefonda tutar. Arada bir Drive'a ya da bilgisayara yedek kaydedin; telefon kaybolsa ya da uygulama yeniden kurulsa da görevleriniz gitmez.",
   'backupSaved': "Yedek kaydedildi",
   'backupNotSaved': "Yedek kaydedilemedi",
+  'backupAuto': "Otomatik yedekle",
+  'backupAutoOff': "Kapalı",
+  'backupDaily': "Her gün",
+  'backupWeekly': "Her hafta",
+  'backupFolder': "Klasör",
+  'backupAutoFailed': "Son yedek kaydedilemedi. Klasörü yeniden seçin.",
+  'backupAutoNote':
+      "Caldo açıldığında ve zamanı geldiğinde bu klasöre bir yedek kaydedilir; son yedisi tutulur. Bir bilgisayarla ya da bulutla eşitlenen bir klasör onları telefonun dışında da saklar.",
   'backupNotCaldo': "Bu dosya bir Caldo yedeği değil",
   'backupNewer':
       "Bu yedek daha yeni bir Caldo'dan. Önce güncelleyin, sonra geri yükleyin.",

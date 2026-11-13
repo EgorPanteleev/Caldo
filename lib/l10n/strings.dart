@@ -296,6 +296,13 @@ class S {
   String get backupNote => _word('backupNote');
   String get backupSaved => _word('backupSaved');
   String get backupNotSaved => _word('backupNotSaved');
+  String get backupAuto => _word('backupAuto');
+  String get backupAutoOff => _word('backupAutoOff');
+  String get backupDaily => _word('backupDaily');
+  String get backupWeekly => _word('backupWeekly');
+  String get backupFolder => _word('backupFolder');
+  String get backupAutoFailed => _word('backupAutoFailed');
+  String get backupAutoNote => _word('backupAutoNote');
   String get backupNotCaldo => _word('backupNotCaldo');
   String get backupNewer => _word('backupNewer');
   String get backupUnreadable => _word('backupUnreadable');
