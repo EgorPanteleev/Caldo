@@ -11,7 +11,6 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import 'colour_selector.dart';
 import 'date_time_pickers.dart' show PickerSheet, SheetAction;
-import 'quick_add_bar.dart' show BarRoom;
 
 /// What a group is called on screen. The default group is made before
 /// anyone has named anything, as "Personal" in English; until it is
@@ -191,8 +190,8 @@ class _GroupChipsState extends State<GroupChips> {
   }
 }
 
-/// One group as a chip: its colour as a dot before its name, a little of
-/// the tab bar, lifted as its picked tab is while it is the one chosen. Neutral rather than the accent,
+/// One group as a chip: its colour as a dot before its name, filled in the
+/// field's grey while it is the one chosen. Neutral rather than the accent,
 /// as every control here is; the dot is the only colour on it.
 class GroupChip extends StatelessWidget {
   final String? label;
@@ -221,13 +220,9 @@ class GroupChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Material(
-      // Drawn as the tab bar is — its fill, its rim, and the chosen one in
-      // the grey of its picked tab. The rim is measured against that fill:
-      // round a chip left open on the black it was a bright ring round a
-      // hole.
-      color: selected ? Color.lerp(p.field, p.muted, 0.18) : p.panelHi,
+      color: selected ? p.field : Colors.transparent,
       shape: StadiumBorder(
-        side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+        side: selected ? BorderSide.none : BorderSide(color: p.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
