@@ -381,7 +381,8 @@ Changing them back will be noticed.
   each screen's constructor; with the bar there is no scope and no button.
   The bar: Asked for from a screenshot of another
   app's bottom ("i strongly like bottoms like this"), and chosen from
-  mockups as "make a, but do not change bottom task bar". A pill with a hairline edge, each
+  mockups as "make a, but do not change bottom task bar". A pill with a light
+  edge (1.4pt, matched to another app's bar: "more noticable"), each
   screen an icon over its name, the one on show lifted in a grey pill that
   slides to the one picked (240ms) — neutral, as the menu's current entry
   was. Settings is the last tab. The red dot for something overdue sits on
