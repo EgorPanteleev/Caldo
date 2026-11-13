@@ -62,10 +62,10 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   /// Files an all-day task on today straight from the field at the foot.
-  Future<void> _addQuickTask() async {
+  Future<void> _addQuickTask(int? group) async {
     final title = _quickAdd.text;
     _quickAdd.clear();
-    await quickAddTask(context, day: dayOf(DateTime.now()), title: title);
+    await quickAddTask(context, day: dayOf(DateTime.now()), title: title, group: group);
   }
 
   /// Today is the top of the run, so this is a scroll home.

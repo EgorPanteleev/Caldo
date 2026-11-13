@@ -520,6 +520,13 @@ Changing them back will be noticed.
   used to be read as `lists.first`, which a drag would have changed. Deleting moves its
   tasks into the default group (the oldest, "Personal", written in the app's
   language until renamed), which cannot itself be deleted.
+  **With All on show, the open add field offers the groups** (`_GroupPick`
+  in `QuickAddBar`, asked for as "set group for task instantly"): a row
+  of them rides the keyboard above the field, the default lit, and a tap
+  picks where this task goes without the keyboard going (the row is a
+  `TextFieldTapRegion`). Back to the default every time the field opens,
+  so a pick for one task does not quietly file the next. Not drawn with
+  one group on show (that is where it goes) or with only one group.
   While a group is chosen: only its tasks are drawn, the phone's calendar
   events go (they are in no group), holidays stay (they are the calendar's,
   like the red Sundays), and a task added on either screen or from the form
@@ -1531,7 +1538,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 209 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 210 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

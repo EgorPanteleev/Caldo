@@ -7,14 +7,19 @@ import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
 import '../models/task.dart';
+import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'groups.dart';
 import 'selection.dart';
 import 'tick_off.dart';
 
 /// Identifies the button beside the quick-add field.
 const quickAddButtonKey = Key('quick-add-button');
+
+/// Identifies the row of groups above the open field.
+const quickAddGroupsKey = Key('quick-add-groups');
 
 /// The field under a day's tasks: type a title, confirm, and it lands on the
 /// day in view without opening the full form. Used by the calendar and by the
@@ -22,7 +27,10 @@ const quickAddButtonKey = Key('quick-add-button');
 class QuickAddBar extends StatefulWidget {
   final DateTime date;
   final TextEditingController controller;
-  final VoidCallback onSubmit;
+
+  /// Files what has been typed, into the group picked above the field — or,
+  /// with null, the one a task made on this screen goes into anyway.
+  final ValueChanged<int?> onSubmit;
 
   /// Opens the full form. The button is a plus until the field is opened, and
   /// a plus has to lead somewhere — pressing it on an empty field used to do
@@ -47,10 +55,22 @@ class QuickAddBar extends StatefulWidget {
 }
 
 class _QuickAddBarState extends State<QuickAddBar> {
-  late final FocusNode _focus = FocusNode()
-    ..addListener(() {
-      if (mounted) setState(() {});
+  late final FocusNode _focus = FocusNode()..addListener(_focused);
+
+  bool _open = false;
+
+  /// The group picked above the field for the task being typed; null for
+  /// the default. Back to the default each time the field opens, so a pick
+  /// made for one task does not quietly file the next.
+  int? _group;
+
+  void _focused() {
+    if (!mounted) return;
+    setState(() {
+      if (_focus.hasFocus && !_open) _group = null;
+      _open = _focus.hasFocus;
     });
+  }
 
   @override
   void dispose() {
@@ -74,7 +94,9 @@ class _QuickAddBarState extends State<QuickAddBar> {
   /// now does an empty tick.
   void _submit() {
     final filing = widget.controller.text.trim().isNotEmpty;
-    widget.onSubmit();
+    // A group deleted while the field was open is no place to file into.
+    final lists = context.read<TaskProvider>().lists;
+    widget.onSubmit(lists.any((l) => l.id == _group) ? _group : null);
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     if (filing) _focus.unfocus();
   }
@@ -97,7 +119,14 @@ class _QuickAddBarState extends State<QuickAddBar> {
       borderSide: BorderSide.none,
     );
 
-    return Padding(
+    // With every group on show there is no telling which one a new task
+    // belongs in, so the groups are offered above the open field; one group
+    // on show is where it goes, and a single group is no choice at all.
+    final picking = context.select<TaskProvider, bool>(
+      (t) => writing && t.group == null && t.lists.length > 1,
+    );
+
+    final bar = Padding(
       padding: widget.padding,
       // Undo under the selection: a tick offered back while cards are being
       // picked out waits beneath the bar for them.
@@ -149,6 +178,88 @@ class _QuickAddBarState extends State<QuickAddBar> {
         ),
       ),
     );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Grown into rather than popped in, as the keyboard comes up under
+        // it; the field below keeps its place on the keys either way.
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: Alignment.bottomCenter,
+          child: picking
+              ? _GroupPick(
+                  picked: _group,
+                  padding: EdgeInsets.only(
+                    left: widget.padding.left,
+                    right: widget.padding.right,
+                    top: 6,
+                  ),
+                  onPick: (id) => setState(() => _group = id),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+        bar,
+      ],
+    );
+  }
+}
+
+/// The groups as chips across the top of the open field, the one the task
+/// will go into lit: the default until another is tapped. The header's row
+/// picks what a screen shows; this one picks where a task goes, and it is
+/// one tap with the keyboard still up — the form's Group row was the only
+/// way before, and that meant leaving the field for the whole form.
+class _GroupPick extends StatelessWidget {
+  final int? picked;
+  final EdgeInsets padding;
+  final ValueChanged<int?> onPick;
+
+  const _GroupPick({
+    required this.picked,
+    required this.padding,
+    required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lists = context.select<TaskProvider, List<TaskList>>((t) => t.lists);
+    final fallback = context.read<TaskProvider>().defaultGroup;
+    final chosen = lists.any((l) => l.id == picked) ? picked! : fallback;
+    final height = math.max(
+      32.0,
+      MediaQuery.textScalerOf(context).scale(14) * 1.3 + 12,
+    );
+    // Part of the field as far as a tap is concerned, so picking a group
+    // never lets go of the keyboard.
+    return TextFieldTapRegion(
+      child: Padding(
+        padding: EdgeInsets.only(top: padding.top),
+        child: SizedBox(
+          key: quickAddGroupsKey,
+          height: height,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.only(left: padding.left, right: padding.right),
+            children: [
+              for (final list in lists)
+                Padding(
+                  padding: EdgeInsets.only(left: list == lists.first ? 0 : 8),
+                  child: Center(
+                    child: GroupChip(
+                      label: groupLabel(context, list),
+                      color: list.style.color,
+                      selected: list.id == chosen,
+                      onTap: () => onPick(list.id == fallback ? null : list.id),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -190,20 +301,22 @@ class _ConfirmButton extends StatelessWidget {
   }
 }
 
-/// Files an all-day task on [day] from a one-line title, into the group on
-/// show — added to a screen showing one group, a task anywhere else would
-/// vanish as it was filed — and in that group's colour.
+/// Files an all-day task on [day] from a one-line title, into [group] if
+/// one was picked above the field, and otherwise into the group on show —
+/// added to a screen showing one group, a task anywhere else would vanish as
+/// it was filed — in that group's colour.
 Future<void> quickAddTask(
   BuildContext context, {
   required DateTime day,
   required String title,
+  int? group,
 }) async {
   final trimmed = title.trim();
   if (trimmed.isEmpty) return;
   final provider = context.read<TaskProvider>();
   await provider.add(
     Task(
-      listId: provider.groupForNew,
+      listId: group ?? provider.groupForNew,
       title: trimmed,
       dueAt: dayOf(day).millisecondsSinceEpoch,
       createdAt: DateTime.now().millisecondsSinceEpoch,

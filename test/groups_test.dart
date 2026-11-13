@@ -5,8 +5,12 @@ import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/widgets/groups.dart';
+import 'package:caldo/widgets/quick_add_bar.dart';
+import 'package:caldo/widgets/selection.dart';
+import 'package:caldo/widgets/tick_off.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'support/test_db.dart';
@@ -18,6 +22,10 @@ void main() {
   setUpAll(initTestDatabase);
 
   setUp(resetTestDatabase);
+
+  // Loading the settings sets the dates' locale by name, and only the
+  // default one is there without asking for it.
+  setUpAll(() => initializeDateFormatting());
 
   Future<TaskList> makeGroup(TaskProvider p, String name) => p.addList(
     TaskList(name: name, createdAt: DateTime.now().millisecondsSinceEpoch),
@@ -184,5 +192,82 @@ void main() {
         'Friends',
       ]);
     });
+  });
+
+  testWidgets('with every group on show, the open field offers the groups '
+      'to file into', (tester) async {
+    late TaskProvider provider;
+    late TaskList uni;
+    await tester.runAsync(() async {
+      provider = TaskProvider();
+      await provider.loadLists();
+      uni = await makeGroup(provider, 'University');
+    });
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    final filed = <int?>[];
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: Scaffold(
+            body: SelectionScope(
+              child: UndoScope(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: QuickAddBar(
+                    date: DateTime.now(),
+                    controller: controller,
+                    onSubmit: filed.add,
+                    onFullForm: () {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(quickAddGroupsKey), findsNothing);
+
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(find.byKey(quickAddGroupsKey), findsOneWidget);
+    await tester.tap(find.text('University'));
+    await tester.pumpAndSettle();
+    // Picking a group keeps the field, and the keyboard, open.
+    expect(find.byKey(quickAddGroupsKey), findsOneWidget);
+    expect(find.byKey(quickAddButtonKey), findsOneWidget);
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(
+              of: find.byKey(quickAddButtonKey),
+              matching: find.byType(Icon),
+            ),
+          )
+          .icon,
+      Icons.check_rounded,
+    );
+    await tester.enterText(find.byType(TextField), 'Essay');
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pumpAndSettle();
+    expect(filed, [uni.id]);
+    expect(find.byKey(quickAddGroupsKey), findsNothing);
+
+    // Opened again, it is back on the default.
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Laundry');
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pumpAndSettle();
+    expect(filed, [uni.id, null]);
+
+    // One group on show is where a task goes; nothing to pick.
+    provider.showGroup(uni.id);
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(find.byKey(quickAddGroupsKey), findsNothing);
   });
 }

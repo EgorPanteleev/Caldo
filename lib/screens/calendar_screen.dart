@@ -147,10 +147,10 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   /// Creates an all-day task on the selected day straight from the field.
-  Future<void> _addQuickTask() async {
+  Future<void> _addQuickTask(int? group) async {
     final title = _quickAdd.text;
     _quickAdd.clear();
-    await quickAddTask(context, day: _selected, title: title);
+    await quickAddTask(context, day: _selected, title: title, group: group);
   }
 
   /// Where the grid stood when the current drag began; a drag is measured
