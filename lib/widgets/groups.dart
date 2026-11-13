@@ -11,6 +11,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import 'colour_selector.dart';
 import 'date_time_pickers.dart' show PickerSheet, SheetAction;
+import 'quick_add_bar.dart' show BarRoom;
 
 /// What a group is called on screen. The default group is made before
 /// anyone has named anything, as "Personal" in English; until it is
@@ -221,8 +222,10 @@ class GroupChip extends StatelessWidget {
     final p = AppTheme.of(context);
     return Material(
       color: selected ? p.field : Colors.transparent,
+      // Rimmed as the tab bar is, chosen or not: in the hairline border
+      // grey the chips were drawn more faintly than the bar under them.
       shape: StadiumBorder(
-        side: selected ? BorderSide.none : BorderSide(color: p.border),
+        side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
