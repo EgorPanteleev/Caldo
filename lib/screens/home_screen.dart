@@ -1121,7 +1121,11 @@ class _TabBar extends StatelessWidget {
         ? AppScreen.schedule.index
         : AppScreen.calendar.index;
     final at = shown.indexOf(index);
-    const inset = 4.0;
+    // The picked tab's pill all but touches the rim, as on the bar this was
+    // matched to: four points in, it was a pill floating inside a pill. A
+    // seam of the bar's fill is kept, or the pill's grey runs into the rim
+    // and the rim is lost round the picked tab.
+    const inset = 1.0;
     return Container(
       padding: const EdgeInsets.all(inset),
       decoration: BoxDecoration(
