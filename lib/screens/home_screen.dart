@@ -117,29 +117,12 @@ class _HomeScreenState extends State<HomeScreen>
           ),
   );
 
-  /// The plus beside the bar: the field on a screen with one, brought up on
-  /// the keyboard, and the full form on the rest — undated on the board, as
-  /// its own plus did, and on today anywhere else.
-  void _add() {
-    final open = _foot?.open;
-    if (open != null) return open();
-    _newTask();
-  }
+  /// The plus above the bar brings up the screen's field on the keyboard;
+  /// held, it is the full form. It is only there on the two screens with a
+  /// field.
+  void _add() => _foot?.open?.call();
 
-  /// Held, it is the full form wherever it is.
-  void _addInFull() {
-    final form = _foot?.form;
-    if (form != null) return form();
-    _newTask();
-  }
-
-  void _newTask() => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => TaskEditScreen(
-        initialDate: _index == _board ? null : dayOf(DateTime.now()),
-      ),
-    ),
-  );
+  void _addInFull() => _foot?.form?.call();
 
   bool get _isOpen => _menu.value > 0.5;
 
@@ -1048,7 +1031,10 @@ class _TabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final picking = foot?.selection?.active ?? false;
+    // Only Schedule and the calendar have a field for it to bring up. On
+    // the board, Done and Settings it opened the form on its own, and was
+    // asked off them.
+    final gone = foot == null || (foot?.selection?.active ?? false);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1056,13 +1042,13 @@ class _TabBar extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(right: BarRoom.tabsSide, bottom: 10),
           child: IgnorePointer(
-            ignoring: picking,
+            ignoring: gone,
             child: AnimatedScale(
-              scale: picking ? 0.6 : 1,
+              scale: gone ? 0.6 : 1,
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,
               child: AnimatedOpacity(
-                opacity: picking ? 0 : 1,
+                opacity: gone ? 0 : 1,
                 duration: const Duration(milliseconds: 200),
                 child: _AddButton(onTap: onAdd, onLongPress: onAddInFull),
               ),

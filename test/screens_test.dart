@@ -1764,6 +1764,20 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('the plus is only on the screens with a field', (tester) async {
+    await pumpScreen(tester, const HomeScreen());
+    expect(find.byKey(barAddKey).hitTestable(), findsOneWidget);
+    for (final name in ['Board', 'Done', 'Settings']) {
+      await tester.tap(find.text(name).last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(barAddKey).hitTestable(), findsNothing, reason: name);
+    }
+    await tester.tap(find.text('Calendar').last);
+    await tester.pumpAndSettle();
+    expect(find.byKey(barAddKey).hitTestable(), findsOneWidget);
+    await drainDatabase(tester);
+  });
+
   testWidgets('with the tab bar, a tick off is offered in its place', (
     tester,
   ) async {

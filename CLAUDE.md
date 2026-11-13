@@ -415,9 +415,11 @@ Changing them back will be noticed.
   bar. A tap on the plus opens the screen's field (or, with the field still
   focused after Back, only asks for the keyboard back — asking for focus a
   field already has does nothing); held, it opens the full form, as the
-  plus beside the field did. On the board, Done and Settings it is the
-  form on its own — undated on the board, whose header plus goes while the
-  bar has one, and on today on the other two. The screen's field lends the
+  plus beside the field did. **It is only over Schedule and the
+  calendar**: on the board, Done and Settings it opened the form on its
+  own, and was asked off them ("remove plus … from settings, done and
+  board"). It fades out as the bar switches to one of those; the board
+  keeps the plus in its header for a new task, with the bar or the menu. The screen's field lends the
   shell its Undo and selection through its `BarFoot`, and those stand in
   the bar's place, as they stood in the field's; the plus stays over Undo
   and goes while tasks are picked out. That
@@ -1658,7 +1660,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 225 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 226 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

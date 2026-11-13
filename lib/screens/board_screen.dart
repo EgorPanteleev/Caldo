@@ -13,7 +13,6 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/attachments_field.dart' show AttachmentMark;
 import '../widgets/groups.dart';
-import '../widgets/quick_add_bar.dart' show BarRoom;
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart' show TaskCard;
 import 'task_edit_screen.dart';
@@ -201,18 +200,12 @@ class _BoardScreenState extends State<BoardScreen> {
           ScreenHeader(
             title: s.board,
             actions: [
-              // The tab bar has a plus of its own beside it. The header
-              // keeps the height the button gave it, so the title stands
-              // where every other screen's does.
-              if (BarRoom.of(context) == 0) ...[
-                IconButton(
-                  icon: Icon(Icons.add, color: p.muted),
-                  tooltip: s.newTask,
-                  onPressed: _open,
-                ),
-                const SizedBox(width: 6),
-              ] else
-                const SizedBox(height: kMinInteractiveDimension),
+              IconButton(
+                icon: Icon(Icons.add, color: p.muted),
+                tooltip: s.newTask,
+                onPressed: _open,
+              ),
+              const SizedBox(width: 6),
             ],
           ),
           // The same choice of group as Schedule and the calendar make.
