@@ -12,7 +12,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 8;
+  static const _dbVersion = 9;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -35,7 +35,8 @@ class AppDatabase {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             style_id TEXT NOT NULL DEFAULT 'violet',
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            sort_order INTEGER
           )
         ''');
         await db.insert(_lists, {
@@ -118,6 +119,11 @@ class AppDatabase {
           // every task there already is: each only ever had a start.
           await db.execute('ALTER TABLE $_tasks ADD COLUMN duration INTEGER');
         }
+        if (oldVersion < 9) {
+          // v8 -> the groups can be put in an order of the user's own. Null
+          // until they are, so they stay in the order they were made.
+          await db.execute('ALTER TABLE $_lists ADD COLUMN sort_order INTEGER');
+        }
       },
     );
   }
@@ -148,9 +154,26 @@ class AppDatabase {
         (SELECT COUNT(*) FROM $_tasks t WHERE t.list_id = l.id AND t.done = 0)
           AS open_count
       FROM $_lists l
-      ORDER BY l.created_at ASC
+      ORDER BY (l.sort_order IS NULL) ASC, l.sort_order ASC, l.created_at ASC
     ''');
     return rows.map(TaskList.fromMap).toList();
+  }
+
+  /// Writes the order the groups were dragged into: the position of each id
+  /// in [ids] becomes its `sort_order`. A group made after that has none and
+  /// goes after the lot, at the end of the row where its plus was.
+  Future<void> reorderLists(List<int> ids) async {
+    final db = await database;
+    final batch = db.batch();
+    for (var i = 0; i < ids.length; i++) {
+      batch.update(
+        _lists,
+        {'sort_order': i},
+        where: 'id = ?',
+        whereArgs: [ids[i]],
+      );
+    }
+    await batch.commit(noResult: true);
   }
 
   Future<TaskList> insertList(TaskList list) async {

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/holidays.dart';
 import '../db/database.dart';
 import '../l10n/strings.dart';
+import '../models/task_list.dart';
 import '../services/reminders.dart';
 import '../services/today_widget.dart';
 import '../theme/app_theme.dart';
@@ -266,7 +267,7 @@ class SettingsProvider extends ChangeNotifier {
     final db = AppDatabase.instance;
     final lists = await db.getLists();
     if (lists.isNotEmpty) {
-      await db.updateList(lists.first.copyWith(styleId: colour));
+      await db.updateList(TaskList.oldest(lists).copyWith(styleId: colour));
     }
     await prefs.remove(_kDefaultStyle);
   }

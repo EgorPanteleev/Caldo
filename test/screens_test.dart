@@ -327,6 +327,7 @@ void main() {
     List<DateTime> shown() => [
       for (final w in tester.widgetList(panels)) (w as dynamic).date,
     ];
+
     /// Every day drawn on the way, until it all comes to rest.
     Future<Set<DateTime>> passed() async {
       final seen = <DateTime>{};

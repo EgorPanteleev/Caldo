@@ -91,8 +91,9 @@ class TaskProvider extends ChangeNotifier {
   Map<DateTime, List<Task>> get allUpcomingByDay => _allUpcomingByDay;
 
   /// The group a task goes into when nothing says otherwise — the oldest,
-  /// "Personal" unless it was renamed. It cannot be deleted.
-  int get defaultGroup => _lists.isEmpty ? 1 : _lists.first.id!;
+  /// "Personal" unless it was renamed, wherever it has been dragged to. It
+  /// cannot be deleted.
+  int get defaultGroup => _lists.isEmpty ? 1 : TaskList.oldest(_lists).id!;
 
   /// The group a task made on a screen now goes into: the one on show, or
   /// the default group when everything is.
@@ -152,6 +153,15 @@ class TaskProvider extends ChangeNotifier {
     final created = await _db.insertList(list);
     await loadLists();
     return created;
+  }
+
+  /// Puts the groups in the order of [ordered]. It is on screen at once and
+  /// written after: waiting for the write would put the chip back where it
+  /// came from for the length of the read.
+  Future<void> reorderLists(List<TaskList> ordered) async {
+    _lists = ordered;
+    notifyListeners();
+    await _db.reorderLists([for (final l in ordered) l.id!]);
   }
 
   /// Renames or recolours a group. Its tasks are read back, since every one

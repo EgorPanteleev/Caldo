@@ -24,7 +24,7 @@ lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
   l10n/strings.dart      every word the app says; words_*.dart, a table
                          per language
-  db/database.dart       schema v8: lists, tasks, completions (+ migrations)
+  db/database.dart       schema v9: lists, tasks, completions (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart,
@@ -505,8 +505,19 @@ Changing them back will be noticed.
   its colour as a dot, and a plus — always there, even with only the default
   group, since it is where groups are found to exist. The two screens share
   one choice. A group is made from the plus there or beside the form's
-  Group row, and a long press on any of its chips renames, recolours or
-  deletes it; there is no list of groups anywhere else. Deleting moves its
+  Group row; there is no list of groups anywhere else.
+  **The groups can be dragged into an order** (`lists.sort_order`, schema
+  v9, `TaskProvider.reorderLists`; asked for as "change groups order"). The
+  chip row is a reorderable list, All and the plus fixed at either end: a
+  long press picks a chip up and it is carried along the row, and one held
+  and let go within 18 points opens it to be renamed, recoloured or deleted
+  — the long press that used to do only that, split the way a card's is
+  between carrying and picking out. On the form a long press still opens
+  it. A chip stands on its row's ground (`GroupChips.ground`), since one
+  not chosen is only an outline and its neighbours' names showed through
+  it while it was carried. A group made later goes at the end. **The
+  default group is the oldest, not the first** (`TaskList.oldest`): it
+  used to be read as `lists.first`, which a drag would have changed. Deleting moves its
   tasks into the default group (the oldest, "Personal", written in the app's
   language until renamed), which cannot itself be deleted.
   While a group is chosen: only its tasks are drawn, the phone's calendar
@@ -1520,7 +1531,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 206 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 209 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

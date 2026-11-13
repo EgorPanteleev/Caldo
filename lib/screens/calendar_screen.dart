@@ -1301,9 +1301,12 @@ class _MonthBar extends StatelessWidget {
         ),
         // Between the controls and the month's name, where Schedule has it
         // under its own header, so it is in one place on both screens.
-        const Padding(
-          padding: EdgeInsets.only(top: 2, bottom: 6),
-          child: SizedBox(width: double.infinity, child: GroupChips()),
+        Padding(
+          padding: const EdgeInsets.only(top: 2, bottom: 6),
+          child: SizedBox(
+            width: double.infinity,
+            child: GroupChips(ground: AppTheme.of(context).calendar),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),

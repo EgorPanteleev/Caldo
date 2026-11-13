@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -28,53 +30,160 @@ EventsProvider? eventsOnShow(BuildContext context) {
 const groupChipsKey = Key('group-chips');
 
 /// The row under the Schedule and calendar headers that picks which group
-/// is on show: All, then each group in the order it was made, then a plus
-/// for a new one. Always there, even with only the default group, because
-/// it is where groups are found to exist at all.
+/// is on show: All, then each group in the order the user has put them in,
+/// then a plus for a new one. Always there, even with only the default
+/// group, because it is where groups are found to exist at all.
 ///
 /// One row for both screens, reading one choice from the provider, so the
-/// two cannot come to show different groups. A long press on a group opens
-/// it to be renamed, recoloured or deleted — there is no list of groups to
-/// manage anywhere else.
-class GroupChips extends StatelessWidget {
-  const GroupChips({super.key});
+/// two cannot come to show different groups. A long press on a group picks
+/// it up, to be carried along the row into another place; one let go where
+/// it was pressed opens it to be renamed, recoloured or deleted, as a card
+/// held and let go is picked out — there is no list of groups to manage
+/// anywhere else.
+class GroupChips extends StatefulWidget {
+  /// What the row stands on, painted under a chip while it is carried: the
+  /// screen's ground unless said otherwise. A chip not chosen is only an
+  /// outline, and carried over its neighbours, their names showed through it.
+  final Color? ground;
+
+  const GroupChips({super.key, this.ground});
+
+  @override
+  State<GroupChips> createState() => _GroupChipsState();
+}
+
+class _GroupChipsState extends State<GroupChips> {
+  /// How far a finger may wander between pressing and letting go and still
+  /// be opening the group rather than moving it — the selection's figure.
+  static const _slop = 18.0;
+
+  int? _pointer;
+  Offset? _down;
+  bool _moved = false;
+  TaskList? _lifted;
+
+  /// The group held and let go in place, opened as it is dropped.
+  TaskList? _open;
+
+  void _pressed(PointerDownEvent event) {
+    if (_pointer != null) return;
+    _pointer = event.pointer;
+    _down = event.position;
+    _moved = false;
+    _lifted = null;
+  }
+
+  void _moving(PointerMoveEvent event) {
+    if (event.pointer != _pointer || _down == null) return;
+    if ((event.position - _down!).distance > _slop) _moved = true;
+  }
+
+  // The release reaches this before the list's drag hears of it, so the
+  // group to open is known by the time the drop is reported.
+  void _let(PointerEvent event) {
+    if (event.pointer != _pointer) return;
+    if (event is PointerUpEvent && _lifted != null && !_moved) _open = _lifted;
+    _pointer = null;
+    _down = null;
+    _lifted = null;
+  }
+
+  // Called as the chip is let go, before it has settled: the sheet rises
+  // while it does, rather than after a pause.
+  void _dropped(int _) {
+    final open = _open;
+    _open = null;
+    if (open != null) showGroupSheet(context, group: open);
+  }
+
+  void _reorder(List<TaskList> lists, int from, int to) {
+    if (to > from) to--;
+    if (to == from) return;
+    final ordered = [...lists];
+    ordered.insert(to, ordered.removeAt(from));
+    context.read<TaskProvider>().reorderLists(ordered);
+  }
 
   @override
   Widget build(BuildContext context) {
     final lists = context.select<TaskProvider, List<TaskList>>((t) => t.lists);
     final shown = context.select<TaskProvider, int?>((t) => t.group);
     final tasks = context.read<TaskProvider>();
-    // As wide as the screen, so a short row starts at the left edge rather
-    // than being centred by the column it is in.
-    return SingleChildScrollView(
-      key: groupChipsKey,
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          GroupChip(
-            label: S.of(context).allGroups,
-            selected: shown == null,
-            onTap: () => tasks.showGroup(null),
-          ),
-          for (final list in lists) ...[
-            const SizedBox(width: 8),
-            GroupChip(
-              label: groupLabel(context, list),
-              color: list.style.color,
-              selected: shown == list.id,
-              onTap: () => tasks.showGroup(list.id),
-              onLongPress: () => showGroupSheet(context, group: list),
+    final ground = widget.ground ?? AppTheme.of(context).bg;
+    // A list has to be told its height; the chips' own, at the text size
+    // in force, so a larger font is not cut off.
+    final height = math.max(
+      32.0,
+      MediaQuery.textScalerOf(context).scale(14) * 1.3 + 12,
+    );
+    return Listener(
+      onPointerDown: _pressed,
+      onPointerMove: _moving,
+      onPointerUp: _let,
+      onPointerCancel: _let,
+      child: SizedBox(
+        height: height,
+        child: ReorderableListView(
+          key: groupChipsKey,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          // A chip is lifted as a card is, with a little scale rather than
+          // the shadowed slab a reorderable list puts under it.
+          proxyDecorator: (child, _, animation) => AnimatedBuilder(
+            animation: animation,
+            builder: (_, child) => Transform.scale(
+              scale: 1 + 0.06 * Curves.easeOut.transform(animation.value),
+              child: child,
             ),
-          ],
-          const SizedBox(width: 8),
-          GroupChip.add(
-            onTap: () async {
-              final made = await showGroupSheet(context);
-              if (made != null) tasks.showGroup(made.id);
-            },
+            child: Material(type: MaterialType.transparency, child: child),
           ),
-        ],
+          onReorderStart: (i) {
+            HapticFeedback.mediumImpact();
+            _lifted = lists[i];
+          },
+          onReorderEnd: _dropped,
+          onReorder: (from, to) => _reorder(lists, from, to),
+          header: Center(
+            child: GroupChip(
+              label: S.of(context).allGroups,
+              selected: shown == null,
+              onTap: () => tasks.showGroup(null),
+            ),
+          ),
+          footer: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Center(
+              child: GroupChip.add(
+                onTap: () async {
+                  final made = await showGroupSheet(context);
+                  if (made != null) tasks.showGroup(made.id);
+                },
+              ),
+            ),
+          ),
+          children: [
+            for (final list in lists)
+              Padding(
+                key: ValueKey(list.id),
+                padding: const EdgeInsets.only(left: 8),
+                child: Center(
+                  // The ground it stands on, so it is unchanged at rest.
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      color: ground,
+                      shape: const StadiumBorder(),
+                    ),
+                    child: GroupChip(
+                      label: groupLabel(context, list),
+                      color: list.style.color,
+                      selected: shown == list.id,
+                      onTap: () => tasks.showGroup(list.id),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -256,7 +256,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final listId =
         (_selectedListId != null && lists.any((l) => l.id == _selectedListId))
         ? _selectedListId!
-        : (lists.isNotEmpty ? lists.first.id! : 1);
+        : provider.defaultGroup;
     final due = _due;
     final existing = widget.task;
 
@@ -339,10 +339,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final p = AppTheme.of(context);
     final s = S.of(context);
     final isEdit = widget.task != null;
-    final lists = context.watch<TaskProvider>().lists;
+    final provider = context.watch<TaskProvider>();
+    final lists = provider.lists;
     final validId = lists.any((l) => l.id == _selectedListId)
         ? _selectedListId
-        : (lists.isNotEmpty ? lists.first.id : null);
+        : (lists.isNotEmpty ? provider.defaultGroup : null);
 
     return Scaffold(
       // The keyboard arrives over the form rather than resizing it, and the

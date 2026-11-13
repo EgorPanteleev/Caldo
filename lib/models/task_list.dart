@@ -100,6 +100,17 @@ class TaskList {
 
   ListStyle get style => ListStyle.byId(styleId);
 
+  /// The group a task goes into when nothing says otherwise: the oldest,
+  /// "Personal" unless it was renamed. Not the first in [lists], since the
+  /// groups can be dragged into any order.
+  static TaskList oldest(List<TaskList> lists) => lists.reduce(
+    (a, b) =>
+        a.createdAt < b.createdAt ||
+            (a.createdAt == b.createdAt && (a.id ?? 0) <= (b.id ?? 0))
+        ? a
+        : b,
+  );
+
   TaskList copyWith({
     int? id,
     String? name,
