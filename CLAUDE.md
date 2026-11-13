@@ -594,9 +594,12 @@ Changing them back will be noticed.
   and let go within 18 points opens it to be renamed, recoloured or deleted
   — the long press that used to do only that, split the way a card's is
   between carrying and picking out. On the form a long press still opens
-  it. A chip stands on its row's ground (`GroupChips.ground`), since one
-  not chosen is only an outline and its neighbours' names showed through
-  it while it was carried. A group made later goes at the end. **The
+  it. A chip stands on its row's ground (`GroupChips.ground`): one not chosen
+  was only an outline then, and its neighbours' names showed through it
+  while it was carried. **A chip is drawn as a little of the tab bar** —
+  its fill, its rim, and the chosen one in its picked tab's grey. The
+  bar's rim alone, round a chip open on the black, was a bright ring round
+  a hole: the rim is measured against the bar's fill. A group made later goes at the end. **The
   default group is the oldest, not the first** (`TaskList.oldest`): it
   used to be read as `lists.first`, which a drag would have changed. Deleting moves its
   tasks into the default group (the oldest, "Personal", written in the app's

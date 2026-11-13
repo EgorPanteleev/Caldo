@@ -191,8 +191,8 @@ class _GroupChipsState extends State<GroupChips> {
   }
 }
 
-/// One group as a chip: its colour as a dot before its name, filled in the
-/// field's grey while it is the one chosen. Neutral rather than the accent,
+/// One group as a chip: its colour as a dot before its name, a little of
+/// the tab bar, lifted as its picked tab is while it is the one chosen. Neutral rather than the accent,
 /// as every control here is; the dot is the only colour on it.
 class GroupChip extends StatelessWidget {
   final String? label;
@@ -221,9 +221,11 @@ class GroupChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Material(
-      color: selected ? p.field : Colors.transparent,
-      // Rimmed as the tab bar is, chosen or not: in the hairline border
-      // grey the chips were drawn more faintly than the bar under them.
+      // Drawn as the tab bar is — its fill, its rim, and the chosen one in
+      // the grey of its picked tab. The rim is measured against that fill:
+      // round a chip left open on the black it was a bright ring round a
+      // hole.
+      color: selected ? Color.lerp(p.field, p.muted, 0.18) : p.panelHi,
       shape: StadiumBorder(
         side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
       ),
