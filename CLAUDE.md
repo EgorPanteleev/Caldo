@@ -178,8 +178,13 @@ Changing them back will be noticed.
   measure it (`KeyboardGap`), so the field sits on the keys.
 - **The days below the grid are a pager, one page per day.** Picking a day
   slides it in from the edge it lies on and the days can be swiped through
-  directly, carrying the month round with them. A day more than ten away is
-  jumped to; watching a month of days fly past says nothing. The two pagers
+  directly, carrying the month round with them. A day more than ten away
+  is brought in as the very next page and slid across alone
+  (`_dayAnchor`, `_heldPage`): the pager's anchor moves under it, and the
+  page on show keeps its own day until it has slid off, so nothing jumps.
+  Watching a month of days fly past says nothing — but it used to be cut
+  to, and a turned month lands on its first or today, so the panel changed
+  in place under a month that had visibly slid. The two pagers
   each ignore the change the other has already made, which is what keeps a
   swipe across a month boundary from bouncing.
 - **In the week, a sideways swipe turns a week** (`_weekController`,
@@ -1512,7 +1517,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 204 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 206 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

@@ -316,6 +316,42 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('turning the month slides the day below across, not cuts', (
+    tester,
+  ) async {
+    await pumpScreen(tester, const CalendarScreen());
+
+    final panels = find.byWidgetPredicate(
+      (w) => w.runtimeType.toString() == '_DayPanel',
+    );
+    List<DateTime> shown() => [
+      for (final w in tester.widgetList(panels)) (w as dynamic).date,
+    ];
+    final today = dayOf(DateTime.now());
+    expect(shown(), [today]);
+
+    await tester.drag(find.byType(MonthGrid).first, const Offset(-400, 0));
+    final next = DateTime(today.year, today.month + 1);
+    // The next month's first, weeks away, comes in as the very next page:
+    // today and it are on screen together and nothing in between is.
+    var together = false;
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final days = shown();
+      expect(days.toSet().difference({today, next}), isEmpty);
+      if (days.length == 2) together = true;
+    }
+    await tester.pumpAndSettle();
+    expect(together, isTrue, reason: 'the day panel was cut to, not slid');
+    expect(shown(), [next]);
+
+    // And back: the page it came from is the day before, not today.
+    await tester.drag(find.byType(PageView).last, const Offset(400, 0));
+    await tester.pumpAndSettle();
+    expect(shown(), [next.subtract(const Duration(days: 1))]);
+    await drainDatabase(tester);
+  });
+
   testWidgets('the month name carries the year only when it is not this one', (
     tester,
   ) async {

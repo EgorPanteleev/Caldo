@@ -55,11 +55,19 @@ class _CalendarScreenState extends State<CalendarScreen>
   late final DateTime _baseMonth;
   late final PageController _controller;
 
-  /// The day page range works the same way: page [_baseDayPage] is [_baseDay].
+  /// The day page range works the same way: page [_baseDayPage] is
+  /// [_dayAnchor], which starts as [_baseDay] and moves whenever a far day
+  /// is brought in as the next page (see [_goToDayPage]).
   static const _baseDayPage = 6000;
 
   late final DateTime _baseDay;
+  late DateTime _dayAnchor;
   late final PageController _dayController;
+
+  /// A page held to the day it showed while it slides out after the anchor
+  /// has moved under it; null once it is off the screen.
+  int? _heldPage;
+  DateTime? _heldDay;
 
   /// The week pager, which takes the grid's sideways swipes while it is down
   /// to a week, so a swipe there turns a week rather than a month. Page
@@ -102,6 +110,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     _baseMonth = DateTime(now.year, now.month);
     _controller = PageController(initialPage: _basePage);
     _baseDay = dayOf(now);
+    _dayAnchor = _baseDay;
     _dayController = PageController(initialPage: _baseDayPage);
     _weekController = PageController(initialPage: _baseWeekPage);
     _expansion = AnimationController(
@@ -381,11 +390,13 @@ class _CalendarScreenState extends State<CalendarScreen>
   DateTime _monthOfPage(int page) =>
       DateTime(_baseMonth.year, _baseMonth.month + (page - _basePage));
 
-  DateTime _dayOfPage(int page) => DateTime(
-    _baseDay.year,
-    _baseDay.month,
-    _baseDay.day + (page - _baseDayPage),
-  );
+  DateTime _dayOfPage(int page) => page == _heldPage
+      ? _heldDay!
+      : DateTime(
+          _dayAnchor.year,
+          _dayAnchor.month,
+          _dayAnchor.day + (page - _baseDayPage),
+        );
 
   /// Whole days between two dates. Counted in UTC, so the hour a daylight
   /// saving change adds or drops cannot round a day away.
@@ -401,22 +412,46 @@ class _CalendarScreenState extends State<CalendarScreen>
     curve: Curves.easeOutCubic,
   );
 
-  /// Slides the day panel to [day]. A neighbouring day slides across; a day
-  /// weeks away is not worth watching every day in between scroll past, so it
-  /// is cut to straight away.
+  /// Slides the day panel to [day]. A day a few away slides across with the
+  /// ones between; a day weeks away is not worth watching every day in
+  /// between scroll past, so it is brought in as the very next page, on the
+  /// side it lies on, and slid across alone. That is what a month turned
+  /// lands on — its first, or today — and it was cut to, so the panel
+  /// changed under a month that had visibly slid.
   Future<void> _goToDayPage(DateTime day, {bool jump = false}) async {
     if (!_dayController.hasClients) return;
-    final page = _baseDayPage + _daysBetween(_baseDay, day);
+    final page = _baseDayPage + _daysBetween(_dayAnchor, day);
     final current = _dayController.page?.round() ?? page;
     if (current == page) return;
-    if (!jump && (current - page).abs() <= 10) {
-      await _dayController.animateToPage(
-        page,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-      );
-    } else {
+    if (jump) {
       _dayController.jumpToPage(page);
+      return;
+    }
+    var target = page;
+    if ((current - page).abs() > 10) {
+      // Move the anchor rather than the controller, so nothing jumps: the
+      // page on show keeps its day until it has slid off, and the next one
+      // along is [day].
+      target = current + (page > current ? 1 : -1);
+      final leaving = _dayOfPage(current);
+      setState(() {
+        _heldPage = current;
+        _heldDay = leaving;
+        _dayAnchor = DateTime(
+          day.year,
+          day.month,
+          day.day - (target - _baseDayPage),
+        );
+      });
+    }
+    await _dayController.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+    // Let go of the held page only if no later move has taken it over.
+    if (mounted && target != page && _heldPage == current) {
+      setState(() => _heldPage = _heldDay = null);
     }
   }
 
