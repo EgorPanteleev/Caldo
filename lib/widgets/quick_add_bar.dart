@@ -141,12 +141,12 @@ class _QuickAddBarState extends State<QuickAddBar> {
     // it finishes the task being typed, so it says so. Waiting for the first
     // character left it a plus over an active field.
     final writing = _focus.hasFocus;
-    // A filled grey rather than an outline: on true black an outlined pill
-    // read as a hole cut in the screen, and the field and the button beside
-    // it are the one thing down there to press.
-    const border = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(26)),
-      borderSide: BorderSide.none,
+    // A filled grey with the tab bar's rim. Outlined on true black and
+    // left unfilled, the pill read as a hole cut in the screen; filled and
+    // unrimmed, it was a grey smudge beside the bar's crisp edge.
+    final border = OutlineInputBorder(
+      borderRadius: const BorderRadius.all(Radius.circular(26)),
+      borderSide: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
     );
 
     // With every group on show there is no telling which one a new task
@@ -379,7 +379,9 @@ class _ConfirmButton extends StatelessWidget {
       message: tooltip,
       child: Material(
         color: p.field,
-        shape: const CircleBorder(),
+        shape: CircleBorder(
+          side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+        ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -555,6 +557,15 @@ class BarRoom extends InheritedWidget {
   /// nine tenths of the phone's width reads as a thing set on the screen,
   /// where one 12 points from either edge read as a band across it.
   static const tabsSide = 23.0;
+
+  /// The rim round the tab bar, its plus, and the add field and its button.
+  /// In the field's grey it was a step off the bar's own fill and all but
+  /// gone on a phone; measured off another app's bar the user pointed at,
+  /// the edge there is two and a half times as bright as the fill inside
+  /// it, and about a point and a half wide.
+  static Color rim(AppPalette p) => Color.lerp(p.field, p.muted, 0.26)!;
+
+  static const rimWidth = 1.4;
 
   /// The height the bar takes at the foot of a screen, gaps included.
   static const room = above + pill + below;

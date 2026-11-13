@@ -650,9 +650,11 @@ Changing them back will be noticed.
 - **The month header shows `Sep`, centred**, gaining the year only when it is
   not the current one.
 - **The field and the button beside it are a filled grey** (`AppPalette.field`,
-  a step above `panelHi`), with no outline on either and nothing marking the
-  focus but the cursor. Outlined on true black the pair read as holes cut in
-  the screen, and a neutral ring around half the width was a line nobody read.
+  a step above `panelHi`), rimmed as the tab bar is (`BarRoom.rim`), and
+  nothing marking the focus but the cursor. Outlined and unfilled on true
+  black the pair read as holes cut in the screen; filled and unrimmed they
+  were asked to match the bar's edge. The rim is the same with focus or
+  without.
 - **The strip the add field sits on, and the fade above it, follow what the
   field is actually standing over** (`_groundUnderField`, `_fadeStrength`,
   `_overGrid`). That is the calendar's own black once the month is opened

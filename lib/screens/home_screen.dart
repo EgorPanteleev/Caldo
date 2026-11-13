@@ -1131,7 +1131,7 @@ class _TabBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: p.panelHi,
         borderRadius: BorderRadius.circular(_height / 2),
-        border: Border.all(color: _barEdge(p), width: _barEdgeWidth),
+        border: Border.all(color: BarRoom.rim(p), width: BarRoom.rimWidth),
       ),
       child: LayoutBuilder(
         builder: (context, box) {
@@ -1174,14 +1174,6 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-/// The rim round the tab bar and the plus. In the field's grey it was a
-/// step off the bar's own fill and all but gone on a phone; measured off
-/// another app's bar the user pointed at, the edge there is two and a half
-/// times as bright as the fill inside it, and about a point and a half wide.
-Color _barEdge(AppPalette p) => Color.lerp(p.field, p.muted, 0.26)!;
-
-const _barEdgeWidth = 1.4;
-
 /// Identifies the tab bar's pill.
 const tabBarKey = Key('tab-bar');
 
@@ -1209,7 +1201,7 @@ class _AddButton extends StatelessWidget {
         key: barAddKey,
         color: p.panelHi,
         shape: CircleBorder(
-          side: BorderSide(color: _barEdge(p), width: _barEdgeWidth),
+          side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
         ),
         elevation: 6,
         shadowColor: Colors.black,
