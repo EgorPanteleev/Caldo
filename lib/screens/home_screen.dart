@@ -1054,7 +1054,7 @@ class _TabBar extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Padding(
-          padding: const EdgeInsets.only(right: BarRoom.side, bottom: 10),
+          padding: const EdgeInsets.only(right: BarRoom.tabsSide, bottom: 10),
           child: IgnorePointer(
             ignoring: picking,
             child: AnimatedScale(
@@ -1077,9 +1077,9 @@ class _TabBar extends StatelessWidget {
   Widget _bar(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        BarRoom.side,
+        BarRoom.tabsSide,
         BarRoom.above,
-        BarRoom.side,
+        BarRoom.tabsSide,
         BarRoom.below,
       ),
       // Undo under the selection, as in the field's place: a tick offered

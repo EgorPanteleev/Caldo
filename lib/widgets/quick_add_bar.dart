@@ -550,6 +550,12 @@ class BarRoom extends InheritedWidget {
   static const below = 8.0;
   static const side = 12.0;
 
+  /// The tabs stand further in than the field that takes their place:
+  /// measured off another app's bar the user pointed at, a pill about
+  /// nine tenths of the phone's width reads as a thing set on the screen,
+  /// where one 12 points from either edge read as a band across it.
+  static const tabsSide = 23.0;
+
   /// The height the bar takes at the foot of a screen, gaps included.
   static const room = above + pill + below;
 
