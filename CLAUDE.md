@@ -178,13 +178,16 @@ Changing them back will be noticed.
   measure it (`KeyboardGap`), so the field sits on the keys.
 - **The days below the grid are a pager, one page per day.** Picking a day
   slides it in from the edge it lies on and the days can be swiped through
-  directly, carrying the month round with them. A day more than ten away
-  is brought in as the very next page and slid across alone
-  (`_dayAnchor`, `_heldPage`): the pager's anchor moves under it, and the
-  page on show keeps its own day until it has slid off, so nothing jumps.
-  Watching a month of days fly past says nothing — but it used to be cut
-  to, and a turned month lands on its first or today, so the panel changed
-  in place under a month that had visibly slid. The two pagers
+  directly, carrying the month round with them. A day within a grid's
+  span (`_passThrough`, 42) slides past every day between — any day picked
+  on the month on show, and the first or today a turned month lands on.
+  It was ten, and a day picked two weeks off came in as if it were the
+  next one while one a week off passed through the week: "like no between
+  1 and 15". Further than that (Today from months away) it is brought in
+  as the very next page and slid across alone (`_dayAnchor`, `_heldPage`):
+  the pager's anchor moves under it, and the page on show keeps its own
+  day until it has slid off, so nothing jumps. It used to be cut to, which
+  for a turned month changed the panel in place under a grid that slid. The two pagers
   each ignore the change the other has already made, which is what keeps a
   swipe across a month boundary from bouncing.
 - **In the week, a sideways swipe turns a week** (`_weekController`,

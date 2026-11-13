@@ -398,6 +398,10 @@ class _CalendarScreenState extends State<CalendarScreen>
           _dayAnchor.day + (page - _baseDayPage),
         );
 
+  /// The furthest the day pager slides past every day between: the six
+  /// weeks a month's grid can show.
+  static const _passThrough = 42;
+
   /// Whole days between two dates. Counted in UTC, so the hour a daylight
   /// saving change adds or drops cannot round a day away.
   static int _daysBetween(DateTime from, DateTime to) => DateTime.utc(
@@ -412,12 +416,14 @@ class _CalendarScreenState extends State<CalendarScreen>
     curve: Curves.easeOutCubic,
   );
 
-  /// Slides the day panel to [day]. A day a few away slides across with the
-  /// ones between; a day weeks away is not worth watching every day in
-  /// between scroll past, so it is brought in as the very next page, on the
-  /// side it lies on, and slid across alone. That is what a month turned
-  /// lands on — its first, or today — and it was cut to, so the panel
-  /// changed under a month that had visibly slid.
+  /// Slides the day panel to [day], past the days between, for anything
+  /// within a grid's span ([_passThrough]): any day picked on the month on
+  /// show, and the first or today a turned month lands on. Further than
+  /// that — Today from months away — is not worth watching scroll past, so
+  /// it is brought in as the very next page, on the side it lies on, and
+  /// slid across alone. The span was ten days once, and a day picked two
+  /// weeks off came in as if it were the next one, where one a week off
+  /// passed through the week.
   Future<void> _goToDayPage(DateTime day, {bool jump = false}) async {
     if (!_dayController.hasClients) return;
     final page = _baseDayPage + _daysBetween(_dayAnchor, day);
@@ -428,7 +434,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       return;
     }
     var target = page;
-    if ((current - page).abs() > 10) {
+    if ((current - page).abs() > _passThrough) {
       // Move the anchor rather than the controller, so nothing jumps: the
       // page on show keeps its day until it has slid off, and the next one
       // along is [day].

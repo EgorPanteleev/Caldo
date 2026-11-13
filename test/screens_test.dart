@@ -316,7 +316,7 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('turning the month slides the day below across, not cuts', (
+  testWidgets('the day below slides past the days between, or alone', (
     tester,
   ) async {
     await pumpScreen(tester, const CalendarScreen());
@@ -327,28 +327,49 @@ void main() {
     List<DateTime> shown() => [
       for (final w in tester.widgetList(panels)) (w as dynamic).date,
     ];
+    /// Every day drawn on the way, until it all comes to rest.
+    Future<Set<DateTime>> passed() async {
+      final seen = <DateTime>{};
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        seen.addAll(shown());
+      }
+      await tester.pumpAndSettle();
+      return seen;
+    }
+
     final today = dayOf(DateTime.now());
     expect(shown(), [today]);
 
+    // A turned month: its first is within a grid's span, so every day
+    // between slides past, not just the two ends.
     await tester.drag(find.byType(MonthGrid).first, const Offset(-400, 0));
     final next = DateTime(today.year, today.month + 1);
-    // The next month's first, weeks away, comes in as the very next page:
-    // today and it are on screen together and nothing in between is.
-    var together = false;
-    for (var i = 0; i < 60; i++) {
-      await tester.pump(const Duration(milliseconds: 16));
-      final days = shown();
-      expect(days.toSet().difference({today, next}), isEmpty);
-      if (days.length == 2) together = true;
+    final between = (await passed()).where(
+      (d) => d.isAfter(today) && d.isBefore(next),
+    );
+    // (On a month's last day there is nothing between.)
+    if (next.difference(today).inHours > 36) {
+      expect(between, isNotEmpty, reason: 'it came in as the next page');
     }
-    await tester.pumpAndSettle();
-    expect(together, isTrue, reason: 'the day panel was cut to, not slid');
     expect(shown(), [next]);
 
-    // And back: the page it came from is the day before, not today.
-    await tester.drag(find.byType(PageView).last, const Offset(400, 0));
+    // Today from months away comes in alone, as the next page over.
+    for (var i = 0; i < 3; i++) {
+      await tester.drag(find.byType(MonthGrid).first, const Offset(-400, 0));
+      await tester.pumpAndSettle();
+    }
+    final far = shown().single;
+    await tester.tap(find.byType(TodayButton));
+    final seen = await passed();
+    expect(seen.difference({far, today}), isEmpty);
+    expect(seen, containsAll([far, today]));
+    expect(shown(), [today]);
+
+    // And back from there: the page it came from is the day after today.
+    await tester.drag(find.byType(PageView).last, const Offset(-400, 0));
     await tester.pumpAndSettle();
-    expect(shown(), [next.subtract(const Duration(days: 1))]);
+    expect(shown(), [today.add(const Duration(days: 1))]);
     await drainDatabase(tester);
   });
 
