@@ -182,26 +182,50 @@ class _QuickAddBarState extends State<QuickAddBar> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Grown into rather than popped in, as the keyboard comes up under
-        // it; the field below keeps its place on the keys either way.
-        AnimatedSize(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          alignment: Alignment.bottomCenter,
-          child: picking
-              ? _GroupPick(
-                  picked: _group,
-                  padding: EdgeInsets.only(
-                    left: widget.padding.left,
-                    right: widget.padding.right,
-                    top: 6,
-                  ),
-                  onPick: (id) => setState(() => _group = id),
-                )
-              : const SizedBox(width: double.infinity),
-        ),
+        if (picking)
+          _WhileKeyboardUp(
+            child: _GroupPick(
+              picked: _group,
+              padding: EdgeInsets.only(
+                left: widget.padding.left,
+                right: widget.padding.right,
+                top: 6,
+              ),
+              onPick: (id) => setState(() => _group = id),
+            ),
+          ),
         bar,
       ],
+    );
+  }
+}
+
+/// Draws [child] only while the keyboard is up. Open is not the same as
+/// focused: Back puts the keyboard away and the field keeps hold of it (see
+/// [_QuickAddBarState._submit]), and the groups left standing over a closed
+/// field read as part of the screen, offered before anything was being
+/// added. Reads the lift, so it is rebuilt on every frame of a slide — it
+/// is the smallest widget that can, and what it holds is a row of chips.
+class _WhileKeyboardUp extends StatelessWidget {
+  final Widget child;
+
+  const _WhileKeyboardUp({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<double>(
+      valueListenable: KeyboardGap.instance.covered,
+      // Grown into rather than popped in, as the keyboard comes up under
+      // it; the field below keeps its place on the keys either way.
+      builder: (context, _, child) => AnimatedSize(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        alignment: Alignment.bottomCenter,
+        child: KeyboardGap.of(context) > 0
+            ? child
+            : const SizedBox(width: double.infinity),
+      ),
+      child: child,
     );
   }
 }

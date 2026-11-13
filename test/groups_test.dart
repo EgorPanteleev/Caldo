@@ -212,6 +212,8 @@ void main() {
         child: MaterialApp(
           theme: AppTheme.dark(AppAccent.presets.first),
           home: Scaffold(
+            // As the screens do: the keyboard rides over them.
+            resizeToAvoidBottomInset: false,
             body: SelectionScope(
               child: UndoScope(
                 child: Align(
@@ -231,9 +233,23 @@ void main() {
     );
     expect(find.byKey(quickAddGroupsKey), findsNothing);
 
+    // The keyboard comes up as the field is opened; a test has to say so.
+    void keyboard(bool up) =>
+        tester.view.viewInsets = FakeViewPadding(bottom: up ? 300 : 0);
+    addTearDown(tester.view.resetViewInsets);
+
     await tester.tap(find.byType(TextField));
+    keyboard(true);
     await tester.pumpAndSettle();
     expect(find.byKey(quickAddGroupsKey), findsOneWidget);
+
+    // Back puts the keyboard away and leaves the field open; the groups go
+    // with the keys, and come back with them.
+    keyboard(false);
+    await tester.pumpAndSettle();
+    expect(find.byKey(quickAddGroupsKey), findsNothing);
+    keyboard(true);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('University'));
     await tester.pumpAndSettle();
     // Picking a group keeps the field, and the keyboard, open.

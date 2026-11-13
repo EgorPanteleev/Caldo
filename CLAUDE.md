@@ -524,7 +524,10 @@ Changing them back will be noticed.
   in `QuickAddBar`, asked for as "set group for task instantly"): a row
   of them rides the keyboard above the field, the default lit, and a tap
   picks where this task goes without the keyboard going (the row is a
-  `TextFieldTapRegion`). Back to the default every time the field opens,
+  `TextFieldTapRegion`). **It is there while the keys are, not while the
+  field has focus** (`_WhileKeyboardUp`): Back puts the keyboard away and
+  leaves the field focused, and the row left over the closed field was
+  "before I clicked to add task do not show me this groups". Back to the default every time the field opens,
   so a pick for one task does not quietly file the next. Not drawn with
   one group on show (that is where it goes) or with only one group.
   While a group is chosen: only its tasks are drawn, the phone's calendar
@@ -692,7 +695,7 @@ Changing them back will be noticed.
   every one of them a guess at which number was lying. A recording of the
   fault with this on answers that in one go. Off by default, not stored.
 - **The inset is read in `KeyboardLift` and `KeyboardRoom` and nowhere
-  else.** It changes on every frame of a slide and whoever reads it rebuilds
+  else** — and in `_WhileKeyboardUp`, which wraps only the groups' row. It changes on every frame of a slide and whoever reads it rebuilds
   that often, so the two widgets that move with it are the two that read it,
   and the screens around them are left alone.
 - **The dark ground is true black.** The calendar's already was, so an app
