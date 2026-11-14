@@ -85,6 +85,64 @@ void main() {
     expect(titles(), ['Morning', 'All day', 'Soon', 'Urgent']);
   });
 
+  test('high priority leads the overdue backlog too', () async {
+    final provider = TaskProvider();
+    await provider.loadLists();
+    final list = provider.lists.first.id!;
+    final today = dayOf(DateTime.now());
+    Future<void> add(String title, int daysAgo, Priority priority) =>
+        provider.add(
+          Task(
+            listId: list,
+            title: title,
+            priority: priority,
+            dueAt: today
+                .subtract(Duration(days: daysAgo))
+                .millisecondsSinceEpoch,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+    await add('Oldest', 5, Priority.none);
+    await add('Urgent', 1, Priority.high);
+    await add('Older', 3, Priority.none);
+    expect(provider.allOverdue.map((t) => t.title), [
+      'Urgent',
+      'Oldest',
+      'Older',
+    ]);
+  });
+
+  test('search folds case in any alphabet', () async {
+    final provider = TaskProvider();
+    await provider.loadLists();
+    final list = provider.lists.first.id!;
+    for (final title in ['Купить хлеб', 'Сдать отчёт']) {
+      await provider.add(Task(listId: list, title: title, createdAt: 0));
+    }
+    Future<List<String>> find(String query) async => [
+      for (final t in await provider.searchAll(query)) t.title,
+    ];
+    expect(await find('купить'), ['Купить хлеб']);
+    expect(await find('ХЛЕБ'), ['Купить хлеб']);
+    expect(await find('сдать'), ['Сдать отчёт']);
+  });
+
+  test('done tasks can be kept off the screens, not off the widget', () async {
+    final provider = await seedProvider();
+    await provider.toggleDone(await taskNamed('Ship'));
+    final day = (await taskNamed('Ship')).dueDay!;
+    expect(provider.upcomingByDay[day]?.map((t) => t.title), ['Ship']);
+
+    provider.setShowCompleted(false);
+    expect(provider.upcomingByDay[day], isNull);
+    expect(provider.upcoming.any((t) => t.done), isFalse);
+    expect(provider.allUpcomingByDay[day]?.map((t) => t.title), ['Ship']);
+    expect(await provider.searchAll('Ship'), isEmpty);
+
+    provider.setShowCompleted(true);
+    expect(provider.upcomingByDay[day]?.map((t) => t.title), ['Ship']);
+  });
+
   test('a one-off task is closed and can be reopened', () async {
     final provider = await seedProvider();
     final task = await taskNamed('Ship');

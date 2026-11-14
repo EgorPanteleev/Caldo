@@ -226,28 +226,18 @@ class AppDatabase {
     bool includeDone = true,
   }) async {
     final db = await database;
-    final where = StringBuffer('1 = 1');
-    final args = <Object?>[];
-    if (!includeDone) where.write(' AND done = 0');
-    if (query.isNotEmpty) {
-      where.write(
-        ' AND (title LIKE ? OR notes LIKE ? OR subtasks LIKE ? '
-        'OR attachments LIKE ?)',
-      );
-      args.addAll(List.filled(4, '%$query%'));
-    }
     final rows = await db.query(
       _tasks,
-      where: where.toString(),
-      whereArgs: args,
+      where: includeDone ? null : 'done = 0',
       orderBy: _order,
     );
     final tasks = rows.map(Task.fromMap).toList();
     if (query.isEmpty) return tasks;
-    // The checklist and the attachments are stored as JSON, so a search for
-    // "done" or "mime" matches every task that has either. Those are let
-    // through the query and only kept here if a subtask's own title, or an
-    // attachment's name, has the words in it.
+    // Matched here rather than with LIKE, which SQLite folds case for in
+    // ASCII alone: "задача" never found "Задача", and the LIKE ran ahead of
+    // the match here and threw it away. The checklist and the attachments
+    // are JSON besides, which a LIKE for "done" or "mime" matched in every
+    // task that had either. A LIKE over four columns read every row anyway.
     final needle = query.toLowerCase();
     bool has(String text) => text.toLowerCase().contains(needle);
     return [
@@ -299,9 +289,12 @@ class AppDatabase {
       _tasks,
       where: 'done = 0 AND due_at IS NOT NULL AND due_at < ?',
       whereArgs: [beforeMs],
-      // However late each one is, unless the backlog has been dragged into
-      // an order of its own.
-      orderBy: '(sort_order IS NULL) ASC, sort_order ASC, due_at ASC',
+      // High priority first and then however late each one is, unless the
+      // backlog has been dragged into an order of its own — the rule a day
+      // nobody has arranged follows (`TaskProvider._compare`).
+      orderBy:
+          '(sort_order IS NULL) ASC, sort_order ASC, priority DESC, '
+          'due_at ASC',
     );
     return rows.map(Task.fromMap).toList();
   }
@@ -333,6 +326,29 @@ class AppDatabase {
   Future<void> delete(int id) async {
     final db = await database;
     await db.delete(_tasks, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Writes back every one of [tasks] in one transaction — for what is
+  /// done to several picked out at once, which should not be left half done
+  /// or cost a round trip each.
+  Future<void> updateAll(List<Task> tasks) async {
+    if (tasks.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+    for (final task in tasks) {
+      batch.update(_tasks, task.toMap(), where: 'id = ?', whereArgs: [task.id]);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<void> deleteAll(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final db = await database;
+    await db.delete(
+      _tasks,
+      where: 'id IN (${List.filled(ids.length, '?').join(',')})',
+      whereArgs: ids,
+    );
   }
 
   // ---- Ticks ---------------------------------------------------------------

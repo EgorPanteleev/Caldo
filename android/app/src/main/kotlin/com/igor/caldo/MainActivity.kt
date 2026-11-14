@@ -372,7 +372,11 @@ class MainActivity : FlutterActivity() {
         Thread {
             val answer: Any? = try {
                 if (requestCode == SAVE_BACKUP) {
-                    contentResolver.openOutputStream(uri, "w")!!.use {
+                    // "wt", as the automatic ones are written: some
+                    // providers take "w" as leave the old bytes past the
+                    // end, and a shorter backup over a longer file is then
+                    // JSON with the old one's tail after it.
+                    contentResolver.openOutputStream(uri, "wt")!!.use {
                         it.write(text!!.toByteArray())
                     }
                     true

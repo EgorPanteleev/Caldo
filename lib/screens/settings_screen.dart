@@ -477,7 +477,6 @@ List<Widget> _tasks(BuildContext context, SettingsProvider settings, S s) => [
         value: settings.showCompleted,
         onChanged: (v) {
           settings.update(showCompleted: v);
-          context.read<TaskProvider>().setShowCompleted(v);
         },
       ),
     ],
@@ -692,10 +691,15 @@ Future<void> _restoreBackup(BuildContext context) async {
     ),
   );
   if (ok != true || !context.mounted) return;
-  await backup.restore(
-    context.read<SettingsProvider>(),
-    context.read<TaskProvider>(),
-  );
+  try {
+    await backup.restore(
+      context.read<SettingsProvider>(),
+      context.read<TaskProvider>(),
+    );
+  } on BackupException catch (e) {
+    if (context.mounted) _say(context, _backupProblem(s, e.problem));
+    return;
+  }
   // In the restored language, which may not be the one the tap was made in.
   if (context.mounted) _say(context, S.current.restored(backup.taskCount));
 }

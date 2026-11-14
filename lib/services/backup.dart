@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
+import 'package:sqflite/sqflite.dart' show DatabaseException;
 
 import '../db/database.dart';
 import '../providers/settings_provider.dart';
@@ -94,7 +95,9 @@ class Backup {
         json['app'] != 'caldo' ||
         json['schema'] is! int ||
         json['savedAt'] is! int ||
-        json['tables'] is! Map) {
+        json['tables'] is! Map ||
+        json['format'] is! int? ||
+        json['settings'] is! Map?) {
       throw const BackupException(BackupProblem.notCaldo);
     }
     final schema = json['schema'] as int;
@@ -236,10 +239,17 @@ class Backup {
   /// the alarms and the home-screen widget with it. The settings go first,
   /// so the alarms are set again in the language and on the clock the
   /// backup chose.
+  ///
+  /// Rows the database will not take — a task with no title, say, in a file
+  /// that was edited by hand — fail the whole transaction, which leaves what
+  /// was there, and are said as a file that is not a backup.
   Future<void> restore(SettingsProvider settings, TaskProvider tasks) async {
-    await AppDatabase.instance.replaceAll(tables);
+    try {
+      await AppDatabase.instance.replaceAll(tables);
+    } on DatabaseException {
+      throw const BackupException(BackupProblem.notCaldo);
+    }
     await settings.restore(this.settings);
-    tasks.setShowCompleted(settings.showCompleted);
     await tasks.reloadRestored();
   }
 }

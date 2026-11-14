@@ -209,6 +209,29 @@ class Reminders {
     }
   }
 
+  /// Reads again whether exact alarms are allowed, and if that has changed,
+  /// sets every alarm again in the new mode. Asked on each return to the
+  /// app: the page Android opens to allow them is left by coming back, and
+  /// read only at start, a permission given there did nothing until Caldo
+  /// was next started from cold.
+  Future<void> recheckExact() async {
+    if (!_ready) return;
+    try {
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      final exact = await android?.canScheduleExactNotifications() ?? false;
+      if (exact == _exact) return;
+      _exact = exact;
+    } catch (error, stack) {
+      debugPrint('Could not read the alarm permission: $error\n$stack');
+      return;
+    }
+    // What each alarm was set with includes the mode, so all are set again.
+    if (_synced) await sync(_last);
+  }
+
   /// Asks for permission to post notifications, which Android 13 and later
   /// will not give without being asked. Returns whether we have it.
   Future<bool> requestPermission() async {

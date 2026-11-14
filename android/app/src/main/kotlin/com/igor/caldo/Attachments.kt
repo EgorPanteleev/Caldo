@@ -198,8 +198,10 @@ class Attachments(private val activity: Activity) {
 
     /** Where a copy of [name] goes: a folder of its own, under that name. */
     private fun place(name: String): File {
+        // "." and ".." would name the folder itself, or the one above it.
         val safe = name.map { if (it in "/\\\u0000") '_' else it }
-            .joinToString("").trim().ifEmpty { "file" }.take(120)
+            .joinToString("").trim().take(120)
+            .takeUnless { it.isEmpty() || it == "." || it == ".." } ?: "file"
         return File(File(dir, UUID.randomUUID().toString()).apply { mkdirs() }, safe)
     }
 

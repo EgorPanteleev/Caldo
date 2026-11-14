@@ -140,9 +140,11 @@ void main() {
       },
       settings: const {},
     );
+    // Said as a file that is not a backup, not left to escape as the
+    // database's own error.
     await expectLater(
       backup.restore(SettingsProvider(), provider),
-      throwsA(anything),
+      problem(BackupProblem.notCaldo),
     );
     expect((await allTasks()).map((t) => t.title).toSet(), {
       'Ship',
@@ -185,6 +187,16 @@ void main() {
         jsonEncode({...good, 'schema': AppDatabase.schema + 1}),
       ),
       problem(BackupProblem.newer),
+    );
+    // A settings or format of the wrong kind is a file not of ours, not a
+    // crash.
+    expect(
+      () => Backup.decode(jsonEncode({...good, 'settings': []})),
+      problem(BackupProblem.notCaldo),
+    );
+    expect(
+      () => Backup.decode(jsonEncode({...good, 'format': '1'})),
+      problem(BackupProblem.notCaldo),
     );
   });
 

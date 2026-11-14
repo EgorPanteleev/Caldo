@@ -73,10 +73,15 @@ class CaldoApp extends StatelessWidget {
         // The agenda is loaded here rather than waiting for the screen that
         // shows it: the reminders are set from it, and they should be in place
         // whichever screen the app happens to open on.
-        ChangeNotifierProvider(
+        //
+        // Whether done tasks are drawn is Settings', and is handed over from
+        // the first build on, not only once it is switched there.
+        ChangeNotifierProxyProvider<SettingsProvider, TaskProvider>(
           create: (_) => TaskProvider()
             ..loadLists()
             ..loadTasks(),
+          update: (_, settings, tasks) =>
+              tasks!..setShowCompleted(settings.showCompleted),
         ),
         // The phone's own calendars, read as Settings says.
         ChangeNotifierProxyProvider<SettingsProvider, EventsProvider>(

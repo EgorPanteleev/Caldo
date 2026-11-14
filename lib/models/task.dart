@@ -472,7 +472,7 @@ class Task {
   Task completed(int now) {
     if (rollsOn) {
       return copyWith(
-        dueAt: repeat.next(due!)!.millisecondsSinceEpoch,
+        dueAt: _nextRound(now).millisecondsSinceEpoch,
         repeat: repeat.rolled(),
         completedAt: now,
         clearSnoozedUntil: true,
@@ -487,6 +487,28 @@ class Task {
       clearSnoozedUntil: true,
       clearStartedAt: true,
     );
+  }
+
+  /// The date a repeating task rolls on to when ticked off at [now]: its
+  /// next round, or, if that has gone by already, the first that has not.
+  /// Rolled on only one round, a task overdue by a week stayed overdue —
+  /// its card faded out of the backlog and came straight back into it, six
+  /// ticks short of today. Rounds missed are passed over, not counted off:
+  /// they were not done. If the rule ends before today the next round is
+  /// kept as it is, so this agrees with [rollsOn] about whether there is one.
+  DateTime _nextRound(int now) {
+    final next = repeat.next(due!)!;
+    final at = DateTime.fromMillisecondsSinceEpoch(now);
+    final today = DateTime(at.year, at.month, at.day);
+    final uncounted = repeat.copyWith(clearLeft: true);
+    var round = next;
+    // Ten thousand rounds is a daily task untouched for twenty-seven years.
+    for (var i = 0; i < 10000 && round.isBefore(today); i++) {
+      final after = uncounted.next(round);
+      if (after == null) return next;
+      round = after;
+    }
+    return round.isBefore(today) ? next : round;
   }
 
   /// This task with its tick taken back.

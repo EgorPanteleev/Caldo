@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../db/database.dart';
@@ -34,7 +36,9 @@ class TaskProvider extends ChangeNotifier {
 
   List<TaskList> _lists = [];
 
-  /// Whether search turns up tasks that are already done.
+  /// Whether done tasks are drawn: on Schedule, under the calendar and in
+  /// search. Settings says ("Show completed tasks"), and the home-screen
+  /// widget reads the same setting for itself.
   bool _showCompleted = true;
 
   /// First day of the month the calendar is showing.
@@ -109,17 +113,19 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Puts the narrowed views back in step with what was read.
+  /// Puts the narrowed views back in step with what was read: the group on
+  /// show, and the done tasks only if they are wanted.
   void _narrow() {
     final id = _group;
-    List<Task> keep(List<Task> tasks) => id == null
+    final all = id == null && _showCompleted;
+    List<Task> keep(List<Task> tasks) => all
         ? tasks
         : [
             for (final t in tasks)
-              if (t.listId == id) t,
+              if ((id == null || t.listId == id) && (_showCompleted || !t.done))
+                t,
           ];
-    Map<DateTime, List<Task>> keepDays(Map<DateTime, List<Task>> days) =>
-        id == null
+    Map<DateTime, List<Task>> keepDays(Map<DateTime, List<Task>> days) => all
         ? days
         : {
             for (final MapEntry(:key, :value) in days.entries)
@@ -181,8 +187,18 @@ class TaskProvider extends ChangeNotifier {
     await _reloadAll();
   }
 
-  /// Mirrors the "show completed" setting into search.
-  void setShowCompleted(bool value) => _showCompleted = value;
+  /// Takes the "show completed" setting. It was only ever handed to search,
+  /// and only once it was switched in Settings: switched off, done tasks
+  /// stayed on Schedule and the calendar while the widget left them out, and
+  /// search showed them again on every start. Handed over by the provider
+  /// above this one as Settings changes, which is during a build, so the
+  /// notify waits for it to finish.
+  void setShowCompleted(bool value) {
+    if (value == _showCompleted) return;
+    _showCompleted = value;
+    _narrow();
+    scheduleMicrotask(notifyListeners);
+  }
 
   /// Every task whose title or notes match [query], across all lists. Returned
   /// rather than held, since the search screen is the only thing that wants it.
@@ -445,10 +461,11 @@ class TaskProvider extends ChangeNotifier {
   /// backlog — [fromOverdue] says that is the run being asked about. Any
   /// other ticked task stays where it is, crossed out; fading it out only to
   /// have the reload put it back was a card disappearing and reappearing.
+  /// With done tasks hidden, every ticked card leaves.
   bool isLeaving(Task task, {bool fromOverdue = false}) =>
       task.id != null &&
       _settled.contains(task.id) &&
-      (fromOverdue || _rolling.contains(task.id));
+      (fromOverdue || !_showCompleted || _rolling.contains(task.id));
 
   /// Ticks a task off. A repeating task with a due date is not closed: it
   /// rolls forward to its next occurrence instead, which is what makes a
@@ -502,7 +519,9 @@ class TaskProvider extends ChangeNotifier {
       // A card that is leaving fades out first; one that is staying only has
       // to be seen crossed out before it moves.
       await Future<void>.delayed(
-        rolls || _allOverdue.any((t) => t.id == id) ? leave : hold,
+        rolls || !_showCompleted || _allOverdue.any((t) => t.id == id)
+            ? leave
+            : hold,
       );
       _settled.remove(id);
       _rolling.remove(id);
@@ -566,9 +585,7 @@ class TaskProvider extends ChangeNotifier {
     DateTime? day, {
     List<Task>? among,
   }) async {
-    for (final task in tasks) {
-      await _db.update(_movedTo(task, day));
-    }
+    await _db.updateAll([for (final task in tasks) _movedTo(task, day)]);
     final ids = [
       for (final t in among ?? const <Task>[])
         if (t.id != null) t.id!,
@@ -603,10 +620,10 @@ class TaskProvider extends ChangeNotifier {
   /// Puts every one of [tasks] in group [id], back on the group's colour —
   /// as the form does when a task changes group.
   Future<void> moveAllToGroup(List<Task> tasks, int id) async {
-    for (final task in tasks) {
-      if (task.listId == id) continue;
-      await _db.update(task.copyWith(listId: id, clearStyleId: true));
-    }
+    await _db.updateAll([
+      for (final task in tasks)
+        if (task.listId != id) task.copyWith(listId: id, clearStyleId: true),
+    ]);
     rearranging.value++;
     await _reloadAll();
   }
@@ -631,9 +648,10 @@ class TaskProvider extends ChangeNotifier {
   }
 
   Future<void> removeAll(List<Task> tasks) async {
-    for (final task in tasks) {
-      if (task.id != null) await _db.delete(task.id!);
-    }
+    await _db.deleteAll([
+      for (final task in tasks)
+        if (task.id != null) task.id!,
+    ]);
     rearranging.value++;
     await _reloadAll();
   }

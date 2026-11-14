@@ -310,8 +310,17 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       final reminderMoved =
           due?.millisecondsSinceEpoch != existing.dueAt ||
           _remindBefore != existing.remindBefore;
+      // A task moved to another day lets go of its place in the old one, as
+      // a card carried there does (`TaskProvider.moveToDay`).
+      final dayMoved = (due == null ? null : dayOf(due)) != existing.dueDay;
+      // What the form does not show is taken from the task as it stands
+      // now, not as it stood when the form was opened: a tick from the
+      // widget or a reminder's Done, or a start on the board, made while
+      // the form was open would otherwise be written back over.
+      final id = existing.id;
+      final current = (id == null ? null : provider.taskById(id)) ?? existing;
       await provider.update(
-        existing.copyWith(
+        current.copyWith(
           listId: listId,
           title: _title.text.trim(),
           notes: _notes.text.trim(),
@@ -327,6 +336,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           remindBefore: _remindBefore,
           clearRemindBefore: _remindBefore == null,
           clearSnoozedUntil: reminderMoved,
+          clearSortOrder: dayMoved,
           duration: _time == null ? null : _duration,
           clearDuration: _time == null || _duration == null,
         ),

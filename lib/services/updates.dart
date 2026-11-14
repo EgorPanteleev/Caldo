@@ -119,7 +119,8 @@ class Updates {
       final partial = File('${file.path}.part');
       progress.value = 0;
       try {
-        final client = HttpClient();
+        final client = HttpClient()
+          ..connectionTimeout = const Duration(seconds: 10);
         try {
           final request = await client.getUrl(update.apk);
           final response = await request.close();
@@ -129,14 +130,27 @@ class Updates {
           final total = response.contentLength;
           var received = 0;
           final sink = partial.openWrite();
-          await for (final chunk in response) {
-            sink.add(chunk);
-            received += chunk.length;
-            if (total > 0) progress.value = received / total;
+          try {
+            // A connection that stops sending without closing would hold
+            // the banner at its last percent for good.
+            await for (final chunk in response.timeout(
+              const Duration(seconds: 30),
+            )) {
+              sink.add(chunk);
+              received += chunk.length;
+              if (total > 0) progress.value = received / total;
+            }
+          } finally {
+            await sink.close();
           }
-          await sink.close();
+          // A connection dropped early ends the stream as if it were done.
+          // Renamed into place, that half of an APK was taken for a finished
+          // download on every tap after, and every install of it failed.
+          if (total > 0 && received != total) {
+            throw HttpException('download cut short: $received of $total');
+          }
         } finally {
-          client.close();
+          client.close(force: true);
         }
         // Renamed into place only once it is whole, so a download cut off
         // half way is never mistaken for one that finished.

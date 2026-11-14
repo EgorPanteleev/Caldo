@@ -504,6 +504,20 @@ Changing them back will be noticed.
 - **Holidays are not tasks.** They are computed read-only entries; nothing is
   written to the database, so they can't be ticked, edited or deleted. The
   country follows the device locale, overridable in Settings.
+- **"Show completed tasks" is honoured everywhere a run is drawn**
+  (`TaskProvider.setShowCompleted`, handed over by a
+  `ChangeNotifierProxyProvider` from the first build). Off, done tasks are
+  left out of Schedule, the calendar and search — the widget already left
+  them out — and a ticked card fades out of its run as a rolling one does.
+  It had been handed to search alone, and only once switched in Settings,
+  since the list screens it was made for were deleted. The full lists
+  (`allUpcomingByDay`) keep them: the widget hides them itself.
+- **A repeating task ticked off late rolls on to today or after**
+  (`Task._nextRound`). One round on from its due date, a task a week
+  overdue stayed overdue, its card fading out of the backlog and straight
+  back in. The rounds passed over are not counted off a count of rounds;
+  a rule that ended before today keeps its plain next round, so it agrees
+  with `rollsOn`.
 - **A task may carry its own colour** (`Task.styleId`, same swatches a list
   wears) and falls back to its list's colour. Always resolve through
   `colorOfTask`.
@@ -1678,7 +1692,7 @@ Changing them back will be noticed.
 
 ## Tests
 
-`flutter test` — 229 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 233 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

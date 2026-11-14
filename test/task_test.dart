@@ -76,6 +76,35 @@ void main() {
       expect(second.completed(2).done, isTrue);
     });
 
+    test('overdue, it rolls on past the rounds it missed', () {
+      final daily = taskDue(
+        DateTime(2026, 11, 1, 8),
+        hasTime: true,
+      ).copyWith(repeat: const Repeat(unit: RepeatUnit.day, left: 5));
+      final now = ms(DateTime(2026, 11, 4, 12));
+      // To today's round, though its hour has gone by, and one round off
+      // the count, not three: the ones missed were not done.
+      final next = daily.completed(now);
+      expect(next.due, DateTime(2026, 11, 4, 8));
+      expect(next.repeat.left, 4);
+      // Due today or later, nothing is skipped.
+      expect(next.completed(now).due, DateTime(2026, 11, 5, 8));
+
+      // Weekly on Mondays and Thursdays, last done three weeks ago.
+      final twice = taskDue(DateTime(2026, 10, 12)).copyWith(
+        repeat: const Repeat(unit: RepeatUnit.week, weekdays: {1, 4}),
+      );
+      expect(twice.completed(now).due, DateTime(2026, 11, 5));
+
+      // A rule that ended before today keeps its plain next round, so the
+      // tick still agrees with rollsOn.
+      final ended = taskDue(DateTime(2026, 10, 1)).copyWith(
+        repeat: Repeat(unit: RepeatUnit.day, until: DateTime(2026, 10, 3)),
+      );
+      expect(ended.rollsOn, isTrue);
+      expect(ended.completed(now).due, DateTime(2026, 10, 2));
+    });
+
     test('ends after a number of rounds, counting down', () {
       final task = taskDue(
         wed,

@@ -194,6 +194,7 @@ class _HomeScreenState extends State<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     _checkFullScreen();
+    Reminders.instance.recheckExact();
     context.read<TaskProvider>().catchUp();
     Backup.autoIfDue(context.read<SettingsProvider>());
   }
