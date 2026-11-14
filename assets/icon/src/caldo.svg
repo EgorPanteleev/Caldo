@@ -3,8 +3,16 @@
        shape, as the reference's was. Its pale sheet, its red header, and
        three rings standing up out of the header, flat. -->
   <g transform="translate(512 512) scale(1.5) translate(-512 -512)">
-  <rect x="205" y="258" width="614" height="560" rx="59" fill="#CAD6DA"/>
-  <path d="M205 317 a59 59 0 0 1 59 -59 h496 a59 59 0 0 1 59 59 v69 h-614 z" fill="#E04545"/>
+  <defs>
+    <!-- One shape, coloured in two: a red header drawn over a pale sheet
+         of the same outline let the sheet's anti-aliased edge show
+         through the header's, a light rim round its top corners. -->
+    <linearGradient id="page" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">
+      <stop offset="0.376953" stop-color="#E04545"/>
+      <stop offset="0.376953" stop-color="#CAD6DA"/>
+    </linearGradient>
+  </defs>
+  <rect x="205" y="258" width="614" height="560" rx="59" fill="url(#page)"/>
   <g fill="#1F2B4A">
     <rect x="301" y="206" width="41" height="107" rx="11"/>
     <rect x="492" y="206" width="41" height="107" rx="11"/>

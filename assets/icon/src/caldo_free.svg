@@ -2,8 +2,16 @@
   <!-- The legacy icon is the adaptive one's middle 72dp: the same page,
        drawn at 108/72 of caldo_free_fg.svg. -->
   <g transform="translate(512 512) scale(1.5) translate(-512 -512)">
-  <rect x="214" y="240" width="596" height="539" rx="72" fill="#CAD6DA"/>
-  <path d="M214 312 a72 72 0 0 1 72 -72 h452 a72 72 0 0 1 72 72 v48 h-596 z" fill="#DE414A"/>
+  <defs>
+    <!-- One shape, coloured in two: a red header drawn over a pale sheet
+         of the same outline let the sheet's anti-aliased edge show
+         through the header's, a light rim round its top corners. -->
+    <linearGradient id="page" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024">
+      <stop offset="0.351562" stop-color="#DE414A"/>
+      <stop offset="0.351562" stop-color="#CAD6DA"/>
+    </linearGradient>
+  </defs>
+  <rect x="214" y="240" width="596" height="539" rx="72" fill="url(#page)"/>
   <g fill="#243044">
     <rect x="305" y="183" width="42" height="94" rx="12"/>
     <rect x="491" y="183" width="42" height="94" rx="12"/>
