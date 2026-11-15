@@ -1,20 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/strings.dart';
+import '../utils/platform.dart';
+import 'desktop.dart';
 
 /// A newer release than the one installed, and the file of it this phone
-/// should fetch.
+/// should fetch — an APK, or on a desktop the program packed up.
 @immutable
 class Update {
   final String version;
-  final Uri apk;
+  final Uri file;
 
-  const Update(this.version, this.apk);
+  const Update(this.version, this.file);
 }
 
 /// Where a download has got to, from nothing to all of it, or null while
@@ -28,7 +31,10 @@ typedef DownloadProgress = double?;
 /// and no token: the repository is public for exactly this reason, since an
 /// app that can read a private repository carries a key to it that anyone
 /// with the APK can take out. Each release carries the same three APKs, and
-/// the one fetched is the one built for this phone's processor.
+/// the one fetched is the one built for this phone's processor. A release
+/// that carries [linuxFile] as well is offered to a desktop, which unpacks
+/// it over itself (`Desktop.replaceWith`); one that does not is offered to
+/// phones alone.
 ///
 /// Nothing here runs until [enable] has been called, which `main` does and
 /// nothing else: the widget tests drive the real shell, and a check that
@@ -44,6 +50,13 @@ class Updates {
     'https://api.github.com/repos/EgorPanteleev/Caldo/releases/latest',
   );
 
+  /// Where a release can be read about and fetched by hand.
+  static const _page = 'https://github.com/EgorPanteleev/Caldo/releases/tag';
+
+  /// The desktop's file in a release: the program's directory, packed
+  /// (`tool/package_linux.sh`).
+  static const linuxFile = 'Caldo-linux-x64.tar.gz';
+
   bool _enabled = false;
 
   /// Where the current download has got to.
@@ -51,12 +64,22 @@ class Updates {
 
   void enable() => _enabled = true;
 
+  /// What is installed and where a download goes: from the activity on a
+  /// phone, and on a desktop from the program's own directory.
+  Future<Map<String, Object?>?> _info() async => onDesktop
+      ? {
+          'version': await Desktop.version(),
+          'abi': 'linux',
+          'dir': Desktop.updates,
+        }
+      : await _channel.invokeMapMethod<String, Object?>('info');
+
   /// The version installed, as Android has it, or null before [enable] or if
   /// the activity cannot be asked.
   Future<String?> installed() async {
     if (!_enabled) return null;
     try {
-      final info = await _channel.invokeMapMethod<String, Object?>('info');
+      final info = await _info();
       return info?['version'] as String?;
     } catch (_) {
       return null;
@@ -70,9 +93,11 @@ class Updates {
   Future<Update?> check() async {
     if (!_enabled) return null;
     try {
-      final info = await _channel.invokeMapMethod<String, Object?>('info');
+      final info = await _info();
       if (info == null) return null;
       final installed = info['version'] as String? ?? '';
+      // A build that cannot say what it is has nothing to be newer than.
+      if (installed.isEmpty) return null;
       final abi = info['abi'] as String? ?? '';
 
       final release = await _getJson(_latest);
@@ -91,7 +116,12 @@ class Updates {
         return null;
       }
 
-      final url = urlOf(apkFor(abi)) ?? urlOf('Caldo-universal.apk');
+      // No falling back on a desktop: the APK for every phone is still
+      // not a program for this one, and nor is one built for another
+      // processor.
+      final url = onDesktop
+          ? (Abi.current() == Abi.linuxX64 ? urlOf(linuxFile) : null)
+          : urlOf(apkFor(abi)) ?? urlOf('Caldo-universal.apk');
       if (url == null) return null;
       return Update(version, Uri.parse(url));
     } catch (_) {
@@ -103,17 +133,29 @@ class Updates {
   /// one. Returns false when Android first wants the user to allow Caldo to
   /// install apps — the settings page for that has been opened instead, and
   /// tapping again once it is allowed carries on.
+  ///
+  /// On a desktop the program is unpacked over the one installed and
+  /// started in its place — where the user it runs as may write there. One
+  /// a package manager installed is not Caldo's to replace, and the page
+  /// the release is on is opened instead.
   Future<bool> install(Update update) async {
-    final info = await _channel.invokeMapMethod<String, Object?>('info');
+    if (onDesktop && !Desktop.replaceable) {
+      await Desktop.open('$_page/v${update.version}');
+      return true;
+    }
+    final info = await _info();
     final dir = info?['dir'] as String?;
     if (dir == null) throw StateError('no download directory');
-    final file = File('$dir/Caldo-${update.version}.apk');
+    final file = File(
+      '$dir/Caldo-${update.version}.${onDesktop ? 'tar.gz' : 'apk'}',
+    );
 
     if (!file.existsSync()) {
       // Whatever an earlier update left behind goes first: each is twenty
       // megabytes of a version that is either installed already or never
       // will be.
-      for (final old in Directory(dir).listSync()) {
+      final folder = Directory(dir)..createSync(recursive: true);
+      for (final old in folder.listSync()) {
         if (old is File) old.deleteSync();
       }
       final partial = File('${file.path}.part');
@@ -122,7 +164,7 @@ class Updates {
         final client = HttpClient()
           ..connectionTimeout = const Duration(seconds: 10);
         try {
-          final request = await client.getUrl(update.apk);
+          final request = await client.getUrl(update.file);
           final response = await request.close();
           if (response.statusCode != 200) {
             throw HttpException('download failed: ${response.statusCode}');
@@ -160,6 +202,17 @@ class Updates {
       }
     }
 
+    if (onDesktop) {
+      try {
+        // Ends this program; the new one opens in its place.
+        await Desktop.replaceWith(file.path);
+      } on FileSystemException {
+        // Not a download worth keeping: the next tap fetches it again.
+        if (file.existsSync()) file.deleteSync();
+        rethrow;
+      }
+      return true;
+    }
     final outcome = await _channel.invokeMethod<String>('install', {
       'path': file.path,
       'words': {

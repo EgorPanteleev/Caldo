@@ -81,6 +81,7 @@ const Map<String, Object> nl = {
   'timesWritten': "Tijdnotatie",
   'language': "Taal",
   'followPhone': "Zoals de telefoon ({language})",
+  'followSystem': "Zoals het systeem ({language})",
   'pageAppearance': "Weergave",
   'themeDark': "Donker",
   'themeLight': "Licht",
@@ -157,7 +158,9 @@ const Map<String, Object> nl = {
   'attachCamera': "Camera",
   'attachFile': "Bestand",
   'attachmentMissing': "Niet op deze telefoon",
+  'attachmentMissingDesktop': "Niet op deze computer",
   'noAppOpens': "Geen app op deze telefoon opent dit bestand",
+  'noAppOpensDesktop': "Geen programma op deze computer opent dit bestand",
   'tooBigToAttach': "Groter dan 100 MB, niet toegevoegd: {name}",
   'openInApp': "Openen in andere app",
   'kilobytes': "{n} KB",
@@ -244,6 +247,8 @@ const Map<String, Object> nl = {
   'backupRestoreHint': "Alles hier vervangen door een opgeslagen bestand",
   'backupNote':
       "Caldo bewaart alles alleen op deze telefoon. Sla af en toe een back-up op in Drive of op een computer, dan neemt een verloren telefoon of een herinstallatie je taken niet mee.",
+  'backupNoteDesktop':
+      "Caldo bewaart alles alleen op deze computer. Sla af en toe ergens anders een back-up op, dan neemt een kapotte schijf of een herinstallatie je taken niet mee.",
   'backupSaved': "Back-up opgeslagen",
   'backupNotSaved': "De back-up kon niet worden opgeslagen",
   'backupAuto': "Automatisch back-uppen",
@@ -255,6 +260,8 @@ const Map<String, Object> nl = {
       "De laatste back-up kon niet worden opgeslagen. Kies de map opnieuw.",
   'backupAutoNote':
       "Er wordt een back-up in deze map opgeslagen als Caldo wordt geopend en er een nodig is; de laatste zeven blijven bewaard. Een map die met een computer of de cloud synchroniseert, bewaart ze ook buiten de telefoon.",
+  'backupAutoNoteDesktop':
+      "Er wordt een back-up in deze map opgeslagen als Caldo wordt geopend en er een nodig is; de laatste zeven blijven bewaard. Een map die met de cloud of een ander apparaat synchroniseert, bewaart ze ook buiten deze computer.",
   'backupNotCaldo': "Dat bestand is geen Caldo-back-up",
   'backupNewer':
       "Die back-up komt van een nieuwere Caldo. Werk eerst bij en zet hem dan terug.",

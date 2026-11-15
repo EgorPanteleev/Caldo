@@ -81,6 +81,7 @@ const Map<String, Object> es = {
   'timesWritten': "Formato de hora",
   'language': "Idioma",
   'followPhone': "Como el teléfono ({language})",
+  'followSystem': "Como el sistema ({language})",
   'pageAppearance': "Apariencia",
   'themeDark': "Oscuro",
   'themeLight': "Claro",
@@ -157,7 +158,9 @@ const Map<String, Object> es = {
   'attachCamera': "Cámara",
   'attachFile': "Archivo",
   'attachmentMissing': "No está en este teléfono",
+  'attachmentMissingDesktop': "No está en este ordenador",
   'noAppOpens': "Ninguna app de este teléfono abre este archivo",
+  'noAppOpensDesktop': "Ningún programa de este ordenador abre este archivo",
   'tooBigToAttach': "Más de 100 MB, no adjuntado: {name}",
   'openInApp': "Abrir en otra app",
   'kilobytes': "{n} KB",
@@ -244,6 +247,8 @@ const Map<String, Object> es = {
   'backupRestoreHint': "Sustituir todo lo de aquí por un archivo guardado",
   'backupNote':
       "Caldo lo guarda todo solo en este teléfono. Guarda de vez en cuando una copia en Drive o en un ordenador, y un teléfono perdido o una reinstalación no se llevarán tus tareas.",
+  'backupNoteDesktop':
+      "Caldo lo guarda todo solo en este ordenador. Guarda de vez en cuando una copia en otro sitio, y un disco averiado o una reinstalación no se llevarán tus tareas.",
   'backupSaved': "Copia guardada",
   'backupNotSaved': "No se pudo guardar la copia",
   'backupAuto': "Copia automática",
@@ -255,6 +260,8 @@ const Map<String, Object> es = {
       "No se pudo guardar la última copia. Vuelve a elegir la carpeta.",
   'backupAutoNote':
       "Se guarda una copia en esta carpeta al abrir Caldo cuando toca, y se conservan las siete últimas. Una carpeta que se sincroniza con un ordenador o la nube las guarda también fuera del teléfono.",
+  'backupAutoNoteDesktop':
+      "Se guarda una copia en esta carpeta al abrir Caldo cuando toca, y se conservan las siete últimas. Una carpeta que se sincroniza con la nube u otro dispositivo las guarda también fuera de este ordenador.",
   'backupNotCaldo': "Ese archivo no es una copia de Caldo",
   'backupNewer':
       "Esa copia es de un Caldo más reciente. Actualiza primero y luego restáurala.",

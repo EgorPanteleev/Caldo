@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Caldo
+GenericName=Calendar
+Comment=A calendar and to-do list
+Comment[ru]=Календарь и список дел
+Exec=caldo
+Icon=com.igor.caldo
+Terminal=false
+Categories=Office;Calendar;ProjectManagement;
+Keywords=calendar;tasks;todo;reminders;
+StartupNotify=true
+StartupWMClass=com.igor.caldo

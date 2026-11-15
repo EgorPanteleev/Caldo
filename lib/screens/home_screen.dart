@@ -1230,10 +1230,10 @@ class _WhileKeyboardDown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<double>(
-      valueListenable: KeyboardGap.instance.covered,
-      builder: (context, _, child) {
-        final down = KeyboardGap.of(context) <= 0;
+    return ListenableBuilder(
+      listenable: KeyboardGap.instance.changes,
+      builder: (context, child) {
+        final down = !KeyboardGap.up(context);
         return IgnorePointer(
           ignoring: !down,
           child: Opacity(opacity: down ? 1 : 0, child: child),

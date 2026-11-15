@@ -79,6 +79,7 @@ const Map<String, Object> tr = {
   'timesWritten': "Saat biçimi",
   'language': "Dil",
   'followPhone': "Telefondaki gibi ({language})",
+  'followSystem': "Sistemdeki gibi ({language})",
   'pageAppearance': "Görünüm",
   'themeDark': "Koyu",
   'themeLight': "Açık",
@@ -151,7 +152,9 @@ const Map<String, Object> tr = {
   'attachCamera': "Kamera",
   'attachFile': "Dosya",
   'attachmentMissing': "Bu telefonda yok",
+  'attachmentMissingDesktop': "Bu bilgisayarda yok",
   'noAppOpens': "Bu telefonda bu dosyayı açan uygulama yok",
+  'noAppOpensDesktop': "Bu bilgisayarda bu dosyayı açan program yok",
   'tooBigToAttach': "100 MB'tan büyük, eklenmedi: {name}",
   'openInApp': "Başka uygulamada aç",
   'kilobytes': "{n} KB",
@@ -237,6 +240,8 @@ const Map<String, Object> tr = {
   'backupRestoreHint': "Buradaki her şeyi kaydedilmiş bir dosyayla değiştir",
   'backupNote':
       "Caldo her şeyi yalnızca bu telefonda tutar. Arada bir Drive'a ya da bilgisayara yedek kaydedin; telefon kaybolsa ya da uygulama yeniden kurulsa da görevleriniz gitmez.",
+  'backupNoteDesktop':
+      "Caldo her şeyi yalnızca bu bilgisayarda tutar. Arada bir başka bir yere yedek kaydedin; disk bozulsa ya da uygulama yeniden kurulsa da görevleriniz gitmez.",
   'backupSaved': "Yedek kaydedildi",
   'backupNotSaved': "Yedek kaydedilemedi",
   'backupAuto': "Otomatik yedekle",
@@ -247,6 +252,8 @@ const Map<String, Object> tr = {
   'backupAutoFailed': "Son yedek kaydedilemedi. Klasörü yeniden seçin.",
   'backupAutoNote':
       "Caldo açıldığında ve zamanı geldiğinde bu klasöre bir yedek kaydedilir; son yedisi tutulur. Bir bilgisayarla ya da bulutla eşitlenen bir klasör onları telefonun dışında da saklar.",
+  'backupAutoNoteDesktop':
+      "Caldo açıldığında ve zamanı geldiğinde bu klasöre bir yedek kaydedilir; son yedisi tutulur. Bulutla ya da başka bir cihazla eşitlenen bir klasör onları bu bilgisayarın dışında da saklar.",
   'backupNotCaldo': "Bu dosya bir Caldo yedeği değil",
   'backupNewer':
       "Bu yedek daha yeni bir Caldo'dan. Önce güncelleyin, sonra geri yükleyin.",

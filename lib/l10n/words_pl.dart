@@ -83,6 +83,7 @@ const Map<String, Object> pl = {
   'timesWritten': "Format godziny",
   'language': "Język",
   'followPhone': "Jak w telefonie ({language})",
+  'followSystem': "Jak w systemie ({language})",
   'pageAppearance': "Wygląd",
   'themeDark': "Ciemny",
   'themeLight': "Jasny",
@@ -156,7 +157,9 @@ const Map<String, Object> pl = {
   'attachCamera': "Aparat",
   'attachFile': "Plik",
   'attachmentMissing': "Brak na tym telefonie",
+  'attachmentMissingDesktop': "Brak na tym komputerze",
   'noAppOpens': "Żadna aplikacja na tym telefonie nie otworzy tego pliku",
+  'noAppOpensDesktop': "Żaden program na tym komputerze nie otworzy tego pliku",
   'tooBigToAttach': "Ponad 100 MB, nie dołączono: {name}",
   'openInApp': "Otwórz w innej aplikacji",
   'kilobytes': "{n} KB",
@@ -259,6 +262,8 @@ const Map<String, Object> pl = {
   'backupRestoreHint': "Zastąp wszystko tutaj zapisanym plikiem",
   'backupNote':
       "Caldo trzyma wszystko tylko na tym telefonie. Co jakiś czas zapisz kopię na Dysku lub komputerze, a zgubiony telefon czy ponowna instalacja nie zabiorą zadań ze sobą.",
+  'backupNoteDesktop':
+      "Caldo trzyma wszystko tylko na tym komputerze. Co jakiś czas zapisz kopię gdzie indziej, a uszkodzony dysk czy ponowna instalacja nie zabiorą zadań ze sobą.",
   'backupSaved': "Kopia zapisana",
   'backupNotSaved': "Nie udało się zapisać kopii",
   'backupAuto': "Kopia automatyczna",
@@ -270,6 +275,8 @@ const Map<String, Object> pl = {
       "Nie udało się zapisać ostatniej kopii. Wybierz folder ponownie.",
   'backupAutoNote':
       "Kopia jest zapisywana w tym folderze przy otwarciu Caldo, gdy przyszła na nią pora; zostaje siedem ostatnich. Folder synchronizowany z komputerem lub chmurą przechowa je także poza telefonem.",
+  'backupAutoNoteDesktop':
+      "Kopia jest zapisywana w tym folderze przy otwarciu Caldo, gdy przyszła na nią pora; zostaje siedem ostatnich. Folder synchronizowany z chmurą lub innym urządzeniem przechowa je także poza tym komputerem.",
   'backupNotCaldo': "Ten plik nie jest kopią Caldo",
   'backupNewer':
       "Ta kopia pochodzi z nowszego Caldo. Najpierw zaktualizuj aplikację.",

@@ -1,4 +1,7 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -10,16 +13,22 @@ import 'providers/task_provider.dart';
 import 'screens/home_screen.dart';
 import 'services/attachments.dart';
 import 'services/background.dart';
+import 'services/desktop.dart';
 import 'services/device_calendars.dart';
 import 'services/reminders.dart';
 import 'services/today_widget.dart';
 import 'services/updates.dart';
 import 'theme/app_theme.dart';
+import 'utils/platform.dart';
 import 'widgets/quick_add_bar.dart';
 import 'widgets/theme_switcher.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // On a desktop the app finds its own directories and database, which on
+  // a phone the activity and sqflite's plugin do — before anything below
+  // reads either.
+  if (onDesktop) await Desktop.start();
   // Every language's month and weekday names, for the dates in Russian.
   await initializeDateFormatting();
   // Before the first screen, because the first thing a screen does is load its
@@ -30,16 +39,19 @@ void main() async {
   // Where the keyboard is comes from Android as well as from MediaQuery —
   // see KeyboardGap. Nothing reads it until a field is tapped, but the
   // channel has to be listening before that.
-  KeyboardGap.instance.listen();
+  if (!onDesktop) KeyboardGap.instance.listen();
   // Checking for a newer release is switched on here and nowhere else, so
   // the widget tests — which drive the real shell — never go online.
   Updates.instance.enable();
   // The home-screen widget, and hearing about the changes it and a
   // reminder's buttons make — both switched on here only, for the same
   // reason the update check is.
-  TodayWidget.enable();
+  // A desktop has neither a home screen to put the widget on nor a
+  // calendar of the phone's to read; a reminder's buttons it does have, and
+  // they are heard the same way.
+  if (!onDesktop) TodayWidget.enable();
   Background.listen();
-  DeviceCalendars.enable();
+  if (!onDesktop) DeviceCalendars.enable();
   // Where the attachments are kept, before the first form can draw one;
   // then the copies no task refers to any more are let go of.
   await Attachments.instance.enable();
@@ -53,6 +65,9 @@ void main() async {
 }
 
 class CaldoApp extends StatelessWidget {
+  /// The app's navigator, for Escape to go back through on a desktop.
+  static final _navigator = GlobalKey<NavigatorState>();
+
   /// The screen to open on, read from storage before the app was built.
   final AppScreen start;
 
@@ -111,17 +126,114 @@ class CaldoApp extends StatelessWidget {
           // Theme changes apply instantly; ThemeSwitcher animates the switch
           // as a cross-fade for a perfectly smooth transition.
           themeAnimationDuration: Duration.zero,
+          scrollBehavior: onDesktop ? const DesktopScrolling() : null,
           // The clock Settings names goes in where every widget can read it,
           // and where reading it has the widget redrawn when it changes.
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
               context,
             ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
-            child: ThemeSwitcher(child: child!),
+            child: ThemeSwitcher(
+              child: onDesktop
+                  ? _EscapeGoesBack(_navigator, PhoneWide(child: child!))
+                  : child!,
+            ),
           ),
+          navigatorKey: _navigator,
           home: HomeScreen(start: start, inBar: inBar),
         ),
       ),
     );
   }
+}
+
+/// Escape is a desktop's Back: it leaves a page or a sheet, puts down what
+/// is picked out, and closes the menu — whatever Back would have done on a
+/// phone, asked of the same navigator. A field that wants the key for
+/// itself, as the add field does to close, is nearer the focus and has it
+/// first.
+class _EscapeGoesBack extends StatelessWidget {
+  final GlobalKey<NavigatorState> navigator;
+  final Widget child;
+
+  const _EscapeGoesBack(this.navigator, this.child);
+
+  @override
+  Widget build(BuildContext context) {
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            navigator.currentState?.maybePop(),
+      },
+      child: child,
+    );
+  }
+}
+
+/// Keeps the app to the width of a large phone, in the middle of a window
+/// made wider than that.
+///
+/// Every screen is laid out for a phone held upright, and a window can be
+/// made any shape: stretched across a monitor, the tab bar was a pill a
+/// metre long and a task's card a stripe from one edge to the other. A
+/// layout of its own for a wide window would be a second app; this is the
+/// first one, standing in the middle of the room it is given.
+///
+/// The same widgets whatever the width, so nothing under it loses its
+/// state as the window is dragged past [width]; and the window's size is
+/// handed down as the column's, for whatever measures itself against "the
+/// screen".
+class PhoneWide extends StatelessWidget {
+  final Widget child;
+
+  const PhoneWide({super.key, required this.child});
+
+  static const width = 640.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return ColoredBox(
+      color: AppTheme.of(context).bg,
+      child: Center(
+        // The menu slides in from beyond the app's edge, and stays beyond
+        // it until it does.
+        child: ClipRect(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: width),
+            child: MediaQuery(
+              data: media.copyWith(
+                size: Size(
+                  media.size.width < width ? media.size.width : width,
+                  media.size.height,
+                ),
+              ),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// How the app scrolls under a mouse: as it does under a finger.
+///
+/// Left to itself Flutter gives a desktop a scrollbar down every list —
+/// the clock's wheels and the row of groups among them — and takes a drag
+/// of the mouse for the start of a selection rather than a scroll, which
+/// would leave the month, the days under it and the board's lanes with no
+/// way to be turned: they have no arrows, they are swiped.
+class DesktopScrolling extends MaterialScrollBehavior {
+  const DesktopScrolling();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => PointerDeviceKind.values.toSet();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
 }

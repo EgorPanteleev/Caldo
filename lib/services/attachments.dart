@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 
 import '../db/database.dart';
 import '../models/task.dart';
+import '../utils/platform.dart';
+import 'desktop.dart';
 
 /// Where an attachment is taken from.
 enum AttachFrom { photos, camera, files }
@@ -23,7 +25,8 @@ class Picked {
 /// The files and photos attached to tasks: picked through Android's own
 /// pickers or taken with the camera, copied into Caldo's own storage, and
 /// opened in whatever app on the phone reads them (the `caldo/attachments`
-/// channel, `Attachments.kt`).
+/// channel, `Attachments.kt`). On a desktop the same is done from here
+/// (`Desktop`), with the system's file dialog for a picker and no camera.
 ///
 /// A copy is kept rather than a link to the original. A picked document's
 /// link lasts only as long as the grant that came with it, the photo
@@ -49,7 +52,9 @@ class Attachments {
   /// else, so a widget test, which nothing on the platform side answers,
   /// draws every attachment as missing rather than throwing.
   Future<void> enable() async {
-    dir = await _channel.invokeMethod<String>('dir');
+    dir = onDesktop
+        ? Desktop.attachments
+        : await _channel.invokeMethod<String>('dir');
   }
 
   /// The copy of [a], or null when there is nowhere to look.
@@ -65,6 +70,13 @@ class Attachments {
   /// Has the user pick photos or files, or take a photo, and copies them in.
   /// Nothing comes back when they back out.
   Future<Picked> pick(AttachFrom from) async {
+    if (onDesktop) {
+      // The system's file dialog, and the copying done here: a path on a
+      // desktop needs no grant to be read.
+      final paths = await Desktop.pickFiles(images: from == AttachFrom.photos);
+      final copied = await Desktop.attach(paths, into: dir);
+      return Picked(copied.attached, copied.tooBig);
+    }
     final Map<Object?, Object?>? answer;
     try {
       answer = await _channel.invokeMethod<Map<Object?, Object?>>('pick', {
@@ -88,6 +100,10 @@ class Attachments {
   /// Opens [a] in whatever app on the phone reads its type. False when
   /// there is none, or the copy is not here.
   Future<bool> open(Attachment a) async {
+    if (onDesktop) {
+      final file = fileOf(a);
+      return file != null && file.existsSync() && await Desktop.open(file.path);
+    }
     try {
       return await _channel.invokeMethod<bool>('open', {
             'file': a.file,

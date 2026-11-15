@@ -11,6 +11,7 @@ import '../services/reminders.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../utils/platform.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/quick_add_bar.dart';
@@ -433,34 +434,37 @@ List<Widget> _calendar(BuildContext context, SettingsProvider settings, S s) {
           ),
       ],
     ),
-    _Group(
-      children: [
-        _SwitchRow(
-          icon: Icons.event_outlined,
-          title: s.showEvents,
-          hint: settings.showDeviceEvents ? s.eventsOn : s.eventsOff,
-          value: settings.showDeviceEvents,
-          onChanged: (on) async {
-            // Asked of Android first: without the permission there is
-            // nothing to show, and a switch that stayed on over nothing
-            // would look broken.
-            if (on && !await DeviceCalendars.ask()) {
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(s.calendarsRefused)));
-              return;
-            }
-            settings.update(showDeviceEvents: on);
-          },
-        ),
-        if (settings.showDeviceEvents)
-          _CalendarPicker(
-            hidden: settings.hiddenCalendars,
-            onChanged: (hidden) => settings.update(hiddenCalendars: hidden),
+    // The phone's calendars are Android's to hand over; a desktop has no
+    // one place its calendars are kept.
+    if (!onDesktop)
+      _Group(
+        children: [
+          _SwitchRow(
+            icon: Icons.event_outlined,
+            title: s.showEvents,
+            hint: settings.showDeviceEvents ? s.eventsOn : s.eventsOff,
+            value: settings.showDeviceEvents,
+            onChanged: (on) async {
+              // Asked of Android first: without the permission there is
+              // nothing to show, and a switch that stayed on over nothing
+              // would look broken.
+              if (on && !await DeviceCalendars.ask()) {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(s.calendarsRefused)));
+                return;
+              }
+              settings.update(showDeviceEvents: on);
+            },
           ),
-      ],
-    ),
+          if (settings.showDeviceEvents)
+            _CalendarPicker(
+              hidden: settings.hiddenCalendars,
+              onChanged: (hidden) => settings.update(hiddenCalendars: hidden),
+            ),
+        ],
+      ),
   ];
 }
 
@@ -771,7 +775,8 @@ List<Widget> _reminders(
         ),
       ],
     ),
-  if (settings.reminders)
+  // Taking the whole screen is for a locked phone.
+  if (settings.reminders && !onDesktop)
     _Group(
       children: [
         _SwitchRow(

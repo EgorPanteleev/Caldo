@@ -81,6 +81,7 @@ const Map<String, Object> de = {
   'timesWritten': "Zeitformat",
   'language': "Sprache",
   'followPhone': "Wie das Telefon ({language})",
+  'followSystem': "Wie das System ({language})",
   'pageAppearance': "Darstellung",
   'themeDark': "Dunkel",
   'themeLight': "Hell",
@@ -157,7 +158,9 @@ const Map<String, Object> de = {
   'attachCamera': "Kamera",
   'attachFile': "Datei",
   'attachmentMissing': "Nicht auf diesem Telefon",
+  'attachmentMissingDesktop': "Nicht auf diesem Computer",
   'noAppOpens': "Keine App auf diesem Telefon öffnet diese Datei",
+  'noAppOpensDesktop': "Kein Programm auf diesem Computer öffnet diese Datei",
   'tooBigToAttach': "Über 100 MB, nicht angehängt: {name}",
   'openInApp': "In anderer App öffnen",
   'kilobytes': "{n} KB",
@@ -245,6 +248,8 @@ const Map<String, Object> de = {
   'backupRestoreHint': "Alles hier durch eine gespeicherte Datei ersetzen",
   'backupNote':
       "Caldo speichert alles nur auf diesem Telefon. Speichere ab und zu eine Sicherung in Drive oder auf einem Computer, dann nimmt ein verlorenes Telefon oder eine Neuinstallation deine Aufgaben nicht mit.",
+  'backupNoteDesktop':
+      "Caldo speichert alles nur auf diesem Computer. Speichere ab und zu eine Sicherung an einem anderen Ort, dann nimmt eine defekte Festplatte oder eine Neuinstallation deine Aufgaben nicht mit.",
   'backupSaved': "Sicherung gespeichert",
   'backupNotSaved': "Die Sicherung konnte nicht gespeichert werden",
   'backupAuto': "Automatisch sichern",
@@ -256,6 +261,8 @@ const Map<String, Object> de = {
       "Die letzte Sicherung konnte nicht gespeichert werden. Wähle den Ordner erneut.",
   'backupAutoNote':
       "Beim Öffnen von Caldo wird eine Sicherung in diesem Ordner gespeichert, wenn eine fällig ist; die letzten sieben bleiben erhalten. Ein Ordner, der mit einem Computer oder der Cloud synchronisiert wird, bewahrt sie auch außerhalb des Telefons.",
+  'backupAutoNoteDesktop':
+      "Beim Öffnen von Caldo wird eine Sicherung in diesem Ordner gespeichert, wenn eine fällig ist; die letzten sieben bleiben erhalten. Ein Ordner, der mit der Cloud oder einem anderen Gerät synchronisiert wird, bewahrt sie auch außerhalb dieses Computers.",
   'backupNotCaldo': "Diese Datei ist keine Caldo-Sicherung",
   'backupNewer':
       "Diese Sicherung stammt von einem neueren Caldo. Erst aktualisieren, dann wiederherstellen.",

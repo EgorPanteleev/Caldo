@@ -43,12 +43,19 @@ dependencies:
   timezone: ^0.11.1
   flutter_timezone: ^5.1.1
 
+  # The desktop's share. sqflite has no Linux side of its own, so the
+  # database there is the ffi one the widget tests already ran on.
+  sqflite_common_ffi: ^2.4.0+3
+  # The Linux halves of path_provider and file_selector, named directly:
+  # the packages themselves would bring their Android halves into the APK,
+  # which finds its directories and pickers through `MainActivity`.
+  path_provider_linux: ^2.2.2
+  file_selector_linux: ^0.9.4+1
+  file_selector_platform_interface: ^2.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # Runs the sqflite database on the host so widget tests can exercise the
-  # real screens instead of a stand-in.
-  sqflite_common_ffi: ^2.3.6
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -59,6 +66,17 @@ dev_dependencies:
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
+
+# The desktop and the tests read the database through the SQLite the system
+# already has. Left to itself the package bundles a copy of its own for
+# every platform it is built for, which put one in each APK that nothing
+# there ever opened — Android's database goes through sqflite's own plugin.
+# On Linux the name it is asked for by is put beside the program
+# (linux/sqlite_shim.cc).
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
 
 # The following section is specific to Flutter packages.
 flutter:

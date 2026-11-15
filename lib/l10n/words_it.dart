@@ -81,6 +81,7 @@ const Map<String, Object> it = {
   'timesWritten': "Formato dell’ora",
   'language': "Lingua",
   'followPhone': "Come il telefono ({language})",
+  'followSystem': "Come il sistema ({language})",
   'pageAppearance': "Aspetto",
   'themeDark': "Scuro",
   'themeLight': "Chiaro",
@@ -157,7 +158,9 @@ const Map<String, Object> it = {
   'attachCamera': "Fotocamera",
   'attachFile': "File",
   'attachmentMissing': "Non su questo telefono",
+  'attachmentMissingDesktop': "Non su questo computer",
   'noAppOpens': "Nessuna app su questo telefono apre questo file",
+  'noAppOpensDesktop': "Nessun programma su questo computer apre questo file",
   'tooBigToAttach': "Oltre 100 MB, non allegato: {name}",
   'openInApp': "Apri in un'altra app",
   'kilobytes': "{n} KB",
@@ -244,6 +247,8 @@ const Map<String, Object> it = {
   'backupRestoreHint': "Sostituisci tutto qui con un file salvato",
   'backupNote':
       "Caldo tiene tutto solo su questo telefono. Salva ogni tanto un backup su Drive o su un computer, e un telefono perso o una reinstallazione non si porteranno via le tue attività.",
+  'backupNoteDesktop':
+      "Caldo tiene tutto solo su questo computer. Salva ogni tanto un backup altrove, e un disco guasto o una reinstallazione non si porteranno via le tue attività.",
   'backupSaved': "Backup salvato",
   'backupNotSaved': "Impossibile salvare il backup",
   'backupAuto': "Backup automatico",
@@ -255,6 +260,8 @@ const Map<String, Object> it = {
       "Impossibile salvare l'ultimo backup. Scegli di nuovo la cartella.",
   'backupAutoNote':
       "Un backup viene salvato in questa cartella quando Caldo viene aperto ed è il momento, e si tengono gli ultimi sette. Una cartella sincronizzata con un computer o con il cloud li conserva anche fuori dal telefono.",
+  'backupAutoNoteDesktop':
+      "Un backup viene salvato in questa cartella quando Caldo viene aperto ed è il momento, e si tengono gli ultimi sette. Una cartella sincronizzata con il cloud o con un altro dispositivo li conserva anche fuori da questo computer.",
   'backupNotCaldo': "Questo file non è un backup di Caldo",
   'backupNewer':
       "Questo backup viene da un Caldo più recente. Aggiorna prima, poi ripristinalo.",

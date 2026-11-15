@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart' show DatabaseException;
@@ -6,6 +7,8 @@ import 'package:sqflite/sqflite.dart' show DatabaseException;
 import '../db/database.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../utils/platform.dart';
+import 'desktop.dart';
 
 /// Why a file could not be restored.
 enum BackupProblem {
@@ -41,7 +44,9 @@ class BackupException implements Exception {
 /// `caldo/backup` channel in `MainActivity`), which can put it on Drive or
 /// in Downloads and needs no storage permission. The automatic ones go
 /// into a folder picked the same way once, which Caldo is let keep writing
-/// into ([autoIfDue]).
+/// into ([autoIfDue]). On a desktop it is the system's file dialog and a
+/// plain path (`Desktop`): the folder is kept as where it is, and needs no
+/// leave to be written into again.
 class Backup {
   /// When the backup was taken.
   final DateTime savedAt;
@@ -134,12 +139,17 @@ class Backup {
     final backup = await take();
     final day = backup.savedAt.toIso8601String().substring(0, 10);
     final bool? saved;
+    final name = 'caldo-$day.json';
     try {
-      saved = await _channel.invokeMethod<bool>('save', {
-        'name': 'caldo-$day.json',
-        'text': backup.encode(),
-      });
+      saved = onDesktop
+          ? await Desktop.saveText(name, backup.encode())
+          : await _channel.invokeMethod<bool>('save', {
+              'name': name,
+              'text': backup.encode(),
+            });
     } on PlatformException {
+      throw const BackupException(BackupProblem.unreadable);
+    } on FileSystemException {
       throw const BackupException(BackupProblem.unreadable);
     }
     if (saved != true) return false;
@@ -163,6 +173,10 @@ class Backup {
   /// Has the user pick a folder for the automatic backups and lets Caldo
   /// keep writing into it, or null if they backed out.
   static Future<({String uri, String name})?> chooseFolder() async {
+    if (onDesktop) {
+      final path = await Desktop.pickFolder();
+      return path == null ? null : (uri: path, name: Desktop.shown(path));
+    }
     final Map<Object?, Object?>? folder;
     try {
       folder = await _channel.invokeMapMethod<Object?, Object?>('folder');
@@ -208,15 +222,28 @@ class Backup {
     try {
       final backup = await take();
       final day = backup.savedAt.toIso8601String().substring(0, 10);
-      await _channel.invokeMethod<bool>('write', {
-        'folder': folder,
-        'name': '$autoPrefix$day.json',
-        'prefix': autoPrefix,
-        'text': backup.encode(),
-        'keep': autoKept,
-      });
+      final name = '$autoPrefix$day.json';
+      if (onDesktop) {
+        await Desktop.writeInto(
+          folder,
+          name,
+          autoPrefix,
+          backup.encode(),
+          autoKept,
+        );
+      } else {
+        await _channel.invokeMethod<bool>('write', {
+          'folder': folder,
+          'name': name,
+          'prefix': autoPrefix,
+          'text': backup.encode(),
+          'keep': autoKept,
+        });
+      }
       await settings.autoBackedUp(backup.savedAt);
     } on PlatformException {
+      await settings.autoBackupNotSaved();
+    } on FileSystemException {
       await settings.autoBackupNotSaved();
     } finally {
       _writing = false;
@@ -228,8 +255,12 @@ class Backup {
   static Future<Backup?> open() async {
     final String? text;
     try {
-      text = await _channel.invokeMethod<String>('open');
+      text = onDesktop
+          ? await Desktop.openText()
+          : await _channel.invokeMethod<String>('open');
     } on PlatformException {
+      throw const BackupException(BackupProblem.unreadable);
+    } on FileSystemException {
       throw const BackupException(BackupProblem.unreadable);
     }
     return text == null ? null : decode(text);

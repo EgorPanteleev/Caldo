@@ -1,6 +1,7 @@
 # Caldo — working notes
 
-A calendar + to-do app for Android, Flutter, local-only storage. Private repo:
+A calendar + to-do app for Android — and, as the same app in a window, for
+Linux — Flutter, local-only storage. Private repo:
 `github.com/EgorPanteleev/Caldo`. It is modelled on its sibling app **Dicty**
 (`/home/igor/dev/src/Dicty`) — same stack, same theme. When a question about
 style or structure comes up, look there first.
@@ -11,7 +12,9 @@ Flutter 3.38.6 / Dart 3.10.7. `provider` (state), `sqflite` (storage),
 `shared_preferences` (settings), `intl` (dates),
 `flutter_local_notifications` + `timezone` + `flutter_timezone` (reminders).
 The type is the platform's own font — see the decision below.
-Dev-only: `sqflite_common_ffi`, so widget tests run against a real database.
+`sqflite_common_ffi` is the database on Linux and under the widget tests,
+which run against a real one; `path_provider_linux` and `file_selector_linux`
+are the desktop's directories and file dialogs — see the Linux section.
 The home-screen widget is native (`TodayWidget.kt`, plain `RemoteViews`, no
 Glance and no `home_widget` package).
 The app is local-only except for one thing: asking GitHub whether a newer
@@ -41,7 +44,10 @@ lib/
   screens/               home (shell: tab bar or menu), tasks (Schedule), calendar,
                          board, done, search, task_edit, settings
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
+  services/desktop.dart  on Linux, what the activity does on a phone:
+                         directories, file dialogs, opening a file, updating
   utils/dates.dart       every date/time string the UI shows
+  utils/platform.dart    onDesktop
   widgets/               month_grid, task_card (+ HolidayCard),
                          colour_selector, groups,
                          date_time_pickers, repeat_sheet, day_sheet, day_hours,
@@ -60,9 +66,15 @@ ticks run on), `TodayWidgetRuns.kt` (its runs and cards), `CaldoApplication.kt`
 (redraws the widget when its copy changes) and `LauncherIcon.kt` (which of
 the two launcher icons a phone gets).
 
+On the Linux side, `linux/` is Flutter's GTK runner with four things of
+Caldo's: the window (`runner/my_application.cc`), SQLite's name beside the
+program (`sqlite_shim.cc`, `CMakeLists.txt`), the icon and the desktop entry
+(`icon/`, `com.igor.caldo.desktop`), and `install.sh`. Nothing there answers
+a channel — see the Linux section.
+
 The launcher icon is drawn in SVG under `assets/icon/src` and turned into
-Android's sizes by `tool/make_icon.sh` (needs `rsvg-convert`); the PNGs it
-writes are checked in.
+Android's sizes, and Linux's one, by `tool/make_icon.sh` (needs
+`rsvg-convert`); the PNGs it writes are checked in.
 
 Five destinations — **Schedule**, **Calendar**, **Board**, **Done**,
 **Settings** — in a tab bar floating along the foot of the window, or in a
@@ -1690,9 +1702,130 @@ Changing them back will be noticed.
   supported-mode list mixes resolutions, and the fastest of all of them can
   drop the screen to a coarser one.
 
+## Linux
+
+Asked for as "port this to linux". It is the phone's app in a window, not a
+desktop app designed as one: every screen, sheet and gesture is the one
+above, and what follows is only what had to differ. Tried on a display of
+its own (`tool/desktop/try.sh`, below), never yet seen by the user on their
+own desk — the first thing they say about it outranks all of this.
+
+- **`onDesktop` is asked of Flutter, not of `dart:io`** (`utils/platform.dart`).
+  The widget tests run on a Linux host and are told they are on Android,
+  which is what keeps them testing the phone; `Platform.isLinux` is true in
+  every one of them. A test of the desktop says so
+  (`variant: TargetPlatformVariant.only(TargetPlatform.linux)`).
+- **The services do the desktop's work themselves; the runner answers no
+  channel** (`Desktop`, and an `if (onDesktop)` at the head of each call in
+  `Attachments`, `Backup`, `Updates`, `Reminders`). On Android each is a
+  channel because each needs an activity. On a desktop a path is a path:
+  the file dialog is GTK's (`file_selector_linux`), a file is opened with
+  `xdg-open`, and the copying, pruning and unpacking are Dart, where the
+  tests can reach them (`desktop_test.dart`).
+- **Everything is kept under `~/.local/share/com.igor.caldo`**: `caldo.db`,
+  `attachments/`, and `shared_preferences.json`, which is where the
+  settings plugin puts it. Downloads go to `~/.cache/com.igor.caldo`.
+- **The Linux halves of two plugins are named directly** in `pubspec.yaml`,
+  not `path_provider` and `file_selector`: those would bring their Android
+  halves (and `jni`) into the APK, which has `MainActivity` for both jobs.
+- **SQLite is the system's, on Linux and in the tests** (`hooks:
+  user_defines: sqlite3: source: system`). The `sqlite3` package otherwise
+  bundles a copy for every platform it is built for — which, as a test
+  dependency, is what had put a `libsqlite3.so` nothing opened into every
+  APK up to 2.9.2, 1.7MB an ABI (the universal APK went from 62.3MB to
+  57.1). Gradle packages whatever is in `build/native_assets/android`, so
+  after changing the hook delete that directory, or the old copy rides on.
+  **The app asks for "libsqlite3.so", and that name is put beside the
+  program** (`linux/sqlite_shim.cc`: an empty library that needs
+  `libsqlite3.so.0`). Outside Arch the bare name only exists with the
+  development package; the engine looks in its own `lib/` first (measured
+  with `LD_DEBUG=libs`), and every lookup through the empty one lands in
+  the system's. Not a copy of SQLite: GTK has already loaded the system's
+  into the process, and two builds of it resolve each other's insides.
+- **Reminders are put up by the app, while it is open** (`Reminders._alarms`,
+  `_arm`, `_announce`). The Linux plugin cannot book a notification ahead,
+  and nothing on a desktop holds one for a program that is not running. So
+  `_schedule` only notes when and what, and one timer waits for the soonest
+  — never longer than 30 seconds before reading the clock again, because a
+  timer counts time awake and a laptop shut overnight would otherwise ring
+  an hour into the morning. What fell due while Caldo was shut is simply
+  overdue when it opens. The buttons are Done and both snoozes, with no
+  Dismiss: closing a notification is that. They are answered in the app
+  (`_onOpened` hands them to `onReminderAction`), and **`Background._prepare`
+  does nothing on a desktop**: `DartPluginRegistrant.ensureInitialized()`
+  in the app's own isolate registers every plugin a second time, which swaps
+  the started notifications plugin for a fresh one — the first button
+  pressed worked, and every reminder after it was dropped without a word.
+  Seen with two tasks due fifteen seconds apart. A click on the
+  notification itself opens the task's form; it cannot bring the window to
+  the front.
+- **"The keys are up" means an add field has the focus** (`KeyboardGap.writing`,
+  `up`, `changes`). The tab bar, the field in its room and the groups above
+  it all went by the keyboard's height, which on a desktop is nothing for
+  ever: the plus focused a field nobody could see. A phone never sets
+  `writing`, so nothing there changed. With no keyboard to put away while
+  the field is still held, Enter on an empty field lets go of it, and so
+  does Escape.
+- **Escape is Back** (`_EscapeGoesBack`, asking the navigator to
+  `maybePop`): out of a page or a sheet, down with a selection, shut with
+  the menu, and from another tab to the one the app opened on.
+- **A mouse scrolls as a finger does** (`DesktopScrolling`): drags count,
+  or the month, the days under it, the board's lanes and the clock's wheels
+  could not be turned at all; and no scrollbars, which Flutter otherwise
+  draws down every list on a desktop, the wheels and the row of groups
+  included. A pager dragged slowly and let go at rest short of half way
+  goes back, as under a finger.
+- **The wheel over the grid turns the month, or the week** (`_onWheel`).
+  The grid has no arrows and nobody tries dragging a calendar with a
+  mouse. A page a notch, and no second page until the first has landed,
+  since a trackpad sends a stream of small turns. Over the day's list the
+  wheel scrolls the list, whatever state the grid is in.
+- **The group chips are picked up by a long press here too**
+  (`buildDefaultDragHandles: false`). Left to itself a reorderable list
+  gives a desktop a grip, drawn over the end of every chip.
+- **The theme says a phone's sizes outright** (`visualDensity`,
+  `materialTapTargetSize`). Unsaid, a desktop draws every button and row a
+  size tighter.
+- **A window wider than 640 keeps the app in its middle** (`PhoneWide`).
+  Stretched across 1200 points the tab bar was a pill the width of the
+  monitor and a card a stripe from edge to edge. A layout of its own for a
+  wide window would be a second app, and is the user's to ask for. The
+  column is handed down as "the screen" (`MediaQuery.size`), and clipped,
+  since the menu waits beyond its edge. The board measured a carried
+  card's place against the window's width and now measures it against
+  itself.
+- **The window opens at 460 by 880, no smaller than 340 by 560, one at a
+  time** (`my_application.cc`). Started again, the one running is brought
+  forward: two would each ring every reminder, over one database. Its title
+  bar is asked to be dark, the app being dark out of the box; it stays
+  dark under the light theme.
+- **What is not there**: the home-screen widget, the phone's calendars
+  (their Settings panel is hidden), the full-screen reminder (its switch is
+  hidden), the camera (Photo and File only), the keyboard numbers.
+- **Five phrases that name the phone are worded again**
+  (`followSystem` and four `…Desktop` keys, chosen in `S`'s getters): "on
+  this computer", in all twelve languages, as unreviewed as the rest.
+- **Installed, it is `~/.local/opt/caldo`** (`linux/install.sh`, which
+  rides in the bundle): no root, a `caldo` in `~/.local/bin`, the entry
+  `com.igor.caldo.desktop` and the icon — the page standing free, as on a
+  Samsung, a desktop having no shape to cut one to. The entry's name is the
+  application id, which is how GNOME and anything on Wayland finds a
+  window's icon. Checked into a stand-in home; not run on the user's.
+- **It updates itself, where it may** (`Updates`, `Desktop.replaceWith`).
+  A release that carries `Caldo-linux-x64.tar.gz` is offered in the same
+  banner; the tap downloads it, unpacks it beside the installed program,
+  swaps the two by name, and starts the new one a second after leaving —
+  at once, it would find this one still running and hand over to it.
+  Installed where the user cannot write, the release's page is opened
+  instead. A release with no such file is offered to phones alone. Tried
+  end to end against a feed on localhost (the address in `_latest` changed
+  for that build only): 2.9.1 offered 2.9.3, and came back as it.
+  **The version is the one in `pubspec.yaml`**: `--build-name` does not
+  reach `version.json` on Linux, which is where it is read from.
+
 ## Tests
 
-`flutter test` — 233 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 246 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1756,6 +1889,16 @@ decide. When a release is asked for, it means both: the three APKs staged in
 `release/` (gitignored; `Caldo-arm64.apk`, `Caldo-armv7.apk`,
 `Caldo-universal.apk`) and a GitHub release carrying the same three,
 `gh release create vX.Y.Z release/*.apk`, built from the latest commit.
+`tool/package_linux.sh` builds the Linux program and puts
+`Caldo-linux-x64.tar.gz` beside them, which the same command would then
+carry; without it a release is a phone's only, and the desktop is not
+offered it. Whether a release carries it is the user's to say.
+
+For Linux alone, the build is `flutter build linux --release`, the result
+`build/linux/x64/release/bundle`, which runs from where it is. It needs
+SQLite's headers on the machine (`pkg-config sqlite3`), for the name beside
+the program. A stale `lib/native_assets.json` in the bundle is the tests'
+and harmless; the packaging leaves it out.
 
 ## Running on the emulator
 
@@ -1858,6 +2001,45 @@ Three things that look like bugs and are not:
   enough to tell a spring from a teleport. They do not show whether it is
   smooth. Say which of the two was checked.
 
+## Running on Linux
+
+`tool/desktop/try.sh` runs the built program on a display of its own
+(Xvfb, `:99`) with a home and a session bus of its own, so nothing of the
+user's is read, written or popped up on their desk; `--stop` ends it. It
+is how every claim in the Linux section was looked at.
+
+```sh
+flutter build linux --release
+tool/desktop/try.sh
+import -display :99 -window root -crop 460x880+0+0 shot.png   # then look
+python tool/desktop/x.py click 409 768     # the plus; needs python-xlib
+python tool/desktop/x.py type "Buy milk"; python tool/desktop/x.py key Return
+```
+
+`x.py` clicks, drags (with a hold, for a long press), types, turns the
+wheel and resizes the window; its header says how. `notifd.py` stands in
+for the notification server: what Caldo sends is written to `notifd.log`,
+and a button's key written to a file called `press` is pressed. To try a
+reminder, stop the app, put a task a minute ahead with `sqlite3` (`due_at`
+in milliseconds, `has_time` 1), and start it again.
+
+Things that looked like bugs and were not:
+
+- **A drag that rests before letting go is not a fling.** Flutter takes
+  more than 40ms without movement for a stop, and a month dragged less than
+  half way and let go at rest goes back. The first harness paused 50ms
+  before the release, and for a while no pager could be turned by a mouse.
+- **Typing a path into GTK's file dialog can lose its second character**,
+  the first one being what opens the location bar. Type "/" and wait.
+- **The save dialog selects the name without its ending**, so typing over
+  it leaves ".json" behind.
+- **A file row clicked opens the file** in whatever the desk has for it,
+  on the test display; close that program by its pid, having checked its
+  `DISPLAY`, since the user may have one of their own open.
+- **Never `pkill -f`** with a pattern that the command doing the killing
+  also contains: it stops its own shell (exit 144), and the rest of the
+  line with it.
+
 ## Conventions
 
 - Comments explain **why**, at roughly Dicty's density. No narrating what the
@@ -1867,6 +2049,14 @@ Three things that look like bugs and are not:
 - `flutter analyze` must be clean before a commit.
 
 ## Known gaps
+
+- **On Linux a reminder needs Caldo open.** There is no tray icon and
+  nothing running once the window is shut; keeping it alive behind a tray
+  icon, or starting it with the session, is the way to more.
+- **A wide window is a phone in the middle of it**, and a notification
+  clicked cannot bring the window forward.
+- **Linux is built for x64 only**; a release's file is not offered to any
+  other processor.
 
 - **A backup carries what is attached, not the files themselves.** The
   `attachments` column rides along with the rest of the row, so restored on

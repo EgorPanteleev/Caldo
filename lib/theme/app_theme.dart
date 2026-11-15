@@ -307,6 +307,12 @@ class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
+      // As a phone has them, said outright: left unsaid, a desktop draws
+      // every button, row and field a size tighter and takes the margin
+      // off what is tapped, and every screen here was measured as a phone
+      // lays it out.
+      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
       extensions: [AccentColors.from(accent), p],
       scaffoldBackgroundColor: p.bg,
       canvasColor: p.bg,

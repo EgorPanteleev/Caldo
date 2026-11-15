@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -11,6 +12,7 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../utils/platform.dart';
 import 'groups.dart';
 import 'selection.dart';
 import 'tick_off.dart';
@@ -70,6 +72,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
       if (_focus.hasFocus && !_open) _group = null;
       _open = _focus.hasFocus;
     });
+    if (onDesktop) KeyboardGap.instance.write(this, _focus.hasFocus);
   }
 
   /// The shell's tab bar this field sits in the room of, if it has one.
@@ -104,6 +107,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
   @override
   void dispose() {
     _foot?.detach(this);
+    KeyboardGap.instance.write(this, false);
     _focus.dispose();
     super.dispose();
   }
@@ -122,13 +126,17 @@ class _QuickAddBarState extends State<QuickAddBar> {
   /// a new one, and Android brings the keyboard up from scratch — the only
   /// opening that ever went wrong. Back leaves the connection open, and so
   /// now does an empty tick.
+  ///
+  /// A desktop has no keyboard to put away with the field still held: there
+  /// the focus is all that "open" is, so Enter on an empty field lets go of
+  /// it, and so does Escape.
   void _submit() {
     final filing = widget.controller.text.trim().isNotEmpty;
     // A group deleted while the field was open is no place to file into.
     final lists = context.read<TaskProvider>().lists;
     widget.onSubmit(lists.any((l) => l.id == _group) ? _group : null);
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    if (filing) _focus.unfocus();
+    if (filing || onDesktop) _focus.unfocus();
   }
 
   /// A plus opens the form; a tick files what has been typed.
@@ -159,29 +167,35 @@ class _QuickAddBarState extends State<QuickAddBar> {
     final row = Row(
       children: [
         Expanded(
-          child: TextField(
-            controller: widget.controller,
-            focusNode: _focus,
-            textCapitalization: TextCapitalization.sentences,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _submit(),
-            style: TextStyle(color: p.text, fontSize: 14.5),
-            decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: p.field,
-              hintText: S.of(context).addTaskOn(Dates.shortDay(widget.date)),
-              hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 14,
+          // Escape closes the field, as Back does on a phone.
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): _focus.unfocus,
+            },
+            child: TextField(
+              controller: widget.controller,
+              focusNode: _focus,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              style: TextStyle(color: p.text, fontSize: 14.5),
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: p.field,
+                hintText: S.of(context).addTaskOn(Dates.shortDay(widget.date)),
+                hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 14,
+                ),
+                // Nothing marks the focus but the cursor. An accent ring
+                // around half the screen was the loudest thing on it, and a
+                // neutral one on a grey field is a line nobody reads.
+                border: border,
+                enabledBorder: border,
+                focusedBorder: border,
               ),
-              // Nothing marks the focus but the cursor. An accent ring
-              // around half the screen was the loudest thing on it, and a
-              // neutral one on a grey field is a line nobody reads.
-              border: border,
-              enabledBorder: border,
-              focusedBorder: border,
             ),
           ),
         ),
@@ -254,15 +268,15 @@ class _WhileKeyboardUp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<double>(
-      valueListenable: KeyboardGap.instance.covered,
+    return ListenableBuilder(
+      listenable: KeyboardGap.instance.changes,
       // Grown into rather than popped in, as the keyboard comes up under
       // it; the field below keeps its place on the keys either way.
-      builder: (context, _, child) => AnimatedSize(
+      builder: (context, child) => AnimatedSize(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
         alignment: Alignment.bottomCenter,
-        child: KeyboardGap.of(context) > 0
+        child: KeyboardGap.up(context)
             ? child
             : const SizedBox(width: double.infinity),
       ),
@@ -284,10 +298,10 @@ class _WhileWriting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<double>(
-      valueListenable: KeyboardGap.instance.covered,
-      builder: (context, _, child) {
-        final shown = open && KeyboardGap.of(context) > 0;
+    return ListenableBuilder(
+      listenable: KeyboardGap.instance.changes,
+      builder: (context, child) {
+        final shown = open && KeyboardGap.up(context);
         // Kept in the tree either way, so it keeps what is typed and its
         // hold on the keyboard.
         return IgnorePointer(
@@ -485,6 +499,40 @@ class KeyboardGap {
     );
   }
 
+  /// The add fields being written in, on a desktop, and whether any is.
+  ///
+  /// A desktop has no keyboard to come up, and "the keys are up" is what
+  /// the tab bar, the field in its room and the groups above it all go by:
+  /// the bar is put away and the field drawn in its place while they are.
+  /// What stands for it there is the field holding the focus — the plus
+  /// gives it that, and Enter, Escape or a click anywhere else takes it
+  /// away. Nothing sets this on a phone, where the keys speak for
+  /// themselves.
+  final ValueNotifier<bool> writing = ValueNotifier<bool>(false);
+  final Set<Object> _writers = {};
+
+  void write(Object field, bool on) {
+    if (!(on ? _writers.add(field) : _writers.remove(field))) return;
+    // A field taken out of the tree lets go while the tree is locked, and
+    // those who listen rebuild.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback(
+        (_) => writing.value = _writers.isNotEmpty,
+      );
+    } else {
+      writing.value = _writers.isNotEmpty;
+    }
+  }
+
+  /// What changes when [up] does.
+  late final Listenable changes = Listenable.merge([covered, writing]);
+
+  /// Whether the keyboard is up — or, with none to come up, whether an add
+  /// field is being written in.
+  static bool up(BuildContext context) =>
+      instance.writing.value || of(context) > 0;
+
   /// How far to lift whatever is glued to the keyboard.
   static double of(BuildContext context) {
     final covered = math.max(
@@ -517,7 +565,11 @@ class KeyboardGap {
   /// Forgets what the platform last said, so one test cannot set the stage
   /// for the next.
   @visibleForTesting
-  void forget() => covered.value = 0;
+  void forget() {
+    covered.value = 0;
+    _writers.clear();
+    writing.value = false;
+  }
 }
 
 /// How much of the foot of a screen the shell's tab bar floats over, and

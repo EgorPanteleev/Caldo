@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -525,6 +526,42 @@ class _CalendarScreenState extends State<CalendarScreen>
     }
   }
 
+  /// How far a wheel has turned since it last turned a page, and whether
+  /// that page is still turning.
+  double _wheeled = 0;
+  bool _wheelTurning = false;
+
+  /// A mouse wheel over the grid turns the month, or the week while the
+  /// grid rests on its week. The grid is swiped and has no arrows, and a
+  /// swipe with a mouse is a drag nobody would think to try; the wheel is
+  /// what a hand on a mouse reaches for. One page a notch, and the next
+  /// only once that one has landed: a trackpad sends a stream of small
+  /// turns where a wheel sends one large one, and each of them a page
+  /// would be a year gone by in one stroke.
+  void _onWheel(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    final delta = event.scrollDelta;
+    // Sideways is the pager's own to follow.
+    if (delta.dy.abs() <= delta.dx.abs()) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+      if (_wheelTurning || _carry.task != null) return;
+      if (_wheeled.sign != delta.dy.sign) _wheeled = 0;
+      _wheeled += delta.dy;
+      if (_wheeled.abs() < 40) return;
+      final pager = _weekShown.value ? _weekController : _controller;
+      if (!pager.hasClients) return;
+      final forward = _wheeled > 0;
+      _wheeled = 0;
+      _wheelTurning = true;
+      const duration = Duration(milliseconds: 260);
+      const curve = Curves.easeOutCubic;
+      (forward
+              ? pager.nextPage(duration: duration, curve: curve)
+              : pager.previousPage(duration: duration, curve: curve))
+          .whenComplete(() => _wheelTurning = false);
+    });
+  }
+
   void _onWeekPageChanged(int i) {
     if (_driving) return;
     final day = _dayOfWeekPage(i, _mondayFirst);
@@ -865,79 +902,83 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 onVerticalDragStart: _onDragStart,
                                 onVerticalDragUpdate: _onDrag,
                                 onVerticalDragEnd: _onDragEnd,
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    PageView.builder(
-                                      controller: _controller,
-                                      onPageChanged: _onMonthPageChanged,
-                                      itemBuilder: (context, i) => MonthGrid(
-                                        month: _monthOfPage(i),
-                                        selected: _selected,
-                                        mondayFirst: mondayFirst,
-                                        tasksByDay: provider.tasksByDay,
-                                        holidaysByDay: Holidays.around(
-                                          country,
-                                          _monthOfPage(i),
-                                        ),
-                                        eventsByDay: events?.byDay ?? const {},
-                                        lists: provider.lists,
-                                        animation: _expansion,
-                                        openHeight: opened,
-                                        compactHeight: month,
-                                        onSelect: _selectDay,
-                                      ),
-                                    ),
-                                    // Over the month while the grid rests on
-                                    // the week, so a swipe there turns a week.
-                                    // Kept in the tree when hidden, so it can be
-                                    // driven to the selected week at any time.
-                                    ValueListenableBuilder<bool>(
-                                      valueListenable: _weekShown,
-                                      builder: (context, shown, pager) =>
-                                          Offstage(
-                                            offstage: !shown,
-                                            child: pager,
+                                child: Listener(
+                                  onPointerSignal: _onWheel,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      PageView.builder(
+                                        controller: _controller,
+                                        onPageChanged: _onMonthPageChanged,
+                                        itemBuilder: (context, i) => MonthGrid(
+                                          month: _monthOfPage(i),
+                                          selected: _selected,
+                                          mondayFirst: mondayFirst,
+                                          tasksByDay: provider.tasksByDay,
+                                          holidaysByDay: Holidays.around(
+                                            country,
+                                            _monthOfPage(i),
                                           ),
-                                      child: ColoredBox(
-                                        color: p.calendar,
-                                        child: PageView.builder(
-                                          controller: _weekController,
-                                          onPageChanged: _onWeekPageChanged,
-                                          itemBuilder: (context, i) {
-                                            final day = _dayOfWeekPage(
-                                              i,
-                                              mondayFirst,
-                                            );
-                                            final shown = DateTime(
-                                              day.year,
-                                              day.month,
-                                            );
-                                            return MonthGrid(
-                                              month: shown,
-                                              selected: day,
-                                              mondayFirst: mondayFirst,
-                                              tasksByDay: provider.tasksByDay,
-                                              holidaysByDay: Holidays.around(
-                                                country,
-                                                shown,
-                                              ),
-                                              eventsByDay:
-                                                  events?.byDay ?? const {},
-                                              lists: provider.lists,
-                                              animation:
-                                                  const AlwaysStoppedAnimation(
-                                                    -1.0,
-                                                  ),
-                                              openHeight: opened,
-                                              compactHeight: month,
-                                              onSelect: _selectDay,
-                                            );
-                                          },
+                                          eventsByDay:
+                                              events?.byDay ?? const {},
+                                          lists: provider.lists,
+                                          animation: _expansion,
+                                          openHeight: opened,
+                                          compactHeight: month,
+                                          onSelect: _selectDay,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      // Over the month while the grid rests on
+                                      // the week, so a swipe there turns a week.
+                                      // Kept in the tree when hidden, so it can be
+                                      // driven to the selected week at any time.
+                                      ValueListenableBuilder<bool>(
+                                        valueListenable: _weekShown,
+                                        builder: (context, shown, pager) =>
+                                            Offstage(
+                                              offstage: !shown,
+                                              child: pager,
+                                            ),
+                                        child: ColoredBox(
+                                          color: p.calendar,
+                                          child: PageView.builder(
+                                            controller: _weekController,
+                                            onPageChanged: _onWeekPageChanged,
+                                            itemBuilder: (context, i) {
+                                              final day = _dayOfWeekPage(
+                                                i,
+                                                mondayFirst,
+                                              );
+                                              final shown = DateTime(
+                                                day.year,
+                                                day.month,
+                                              );
+                                              return MonthGrid(
+                                                month: shown,
+                                                selected: day,
+                                                mondayFirst: mondayFirst,
+                                                tasksByDay: provider.tasksByDay,
+                                                holidaysByDay: Holidays.around(
+                                                  country,
+                                                  shown,
+                                                ),
+                                                eventsByDay:
+                                                    events?.byDay ?? const {},
+                                                lists: provider.lists,
+                                                animation:
+                                                    const AlwaysStoppedAnimation(
+                                                      -1.0,
+                                                    ),
+                                                openHeight: opened,
+                                                compactHeight: month,
+                                                onSelect: _selectDay,
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               );
 

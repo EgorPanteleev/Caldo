@@ -1,7 +1,7 @@
 #!/bin/sh
 # Draws the launcher icons from assets/icon/src into every size Android asks
 # for: the legacy square at each density, and the two drawn layers of the
-# adaptive icon. There are two icons (LauncherIcon.kt says which a phone
+# adaptive icon; and the one Linux wears. There are two icons (LauncherIcon.kt says which a phone
 # gets): caldo*, the header and rings over the page's colour
 # (@color/ic_launcher_page), so the page fills the launcher's shape; and
 # caldo_free*, the whole page on a transparent ground, for Samsung. Needs
@@ -12,6 +12,13 @@ SRC=assets/icon/src
 RES=android/app/src/main/res
 
 rsvg-convert -w 1024 -h 1024 $SRC/caldo.svg -o assets/icon/ic_launcher.png
+
+# A desktop draws an icon in no shape of its own, so Linux gets the page
+# standing free: as it is drawn, and as a picture for whatever cannot draw
+# that (a notification, an old window manager).
+mkdir -p linux/icon
+cp $SRC/caldo_free.svg linux/icon/caldo.svg
+rsvg-convert -w 256 -h 256 $SRC/caldo_free.svg -o linux/icon/caldo.png
 
 # The legacy icon is 48dp; an adaptive layer is 108dp, of which the launcher
 # shows the middle 72.

@@ -162,23 +162,30 @@ class _GroupChipsState extends State<GroupChips> {
               ),
             ),
           ),
+          // Picked up by a long press on a desktop as on a phone. Left to
+          // itself the list gives a desktop a grip to drag by instead, laid
+          // over the end of every chip.
+          buildDefaultDragHandles: false,
           children: [
-            for (final list in lists)
-              Padding(
+            for (final (i, list) in lists.indexed)
+              ReorderableDelayedDragStartListener(
                 key: ValueKey(list.id),
-                padding: const EdgeInsets.only(left: 8),
-                child: Center(
-                  // The ground it stands on, so it is unchanged at rest.
-                  child: DecoratedBox(
-                    decoration: ShapeDecoration(
-                      color: ground,
-                      shape: const StadiumBorder(),
-                    ),
-                    child: GroupChip(
-                      label: groupLabel(context, list),
-                      color: list.style.color,
-                      selected: shown == list.id,
-                      onTap: () => tasks.showGroup(list.id),
+                index: i,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Center(
+                    // The ground it stands on, so it is unchanged at rest.
+                    child: DecoratedBox(
+                      decoration: ShapeDecoration(
+                        color: ground,
+                        shape: const StadiumBorder(),
+                      ),
+                      child: GroupChip(
+                        label: groupLabel(context, list),
+                        color: list.style.color,
+                        selected: shown == list.id,
+                        onTap: () => tasks.showGroup(list.id),
+                      ),
                     ),
                   ),
                 ),

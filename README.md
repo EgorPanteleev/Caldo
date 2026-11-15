@@ -1,6 +1,6 @@
 # Caldo
 
-A calendar and to-do app for Android, built with Flutter. Tasks live in lists,
+A calendar and to-do app for Android and Linux, built with Flutter. Tasks live in lists,
 dated tasks show up on a month calendar, and everything is stored locally on
 the device.
 
@@ -38,6 +38,18 @@ flutter pub get
 flutter run                 # a connected device or emulator
 flutter build apk --release
 ```
+
+## Linux
+
+```sh
+flutter build linux --release                    # needs GTK 3 and SQLite's headers
+build/linux/x64/release/bundle/caldo             # runs from where it is
+build/linux/x64/release/bundle/install.sh        # or: into ~/.local, with an icon
+```
+
+It is the phone's app in a window. Tasks are kept under
+`~/.local/share/com.igor.caldo`; reminders arrive while Caldo is open.
+`install.sh --uninstall` takes the program out again and leaves the tasks.
 
 ## Tests
 

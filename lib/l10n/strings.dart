@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../models/task.dart';
 import '../utils/dates.dart';
+import '../utils/platform.dart';
 import 'words_be.dart';
 import 'words_de.dart';
 import 'words_en.dart';
@@ -126,6 +127,9 @@ class S {
   @visibleForTesting
   Object raw(String key) => _words[key] ?? en[key]!;
 
+  /// A handful of phrases name the phone — where everything is kept, what
+  /// the language follows — and are worded again for a desktop, under a
+  /// key of their own (`...Desktop`, `followSystem`); the getters choose.
   String _word(String key) => (_words[key] ?? en[key]) as String;
 
   String _fill(String key, Map<String, Object> args) {
@@ -240,7 +244,7 @@ class S {
   String get timesWritten => _word('timesWritten');
   String get language => _word('language');
   String followPhone(String language) =>
-      _fill('followPhone', {'language': language});
+      _fill(onDesktop ? 'followSystem' : 'followPhone', {'language': language});
   String get pageAppearance => _word('pageAppearance');
   String get theme => _word('theme');
   String get themeDark => _word('themeDark');
@@ -293,7 +297,8 @@ class S {
   String get backupSaveHint => _word('backupSaveHint');
   String get backupRestore => _word('backupRestore');
   String get backupRestoreHint => _word('backupRestoreHint');
-  String get backupNote => _word('backupNote');
+  String get backupNote =>
+      _word(onDesktop ? 'backupNoteDesktop' : 'backupNote');
   String get backupSaved => _word('backupSaved');
   String get backupNotSaved => _word('backupNotSaved');
   String get backupAuto => _word('backupAuto');
@@ -302,7 +307,8 @@ class S {
   String get backupWeekly => _word('backupWeekly');
   String get backupFolder => _word('backupFolder');
   String get backupAutoFailed => _word('backupAutoFailed');
-  String get backupAutoNote => _word('backupAutoNote');
+  String get backupAutoNote =>
+      _word(onDesktop ? 'backupAutoNoteDesktop' : 'backupAutoNote');
   String get backupNotCaldo => _word('backupNotCaldo');
   String get backupNewer => _word('backupNewer');
   String get backupUnreadable => _word('backupUnreadable');
@@ -330,8 +336,10 @@ class S {
   String get attachPhoto => _word('attachPhoto');
   String get attachCamera => _word('attachCamera');
   String get attachFile => _word('attachFile');
-  String get attachmentMissing => _word('attachmentMissing');
-  String get noAppOpens => _word('noAppOpens');
+  String get attachmentMissing =>
+      _word(onDesktop ? 'attachmentMissingDesktop' : 'attachmentMissing');
+  String get noAppOpens =>
+      _word(onDesktop ? 'noAppOpensDesktop' : 'noAppOpens');
   String tooBigToAttach(String name) => _fill('tooBigToAttach', {'name': name});
   String get openInApp => _word('openInApp');
   String kilobytes(String n) => _fill('kilobytes', {'n': n});

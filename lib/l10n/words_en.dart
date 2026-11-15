@@ -81,6 +81,7 @@ const Map<String, Object> en = {
   'timesWritten': "Times are written",
   'language': "Language",
   'followPhone': "As the phone ({language})",
+  'followSystem': "As the system ({language})",
   'pageAppearance': "Appearance",
   'themeDark': "Dark",
   'themeLight': "Light",
@@ -142,7 +143,9 @@ const Map<String, Object> en = {
   'attachCamera': "Camera",
   'attachFile': "File",
   'attachmentMissing': "Not on this phone",
+  'attachmentMissingDesktop': "Not on this computer",
   'noAppOpens': "No app on this phone opens this file",
+  'noAppOpensDesktop': "No program on this computer opens this file",
   'tooBigToAttach': "Over 100 MB, not attached: {name}",
   'openInApp': "Open in another app",
   'kilobytes': "{n} KB",
@@ -229,6 +232,8 @@ const Map<String, Object> en = {
   'backupRestoreHint': "Replace everything here with a saved file",
   'backupNote':
       "Caldo keeps everything on this phone and nowhere else. Save a backup to Drive or a computer now and then, and a lost phone or a reinstall won't take your tasks with it.",
+  'backupNoteDesktop':
+      "Caldo keeps everything on this computer and nowhere else. Save a backup somewhere else now and then, and a failed disk or a reinstall won't take your tasks with it.",
   'backupSaved': "Backup saved",
   'backupNotSaved': "The backup could not be saved",
   'backupAuto': "Back up automatically",
@@ -240,6 +245,8 @@ const Map<String, Object> en = {
       "The last copy could not be saved. Choose the folder again.",
   'backupAutoNote':
       "A copy is saved into this folder when Caldo is opened and one is due, and the last seven are kept. A folder that syncs to a computer or the cloud keeps them off the phone as well.",
+  'backupAutoNoteDesktop':
+      "A copy is saved into this folder when Caldo is opened and one is due, and the last seven are kept. A folder that syncs to the cloud or another device keeps them off this computer as well.",
   'backupNotCaldo': "That file is not a Caldo backup",
   'backupNewer':
       "That backup is from a newer Caldo. Update first, then restore it.",

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -17,13 +18,21 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart' show TaskProvider, dayOf;
 import '../theme/app_theme.dart' show AppColors;
 import '../utils/dates.dart';
+import '../utils/platform.dart';
 import 'background.dart';
+import 'desktop.dart';
 
 /// Puts a notification on each dated task, at the minute it is due.
 ///
 /// Android holds scheduled notifications itself, so the app does not have to
 /// be running — but it also forgets them on a reboot or an update, which is
 /// what the boot receiver in the manifest is there to undo.
+///
+/// A desktop holds nothing for a program that is not running, and its
+/// notifications cannot be booked ahead at all. There the alarms are kept
+/// here and put up as they fall due ([_Alarm], [_arm]) — while Caldo is
+/// open, which is the cost: shut, it reminds of nothing, and what fell due
+/// meanwhile is simply overdue when it is next opened.
 ///
 /// Everything here is a no-op until [init] has been through. That is what lets
 /// the widget tests drive the real providers: nothing in a test has a platform
@@ -115,11 +124,15 @@ class Reminders {
   /// the phone in use, it was a tap, and the task is opened.
   static Future<void> _onOpened(NotificationResponse response) async {
     final id = response.id;
-    if (response.notificationResponseType !=
-            NotificationResponseType.selectedNotification ||
-        id == null) {
+    // A button, which only a desktop answers here: Android runs a
+    // reminder's buttons on an isolate of their own, app open or not, and a
+    // desktop has only the app.
+    if (response.notificationResponseType ==
+        NotificationResponseType.selectedNotificationAction) {
+      await onReminderAction(response);
       return;
     }
+    if (id == null) return;
     try {
       if (await _lock.invokeMethod<bool>('covered') == true) return;
     } on MissingPluginException {
@@ -131,7 +144,9 @@ class Reminders {
   /// Whether the app was started by a reminder, and if so, which; from
   /// `main` alone, since only the app's own process was started by one.
   Future<void> takeLaunch() async {
-    if (!_ready) return;
+    // A desktop's notification cannot start the program: it is put up by
+    // the program, and gone when that is.
+    if (!_ready || onDesktop) return;
     try {
       final launch = await _plugin.getNotificationAppLaunchDetails();
       final response = launch?.notificationResponse;
@@ -180,8 +195,19 @@ class Reminders {
       // The buttons are answered on an isolate of their own, whether or not
       // the app is open: they are meant to be pressed without opening it.
       await _plugin.initialize(
-        settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@drawable/ic_notification'),
+        settings: InitializationSettings(
+          android: const AndroidInitializationSettings(
+            '@drawable/ic_notification',
+          ),
+          linux: LinuxInitializationSettings(
+            // What clicking the notification itself is called, where a
+            // desktop shows that at all.
+            defaultActionName: 'Caldo',
+            defaultIcon: switch (onDesktop ? Desktop.icon : null) {
+              final icon? => FilePathLinuxIcon(icon),
+              null => null,
+            },
+          ),
         ),
         onDidReceiveBackgroundNotificationResponse: onReminderAction,
         onDidReceiveNotificationResponse: _onOpened,
@@ -236,6 +262,8 @@ class Reminders {
   /// will not give without being asked. Returns whether we have it.
   Future<bool> requestPermission() async {
     if (!_ready) return false;
+    // A desktop shows what it is sent, and has nobody to ask.
+    if (onDesktop) return true;
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -319,12 +347,13 @@ class Reminders {
 
       var standing = _standing;
       if (standing == null) {
+        _alarms.clear();
         await _plugin.cancelAll();
         standing = _standing = {};
       }
       for (final id in [...standing.keys]) {
         if (wanted[id]?.$3 == standing[id]) continue;
-        await _plugin.cancel(id: id);
+        await _cancel(id);
         standing.remove(id);
       }
       for (final MapEntry(key: id, value: (at, task, said)) in wanted.entries) {
@@ -347,7 +376,7 @@ class Reminders {
   Future<void> reset(Task task) async {
     if (!_ready || task.id == null) return;
     try {
-      await _plugin.cancel(id: task.id!);
+      await _cancel(task.id!);
       if (!_enabled) return;
       final at = whenToAnnounce(task, _allDayMinutes, lead: _lead);
       final now = DateTime.now();
@@ -364,52 +393,122 @@ class Reminders {
   Future<void> dismiss(int id) async {
     if (!_ready) return;
     try {
-      await _plugin.cancel(id: id);
+      await _cancel(id);
     } catch (error, stack) {
       debugPrint('Could not dismiss reminder: $error\n$stack');
     }
   }
 
-  Future<void> _schedule(int id, DateTime at, Task task) =>
-      _plugin.zonedSchedule(
+  /// Takes down the alarm with [id], and its notification if it is up.
+  Future<void> _cancel(int id) {
+    if (_alarms.remove(id) != null) _arm();
+    return _plugin.cancel(id: id);
+  }
+
+  /// The alarms a desktop is waiting on, by task id.
+  final Map<int, _Alarm> _alarms = {};
+  Timer? _waiting;
+
+  /// How long the wait for the next alarm may be before the clock is read
+  /// again. A timer counts the time the machine was awake, so one set for
+  /// an alarm an hour off, on a laptop then shut for the night, would go
+  /// off an hour into the morning; looked at this often, an alarm slept
+  /// through is put up as the lid opens.
+  static const _glance = Duration(seconds: 30);
+
+  /// Waits for the soonest alarm, and puts up whatever has fallen due.
+  void _arm() {
+    _waiting?.cancel();
+    _waiting = null;
+    if (_alarms.isEmpty) return;
+    final now = DateTime.now();
+    final due = [
+      for (final MapEntry(key: id, value: alarm) in _alarms.entries)
+        if (!alarm.at.isAfter(now)) id,
+    ];
+    for (final id in due) {
+      _announce(id, _alarms.remove(id)!);
+    }
+    if (_alarms.isEmpty) return;
+    final next = _alarms.values
+        .map((alarm) => alarm.at)
+        .reduce((a, b) => a.isBefore(b) ? a : b)
+        .difference(now);
+    _waiting = Timer(next < _glance ? next : _glance, _arm);
+  }
+
+  /// Puts a desktop's reminder up: Done and both snoozes, and no Dismiss —
+  /// closing a notification is that already, and a desktop draws its own
+  /// way to.
+  Future<void> _announce(int id, _Alarm alarm) async {
+    try {
+      await _plugin.show(
         id: id,
-        scheduledDate: tz.TZDateTime.from(at, tz.local),
-        title: task.title,
-        body: describe(task, at),
-        // What the full-screen reminder says, in the app's language: the
-        // activity draws it, and has no other way to know the words.
-        payload: jsonEncode({
-          'title': task.title,
-          'text': describe(task, at),
-          'colour': _colourOf(task),
-          done: S.current.reminderDone,
-          for (final MapEntry(key: id, value: minutes) in snoozes.entries)
-            id: snoozeLabel(minutes),
-          dismissed: S.current.reminderDismiss,
-        }),
+        title: alarm.title,
+        body: alarm.body,
         notificationDetails: NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channelId,
-            S.current.reminderChannel,
-            channelDescription: S.current.reminderChannelHint,
-            importance: Importance.high,
-            priority: fln.Priority.high,
-            category: AndroidNotificationCategory.reminder,
-            fullScreenIntent: _fullScreen,
+          linux: LinuxNotificationDetails(
+            urgency: LinuxNotificationUrgency.normal,
+            sound: ThemeLinuxSound('message-new-instant'),
             actions: [
-              AndroidNotificationAction(done, S.current.reminderDone),
-              AndroidNotificationAction(
-                snoozes.keys.first,
-                snoozeLabel(snoozes.values.first),
-              ),
-              AndroidNotificationAction(dismissed, S.current.reminderDismiss),
+              LinuxNotificationAction(key: done, label: S.current.reminderDone),
+              for (final MapEntry(key: key, value: minutes) in snoozes.entries)
+                LinuxNotificationAction(key: key, label: snoozeLabel(minutes)),
             ],
           ),
         ),
-        androidScheduleMode: _exact
-            ? AndroidScheduleMode.exactAllowWhileIdle
-            : AndroidScheduleMode.inexactAllowWhileIdle,
       );
+    } catch (error, stack) {
+      debugPrint('Could not show reminder: $error\n$stack');
+    }
+  }
+
+  Future<void> _schedule(int id, DateTime at, Task task) {
+    if (onDesktop) {
+      _alarms[id] = _Alarm(at, task.title, describe(task, at));
+      _arm();
+      return Future.value();
+    }
+    return _plugin.zonedSchedule(
+      id: id,
+      scheduledDate: tz.TZDateTime.from(at, tz.local),
+      title: task.title,
+      body: describe(task, at),
+      // What the full-screen reminder says, in the app's language: the
+      // activity draws it, and has no other way to know the words.
+      payload: jsonEncode({
+        'title': task.title,
+        'text': describe(task, at),
+        'colour': _colourOf(task),
+        done: S.current.reminderDone,
+        for (final MapEntry(key: id, value: minutes) in snoozes.entries)
+          id: snoozeLabel(minutes),
+        dismissed: S.current.reminderDismiss,
+      }),
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          S.current.reminderChannel,
+          channelDescription: S.current.reminderChannelHint,
+          importance: Importance.high,
+          priority: fln.Priority.high,
+          category: AndroidNotificationCategory.reminder,
+          fullScreenIntent: _fullScreen,
+          actions: [
+            AndroidNotificationAction(done, S.current.reminderDone),
+            AndroidNotificationAction(
+              snoozes.keys.first,
+              snoozeLabel(snoozes.values.first),
+            ),
+            AndroidNotificationAction(dismissed, S.current.reminderDismiss),
+          ],
+        ),
+      ),
+      androidScheduleMode: _exact
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexactAllowWhileIdle,
+    );
+  }
 
   /// What a snooze of [minutes] is called on its button.
   static String snoozeLabel(int minutes) =>
@@ -469,4 +568,13 @@ class Reminders {
       past: task.hasTime ? due.isBefore(at) : days < 0,
     );
   }
+}
+
+/// A reminder a desktop is waiting to put up: when, and what it will say.
+class _Alarm {
+  final DateTime at;
+  final String title;
+  final String body;
+
+  const _Alarm(this.at, this.title, this.body);
 }

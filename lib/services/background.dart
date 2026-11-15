@@ -11,6 +11,7 @@ import '../db/database.dart';
 import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../utils/platform.dart';
 import 'reminders.dart';
 import 'today_widget.dart';
 
@@ -48,6 +49,12 @@ class Background {
   /// when. Settings are read again every time, since this isolate can
   /// outlive a change made to them in the app.
   static Future<void> _prepare() async {
+    // A desktop answers a reminder's buttons in the app itself, where all
+    // of this was done as it started — and where registering the plugins a
+    // second time swaps the one that shows notifications for one that was
+    // never started: every reminder after the first button pressed was
+    // dropped without a word.
+    if (onDesktop) return;
     if (!_prepared) {
       WidgetsFlutterBinding.ensureInitialized();
       DartPluginRegistrant.ensureInitialized();
@@ -80,6 +87,9 @@ class Background {
     }
     await tasks.readAgenda();
     await TodayWidget.publish(tasks);
+    // It listens for changes made outside the app for as long as it lives,
+    // which on a desktop, where this runs in the app, would be for good.
+    tasks.dispose();
     IsolateNameServer.lookupPortByName(_port)?.send(null);
   }
 

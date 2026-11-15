@@ -5,6 +5,7 @@ import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../services/attachments.dart';
 import '../theme/app_theme.dart';
+import '../utils/platform.dart';
 
 /// A task's attachments in the form: its photos as a row of thumbnails, its
 /// other files a line each, and under them the three ways to add one. One
@@ -80,11 +81,13 @@ class AttachmentsField extends StatelessWidget {
                   label: s.attachPhoto,
                   onTap: () => onAdd(AttachFrom.photos),
                 ),
-                _Add(
-                  icon: Icons.photo_camera_outlined,
-                  label: s.attachCamera,
-                  onTap: () => onAdd(AttachFrom.camera),
-                ),
+                // A desktop has no camera app to hand a file to.
+                if (!onDesktop)
+                  _Add(
+                    icon: Icons.photo_camera_outlined,
+                    label: s.attachCamera,
+                    onTap: () => onAdd(AttachFrom.camera),
+                  ),
                 _Add(
                   icon: Icons.attach_file,
                   label: s.attachFile,

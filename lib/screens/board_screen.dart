@@ -120,8 +120,12 @@ class _BoardScreenState extends State<BoardScreen> {
   /// points of the screen; the next lane is wanted on show sooner than that.
   void _watchEdges() {
     if (!_carrying) return;
-    final x = _finger.value;
-    final width = MediaQuery.sizeOf(context).width;
+    // Across the board itself rather than the window: on a desktop the app
+    // can stand in the middle of a window wider than it is.
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final x = box.globalToLocal(Offset(_finger.value, 0)).dx;
+    final width = box.size.width;
     final edge = width * _Board.edge;
     final side = x < edge
         ? -1
