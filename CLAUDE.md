@@ -28,7 +28,8 @@ lib/
   data/holidays.dart     public-holiday rules, computed on device (no network)
   l10n/strings.dart      every word the app says; words_*.dart, a table
                          per language
-  db/database.dart       schema v10: lists, tasks, completions (+ migrations)
+  db/database.dart       schema v11: lists, tasks, completions, and what
+                         a sync needs (+ migrations)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart,
@@ -1621,6 +1622,23 @@ Changing them back will be noticed.
   fades rather than pushing. The translations were written without a native
   speaker's review.
 
+- **Every row is ready to be synced, though nothing syncs yet** (schema
+  v11, `AppDatabase._addSync`). Accounts and sync were asked for — a
+  Supabase of Caldo's own, on this PC first and a VPS after, with the
+  phone's database still the one the app reads. The groundwork came
+  first: each row of the three tables has a `uuid`, an `updated_at` and a
+  `dirty` flag, and a deletion leaves a row in `tombstones`. **The integer
+  ids stay**: the alarms, the widget and every screen go by them, so ids
+  that point at other rows are to be put into uuids only on the way to the
+  server. **Triggers do the stamping, not the writes**: a write comes from
+  a screen, a reminder's button, the widget's isolate or a restore, and one
+  path that forgot would be a change no other device heard of. While
+  `sync_state.applying` is set none of them fire, so what a sync pulls is
+  not sent straight back. Every device's default group has one uuid
+  (`defaultListUuid`), or each would bring its own "Personal" to the
+  account. A backup carries the uuids and leaves out the stamp and the
+  flag; a restore is stamped as a change of its own.
+
 - **Everything can be saved to a file and read back** (`Backup`,
   `AppDatabase.dump`/`replaceAll`, `SettingsProvider.exported`/`restore`,
   the `caldo/backup` channel, Settings' Backup page). Caldo keeps nothing
@@ -1959,7 +1977,7 @@ task's form in a panel down the right**.
 
 ## Tests
 
-`flutter test` — 258 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 267 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:

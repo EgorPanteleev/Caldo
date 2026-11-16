@@ -12,10 +12,22 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._();
 
   static const _dbName = 'caldo.db';
-  static const _dbVersion = 10;
+  static const _dbVersion = 11;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
+  static const _syncState = 'sync_state';
+  static const _tombstones = 'tombstones';
+
+  /// The uuid the default group has on every device. Each one makes its own
+  /// "Personal" on first run; sharing a uuid, they are one group to a sync
+  /// rather than a second "Personal" turning up beside the first.
+  static const defaultListUuid = '00000000-0000-4000-8000-000000000001';
+
+  /// Columns that say how a row stands with the sync rather than what it
+  /// holds. A backup leaves them out: a restore is a change of its own, and
+  /// is stamped as one.
+  static const _bookkeeping = {'updated_at', 'dirty'};
 
   Database? _db;
 
@@ -39,11 +51,6 @@ class AppDatabase {
             sort_order INTEGER
           )
         ''');
-        await db.insert(_lists, {
-          'name': 'Personal',
-          'style_id': 'violet',
-          'created_at': DateTime.now().millisecondsSinceEpoch,
-        });
         await db.execute('''
           CREATE TABLE $_tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +77,15 @@ class AppDatabase {
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
         await db.execute('CREATE INDEX idx_tasks_list ON $_tasks (list_id)');
         await _createCompletions(db);
+        // The same step an upgrade takes, so a new install and an old one
+        // cannot come out with different triggers.
+        await _addSync(db);
+        await db.insert(_lists, {
+          'name': 'Personal',
+          'style_id': 'violet',
+          'created_at': DateTime.now().millisecondsSinceEpoch,
+          'uuid': defaultListUuid,
+        });
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -131,7 +147,127 @@ class AppDatabase {
             "ALTER TABLE $_tasks ADD COLUMN attachments TEXT NOT NULL DEFAULT '[]'",
           );
         }
+        if (oldVersion < 11) {
+          // v10 -> every row is ready to be synced: a uuid, a stamp, and a
+          // note of what has changed since. Everything there is counts as
+          // changed, since no server has seen any of it.
+          await _addSync(db);
+          await _claimDefault(db);
+        }
       },
+    );
+  }
+
+  /// Now in epoch millis, in SQL. `unixepoch('subsec')` would say it more
+  /// plainly but needs SQLite 3.42, newer than older Androids carry.
+  static const _nowMs =
+      "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
+
+  /// A random (version 4) uuid, in SQL, made afresh for each row.
+  static const _newUuid =
+      "lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' "
+      "|| substr(lower(hex(randomblob(2))), 2) || '-' "
+      "|| substr('89ab', 1 + (random() & 3), 1) "
+      "|| substr(lower(hex(randomblob(2))), 2) || '-' "
+      '|| lower(hex(randomblob(6)))';
+
+  /// Makes every table syncable (schema v11).
+  ///
+  /// Rows keep their integer ids, which the alarms, the widget and every
+  /// screen go by; a uuid beside each is what devices know a row by, since
+  /// two of them offline would both hand out the next integer. Ids that
+  /// point at other rows (a task's group, a tick's task) are put into uuids
+  /// only on the way to the server.
+  ///
+  /// The stamping is done by triggers rather than by each write: a write
+  /// comes from a screen, a reminder's button, the widget's tick on an
+  /// isolate of its own, or a restore, and a path that forgot to stamp would
+  /// be a change no other device ever hears of. A deletion leaves a
+  /// tombstone, or a device could not tell a row deleted here from one it
+  /// has not been sent yet. While `sync_state.applying` is set — a sync
+  /// writing what it pulled — none of them fire, so what came from the
+  /// server is not sent straight back to it.
+  static Future<void> _addSync(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE $_syncState (
+        id INTEGER PRIMARY KEY CHECK (id = 0),
+        applying INTEGER NOT NULL DEFAULT 0,
+        cursor INTEGER NOT NULL DEFAULT 0,
+        account TEXT
+      )
+    ''');
+    await db.insert(_syncState, {'id': 0});
+    await db.execute('''
+      CREATE TABLE $_tombstones (
+        table_name TEXT NOT NULL,
+        uuid TEXT NOT NULL,
+        deleted_at INTEGER NOT NULL,
+        PRIMARY KEY (table_name, uuid)
+      )
+    ''');
+    const quiet = '(SELECT applying FROM $_syncState) = 0';
+    for (final table in backedUp) {
+      await db.execute('ALTER TABLE $table ADD COLUMN uuid TEXT');
+      await db.execute(
+        'ALTER TABLE $table ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0',
+      );
+      await db.execute(
+        'ALTER TABLE $table ADD COLUMN dirty INTEGER NOT NULL DEFAULT 1',
+      );
+      await db.execute(
+        'UPDATE $table SET uuid = $_newUuid, updated_at = $_nowMs',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX idx_${table}_uuid ON $table (uuid)',
+      );
+      // A row given a uuid keeps it: a restore, and later a sync, write
+      // rows that already have one.
+      await db.execute('''
+        CREATE TRIGGER ${table}_inserted AFTER INSERT ON $table WHEN $quiet
+        BEGIN
+          UPDATE $table
+            SET uuid = COALESCE(NEW.uuid, $_newUuid),
+                updated_at = $_nowMs, dirty = 1
+            WHERE id = NEW.id;
+          DELETE FROM $_tombstones
+            WHERE table_name = '$table' AND uuid = NEW.uuid;
+        END
+      ''');
+      await db.execute('''
+        CREATE TRIGGER ${table}_updated AFTER UPDATE ON $table WHEN $quiet
+        BEGIN
+          UPDATE $table SET updated_at = $_nowMs, dirty = 1 WHERE id = NEW.id;
+        END
+      ''');
+      await db.execute('''
+        CREATE TRIGGER ${table}_deleted AFTER DELETE ON $table
+          WHEN OLD.uuid IS NOT NULL AND $quiet
+        BEGIN
+          INSERT OR REPLACE INTO $_tombstones (table_name, uuid, deleted_at)
+            VALUES ('$table', OLD.uuid, $_nowMs);
+        END
+      ''');
+    }
+  }
+
+  /// Gives the oldest group — the default, which cannot be deleted — the
+  /// uuid every device's default has, unless one already has it.
+  static Future<void> _claimDefault(DatabaseExecutor db) async {
+    final held = await db.query(
+      _lists,
+      where: 'uuid = ?',
+      whereArgs: [defaultListUuid],
+    );
+    if (held.isNotEmpty) return;
+    await db.rawUpdate(
+      'UPDATE $_lists SET uuid = ? WHERE id = '
+      '(SELECT id FROM $_lists ORDER BY created_at ASC, id ASC LIMIT 1)',
+      [defaultListUuid],
+    );
+    await db.delete(
+      _tombstones,
+      where: 'table_name = ? AND uuid = ?',
+      whereArgs: [_lists, defaultListUuid],
     );
   }
 
@@ -428,7 +564,16 @@ class AppDatabase {
   /// to add it here.
   Future<Map<String, List<Map<String, Object?>>>> dump() async {
     final db = await database;
-    return {for (final table in backedUp) table: await db.query(table)};
+    return {
+      for (final table in backedUp)
+        table: [
+          for (final row in await db.query(table))
+            {
+              for (final MapEntry(:key, :value) in row.entries)
+                if (!_bookkeeping.contains(key)) key: value,
+            },
+        ],
+    };
   }
 
   /// Replaces everything with [tables], in one transaction: a restore that
@@ -453,10 +598,14 @@ class AppDatabase {
         for (final row in tables[table] ?? const []) {
           await txn.insert(table, {
             for (final MapEntry(:key, :value) in row.entries)
-              if (columns.contains(key)) key: value,
+              if (columns.contains(key) && !_bookkeeping.contains(key))
+                key: value,
           });
         }
       }
+      // A backup from before v11 has no uuids, and its rows were given
+      // fresh ones as they went in.
+      await _claimDefault(txn);
     });
   }
 
