@@ -146,6 +146,8 @@ const Map<String, Object> es = {
   'sectionAbout': "ACERCA DE",
   'about':
       "Caldo reúne tu calendario y tus tareas en un solo lugar, solo en este dispositivo.",
+  'aboutSynced':
+      "Caldo reúne tu calendario y tus tareas en un solo lugar, en este dispositivo y en todos donde inicies sesión.",
 
   'editTask': "Editar tarea",
   'taskField': "Tarea",

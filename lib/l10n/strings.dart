@@ -289,6 +289,7 @@ class S {
   String get allDayTasks => _word('allDayTasks');
   String get sectionAbout => _word('sectionAbout');
   String get about => _word('about');
+  String get aboutSynced => _word('aboutSynced');
   String version(String version) => _fill('version', {'version': version});
   String get pageSync => _word('pageSync');
   String get syncOff => _word('syncOff');

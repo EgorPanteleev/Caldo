@@ -146,6 +146,8 @@ const Map<String, Object> de = {
   'sectionAbout': "ÜBER",
   'about':
       "Caldo hält Kalender und Aufgabenliste an einem Ort – nur auf diesem Gerät.",
+  'aboutSynced':
+      "Caldo hält Kalender und Aufgabenliste an einem Ort – auf diesem Gerät und auf jedem, auf dem du angemeldet bist.",
 
   'editTask': "Aufgabe bearbeiten",
   'taskField': "Aufgabe",

@@ -147,6 +147,8 @@ const Map<String, Object> fr = {
   'sectionAbout': "À PROPOS",
   'about':
       "Caldo réunit votre calendrier et vos tâches au même endroit, uniquement sur cet appareil.",
+  'aboutSynced':
+      "Caldo réunit votre calendrier et vos tâches au même endroit, sur cet appareil et sur chaque appareil connecté.",
 
   'editTask': "Modifier la tâche",
   'taskField': "Tâche",

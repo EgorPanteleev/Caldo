@@ -140,6 +140,8 @@ const Map<String, Object> tr = {
   'sectionAbout': "HAKKINDA",
   'about':
       "Caldo takviminizi ve yapılacaklar listenizi tek yerde, yalnızca bu cihazda tutar.",
+  'aboutSynced':
+      "Caldo takviminizi ve yapılacaklar listenizi tek yerde tutar: bu cihazda ve oturum açtığınız her cihazda.",
 
   'editTask': "Görevi düzenle",
   'taskField': "Görev",

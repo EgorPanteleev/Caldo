@@ -146,6 +146,8 @@ const Map<String, Object> it = {
   'sectionAbout': "INFORMAZIONI",
   'about':
       "Caldo tiene calendario e attività in un unico posto, solo su questo dispositivo.",
+  'aboutSynced':
+      "Caldo tiene calendario e attività in un unico posto, su questo dispositivo e su ogni altro con l'accesso.",
 
   'editTask': "Modifica attività",
   'taskField': "Attività",

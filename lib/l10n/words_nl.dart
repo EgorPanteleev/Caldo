@@ -146,6 +146,8 @@ const Map<String, Object> nl = {
   'sectionAbout': "OVER",
   'about':
       "Caldo houdt je kalender en takenlijst op één plek bij, alleen op dit apparaat.",
+  'aboutSynced':
+      "Caldo houdt je kalender en takenlijst op één plek bij, op dit apparaat en op elk ander waarop je bent ingelogd.",
 
   'editTask': "Taak bewerken",
   'taskField': "Taak",

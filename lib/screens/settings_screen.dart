@@ -190,7 +190,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _Group(children: [row(6), row(7)]),
         _Group(
           label: s.sectionAbout,
-          footnote: s.about,
+          footnote: Account.instance.email.value == null
+              ? s.about
+              : s.aboutSynced,
           children: const [_Version()],
         ),
       ],

@@ -131,6 +131,8 @@ const Map<String, Object> en = {
   'sectionAbout': "ABOUT",
   'about':
       "Caldo keeps your calendar and to-do list in one place, stored on this device only.",
+  'aboutSynced':
+      "Caldo keeps your calendar and to-do list in one place, on this device and on every other you sign in on.",
 
   'editTask': "Edit task",
   'taskField': "Task",

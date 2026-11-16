@@ -15,7 +15,8 @@ class FakeServer extends SyncServer {
   @override
   String? account = 'me';
 
-  final _rows = <String, ({Map<String, Object?>? data, int at, bool gone, int seq})>{};
+  final _rows =
+      <String, ({Map<String, Object?>? data, int at, bool gone, int seq})>{};
   final _of = <String, ({String table, String uuid})>{};
   var _seq = 0;
 
@@ -33,17 +34,23 @@ class FakeServer extends SyncServer {
           seq: ++_seq,
         );
       } else {
-        _rows[key] = (data: held.data, at: held.at, gone: held.gone, seq: ++_seq);
+        _rows[key] = (
+          data: held.data,
+          at: held.at,
+          gone: held.gone,
+          seq: ++_seq,
+        );
       }
     }
   }
 
   @override
   Future<List<SyncRow>> pull(int since, int page) async {
-    final mine = _rows.entries
-        .where((e) => e.key.startsWith('$account/') && e.value.seq > since)
-        .toList()
-      ..sort((a, b) => a.value.seq.compareTo(b.value.seq));
+    final mine =
+        _rows.entries
+            .where((e) => e.key.startsWith('$account/') && e.value.seq > since)
+            .toList()
+          ..sort((a, b) => a.value.seq.compareTo(b.value.seq));
     return [
       for (final e in mine.take(page))
         SyncRow(
@@ -82,8 +89,11 @@ class Device {
   }
 
   Future<String> uuidOf(String table, int id) async =>
-      (await (await raw).query(table, where: 'id = ?', whereArgs: [id]))
-              .single['uuid']
+      (await (await raw).query(
+            table,
+            where: 'id = ?',
+            whereArgs: [id],
+          )).single['uuid']
           as String;
 
   Future<int> count(String sql) async =>
@@ -139,7 +149,10 @@ void main() {
 
     final there = await b.named('Ship');
     expect(there, isNotNull);
-    expect(await b.uuidOf('tasks', there!.id!), await a.uuidOf('tasks', made.id!));
+    expect(
+      await b.uuidOf('tasks', there!.id!),
+      await a.uuidOf('tasks', made.id!),
+    );
     // Both phones' Personal is one group, so it lands in B's own.
     final lists = await (await b.raw).query('lists');
     expect(lists, hasLength(1));
@@ -173,7 +186,11 @@ void main() {
     await a.sync.run();
     await b.sync.run();
     expect(await b.named('Ship it'), isNull);
-    expect(await b.dirty(), 0, reason: 'a deletion from elsewhere is no tombstone');
+    expect(
+      await b.dirty(),
+      0,
+      reason: 'a deletion from elsewhere is no tombstone',
+    );
   });
 
   test('of two edits made apart, the later wins on both phones', () async {
@@ -227,8 +244,7 @@ void main() {
     expect((await b.named('Essay'))!.listId, group['id']);
   });
 
-  test('a tick and its log entry travel, pointing at the right task',
-      () async {
+  test('a tick and its log entry travel, pointing at the right task', () async {
     final made = await a.add('Ship');
     await a.db.complete(made, 1000);
     await a.sync.run();
@@ -246,11 +262,13 @@ void main() {
     );
     await a.sync.run();
     await b.sync.run();
-    final uniOnB = (await (await b.raw).query(
-      'lists',
-      where: 'name = ?',
-      whereArgs: ['Uni'],
-    )).single['id'] as int;
+    final uniOnB =
+        (await (await b.raw).query(
+              'lists',
+              where: 'name = ?',
+              whereArgs: ['Uni'],
+            )).single['id']
+            as int;
     // B files a task in it before hearing that A deleted the group.
     await a.db.deleteList(uni.id!, into: 1);
     await a.sync.run();
@@ -261,30 +279,57 @@ void main() {
     expect((await a.named('Essay'))!.listId, 1);
   });
 
-  test('a column the server has and this version does not is passed by',
-      () async {
-    final made = await a.add('Ship');
-    await a.sync.run();
-    final uuid = await a.uuidOf('tasks', made.id!);
-    await server.push([
-      SyncRow(
-        table: 'tasks',
-        uuid: uuid,
-        updatedAt: DateTime.now().millisecondsSinceEpoch + 1000,
-        data: {'title': 'Ship v2', 'from_the_future': 1},
+  test(
+    'a column the server has and this version does not is passed by',
+    () async {
+      final made = await a.add('Ship');
+      await a.sync.run();
+      final uuid = await a.uuidOf('tasks', made.id!);
+      await server.push([
+        SyncRow(
+          table: 'tasks',
+          uuid: uuid,
+          updatedAt: DateTime.now().millisecondsSinceEpoch + 1000,
+          data: {'title': 'Ship v2', 'from_the_future': 1},
+        ),
+      ]);
+      await a.sync.run();
+      expect(await a.named('Ship v2'), isNotNull);
+      // And sending it back up does not wipe what this version cannot see.
+      await tick();
+      await a.db.update((await a.named('Ship v2'))!.copyWith(notes: 'n'));
+      await a.sync.run();
+      expect(server.dataOf('tasks', uuid)?['from_the_future'], 1);
+    },
+  );
+
+  test('an all-day task travels as a day, a timed one as an instant', () async {
+    final day = DateTime(2026, 11, 16);
+    await a.db.insert(
+      Task(
+        listId: 1,
+        title: 'All day',
+        dueAt: day.millisecondsSinceEpoch,
+        createdAt: 1,
       ),
-    ]);
+    );
+    final at = DateTime(2026, 11, 16, 15, 30).millisecondsSinceEpoch;
+    await a.db.insert(
+      Task(listId: 1, title: 'Timed', dueAt: at, hasTime: true, createdAt: 1),
+    );
+    final sent = {
+      for (final r in await SyncStore(a.db).outgoing())
+        if (r.table == 'tasks') r.data!['title']: r.data!['due_at'],
+    };
+    expect(sent, {'All day': '2026-11-16', 'Timed': at});
+
     await a.sync.run();
-    expect(await a.named('Ship v2'), isNotNull);
-    // And sending it back up does not wipe what this version cannot see.
-    await tick();
-    await a.db.update((await a.named('Ship v2'))!.copyWith(notes: 'n'));
-    await a.sync.run();
-    expect(server.dataOf('tasks', uuid)?['from_the_future'], 1);
+    await b.sync.run();
+    expect((await b.named('All day'))!.dueAt, day.millisecondsSinceEpoch);
+    expect((await b.named('Timed'))!.dueAt, at);
   });
 
-  test('signing in to another account sends everything here to it',
-      () async {
+  test('signing in to another account sends everything here to it', () async {
     await a.add('Ship');
     await a.sync.run();
     expect(await a.dirty(), 0);

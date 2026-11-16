@@ -112,16 +112,17 @@ class SyncStore {
       for (final r in await d.rawQuery(
         'SELECT r.*$picks FROM $t r$joins WHERE r.dirty = 1',
       )) {
+        final data = {
+          for (final MapEntry(:key, :value) in r.entries)
+            if (!_local.contains(key) && !links.containsKey(key)) key: value,
+        };
+        if (t == 'tasks') _toDay(data);
         rows.add(
           SyncRow(
             table: t,
             uuid: r['uuid'] as String,
             updatedAt: r['updated_at'] as int,
-            data: {
-              for (final MapEntry(:key, :value) in r.entries)
-                if (!_local.contains(key) && !links.containsKey(key))
-                  key: value,
-            },
+            data: data,
           ),
         );
       }
@@ -137,6 +138,29 @@ class SyncStore {
       );
     }
     return rows;
+  }
+
+  /// An all-day task is due on a day, not at an instant, and it travels as
+  /// one ("2026-11-16"). Here it is kept as the local midnight that starts
+  /// the day, and that instant sent as it is was a different day to a
+  /// device in another time zone: filed on the 16th in Moscow, it arrived
+  /// as the 15th in London, overdue. Each end turns the day into its own
+  /// midnight.
+  static void _toDay(Map<String, Object?> data) {
+    final due = data['due_at'];
+    if (data['has_time'] != 0 || due is! int) return;
+    final day = DateTime.fromMillisecondsSinceEpoch(due);
+    data['due_at'] =
+        '${day.year.toString().padLeft(4, '0')}-'
+        '${day.month.toString().padLeft(2, '0')}-'
+        '${day.day.toString().padLeft(2, '0')}';
+  }
+
+  static void _fromDay(Map<String, Object?> values) {
+    final due = values['due_at'];
+    if (due is! String) return;
+    // Parsed without a zone, a date is this device's own midnight.
+    values['due_at'] = DateTime.tryParse(due)?.millisecondsSinceEpoch;
   }
 
   /// Notes that [rows] have reached the server. Only as they were sent: a
@@ -268,6 +292,7 @@ class SyncStore {
       'updated_at': r.updatedAt,
       'dirty': 0,
     };
+    if (r.table == 'tasks') _fromDay(values);
     for (final MapEntry(key: column, value: (target, name))
         in (_links[r.table] ?? const {}).entries) {
       final linked = r.data?[name] as String?;
@@ -279,7 +304,12 @@ class SyncStore {
     if (here == null) {
       await txn.insert(r.table, values);
     } else {
-      await txn.update(r.table, values, where: 'id = ?', whereArgs: [here['id']]);
+      await txn.update(
+        r.table,
+        values,
+        where: 'id = ?',
+        whereArgs: [here['id']],
+      );
     }
     return true;
   }

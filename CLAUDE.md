@@ -1670,6 +1670,13 @@ Changing them back will be noticed.
   addresses alone (`res/xml/network_security.xml`), to come out once the
   server has HTTPS. The server's side is `supabase/`: `config.toml`, the
   migration, and `tests/sync_test.sql` (`supabase test db`).
+  **An all-day task travels as a day, not an instant** (`SyncStore._toDay`,
+  `_fromDay`): it is kept as the local midnight that starts its day, and
+  that instant sent as it is was another day on a device in another time
+  zone — a task filed on the 16th on the desktop, in Moscow, arrived
+  overdue on the emulator, which is on GMT. Each end makes the day its own
+  midnight. Timed tasks stay instants, as a meeting at three in Moscow is
+  at noon in London.
 
 - **Everything can be saved to a file and read back** (`Backup`,
   `AppDatabase.dump`/`replaceAll`, `SettingsProvider.exported`/`restore`,
@@ -2009,7 +2016,7 @@ task's form in a panel down the right**.
 
 ## Tests
 
-`flutter test` — 278 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 279 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -2190,6 +2197,24 @@ Three things that look like bugs and are not:
   movement — whether it builds and decays, or jumps and catches — which is
   enough to tell a spring from a teleport. They do not show whether it is
   smooth. Say which of the two was checked.
+
+## Running the sync server
+
+Supabase runs in Docker on this PC (`supabase/`, the CLI at
+`~/.local/bin/supabase`, v3.1.0). From the repo:
+
+```sh
+supabase start -x imgproxy      # the stack; first time pulls a few GB
+supabase test db                # the pgTAP tests
+supabase stop                   # it holds 2-3GB; stop it when done
+```
+
+The API is `http://127.0.0.1:54321` (the emulator's 10.0.2.2:54321), the
+dashboard :54323, and every email it sends — the sign-in codes — lands in
+Mailpit at :54324 rather than going out (`/api/v1/messages` to read one
+from a script). The anon key built into `Account` is the one every local
+Supabase starts with. A shell started before its user joined the docker
+group can still reach it through `newgrp docker`.
 
 ## Running on Linux
 
