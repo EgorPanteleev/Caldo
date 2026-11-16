@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -8,10 +9,15 @@ import '../models/task_list.dart';
 /// Thin wrapper around the local sqflite database that stores task lists and
 /// the tasks they contain.
 class AppDatabase {
-  AppDatabase._();
-  static final AppDatabase instance = AppDatabase._();
+  AppDatabase._(this._dbName);
+  static final AppDatabase instance = AppDatabase._('caldo.db');
 
-  static const _dbName = 'caldo.db';
+  /// A database of its own under [name], for a test that needs two devices
+  /// at once — a sync's two ends.
+  @visibleForTesting
+  factory AppDatabase.named(String name) => AppDatabase._(name);
+
+  final String _dbName;
   static const _dbVersion = 11;
   static const _lists = 'lists';
   static const _tasks = 'tasks';

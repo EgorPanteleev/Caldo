@@ -30,6 +30,7 @@ lib/
                          per language
   db/database.dart       schema v11: lists, tasks, completions, and what
                          a sync needs (+ migrations)
+  db/sync_store.dart     local rows to the server's and back (uuids for ids)
   models/                task.dart (Repeat, Priority), task_list.dart
                          (ListStyle, colorOfTask), completion.dart
   providers/             task_provider.dart, settings_provider.dart,
@@ -41,6 +42,7 @@ lib/
   services/device_calendars.dart  the phone's own calendars, read-only
   services/updates.dart  the newer-release check, download and install
   services/backup.dart   everything as one JSON file, saved and restored
+  services/sync.dart     a round of sync: push what changed, pull the rest
   services/attachments.dart  files and photos on tasks: picked, copied in,
                          opened elsewhere, swept up
   screens/               home (shell: tab bar or menu), tasks (Schedule), calendar,
@@ -1638,6 +1640,16 @@ Changing them back will be noticed.
   (`defaultListUuid`), or each would bring its own "Personal" to the
   account. A backup carries the uuids and leaves out the stamp and the
   flag; a restore is stamped as a change of its own.
+  **A round pushes first and pulls after** (`Sync`, `SyncStore`): what
+  comes down has already been weighed against this device's changes on the
+  server. A pulled row is passed over if it was changed here later (it goes
+  up next round and wins there), and a row is marked sent only as it was
+  sent, so an edit made mid-round is not lost. The cursor is written in the
+  same transaction as the rows it covers. Signing in to an account other
+  than the last marks every row to be sent, keeping its stamp. Tested
+  against an in-memory server with the SQL's rules (`sync_test.dart`,
+  `FakeServer`), two devices each on a database of its own
+  (`AppDatabase.named`).
 
 - **Everything can be saved to a file and read back** (`Backup`,
   `AppDatabase.dump`/`replaceAll`, `SettingsProvider.exported`/`restore`,
@@ -1977,7 +1989,7 @@ task's form in a panel down the right**.
 
 ## Tests
 
-`flutter test` — 267 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 278 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
