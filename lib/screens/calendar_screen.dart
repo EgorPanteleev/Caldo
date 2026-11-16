@@ -1911,14 +1911,17 @@ class _ViewSwitch extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: () => onChanged(value),
           // As tall as the date beside it, so the bar keeps its height.
-          child: Container(
-            width: 38,
-            height: 24,
-            decoration: BoxDecoration(
-              color: on ? p.panelHi : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              width: 38,
+              height: 24,
+              decoration: BoxDecoration(
+                color: on ? p.panelHi : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 16, color: on ? p.text : p.faint),
             ),
-            child: Icon(icon, size: 16, color: on ? p.text : p.faint),
           ),
         ),
       ),

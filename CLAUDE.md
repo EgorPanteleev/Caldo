@@ -1,7 +1,8 @@
 # Caldo — working notes
 
-A calendar + to-do app for Android — and, as the same app in a window, for
-Linux — Flutter, local-only storage. Private repo:
+A calendar + to-do app for Android — and for Linux, where a wide window
+gets a desktop's layout of its own and a narrow one is the phone's app —
+Flutter, local-only storage. Private repo:
 `github.com/EgorPanteleev/Caldo`. It is modelled on its sibling app **Dicty**
 (`/home/igor/dev/src/Dicty`) — same stack, same theme. When a question about
 style or structure comes up, look there first.
@@ -46,6 +47,7 @@ lib/
   theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
   services/desktop.dart  on Linux, what the activity does on a phone:
                          directories, file dialogs, opening a file, updating
+  screens/desk_shell.dart  the wide layout's sidebar and form panel
   utils/dates.dart       every date/time string the UI shows
   utils/platform.dart    onDesktop
   widgets/               month_grid, task_card (+ HolidayCard),
@@ -55,7 +57,9 @@ lib/
                          quick_add_bar, screen_header (+ TodayButton),
                          theme_switcher, slide_into_place, choice_sheet,
                          tick_off (+ AsShown), carry, selection,
-                         reorderable_task_list, attachments_field
+                         reorderable_task_list, attachments_field,
+                         desk (Desk, TaskPanel, the mouse and the keys),
+                         task_menu
 ```
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
@@ -79,7 +83,8 @@ Android's sizes, and Linux's one, by `tool/make_icon.sh` (needs
 Five destinations — **Schedule**, **Calendar**, **Board**, **Done**,
 **Settings** — in a tab bar floating along the foot of the window, or in a
 menu behind a button at the top left of each, as Settings chooses; nothing
-else is in either. Done was asked for as "a Done log or simple stats";
+else is in either. In a desktop's wide window they are in a sidebar
+instead (see Linux). Done was asked for as "a Done log or simple stats";
 Board came after it. Any of the first four can be taken out of the bar in
 Settings; Settings itself cannot.
 
@@ -1704,11 +1709,14 @@ Changing them back will be noticed.
 
 ## Linux
 
-Asked for as "port this to linux". It is the phone's app in a window, not a
-desktop app designed as one: every screen, sheet and gesture is the one
-above, and what follows is only what had to differ. Tried on a display of
-its own (`tool/desktop/try.sh`, below), never yet seen by the user on their
-own desk — the first thing they say about it outranks all of this.
+Asked for as "port this to linux", and then as "full port to linux, like
+change ui too, so it be full pc app". So there are two layouts on a
+desktop: **a window 900 points wide or more is laid out as a desktop
+program** — "The wide layout", below — and **a narrower one is the phone's
+app in a window**, every screen, sheet and gesture the one above. Both were
+tried on a display of their own (`tool/desktop/try.sh`, below), and
+**neither has yet been seen by the user on their own desk** — the first
+thing they say about it outranks all of this.
 
 - **`onDesktop` is asked of Flutter, not of `dart:io`** (`utils/platform.dart`).
   The widget tests run on a Linux host and are told they are on Android,
@@ -1769,12 +1777,14 @@ own desk — the first thing they say about it outranks all of this.
 - **Escape is Back** (`_EscapeGoesBack`, asking the navigator to
   `maybePop`): out of a page or a sheet, down with a selection, shut with
   the menu, and from another tab to the one the app opened on.
-- **A mouse scrolls as a finger does** (`DesktopScrolling`): drags count,
-  or the month, the days under it, the board's lanes and the clock's wheels
-  could not be turned at all; and no scrollbars, which Flutter otherwise
-  draws down every list on a desktop, the wheels and the row of groups
-  included. A pager dragged slowly and let go at rest short of half way
-  goes back, as under a finger.
+- **In the phone's layout a mouse scrolls as a finger does**
+  (`DesktopScrolling`): drags count, or the month, the days under it, the
+  board's lanes and the clock's wheels could not be turned at all; and no
+  scrollbars, which Flutter otherwise draws down every list on a desktop,
+  the wheels and the row of groups included. A pager dragged slowly and let
+  go at rest short of half way goes back, as under a finger. The wide
+  layout scrolls otherwise (`WideScrolling`, below); a dialog over it
+  still scrolls this way, which is what turns the clock's wheels there.
 - **The wheel over the grid turns the month, or the week** (`_onWheel`).
   The grid has no arrows and nobody tries dragging a calendar with a
   mouse. A page a notch, and no second page until the first has landed,
@@ -1786,19 +1796,22 @@ own desk — the first thing they say about it outranks all of this.
 - **The theme says a phone's sizes outright** (`visualDensity`,
   `materialTapTargetSize`). Unsaid, a desktop draws every button and row a
   size tighter.
-- **A window wider than 640 keeps the app in its middle** (`PhoneWide`).
-  Stretched across 1200 points the tab bar was a pill the width of the
-  monitor and a card a stripe from edge to edge. A layout of its own for a
-  wide window would be a second app, and is the user's to ask for. The
-  column is handed down as "the screen" (`MediaQuery.size`), and clipped,
-  since the menu waits beyond its edge. The board measured a carried
-  card's place against the window's width and now measures it against
-  itself.
-- **The window opens at 460 by 880, no smaller than 340 by 560, one at a
-  time** (`my_application.cc`). Started again, the one running is brought
-  forward: two would each ring every reminder, over one database. Its title
-  bar is asked to be dark, the app being dark out of the box; it stays
-  dark under the light theme.
+- **A window between 640 and 900 wide keeps the phone's app in its middle**
+  (`PhoneWide`). Stretched, the tab bar was a pill the width of the monitor
+  and a card a stripe from edge to edge. The column is handed down as "the
+  screen" (`MediaQuery.size`), and clipped, since the menu waits beyond its
+  edge. The board measured a carried card's place against the window's
+  width and now measures it against itself. `PhoneWide` stays in the tree
+  in the wide layout, switched off, so the navigator under it is not moved
+  when the layout changes.
+- **The window opens at the size it was closed at — the first time 1240 by
+  780 — no smaller than 340 by 560, one at a time** (`my_application.cc`).
+  The size is kept beside the database, in `window`, as `width height
+  maximized`, written when the window is closed (`delete-event`; a kill
+  writes nothing). Started again, the one running is brought forward: two
+  would each ring every reminder, over one database. Its title bar is
+  asked to be dark, the app being dark out of the box; it stays dark under
+  the light theme.
 - **What is not there**: the home-screen widget, the phone's calendars
   (their Settings panel is hidden), the full-screen reminder (its switch is
   hidden), the camera (Photo and File only), the keyboard numbers.
@@ -1823,9 +1836,130 @@ own desk — the first thing they say about it outranks all of this.
   **The version is the one in `pubspec.yaml`**: `--build-name` does not
   reach `version.json` on Linux, which is where it is read from.
 
+### The wide layout
+
+Chosen from three mockups (a sidebar with wide screens; the agenda always
+down the left with one big view beside it; tabs across the top), and for
+the form from three more (a panel on the right; a dialog; the full page).
+What was chosen: **a sidebar, each screen drawn for the width it has, and a
+task's form in a panel down the right**.
+
+- **`Desk.wideOf(context)` is the one question** (`widgets/desk.dart`).
+  `DeskScope`, in `MaterialApp.builder` above the navigator so a dialog can
+  ask as readily as a screen, answers it: on a desktop, at 900 points or
+  more. The tests are told they are on a phone, and nothing over a screen
+  pumped alone provides a `Desk`, so there it is always narrow; a test of
+  the wide layout says Linux and pumps what `CaldoApp` builds
+  (`desk_test.dart`, `pumpApp`). `Desk.isWide` is the same asked from a
+  callback, without subscribing.
+- **The layout only changes while nothing is open over the screens.** A
+  form with something typed in it is a panel in one layout and a page in
+  the other; a window dragged across the line would have taken it away
+  with the layout it was in. So the layout in force is kept while the
+  panel is open or the navigator can pop, and `DeskScope.observer` tells
+  the scope when a route has gone. **Each screen sits under a `GlobalKey`
+  in the shell** (`_pages`), so it is moved from one layout to the other
+  with its state: the day picked, how far it is scrolled.
+- **The sidebar is the tab bar stood on end** (`DeskSidebar`): New task
+  (Ctrl N), Search (Ctrl F), the four screens with the overdue backlog as
+  a count, the groups, and Settings at its foot. **The groups are a list
+  there, for every screen at once**, and the rows of chips are not drawn:
+  a click shows one group, a drag carries one to another place, and a
+  right click — or the pencil that comes up under the pointer — opens it,
+  which is what a long press let go of does to a chip. A group picked from
+  Done or Settings goes to the first screen that goes by groups.
+- **The form is a panel over the right edge, not a route** (`TaskPanel`,
+  `DeskFormPanel`). Everything that opens a form goes through
+  `openTaskForm`, which pushes the page on a phone and asks the panel
+  here; `TaskEditScreen.inPanel` closes through the panel rather than the
+  navigator. The screen beside it stays live: a click on another task
+  swaps the form. Every screen but the calendar is padded by the panel's
+  width while it is open (`_wide` in the shell), unless that would leave
+  it under 420, when the panel lies over it.
+- **A form with changes in it does not give way.** `TaskPanel.open` only
+  shakes Cancel and Save (`nudged`, `_Nudged`) — the head-shake a held-back
+  tick gives. **"Changes" is the words differing, not the form being
+  touched** (`_typed`, `_wordsDiffer`): a text controller speaks when the
+  caret is put in its field, so a new task, which opens with the caret in
+  its name, counted as changed from the start. The phone's own rule — the
+  arrow goes once anything is touched — is as it was.
+- **Escape closes the panel, as Cancel does — in two presses if something
+  is typed and the caret is still in a field** (`_escapeForm`): the first
+  only leaves the field. Escape is pressed out of habit, and a note is a
+  lot to lose to one. What is picked out answers to Escape first.
+- **The calendar has one state, not three** (`_buildWide`): the month
+  opened out over all the height, and the day picked down the right, 384
+  wide — the form's width, so the form covers the day exactly and the
+  month does not move. It is the same `_CalendarScreenState`, so the day,
+  the month pager and the carry are shared with the phone's; `_expansion`
+  is left alone and simply not read (`_wide`). No day sheet. Arrows are
+  back over the month, with Today between them, since nobody drags a
+  month with a mouse; the wheel still turns it.
+- **The month has a desktop's sizes where its days are wide enough**
+  (`MonthSizes.desk`, 72 points a day or more; narrower, a phone's): the
+  number at the day's top left over one-line titles at 11.5 points that
+  fade at the end of the line, "Mon" for "M". **A title is clicked to open
+  its task and dragged to another day to move it** (`_TaskTitle`,
+  `_DropDay`, `MouseDraggable`) — the move offered back in the day's add
+  row, as a card put off is. A card from the day's list is still carried
+  onto the month by the phone's own `Carry`; its tile is capped at 150 by
+  64, a desktop's day being far larger than a tile needs to be.
+- **Schedule and Done keep to a column 760 wide in the middle, but their
+  lists span the window** (`DeskColumn`, `DeskGutter`): each sliver is
+  padded rather than the list narrowed, or a wheel turned over the empty
+  room beside the cards would scroll nothing. Every screen's title stands
+  at one height (`ScreenHeader`, 48), or it jumped as the sidebar swapped
+  one for the next.
+- **The board has its three lanes on show at once**, a third each, down
+  to 200 points a lane (`_Board.wideFraction`); narrower than that it is
+  turned between them, as a phone's is.
+- **Settings is its list beside the page it opens**
+  (`_SettingsScreenState._entries`, `_page`), the page in force lifted on
+  the list. "Switch screens with" is not offered: neither the bar nor the
+  menu is there.
+- **Every sheet is a dialog in the middle of the window** (`showAppSheet`,
+  which every picker goes through; `PickerSheet` on a phone): a sheet the
+  width of a monitor rising from its foot was a phone's gesture a long way
+  from what was clicked. **Search is a panel hung from the top**
+  (`openSearch`), as tall as what it has found; a task opened from it
+  takes its place.
+- **A card is picked up by dragging it, at once** (`pickUpListener`,
+  `MouseDragRecognizer`), and lists do not scroll by a drag of the mouse
+  (`WideScrolling`), which would take the drag first. **Six points of
+  movement, not Flutter's two**: under a mouse a click is rarely that
+  still, and a card clicked to be opened came up to be carried instead,
+  the click lost. The long press let go of that picks a card out is the
+  mouse's drag here, so **Ctrl and a click picks one out**, and
+  `Selection.lifted` is not told.
+- **A right click on a card opens what a phone does by gesture**
+  (`showTaskMenu`): edit, done, today, the next day, pick a day, another
+  group, select, delete. Putting off is there rather than on a swipe
+  (`PutOff` is not wrapped round a card here; `PutOff.move` is what both
+  do).
+- **The keys are heard above the navigator** (`DeskKeys`, beside Escape):
+  Ctrl+N, Ctrl+F or K, Ctrl+1 to 5 for the screens, and on the calendar
+  the arrows for the day, Page Up and Down for the month, Home or T for
+  today. A `Focus` there rather than `CallbackShortcuts` in the shell, for
+  two reasons: with nothing focused the focus is the route's own, which is
+  above the shell, so keys bound down there only worked after a click; and
+  the arrows have to be let through to a field being typed in, which a
+  shortcut that always answers cannot do — it sits nearer the focus than
+  Flutter's own text shortcuts and would take them. Nothing but Escape is
+  answered while a dialog is open. The shell and the calendar say what the
+  keys do through `DeskActions`.
+- **A time can be typed** (`parseClock`, the field over the wheels):
+  "9", "930", "9:30 pm". The wheels follow and Enter takes it.
+- **An animation made on first use must not be first used in `dispose`.**
+  `late final _slide = AnimationController(vsync: this, …)` is made when
+  first read, and for a widget that never needed it that was `dispose`,
+  where a ticker can no longer be made. The form's panel did it, and so —
+  from before — did `UndoSlot` and `SelectionSlot` under the tab bar on a
+  screen with no field; all three are made in `initState` now. It only
+  shows as an assertion, and only if the widget is torn down unused.
+
 ## Tests
 
-`flutter test` — 246 tests, all passing. Keep them that way; several real bugs
+`flutter test` — 258 tests, all passing. Keep them that way; several real bugs
 in this app were caught by them before the emulator ever saw the code.
 
 Things that will bite you:
@@ -1844,7 +1978,13 @@ Things that will bite you:
   widths; assert layout invariants instead (e.g. "the title is given all the
   width the controls leave").
 - Widget keys are exported for tests: `monthTitleKey`, `calendarHandleKey`,
-  `daySheetKey`, `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`.
+  `daySheetKey`, `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`,
+  and for the wide layout `deskSidebarKey`, `deskFormKey`, `deskNewTaskKey`.
+- **A test that ends with a widget never having used its animation finds
+  the `dispose` fault above**; "A Timer is still pending" after it is the
+  same failure, the teardown having stopped halfway.
+- `TaskPanel` is one for the app, so a test of the wide layout closes it
+  in `tearDown`.
 
 ## Building
 
@@ -2011,13 +2151,18 @@ is how every claim in the Linux section was looked at.
 ```sh
 flutter build linux --release
 tool/desktop/try.sh
-import -display :99 -window root -crop 460x880+0+0 shot.png   # then look
-python tool/desktop/x.py click 409 768     # the plus; needs python-xlib
+import -display :99 -window root -crop 1240x780+0+0 shot.png   # then look
+python tool/desktop/x.py click 80 230      # Calendar; needs python-xlib
+python tool/desktop/x.py key n ctrl        # a new task
 python tool/desktop/x.py type "Buy milk"; python tool/desktop/x.py key Return
+python tool/desktop/x.py resize 480 780    # and it is the phone's app
 ```
 
-`x.py` clicks, drags (with a hold, for a long press), types, turns the
-wheel and resizes the window; its header says how. `notifd.py` stands in
+`x.py` clicks, right-clicks, drags (with a hold, for a long press), types,
+presses a key with or without Ctrl, turns the wheel and resizes the
+window; its header says how. python-xlib is not installed on this machine:
+make a venv for it. With no window manager on that display the window is
+closed, to see its size kept, by sending it `WM_DELETE_WINDOW`. `notifd.py` stands in
 for the notification server: what Caldo sends is written to `notifd.log`,
 and a button's key written to a file called `press` is pressed. To try a
 reminder, stop the app, put a task a minute ahead with `sqlite3` (`due_at`
@@ -2053,8 +2198,12 @@ Things that looked like bugs and were not:
 - **On Linux a reminder needs Caldo open.** There is no tray icon and
   nothing running once the window is shut; keeping it alive behind a tray
   icon, or starting it with the session, is the way to more.
-- **A wide window is a phone in the middle of it**, and a notification
-  clicked cannot bring the window forward.
+- **A notification clicked cannot bring the window forward.**
+- **The wide layout has no scrollbars**, and the board in a wide window
+  too small for three lanes is turned only by carrying a card to its side
+  or a sideways scroll.
+- **Undo's brush-off is measured against the window**, not the bar, so in
+  a wide window it takes a long pull; nobody brushes with a mouse.
 - **Linux is built for x64 only**; a release's file is not offered to any
   other processor.
 

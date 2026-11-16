@@ -441,35 +441,38 @@ class _WithChecklistState extends State<_WithChecklist> {
         setState(() => _open = !_open);
       },
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.fromLTRB(7, 2, 4, 2),
-        decoration: BoxDecoration(
-          color: ink.withValues(alpha: _open ? 0.16 : 0.09),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.checklist_rounded, size: 14, color: ink),
-            const SizedBox(width: 4),
-            Text(
-              '${widget.task.subtasksDone}/${steps.length}',
-              style: TextStyle(
-                color: ink,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                fontFeatures: const [FontFeature.tabularFigures()],
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.fromLTRB(7, 2, 4, 2),
+          decoration: BoxDecoration(
+            color: ink.withValues(alpha: _open ? 0.16 : 0.09),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.checklist_rounded, size: 14, color: ink),
+              const SizedBox(width: 4),
+              Text(
+                '${widget.task.subtasksDone}/${steps.length}',
+                style: TextStyle(
+                  color: ink,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
-            ),
-            const SizedBox(width: 1),
-            AnimatedRotation(
-              turns: _open ? 0.5 : 0,
-              duration: const Duration(milliseconds: 200),
-              child: Icon(Icons.expand_more, size: 16, color: ink),
-            ),
-          ],
+              const SizedBox(width: 1),
+              AnimatedRotation(
+                turns: _open ? 0.5 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: Icon(Icons.expand_more, size: 16, color: ink),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -676,40 +679,45 @@ class _TickState extends State<_Tick> with TickerProviderStateMixin {
         widget.onTap();
       },
       behavior: HitTestBehavior.opaque,
-      child: AnimatedBuilder(
-        animation: Listenable.merge([_draw, _shake]),
-        builder: (context, _) {
-          // Three swings either way, dying out: a no, not a wobble.
-          final t = _shake.value;
-          final dx = 3.5 * math.sin(t * 6 * math.pi) * (1 - t);
-          // The square fills first and the stroke follows it in, so the two
-          // read as one movement rather than a fill with a mark dropped on
-          // top of it.
-          final fill = Curves.easeOut.transform(_draw.value);
-          final mark = Curves.easeOutCubic.transform(
-            ((_draw.value - 0.25) / 0.75).clamp(0.0, 1.0),
-          );
-          return Transform.translate(
-            offset: Offset(dx, 0),
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: widget.color.withValues(alpha: fill),
-                borderRadius: BorderRadius.circular(7),
-                // Outlined in the task's own colour rather than a neutral grey:
-                // with the card itself plain, this is the only place the colour
-                // a task was given is still said, and an empty square is a
-                // small enough mark to say it without tinting the whole run.
-                border: Border.all(color: widget.color, width: 1.8),
+      // Under a mouse the pointer says the square is a thing to press, as
+      // it does over the card around it.
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_draw, _shake]),
+          builder: (context, _) {
+            // Three swings either way, dying out: a no, not a wobble.
+            final t = _shake.value;
+            final dx = 3.5 * math.sin(t * 6 * math.pi) * (1 - t);
+            // The square fills first and the stroke follows it in, so the two
+            // read as one movement rather than a fill with a mark dropped on
+            // top of it.
+            final fill = Curves.easeOut.transform(_draw.value);
+            final mark = Curves.easeOutCubic.transform(
+              ((_draw.value - 0.25) / 0.75).clamp(0.0, 1.0),
+            );
+            return Transform.translate(
+              offset: Offset(dx, 0),
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: fill),
+                  borderRadius: BorderRadius.circular(7),
+                  // Outlined in the task's own colour rather than a neutral grey:
+                  // with the card itself plain, this is the only place the colour
+                  // a task was given is still said, and an empty square is a
+                  // small enough mark to say it without tinting the whole run.
+                  border: Border.all(color: widget.color, width: 1.8),
+                ),
+                child: CustomPaint(
+                  key: taskCardMarkKey,
+                  painter: CheckMark(progress: mark),
+                ),
               ),
-              child: CustomPaint(
-                key: taskCardMarkKey,
-                painter: CheckMark(progress: mark),
-              ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
