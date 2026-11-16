@@ -10,6 +10,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/desk.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart' show CheckMark, TaskCard;
 import 'task_edit_screen.dart';
@@ -85,9 +86,7 @@ class _DoneScreenState extends State<DoneScreen> {
     final id = done.taskId;
     final task = id == null ? null : await AppDatabase.instance.getTask(id);
     if (task == null || !mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => TaskEditScreen(task: task)));
+    await openTaskForm(context, task: task);
   }
 
   @override
@@ -114,7 +113,7 @@ class _DoneScreenState extends State<DoneScreen> {
     return Scaffold(
       body: Column(
         children: [
-          ScreenHeader(title: S.of(context).done),
+          DeskColumn(child: ScreenHeader(title: S.of(context).done)),
           Expanded(
             child: _log.isEmpty
                 ? EmptyState(
@@ -122,9 +121,14 @@ class _DoneScreenState extends State<DoneScreen> {
                     title: S.of(context).nothingDoneYet,
                     message: S.of(context).doneHint,
                   )
-                : ListView.builder(
-                    itemCount: rows.length,
-                    itemBuilder: (context, i) => rows[i],
+                : DeskGutter(
+                    builder: (context, gutter) => ListView.builder(
+                      padding: gutter == 0
+                          ? null
+                          : EdgeInsets.symmetric(horizontal: gutter),
+                      itemCount: rows.length,
+                      itemBuilder: (context, i) => rows[i],
+                    ),
                   ),
           ),
         ],

@@ -37,12 +37,24 @@ class Dates {
     return DateFormat(thisYear ? 'MMM' : 'MMM yyyy').format(month);
   }
 
-  /// "M", "T", "W", … starting on Monday or Sunday, for the calendar header.
-  static List<String> weekdayLabels({required bool mondayFirst}) {
+  /// The calendar's month header on a desktop, where there is room to say
+  /// it all whichever year it is: "October 2026".
+  static String monthYear(DateTime month) =>
+      _lead(DateFormat(_english ? 'MMMM yyyy' : 'LLLL y').format(month));
+
+  /// "M", "T", "W", … starting on Monday or Sunday, for the calendar header
+  /// — or with [short], where there is room for it, "Mon", "Tue", "Wed".
+  static List<String> weekdayLabels({
+    required bool mondayFirst,
+    bool short = false,
+  }) {
     // 2024-01-01 was a Monday, giving a stable base to read names off.
     final monday = DateTime(2024, 1, 1);
     final names = [
-      for (var i = 0; i < 7; i++) weekdayNarrow(monday.add(Duration(days: i))),
+      for (var i = 0; i < 7; i++)
+        short
+            ? _lead(DateFormat('EEE').format(monday.add(Duration(days: i))))
+            : weekdayNarrow(monday.add(Duration(days: i))),
     ];
     return mondayFirst ? names : [names.last, ...names.take(6)];
   }

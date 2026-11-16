@@ -165,6 +165,7 @@ const Map<String, Object> kk = {
   'editGroup': "Топты өзгерту",
   'groupName': "Атауы",
   'sectionGroup': "ТОП",
+  'sectionGroups': "ТОПТАР",
   'deleteGroupQuestion': "«{name}» жойылсын ба?",
   'groupTasksMoveTo': "Оның тапсырмалары «{group}» тобына ауысады.",
   'personal': "Жеке",
@@ -197,6 +198,7 @@ const Map<String, Object> kk = {
   'markDone': "Орындалды деп белгілеу",
   'markNotDone': "Белгіні алу",
   'clearSelection': "Таңдауды алу",
+  'select': "Таңдау",
   'deleteTasksQuestion': ["{n} тапсырманы жою керек пе?"],
   'cannotBeUndone': "Мұны болдырмау мүмкін емес.",
 

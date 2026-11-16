@@ -10,6 +10,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/carry.dart';
+import '../widgets/desk.dart';
 import '../widgets/groups.dart';
 import '../widgets/put_off.dart';
 import '../widgets/quick_add_bar.dart';
@@ -50,13 +51,8 @@ class _TasksScreenState extends State<TasksScreen> {
     super.dispose();
   }
 
-  Future<void> _openEditor([Task? task, DateTime? date]) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TaskEditScreen(task: task, initialDate: date),
-      ),
-    );
-  }
+  Future<void> _openEditor([Task? task, DateTime? date]) =>
+      openTaskForm(context, task: task, initialDate: date);
 
   /// Files an all-day task on today straight from the field at the foot.
   Future<void> _addQuickTask(int? group) async {
@@ -113,27 +109,30 @@ class _TasksScreenState extends State<TasksScreen> {
     // A done task is not overdue, so ticking one in the backlog takes it out
     // of the run; ticked anywhere else it stays where it is, crossed out.
     final overdueIds = {for (final t in overdue) t.id};
+    // In a desktop's wide window the run keeps to a column in the middle,
+    // the groups are in the sidebar and search beside them, and a card is
+    // put off from the menu a right click opens rather than by a swipe,
+    // which is a finger's gesture.
+    final wide = Desk.wideOf(context);
+    Widget card(Task task) => AsShown(
+      task: task,
+      builder: (context, shown) => TaskCard(
+        task: shown,
+        list: provider.listById(task.listId),
+        onTap: () => _openEditor(task),
+        onToggle: () => tickOff(context, shown),
+        ticking: provider.isTicking(task),
+        leaving: provider.isLeaving(
+          task,
+          fromOverdue: overdueIds.contains(task.id),
+        ),
+      ),
+    );
     Widget entry(Task task) => SlideIntoPlace(
       scope: 'schedule',
       id: task.id ?? task,
       trigger: provider.rearranging,
-      child: PutOff(
-        task: task,
-        child: AsShown(
-          task: task,
-          builder: (context, shown) => TaskCard(
-            task: shown,
-            list: provider.listById(task.listId),
-            onTap: () => _openEditor(task),
-            onToggle: () => tickOff(context, shown),
-            ticking: provider.isTicking(task),
-            leaving: provider.isLeaving(
-              task,
-              fromOverdue: overdueIds.contains(task.id),
-            ),
-          ),
-        ),
-      ),
+      child: wide ? card(task) : PutOff(task: task, child: card(task)),
     );
 
     // A tick on any card here is offered back in this screen's field, and
@@ -151,90 +150,103 @@ class _TasksScreenState extends State<TasksScreen> {
           resizeToAvoidBottomInset: false,
           body: Column(
             children: [
-              ScreenHeader(
-                title: S.of(context).schedule,
-                actions: [
-                  IconButton(
-                    icon: Icon(Icons.search, color: p.muted),
-                    tooltip: S.of(context).search,
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SearchScreen()),
-                    ),
-                  ),
-                  TodayButton(onTap: _jumpToToday),
-                  const SizedBox(width: 6),
-                ],
+              DeskColumn(
+                child: ScreenHeader(
+                  title: S.of(context).schedule,
+                  actions: [
+                    if (!wide)
+                      IconButton(
+                        icon: Icon(Icons.search, color: p.muted),
+                        tooltip: S.of(context).search,
+                        onPressed: () => openSearch(context),
+                      ),
+                    TodayButton(onTap: _jumpToToday),
+                    const SizedBox(width: 6),
+                  ],
+                ),
               ),
-              const SizedBox(width: double.infinity, child: GroupChips()),
+              if (!wide)
+                const SizedBox(width: double.infinity, child: GroupChips()),
               Expanded(
                 // The run of days fades into the ground the add field sits on
                 // rather than being cut off square by it, the same way the day's
                 // tasks do under the calendar.
                 child: Stack(
                   children: [
-                    _RunOfDays(
-                      controller: _scroll,
-                      ground: p.bg,
-                      entry: entry,
-                      onReorder: provider.reorder,
-                      onMove: provider.moveAllToDay,
-                      head: hasAnything
-                          ? null
-                          : Padding(
-                              padding: const EdgeInsets.only(top: 40),
-                              child: EmptyState(
-                                icon: Icons.beach_access_outlined,
-                                title: S.of(context).nothingScheduled,
-                                message: S.of(context).nothingScheduledHint,
+                    DeskGutter(
+                      builder: (context, gutter) => _RunOfDays(
+                        controller: _scroll,
+                        gutter: gutter,
+                        ground: p.bg,
+                        entry: entry,
+                        onReorder: provider.reorder,
+                        onMove: provider.moveAllToDay,
+                        head: hasAnything
+                            ? null
+                            : Padding(
+                                padding: const EdgeInsets.only(top: 40),
+                                child: EmptyState(
+                                  icon: Icons.beach_access_outlined,
+                                  title: S.of(context).nothingScheduled,
+                                  message: S.of(context).nothingScheduledHint,
+                                ),
                               ),
-                            ),
-                      foot: days.isEmpty
-                          ? null
-                          : Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                              child: Text(
-                                S
-                                    .of(context)
-                                    .shownForNext(TaskProvider.agendaDays),
-                                style: TextStyle(color: p.faint, fontSize: 12),
+                        foot: days.isEmpty
+                            ? null
+                            : Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  20,
+                                  18,
+                                  20,
+                                  0,
+                                ),
+                                child: Text(
+                                  S
+                                      .of(context)
+                                      .shownForNext(TaskProvider.agendaDays),
+                                  style: TextStyle(
+                                    color: p.faint,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
+                        runs: [
+                          // The backlog is a run like any other. It wants to be
+                          // ordered by how late each thing is until somebody says
+                          // otherwise, and dragging is them saying otherwise — on
+                          // a screen where most of what there is to drag is often
+                          // in here.
+                          if (overdue.isNotEmpty)
+                            _Run(
+                              id: 'overdue',
+                              heading: () => DayHeader(
+                                word: S.of(context).overdue,
+                                color: AppColors.overdue,
+                              ),
+                              tasks: overdue,
+                              takesDrops: false,
                             ),
-                      runs: [
-                        // The backlog is a run like any other. It wants to be
-                        // ordered by how late each thing is until somebody says
-                        // otherwise, and dragging is them saying otherwise — on
-                        // a screen where most of what there is to drag is often
-                        // in here.
-                        if (overdue.isNotEmpty)
-                          _Run(
-                            id: 'overdue',
-                            heading: () => DayHeader(
-                              word: S.of(context).overdue,
-                              color: AppColors.overdue,
+                          for (final day in days)
+                            _Run(
+                              id: '$day',
+                              heading: () => DayHeader(
+                                word: Dates.dayWord(day),
+                                label: Dates.dayDate(day),
+                              ),
+                              holidays: holidays[day] ?? const <Holiday>[],
+                              events: events?.on(day) ?? const [],
+                              tasks: byDay[day] ?? const [],
+                              day: day,
                             ),
-                            tasks: overdue,
-                            takesDrops: false,
-                          ),
-                        for (final day in days)
-                          _Run(
-                            id: '$day',
-                            heading: () => DayHeader(
-                              word: Dates.dayWord(day),
-                              label: Dates.dayDate(day),
+                          if (undated.isNotEmpty)
+                            _Run(
+                              id: 'undated',
+                              heading: () =>
+                                  DayHeader(word: S.of(context).noDate),
+                              tasks: undated,
                             ),
-                            holidays: holidays[day] ?? const <Holiday>[],
-                            events: events?.on(day) ?? const [],
-                            tasks: byDay[day] ?? const [],
-                            day: day,
-                          ),
-                        if (undated.isNotEmpty)
-                          _Run(
-                            id: 'undated',
-                            heading: () =>
-                                DayHeader(word: S.of(context).noDate),
-                            tasks: undated,
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                     // The fade goes up with the field it belongs to; left at the
                     // foot of the screen it would be fading the run into a strip
@@ -253,17 +265,19 @@ class _TasksScreenState extends State<TasksScreen> {
               KeyboardLift(
                 child: ColoredBox(
                   color: p.bg,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const KeyboardNumbers(),
-                      QuickAddBar(
-                        date: today,
-                        controller: _quickAdd,
-                        onSubmit: _addQuickTask,
-                        onFullForm: () => _openEditor(null, today),
-                      ),
-                    ],
+                  child: DeskColumn(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const KeyboardNumbers(),
+                        QuickAddBar(
+                          date: today,
+                          controller: _quickAdd,
+                          onSubmit: _addQuickTask,
+                          onFullForm: () => _openEditor(null, today),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -321,6 +335,11 @@ typedef _Slot = ({String run, int index});
 class _RunOfDays extends StatefulWidget {
   final ScrollController controller;
   final List<_Run> runs;
+
+  /// The room left either side of the run, in a window wider than a column
+  /// of cards should be (`DeskGutter`). The list itself has the whole
+  /// width, so a wheel turned beside the cards still scrolls them.
+  final double gutter;
   final Color ground;
   final Widget Function(Task) entry;
   final ValueChanged<List<Task>> onReorder;
@@ -340,6 +359,7 @@ class _RunOfDays extends StatefulWidget {
   const _RunOfDays({
     required this.controller,
     required this.runs,
+    this.gutter = 0,
     required this.ground,
     required this.entry,
     required this.onReorder,
@@ -508,7 +528,11 @@ class _RunOfDaysState extends State<_RunOfDays> {
           itemCount: run.tasks.length,
           onReorder: (from, to) => _move(run, from, to),
           onReorderStart: (t) {
-            Selection.maybeOf(context)?.lifted(run.tasks[t]);
+            // Picked out by a long press let go where it was; a mouse's
+            // drag has no such thing, and picks out with Ctrl and a click.
+            if (!Desk.isWide(context)) {
+              Selection.maybeOf(context)?.lifted(run.tasks[t]);
+            }
             _carry.begin(
               run.tasks[t],
               () => _listOf(run.id).currentState?.cancelReorder(),
@@ -526,7 +550,8 @@ class _RunOfDaysState extends State<_RunOfDays> {
           ),
           itemBuilder: (context, t) {
             final task = run.tasks[t];
-            return ReorderableDelayedDragStartListener(
+            return pickUpListener(
+              context,
               key: ValueKey('task-${task.id}'),
               index: t,
               child: widget.entry(task),
@@ -550,6 +575,15 @@ class _RunOfDaysState extends State<_RunOfDays> {
     // them.
     slivers.add(const SliverToBoxAdapter(child: KeyboardRoom()));
 
-    return CustomScrollView(controller: widget.controller, slivers: slivers);
+    final side = EdgeInsets.symmetric(horizontal: widget.gutter);
+    return CustomScrollView(
+      controller: widget.controller,
+      slivers: widget.gutter == 0
+          ? slivers
+          : [
+              for (final sliver in slivers)
+                SliverPadding(padding: side, sliver: sliver),
+            ],
+    );
   }
 }

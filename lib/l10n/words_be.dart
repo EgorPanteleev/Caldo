@@ -167,6 +167,7 @@ const Map<String, Object> be = {
   'editGroup': "Змяніць групу",
   'groupName': "Назва",
   'sectionGroup': "ГРУПА",
+  'sectionGroups': "ГРУПЫ",
   'deleteGroupQuestion': "Выдаліць «{name}»?",
   'groupTasksMoveTo': "Яе задачы пяройдуць у «{group}».",
   'personal': "Асабістае",
@@ -199,6 +200,7 @@ const Map<String, Object> be = {
   'markDone': "Адзначыць выкананымі",
   'markNotDone': "Зняць адзнаку",
   'clearSelection': "Зняць вылучэнне",
+  'select': "Выбраць",
   'deleteTasksQuestion': [
     "Выдаліць {n} задачу?",
     "Выдаліць {n} задачы?",

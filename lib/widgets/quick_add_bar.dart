@@ -211,8 +211,11 @@ class _QuickAddBarState extends State<QuickAddBar> {
 
     // In the tab bar's room the field is only there while it is being
     // written in, and Undo and the selection stand in the bar's place
-    // instead of the field's — the shell draws those.
-    final bar = _foot != null
+    // instead of the field's — the shell draws those. A foot with no room
+    // is the wide layout's: it wants to know what the plus opens, for the
+    // sidebar's button, and has no bar for the field to rest in.
+    final inBar = _foot != null && BarRoom.of(context) > 0;
+    final bar = inBar
         ? Padding(
             padding: const EdgeInsets.fromLTRB(
               BarRoom.side,
@@ -242,8 +245,8 @@ class _QuickAddBarState extends State<QuickAddBar> {
             child: _GroupPick(
               picked: _group,
               padding: EdgeInsets.only(
-                left: _foot != null ? BarRoom.side : widget.padding.left,
-                right: _foot != null ? BarRoom.side : widget.padding.right,
+                left: inBar ? BarRoom.side : widget.padding.left,
+                right: inBar ? BarRoom.side : widget.padding.right,
                 top: 6,
               ),
               onPick: (id) => setState(() => _group = id),

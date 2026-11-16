@@ -14,6 +14,7 @@ import '../utils/dates.dart';
 import '../utils/platform.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
+import '../widgets/desk.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart' show CheckMark;
@@ -34,13 +35,84 @@ import 'home_screen.dart' show menuItems;
 /// choices. It was a stack of separately outlined boxes with a segmented
 /// bar, a dropdown or a switch each — three ways of choosing on one screen,
 /// and a box round every line of it.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
-  void _open(BuildContext context, String Function(S s) title, _Rows rows) {
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+/// One of the pages: what it is called, how it stands, and what it draws.
+typedef _Entry = ({
+  IconData icon,
+  String Function(S s) title,
+  String? value,
+  _Rows rows,
+});
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  /// The page open beside the list, in a desktop's wide window.
+  int _page = 0;
+
+  /// The pages, the settings first and the backup last — on the list it is
+  /// a panel of its own, being the one thing there that is not a setting.
+  List<_Entry> _entries(SettingsProvider settings, S s) => [
+    (
+      icon: Icons.menu_open_rounded,
+      title: (s) => s.pageScreens,
+      value: [
+        for (final screen in settings.shownScreens)
+          menuItems[screen.index].label(s),
+      ].join(', '),
+      rows: _screens,
+    ),
+    (
+      icon: Icons.tune_rounded,
+      title: (s) => s.pageGeneral,
+      value:
+          '${S.names[settings.languageInForce]} · '
+          '${_timeFormats[settings.use24Hour]}',
+      rows: _general,
+    ),
+    (
+      icon: Icons.palette_outlined,
+      title: (s) => s.pageAppearance,
+      value: _themeNames(s)[settings.themeMode],
+      rows: _appearance,
+    ),
+    (
+      icon: Icons.calendar_month_outlined,
+      title: (s) => s.calendar,
+      value: settings.weekStartsMonday ? s.weeksMonSun : s.weeksSunSat,
+      rows: _calendar,
+    ),
+    (
+      icon: Icons.task_alt_rounded,
+      title: (s) => s.pageTasks,
+      value: settings.showCompleted ? s.completedShown : s.completedHidden,
+      rows: _tasks,
+    ),
+    (
+      icon: Icons.notifications_none,
+      title: (s) => s.pageReminders,
+      value: settings.reminders ? s.remindOn : s.remindOff,
+      rows: _reminders,
+    ),
+    (
+      icon: Icons.backup_outlined,
+      title: (s) => s.pageBackup,
+      value: switch (settings.lastBackup) {
+        final day? => s.backupLast(Dates.dayDate(day)),
+        null => s.backupNever,
+      },
+      rows: _backup,
+    ),
+  ];
+
+  void _open(_Entry entry) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _Page(title: title, rows: rows),
+        builder: (_) => _Page(title: entry.title, rows: entry.rows),
       ),
     );
   }
@@ -49,106 +121,91 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final s = S.of(context);
-    final shown = [
-      for (final screen in settings.shownScreens)
-        menuItems[screen.index].label(s),
-    ];
+    final entries = _entries(settings, s);
+    // In a desktop's wide window the list and the page it opens stand side
+    // by side, the page in force lifted on the list: there is the width,
+    // and a page pushed over a window that size was a column of rows in the
+    // corner of an empty one.
+    final wide = Desk.wideOf(context);
 
-    return Scaffold(
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 90),
-        children: [
-          // A long press on the title puts the keyboard's numbers on screen,
-          // above the add field. Four attempts at one keyboard bug went by
-          // on a phone that cannot be plugged into the machine the app is
-          // built on; this is how the next one gets measured rather than
-          // guessed at. Off by default and not stored.
-          GestureDetector(
-            onLongPress: () {
-              final on = !KeyboardGap.showNumbers.value;
-              KeyboardGap.showNumbers.value = on;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    on
-                        ? 'Keyboard numbers on — they show above the add field'
-                        : 'Keyboard numbers off',
-                  ),
-                  duration: const Duration(seconds: 2),
+    Widget row(int i) => _Row(
+      icon: entries[i].icon,
+      title: entries[i].title(s),
+      value: entries[i].value,
+      selected: wide && i == _page,
+      onTap: () => wide ? setState(() => _page = i) : _open(entries[i]),
+    );
+
+    final list = ListView(
+      padding: const EdgeInsets.only(bottom: 90),
+      children: [
+        // A long press on the title puts the keyboard's numbers on screen,
+        // above the add field. Four attempts at one keyboard bug went by
+        // on a phone that cannot be plugged into the machine the app is
+        // built on; this is how the next one gets measured rather than
+        // guessed at. Off by default and not stored.
+        GestureDetector(
+          onLongPress: () {
+            final on = !KeyboardGap.showNumbers.value;
+            KeyboardGap.showNumbers.value = on;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  on
+                      ? 'Keyboard numbers on — they show above the add field'
+                      : 'Keyboard numbers off',
                 ),
-              );
-            },
-            child: ScreenHeader(title: s.settings),
-          ),
-          _Group(
-            children: [
-              _Row(
-                icon: Icons.menu_open_rounded,
-                title: s.pageScreens,
-                value: shown.join(', '),
-                onTap: () => _open(context, (s) => s.pageScreens, _screens),
+                duration: const Duration(seconds: 2),
               ),
-              _Row(
-                icon: Icons.tune_rounded,
-                title: s.pageGeneral,
-                value:
-                    '${S.names[settings.languageInForce]} · '
-                    '${_timeFormats[settings.use24Hour]}',
-                onTap: () => _open(context, (s) => s.pageGeneral, _general),
+            );
+          },
+          child: ScreenHeader(title: s.settings),
+        ),
+        _Group(children: [for (var i = 0; i < 6; i++) row(i)]),
+        _Group(children: [row(6)]),
+        _Group(
+          label: s.sectionAbout,
+          footnote: s.about,
+          children: const [_Version()],
+        ),
+      ],
+    );
+    if (!wide) return Scaffold(body: list);
+
+    final page = entries[_page];
+    return Scaffold(
+      body: Row(
+        children: [
+          SizedBox(width: _listWidth, child: list),
+          VerticalDivider(width: 1, color: AppTheme.of(context).border),
+          Expanded(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _pageWidth),
+                child: ListView(
+                  // A page of its own for each, so one page's scroll is
+                  // not another's.
+                  key: ValueKey(_page),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  children: [
+                    ScreenHeader(title: page.title(s)),
+                    ...page.rows(context, settings, s),
+                  ],
+                ),
               ),
-              _Row(
-                icon: Icons.palette_outlined,
-                title: s.pageAppearance,
-                value: _themeNames(s)[settings.themeMode],
-                onTap: () =>
-                    _open(context, (s) => s.pageAppearance, _appearance),
-              ),
-              _Row(
-                icon: Icons.calendar_month_outlined,
-                title: s.calendar,
-                value: settings.weekStartsMonday
-                    ? s.weeksMonSun
-                    : s.weeksSunSat,
-                onTap: () => _open(context, (s) => s.calendar, _calendar),
-              ),
-              _Row(
-                icon: Icons.task_alt_rounded,
-                title: s.pageTasks,
-                value: settings.showCompleted
-                    ? s.completedShown
-                    : s.completedHidden,
-                onTap: () => _open(context, (s) => s.pageTasks, _tasks),
-              ),
-              _Row(
-                icon: Icons.notifications_none,
-                title: s.pageReminders,
-                value: settings.reminders ? s.remindOn : s.remindOff,
-                onTap: () => _open(context, (s) => s.pageReminders, _reminders),
-              ),
-            ],
-          ),
-          _Group(
-            children: [
-              _Row(
-                icon: Icons.backup_outlined,
-                title: s.pageBackup,
-                value: switch (settings.lastBackup) {
-                  final day? => s.backupLast(Dates.dayDate(day)),
-                  null => s.backupNever,
-                },
-                onTap: () => _open(context, (s) => s.pageBackup, _backup),
-              ),
-            ],
-          ),
-          _Group(
-            label: s.sectionAbout,
-            footnote: s.about,
-            children: const [_Version()],
+            ),
           ),
         ],
       ),
     );
   }
+
+  /// The list's width beside its page, and the widest a page's rows run:
+  /// past that a row is a title at one end of a stripe and its switch at
+  /// the other.
+  static const _listWidth = 340.0;
+  static const _pageWidth = 620.0;
 }
 
 /// What one page of settings draws, from the settings as they stand.
@@ -220,26 +277,28 @@ List<Widget> _screens(BuildContext context, SettingsProvider settings, S s) {
           },
         ),
         // The tab bar replaced the menu, and some like the menu: more of the
-        // screen, the calendar's day panel above all.
-        _Row(
-          icon: settings.screensInBar
-              ? Icons.call_to_action_outlined
-              : Icons.menu_rounded,
-          title: s.switchScreens,
-          value: settings.screensInBar ? s.tabBar : s.sideMenu,
-          onTap: () async {
-            final inBar = await choose(
-              context,
-              title: s.switchScreens,
-              selected: settings.screensInBar,
-              options: [
-                Option(true, s.tabBar, icon: Icons.call_to_action_outlined),
-                Option(false, s.sideMenu, icon: Icons.menu_rounded),
-              ],
-            );
-            if (inBar != null) settings.update(screensInBar: inBar);
-          },
-        ),
+        // screen, the calendar's day panel above all. Neither is there in a
+        // desktop's wide window, which has its sidebar.
+        if (!Desk.wideOf(context))
+          _Row(
+            icon: settings.screensInBar
+                ? Icons.call_to_action_outlined
+                : Icons.menu_rounded,
+            title: s.switchScreens,
+            value: settings.screensInBar ? s.tabBar : s.sideMenu,
+            onTap: () async {
+              final inBar = await choose(
+                context,
+                title: s.switchScreens,
+                selected: settings.screensInBar,
+                options: [
+                  Option(true, s.tabBar, icon: Icons.call_to_action_outlined),
+                  Option(false, s.sideMenu, icon: Icons.menu_rounded),
+                ],
+              );
+              if (inBar != null) settings.update(screensInBar: inBar);
+            },
+          ),
       ],
     ),
     _Group(
@@ -884,6 +943,9 @@ class _Row extends StatelessWidget {
   /// The value in red, for a setting that is not doing what it says.
   final bool warn;
 
+  /// Lifted, as the page open beside the list in a desktop's wide window.
+  final bool selected;
+
   const _Row({
     this.icon,
     this.leading,
@@ -893,6 +955,7 @@ class _Row extends StatelessWidget {
     this.onTap,
     this.danger = false,
     this.warn = false,
+    this.selected = false,
   });
 
   /// Where the titles start, from the panel's edge.
@@ -904,7 +967,8 @@ class _Row extends StatelessWidget {
     final colour = danger ? AppColors.overdue : null;
     return InkWell(
       onTap: onTap,
-      child: ConstrainedBox(
+      child: Container(
+        color: selected ? p.field : null,
         constraints: const BoxConstraints(minHeight: 58),
         child: Padding(
           padding: EdgeInsets.fromLTRB(16, 10, trailing == null ? 12 : 8, 10),

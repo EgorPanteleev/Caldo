@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/strings.dart';
 import '../theme/app_theme.dart';
+import 'desk.dart';
 import 'menu_button.dart';
 
 /// Identifies a screen header's title text.
@@ -35,59 +36,66 @@ class ScreenHeader extends StatelessWidget {
         12,
         8,
       ),
-      child: Row(
-        children: [
-          if (showBack)
-            IconButton(
-              icon: Icon(Icons.arrow_back, color: p.muted),
-              onPressed: () => Navigator.of(context).maybePop(),
-            )
-          else if (onMenu != null)
-            MenuButton(onTap: onMenu),
-          // The title and its count pill take every pixel the actions leave;
-          // a Spacer here would instead split that width with the title and
-          // clip long names.
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    title,
-                    key: screenTitleKey,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (count != null) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: p.panel,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: p.border),
-                    ),
+      // In a desktop's wide window every screen's title stands at one
+      // height, whether or not there is a button beside it to make the row
+      // that tall: the sidebar swaps one for the next where it stands, and
+      // a title seven points higher on Done than on Schedule jumped.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: Desk.wideOf(context) ? 48 : 0),
+        child: Row(
+          children: [
+            if (showBack)
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: p.muted),
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            else if (onMenu != null)
+              MenuButton(onTap: onMenu),
+            // The title and its count pill take every pixel the actions leave;
+            // a Spacer here would instead split that width with the title and
+            // clip long names.
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
                     child: Text(
-                      '$count',
-                      style: TextStyle(
-                        color: p.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                      title,
+                      key: screenTitleKey,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
+                  if (count != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: p.panel,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: p.border),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: TextStyle(
+                          color: p.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          ...actions,
-        ],
+            ...actions,
+          ],
+        ),
       ),
     );
   }

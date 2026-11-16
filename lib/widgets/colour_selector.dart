@@ -226,13 +226,9 @@ Future<String?> showCustomColourSheet(
   Color? start,
   required String sample,
 }) {
-  return showModalBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => PickerSheet(
-      child: _CustomSheet(start: start, sample: sample),
-    ),
+  return showAppSheet<String>(
+    context,
+    child: _CustomSheet(start: start, sample: sample),
   );
 }
 

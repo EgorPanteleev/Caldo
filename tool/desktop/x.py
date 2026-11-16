@@ -2,7 +2,8 @@
 its display. Needs python-xlib (a venv will do: pip install python-xlib).
 
   x.py click X Y            x.py wheel X Y N       (N notches; negative is up)
-  x.py move X Y             x.py type TEXT          x.py key NAME (Return, Escape)
+  x.py rclick X Y           x.py type TEXT
+  x.py move X Y             x.py key NAME [ctrl]   (Return, Escape; n ctrl)
   x.py drag X1 Y1 X2 Y2 [STEPS] [HOLD_MS] [PAUSE_MS]
   x.py resize W H
 
@@ -19,15 +20,18 @@ from Xlib.ext import xtest
 d = display.Display(os.environ.get('CALDO_TRY_DISPLAY', ':99'))
 def move(x, y): xtest.fake_input(d, X.MotionNotify, x=int(float(x)), y=int(float(y))); d.sync()
 def btn(n, down): xtest.fake_input(d, X.ButtonPress if down else X.ButtonRelease, n); d.sync()
-def key(sym, shift=False):
+def key(sym, shift=False, ctrl=False):
     code = d.keysym_to_keycode(sym)
-    if shift: xtest.fake_input(d, X.KeyPress, d.keysym_to_keycode(XK.XK_Shift_L))
+    held = [d.keysym_to_keycode(m) for m, on in ((XK.XK_Shift_L, shift), (XK.XK_Control_L, ctrl)) if on]
+    for m in held: xtest.fake_input(d, X.KeyPress, m)
     xtest.fake_input(d, X.KeyPress, code); xtest.fake_input(d, X.KeyRelease, code)
-    if shift: xtest.fake_input(d, X.KeyRelease, d.keysym_to_keycode(XK.XK_Shift_L))
+    for m in held: xtest.fake_input(d, X.KeyRelease, m)
     d.sync()
 a = sys.argv[1:]
 if a[0] == 'click':
     move(a[1], a[2]); time.sleep(0.05); btn(1, True); time.sleep(0.06); btn(1, False)
+elif a[0] == 'rclick':
+    move(a[1], a[2]); time.sleep(0.05); btn(3, True); time.sleep(0.06); btn(3, False)
 elif a[0] == 'move':
     move(a[1], a[2])
 elif a[0] == 'drag':
@@ -41,7 +45,7 @@ elif a[0] == 'type':
     for ch in a[1]:
         key(XK.string_to_keysym(names.get(ch, ch)), shift=ch.isupper() or ch in '_:'); time.sleep(0.03)
 elif a[0] == 'key':
-    key(XK.string_to_keysym(a[1]))
+    key(XK.string_to_keysym(a[1]), ctrl='ctrl' in a[2:])
 elif a[0] == 'wheel':
     move(a[1], a[2]); n = int(a[3])
     for _ in range(abs(n)):

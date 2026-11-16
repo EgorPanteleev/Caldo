@@ -12,8 +12,10 @@ import '../providers/task_provider.dart';
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../utils/platform.dart';
 import 'attachments_field.dart' show AttachmentMark;
 import 'selection.dart';
+import 'task_menu.dart';
 
 /// A task as it appears under the calendar: a card inked with its list's
 /// colour, carrying a tick, the title and when it is due.
@@ -115,7 +117,15 @@ class TaskCard extends StatelessWidget {
     final p = AppTheme.of(context);
     final selecting = selection?.active ?? false;
     final picked = selection?.has(task) ?? false;
-    final onTap = selecting ? () => selection!.toggle(task) : this.onTap;
+    // At a keyboard, Ctrl and a click picks a card out, as it does a file:
+    // the long press that does it on a phone is the mouse's drag.
+    void open() =>
+        selection != null &&
+            onDesktop &&
+            HardwareKeyboard.instance.isControlPressed
+        ? selection.toggle(task)
+        : this.onTap();
+    final onTap = selecting ? () => selection!.toggle(task) : open;
     final onToggle = selecting ? onTap : this.onToggle;
     final color = colorOfTask(
       task,
@@ -154,6 +164,11 @@ class TaskCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
+          // A right click opens what can be done with it. Not while cards
+          // are being picked out: those are dealt with together.
+          onSecondaryTapUp: onDesktop && !selecting
+              ? (details) => showTaskMenu(context, details.globalPosition, task)
+              : null,
           borderRadius: BorderRadius.circular(TaskCard.radius),
           child: AnimatedContainer(
             // Ticked off, a card sinks over a moment rather than between two

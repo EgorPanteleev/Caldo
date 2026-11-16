@@ -67,9 +67,10 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "Caldo");
   }
 
-  // The size and shape of a phone, which is what every screen was laid out
-  // on; it can be made any other, down to a small phone and no further.
-  gtk_window_set_default_size(window, 460, 880);
+  // Wide enough for the desktop's layout — the sidebar, a month and the day
+  // beside it — on any laptop; it can be made any other size, down to a
+  // small phone's and no further, and narrow it is the phone's app.
+  gtk_window_set_default_size(window, 1240, 780);
   GdkGeometry smallest;
   smallest.min_width = 340;
   smallest.min_height = 560;

@@ -170,6 +170,7 @@ const Map<String, Object> de = {
   'editGroup': "Gruppe bearbeiten",
   'groupName': "Name",
   'sectionGroup': "GRUPPE",
+  'sectionGroups': "GRUPPEN",
   'deleteGroupQuestion': "„{name}“ löschen?",
   'groupTasksMoveTo': "Ihre Aufgaben wandern nach „{group}“.",
   'personal': "Persönlich",
@@ -202,6 +203,7 @@ const Map<String, Object> de = {
   'markDone': "Als erledigt markieren",
   'markNotDone': "Als offen markieren",
   'clearSelection': "Auswahl aufheben",
+  'select': "Auswählen",
   'deleteTasksQuestion': ["{n} Aufgabe löschen?", "{n} Aufgaben löschen?"],
   'cannotBeUndone': "Das kann nicht rückgängig gemacht werden.",
 

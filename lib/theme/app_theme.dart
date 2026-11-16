@@ -411,6 +411,18 @@ class AppTheme {
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
+      // A desktop's menus — what a right click on a card opens — a step
+      // above the ground they open over, rimmed as the dialogs are.
+      popupMenuTheme: PopupMenuThemeData(
+        color: p.panelHi,
+        surfaceTintColor: Colors.transparent,
+        elevation: 10,
+        shadowColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: p.border),
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: p.panelHi,
         contentTextStyle: TextStyle(color: p.text),

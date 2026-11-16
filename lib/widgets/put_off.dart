@@ -39,6 +39,20 @@ class PutOff extends StatefulWidget {
     return DateTime(from.year, from.month, from.day + 1);
   }
 
+  /// Moves [task] to [day] and offers the move back where a tick's Undo
+  /// stands, with [icon] in the tick's place. What the swipe does, and what
+  /// a desktop's menu on a card does in its stead.
+  static Future<void> move(
+    BuildContext context,
+    Task task,
+    DateTime day,
+    IconData icon,
+  ) async {
+    final provider = context.read<TaskProvider>();
+    offerUndo(context, task, icon: icon, onUndo: () => provider.putBack(task));
+    await provider.moveToDay(task, day);
+  }
+
   @override
   State<PutOff> createState() => _PutOffState();
 }
@@ -121,17 +135,8 @@ class _PutOffState extends State<PutOff> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future<void> _move(DateTime day, IconData icon) async {
-    final original = widget.task;
-    final provider = context.read<TaskProvider>();
-    offerUndo(
-      context,
-      original,
-      icon: icon,
-      onUndo: () => provider.putBack(original),
-    );
-    await provider.moveToDay(original, day);
-  }
+  Future<void> _move(DateTime day, IconData icon) =>
+      PutOff.move(context, widget.task, day, icon);
 
   void _nextDay() {
     _settle(0);

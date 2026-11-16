@@ -170,6 +170,7 @@ const Map<String, Object> nl = {
   'editGroup': "Groep bewerken",
   'groupName': "Naam",
   'sectionGroup': "GROEP",
+  'sectionGroups': "GROEPEN",
   'deleteGroupQuestion': "„{name}” verwijderen?",
   'groupTasksMoveTo': "De taken gaan naar „{group}”.",
   'personal': "Persoonlijk",
@@ -202,6 +203,7 @@ const Map<String, Object> nl = {
   'markDone': "Markeren als gedaan",
   'markNotDone': "Markeren als open",
   'clearSelection': "Selectie opheffen",
+  'select': "Selecteren",
   'deleteTasksQuestion': ["{n} taak verwijderen?", "{n} taken verwijderen?"],
   'cannotBeUndone': "Dit kan niet ongedaan worden gemaakt.",
 

@@ -168,6 +168,7 @@ const Map<String, Object> ru = {
   'editGroup': "Изменить группу",
   'groupName': "Название",
   'sectionGroup': "ГРУППА",
+  'sectionGroups': "ГРУППЫ",
   'deleteGroupQuestion': "Удалить «{name}»?",
   'groupTasksMoveTo': "Её задачи перейдут в «{group}».",
   'personal': "Личное",
@@ -200,6 +201,7 @@ const Map<String, Object> ru = {
   'markDone': "Отметить выполненными",
   'markNotDone': "Снять отметку",
   'clearSelection': "Снять выделение",
+  'select': "Выбрать",
   'deleteTasksQuestion': [
     "Удалить {n} задачу?",
     "Удалить {n} задачи?",

@@ -169,6 +169,7 @@ const Map<String, Object> pl = {
   'editGroup': "Edytuj grupę",
   'groupName': "Nazwa",
   'sectionGroup': "GRUPA",
+  'sectionGroups': "GRUPY",
   'deleteGroupQuestion': "Usunąć „{name}”?",
   'groupTasksMoveTo': "Jej zadania trafią do „{group}”.",
   'personal': "Osobiste",
@@ -201,6 +202,7 @@ const Map<String, Object> pl = {
   'markDone': "Oznacz jako zrobione",
   'markNotDone': "Oznacz jako niezrobione",
   'clearSelection': "Odznacz wszystko",
+  'select': "Zaznacz",
   'deleteTasksQuestion': [
     "Usunąć {n} zadanie?",
     "Usunąć {n} zadania?",

@@ -155,6 +155,7 @@ const Map<String, Object> en = {
   'editGroup': "Edit group",
   'groupName': "Name",
   'sectionGroup': "GROUP",
+  'sectionGroups': "GROUPS",
   'deleteGroupQuestion': "Delete \"{name}\"?",
   'groupTasksMoveTo': "Its tasks will move to {group}.",
   'personal': "Personal",
@@ -187,6 +188,7 @@ const Map<String, Object> en = {
   'markDone': "Mark done",
   'markNotDone': "Mark not done",
   'clearSelection': "Clear selection",
+  'select': "Select",
   'deleteTasksQuestion': ["Delete {n} task?", "Delete {n} tasks?"],
   'cannotBeUndone': "This cannot be undone.",
 

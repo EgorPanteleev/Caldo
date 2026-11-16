@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
@@ -8,20 +11,47 @@ import '../providers/task_provider.dart';
 import '../services/attachments.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../utils/platform.dart';
 import '../widgets/attachments_field.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
+import '../widgets/desk.dart';
 import '../widgets/repeat_sheet.dart';
 import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart'
     show GroundFade, KeyboardLift, KeyboardRoom;
 import '../widgets/task_card.dart' show CheckMark, TaskCard;
 
+/// Opens the form on [task], or a new one starting on [initialDate]: a page
+/// over a phone's screen, and in the wide layout the panel down the right
+/// of the window ([TaskPanel]), where the returned future does not wait for
+/// it to be closed.
+Future<void> openTaskForm(
+  BuildContext context, {
+  Task? task,
+  DateTime? initialDate,
+}) {
+  if (Desk.isWide(context)) {
+    TaskPanel.instance.open(task: task, date: initialDate);
+    return Future.value();
+  }
+  return Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => TaskEditScreen(task: task, initialDate: initialDate),
+    ),
+  );
+}
+
 /// Add a new task or edit an existing one. When [task] is null this is a
 /// creation form; otherwise the fields are pre-filled for editing.
 class TaskEditScreen extends StatefulWidget {
   final Task? task;
+
+  /// Whether this is the form in the wide layout's panel rather than a
+  /// page of its own: it closes by asking the panel to, and tells it when
+  /// something has been changed.
+  final bool inPanel;
 
   /// The group a new task should go into (a starting choice; the form can
   /// change it).
@@ -30,7 +60,13 @@ class TaskEditScreen extends StatefulWidget {
   /// Pre-selected due date for a task created from the calendar.
   final DateTime? initialDate;
 
-  const TaskEditScreen({super.key, this.task, this.listId, this.initialDate});
+  const TaskEditScreen({
+    super.key,
+    this.task,
+    this.listId,
+    this.initialDate,
+    this.inPanel = false,
+  });
 
   @override
   State<TaskEditScreen> createState() => _TaskEditScreenState();
@@ -71,8 +107,16 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   bool _dirty = false;
 
   void _touched() {
-    if (!_dirty) setState(() => _dirty = true);
+    if (_dirty) return;
+    setState(() => _dirty = true);
+    if (widget.inPanel) TaskPanel.instance.dirty = true;
   }
+
+  /// The way out once there is nothing left to ask: back off the page, or
+  /// out of the panel.
+  void _close() => widget.inPanel
+      ? TaskPanel.instance.close()
+      : Navigator.of(context).pop();
 
   @override
   void initState() {
@@ -128,7 +172,9 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   /// to whatever field had it on the screen underneath.
   void _leave() {
     FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).maybePop();
+    widget.inPanel
+        ? TaskPanel.instance.close()
+        : Navigator.of(context).maybePop();
   }
 
   /// Files what is in the add field as a step and leaves the field ready for
@@ -342,7 +388,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         ),
       );
     }
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) _close();
   }
 
   Future<void> _delete() async {
@@ -368,7 +414,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     );
     if (ok == true && mounted) {
       await context.read<TaskProvider>().remove(task!.id!);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) _close();
     }
   }
 
@@ -383,7 +429,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         ? _selectedListId
         : (lists.isNotEmpty ? provider.defaultGroup : null);
 
-    return Scaffold(
+    final form = Scaffold(
       // The keyboard arrives over the form rather than resizing it, and the
       // foot is attached to it (`KeyboardLift`) the way the quick-add bar
       // is. Resized, the pair did what that bar used to: rode the layout's
@@ -393,7 +439,15 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         // Once something has been changed there is no way out but the two
         // words at the foot: an arrow beside unsaved edits is an invitation
         // to lose them.
-        automaticallyImplyLeading: !_dirty,
+        automaticallyImplyLeading: !_dirty && !widget.inPanel,
+        // The panel has no page under it to go back to: it is closed.
+        leading: widget.inPanel && !_dirty
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: _leave,
+              )
+            : null,
         title: Text(isEdit ? s.editTask : s.newTask),
         actions: [
           if (isEdit)
@@ -428,6 +482,12 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                 autofocus: !isEdit,
                                 textCapitalization:
                                     TextCapitalization.sentences,
+                                // At a keyboard, Enter on the name is the
+                                // form filled in; a phone's keys go on to
+                                // the next field instead.
+                                onFieldSubmitted: onDesktop
+                                    ? (_) => _save()
+                                    : null,
                                 decoration: InputDecoration(
                                   labelText: s.taskField,
                                 ),
@@ -703,13 +763,15 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                     color: p.bg,
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                      child: Row(
-                        // The same pair, drawn in towards the middle the same way.
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _FootAction(label: s.cancel, onTap: _leave),
-                          _FootAction(label: s.save, onTap: _save),
-                        ],
+                      child: _Nudged(
+                        child: Row(
+                          // The same pair, drawn in towards the middle the same way.
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _FootAction(label: s.cancel, onTap: _leave),
+                            _FootAction(label: s.save, onTap: _save),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -718,6 +780,65 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           ),
         ),
       ),
+    );
+    if (!onDesktop) return form;
+    // Saved from the keys as well, wherever in the form the caret is.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): _save,
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): _save,
+      },
+      child: form,
+    );
+  }
+}
+
+/// Shakes Cancel and Save when the panel's form was asked to give way with
+/// changes in it ([TaskPanel.nudged]) — a click on another task, which does
+/// nothing until one of the two has answered for this one. The head-shake
+/// a card's tick gives when it is held back, for the same reason.
+class _Nudged extends StatefulWidget {
+  final Widget child;
+
+  const _Nudged({required this.child});
+
+  @override
+  State<_Nudged> createState() => _NudgedState();
+}
+
+class _NudgedState extends State<_Nudged> with SingleTickerProviderStateMixin {
+  late final _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    TaskPanel.instance.nudged.addListener(_nudge);
+  }
+
+  @override
+  void dispose() {
+    TaskPanel.instance.nudged.removeListener(_nudge);
+    _shake.dispose();
+    super.dispose();
+  }
+
+  void _nudge() => _shake.forward(from: 0);
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _shake,
+      builder: (context, child) {
+        final t = _shake.value;
+        return Transform.translate(
+          offset: Offset(6 * math.sin(t * 6 * math.pi) * (1 - t), 0),
+          child: child,
+        );
+      },
+      child: widget.child,
     );
   }
 }

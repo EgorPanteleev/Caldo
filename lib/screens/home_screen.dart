@@ -16,13 +16,16 @@ import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/desk.dart';
 import '../widgets/menu_button.dart' show MenuScope;
 import '../widgets/quick_add_bar.dart' show BarFoot, BarRoom, KeyboardGap;
 import '../widgets/selection.dart';
 import '../widgets/tick_off.dart' show UndoSlot, withdrawUndo;
 import 'board_screen.dart';
 import 'calendar_screen.dart';
+import 'desk_shell.dart';
 import 'done_screen.dart';
+import 'search_screen.dart';
 import 'settings_screen.dart';
 import 'task_edit_screen.dart';
 import 'tasks_screen.dart';
@@ -41,7 +44,9 @@ const _menuOverlap = 18.0;
 
 /// Top-level shell: whichever screen is open, and the way between them —
 /// a bar of the screens floating along the foot, or a menu behind a button
-/// at the top left of each, as Settings says.
+/// at the top left of each, as Settings says; and in a desktop's wide
+/// window a sidebar down the left, with a task's form in a panel down the
+/// right (`Desk`, `DeskSidebar`, `DeskFormPanel`).
 ///
 /// The menu came first; the bar was asked for after the user saw one they
 /// liked ("i strongly like bottoms like this", of a floating pill of tabs),
@@ -88,12 +93,18 @@ class _HomeScreenState extends State<HomeScreen>
   // The pages are in the order of [AppScreen], Settings after them.
   late int _index = widget.start.index;
 
+  // Each under a key of its own, so a screen keeps its state — the day
+  // picked, how far it is scrolled — when a window dragged wider or narrower
+  // moves it from one layout into the other.
   late final List<Widget> _pages = [
-    const TasksScreen(),
-    const CalendarScreen(),
-    BoardScreen(shown: _boardShown),
-    DoneScreen(shown: _doneShown),
-    const SettingsScreen(),
+    for (final page in [
+      const TasksScreen(),
+      const CalendarScreen(),
+      BoardScreen(shown: _boardShown),
+      DoneScreen(shown: _doneShown),
+      const SettingsScreen(),
+    ])
+      KeyedSubtree(key: GlobalKey(), child: page),
   ];
 
   /// What the two screens with a field lend the bar: their field, for the
@@ -160,6 +171,48 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => Backup.autoIfDue(context.read<SettingsProvider>()),
     );
+    DeskActions.instance
+      ..newTask = _newTask
+      ..search = _search
+      ..show = _show
+      ..onCalendar = _index == AppScreen.calendar.index;
+  }
+
+  /// A new task, from the sidebar or the keys: the form the screen on show
+  /// would open — on the calendar's day, on today — or, where the screen has
+  /// none of its own, one on today; the board's has no day, as its own plus
+  /// gives it none.
+  void _newTask() {
+    final form = _foot?.form;
+    if (form != null) return form();
+    openTaskForm(
+      context,
+      initialDate: _index == _board ? null : dayOf(DateTime.now()),
+    );
+  }
+
+  void _search() => openSearch(context);
+
+  /// The screen at [place] in the sidebar's order, if it is in it; Settings
+  /// is the fifth.
+  void _show(int place) {
+    final hidden = context.read<SettingsProvider>().hiddenScreens;
+    if (place < AppScreen.values.length &&
+        hidden.contains(AppScreen.values[place])) {
+      return;
+    }
+    _select(place);
+  }
+
+  /// Escape on the form's panel closes it, as Cancel does — but with
+  /// something typed and the caret still in a field, the first press only
+  /// leaves the field: Escape is pressed out of habit, and a note is a lot
+  /// to lose to one.
+  void _escapeForm() {
+    final panel = TaskPanel.instance;
+    final typing = DeskKeys.typing;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (!(panel.dirty && typing)) panel.close();
   }
 
   /// Wakes the lists at the turn of the day, for an app left open across
@@ -215,14 +268,11 @@ class _HomeScreenState extends State<HomeScreen>
     final task = id == null ? null : await AppDatabase.instance.getTask(id);
     if (!mounted || (id != null && task == null)) return;
     _closeMenu();
-    final navigator = Navigator.of(context)..popUntil((route) => route.isFirst);
-    await navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => TaskEditScreen(
-          task: task,
-          initialDate: task == null ? dayOf(DateTime.now()) : null,
-        ),
-      ),
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    await openTaskForm(
+      context,
+      task: task,
+      initialDate: task == null ? dayOf(DateTime.now()) : null,
     );
   }
 
@@ -231,6 +281,10 @@ class _HomeScreenState extends State<HomeScreen>
     WidgetsBinding.instance.removeObserver(this);
     _midnight?.cancel();
     Reminders.opened.removeListener(_openReminder);
+    DeskActions.instance
+      ..newTask = null
+      ..search = null
+      ..show = null;
     _menu.dispose();
     for (final foot in _feet) {
       foot.dispose();
@@ -262,6 +316,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _index = i);
     _boardShown.value = i == _board;
     _doneShown.value = i == _done;
+    DeskActions.instance.onCalendar = i == AppScreen.calendar.index;
     final provider = context.read<TaskProvider>();
     if (i == AppScreen.schedule.index) provider.loadTasks();
     if (i == AppScreen.calendar.index) provider.loadMonth(provider.month);
@@ -274,6 +329,109 @@ class _HomeScreenState extends State<HomeScreen>
   int _home(Set<AppScreen> hidden) => !hidden.contains(widget.start)
       ? widget.start.index
       : AppScreen.values.firstWhere((s) => !hidden.contains(s)).index;
+
+  /// The least a screen is squeezed to beside the form's panel. In a
+  /// window with less to spare than that the panel lies over the screen
+  /// instead of moving it aside.
+  static const _leastBeside = 420.0;
+
+  /// The shell in a desktop's wide window: the sidebar, the screen on show,
+  /// and the form's panel over the screen's right edge.
+  ///
+  /// Every screen but the calendar is given the panel's width as room at
+  /// its right while a form is open, so its cards stand beside the form
+  /// rather than under it. The calendar keeps its width: the panel is as
+  /// wide as the day down its right side and covers exactly that, and the
+  /// month beside it does not move.
+  ///
+  /// The two screens with a field still hand over what their plus opens
+  /// ([BarFoot]), for the sidebar's New task; with no bar's room to rest in
+  /// (`BarRoom.height` nothing) the field itself stays at the foot of the
+  /// screen, as it does with the menu.
+  Widget _wide(AppPalette p, Widget banners) {
+    final panel = TaskPanel.instance;
+    return ListenableBuilder(
+      listenable: panel,
+      builder: (context, _) => PopScope(
+        canPop: !panel.isOpen,
+        onPopInvokedWithResult: (didPop, _) {
+          // What is picked out answers to Escape first, on its own.
+          if (!didPop && !Selection.anyActive) _escapeForm();
+        },
+        child: Scaffold(
+          backgroundColor: p.bg,
+          resizeToAvoidBottomInset: false,
+          body: ScrollConfiguration(
+            behavior: const WideScrolling(),
+            child: Row(
+              children: [
+                DeskSidebar(
+                  index: _index,
+                  onSelected: _select,
+                  onNew: _newTask,
+                  onSearch: _search,
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      banners,
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, box) {
+                            final beside =
+                                panel.isOpen &&
+                                box.maxWidth - Desk.side >= _leastBeside;
+                            return ClipRect(
+                              child: Stack(
+                                children: [
+                                  IndexedStack(
+                                    index: _index,
+                                    children: [
+                                      for (var i = 0; i < _pages.length; i++)
+                                        BarRoom(
+                                          height: 0,
+                                          foot: i < _feet.length
+                                              ? _feet[i]
+                                              : null,
+                                          child: i == AppScreen.calendar.index
+                                              ? _pages[i]
+                                              : AnimatedPadding(
+                                                  duration: const Duration(
+                                                    milliseconds: 220,
+                                                  ),
+                                                  curve: Curves.easeOutCubic,
+                                                  padding: EdgeInsets.only(
+                                                    right: beside
+                                                        ? Desk.side
+                                                        : 0,
+                                                  ),
+                                                  child: _pages[i],
+                                                ),
+                                        ),
+                                    ],
+                                  ),
+                                  const Positioned(
+                                    top: 0,
+                                    bottom: 0,
+                                    right: 0,
+                                    child: DeskFormPanel(),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,6 +450,29 @@ class _HomeScreenState extends State<HomeScreen>
     );
     final offerFullScreen =
         wantsFullScreen && _fullScreenAllowed == false && !_fullScreenPutOff;
+    // Above whichever screen is open rather than inside one of them: they
+    // are about the app, not about a day.
+    final banners = AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: Column(
+        children: [
+          const SizedBox(width: double.infinity),
+          if (_update != null)
+            _UpdateBanner(
+              update: _update!,
+              onDismiss: () => setState(() => _update = null),
+            ),
+          if (offerFullScreen)
+            _FullScreenBanner(
+              onAllow: Reminders.instance.requestFullScreen,
+              onDismiss: () => setState(() => _fullScreenPutOff = true),
+            ),
+        ],
+      ),
+    );
+    if (Desk.wideOf(context)) return _wide(p, banners);
     final screen = SafeArea(
       // The strip at the foot of the screen stays reserved while the
       // keyboard is over it. Android stops counting the gesture bar as
@@ -305,29 +486,7 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           Column(
             children: [
-              // Above whichever screen is open rather than inside one of
-              // them: it is about the app, not about a day.
-              AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.topCenter,
-                child: Column(
-                  children: [
-                    const SizedBox(width: double.infinity),
-                    if (_update != null)
-                      _UpdateBanner(
-                        update: _update!,
-                        onDismiss: () => setState(() => _update = null),
-                      ),
-                    if (offerFullScreen)
-                      _FullScreenBanner(
-                        onAllow: Reminders.instance.requestFullScreen,
-                        onDismiss: () =>
-                            setState(() => _fullScreenPutOff = true),
-                      ),
-                  ],
-                ),
-              ),
+              banners,
               Expanded(
                 child: MenuScope(
                   open: inBar ? null : _openMenu,

@@ -170,6 +170,7 @@ const Map<String, Object> it = {
   'editGroup': "Modifica gruppo",
   'groupName': "Nome",
   'sectionGroup': "GRUPPO",
+  'sectionGroups': "GRUPPI",
   'deleteGroupQuestion': "Eliminare «{name}»?",
   'groupTasksMoveTo': "Le sue attività passeranno a «{group}».",
   'personal': "Personale",
@@ -202,6 +203,7 @@ const Map<String, Object> it = {
   'markDone': "Segna come fatte",
   'markNotDone': "Segna come da fare",
   'clearSelection': "Annulla la selezione",
+  'select': "Seleziona",
   'deleteTasksQuestion': ["Eliminare {n} attività?"],
   'cannotBeUndone': "Questa azione non si può annullare.",
 

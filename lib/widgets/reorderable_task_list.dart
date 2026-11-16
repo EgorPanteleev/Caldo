@@ -11,6 +11,7 @@ import '../providers/task_provider.dart' show dayOf;
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import 'carry.dart';
+import 'desk.dart';
 import 'selection.dart';
 import 'slide_into_place.dart';
 import 'task_card.dart';
@@ -658,7 +659,10 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
           itemCount: w.tasks.length,
           onReorder: _reorder,
           onReorderStart: (i) {
-            Selection.maybeOf(context)?.lifted(w.tasks[i]);
+            // A mouse's drag picks nothing out; Ctrl and a click does.
+            if (!Desk.isWide(context)) {
+              Selection.maybeOf(context)?.lifted(w.tasks[i]);
+            }
             w.carry?.begin(
               w.tasks[i],
               () => _list.currentState?.cancelReorder(),
@@ -685,7 +689,8 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
           ),
           itemBuilder: (context, i) {
             final task = w.tasks[i];
-            return ReorderableDelayedDragStartListener(
+            return pickUpListener(
+              context,
               key: ValueKey('task-${task.id}'),
               index: i,
               child: SlideIntoPlace(

@@ -12,6 +12,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/attachments_field.dart' show AttachmentMark;
+import '../widgets/desk.dart';
 import '../widgets/groups.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart' show TaskCard;
@@ -42,6 +43,9 @@ class _BoardScreenState extends State<BoardScreen> {
   /// The lanes, side by side, snapped so the one on show has the lanes
   /// either side of it showing (`_LaneSnap`).
   final _lanes = ScrollController();
+
+  /// How much of the board's width a lane takes, as it was last laid out.
+  double _fraction = _Board.laneFraction;
 
   /// Whether a card is being carried.
   bool _carrying = false;
@@ -141,7 +145,7 @@ class _BoardScreenState extends State<BoardScreen> {
   void _turn() {
     if (_lanes.hasClients) {
       final at = _lanes.position;
-      final stops = _LaneSnap.stops(at);
+      final stops = _LaneSnap.stops(at, _fraction);
       final page = _LaneSnap.nearest(at, stops) + _side;
       if (page >= 0 && page < stops.length) {
         _lanes.animateTo(
@@ -154,11 +158,7 @@ class _BoardScreenState extends State<BoardScreen> {
     _turning = Timer(_Board.nextTurn, _turn);
   }
 
-  Future<void> _open([Task? task]) async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => TaskEditScreen(task: task)));
-  }
+  Future<void> _open([Task? task]) => openTaskForm(context, task: task);
 
   /// Not started by when each is due, soonest first and undated last; the
   /// other two latest first, so a card just carried over is at the top of
@@ -197,6 +197,11 @@ class _BoardScreenState extends State<BoardScreen> {
               if (t.listId == group) t,
           ];
     final columns = _columns(shown);
+    // In a desktop's wide window the three lanes are on show at once, a
+    // third of the board each, and only turned between when there is not
+    // the room for that — beside the form's panel in a small window. The
+    // groups are in the sidebar.
+    final wide = Desk.wideOf(context);
 
     return Scaffold(
       body: Column(
@@ -213,49 +218,56 @@ class _BoardScreenState extends State<BoardScreen> {
             ],
           ),
           // The same choice of group as Schedule and the calendar make.
-          const SizedBox(width: double.infinity, child: GroupChips()),
-          const SizedBox(height: 14),
+          if (!wide)
+            const SizedBox(width: double.infinity, child: GroupChips()),
+          SizedBox(height: wide ? 6 : 14),
           // Wide enough lanes for a card to be a Jira card, so a page each,
           // with the next lane at the side to say there is one and to be
           // carried onto. Three at once left a column a third of a phone
           // wide and a title a word a line.
           Expanded(
             child: LayoutBuilder(
-              builder: (context, box) => SingleChildScrollView(
-                key: boardLanesKey,
-                controller: _lanes,
-                scrollDirection: Axis.horizontal,
-                physics: const _LaneSnap(),
-                // A row rather than a list, so every lane stays built:
-                // a lane thrown away while a card carried out of it is
-                // still in the air takes the drag's callbacks with it,
-                // and the board could neither turn back nor hear the
-                // card let go.
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final stage in Stage.values)
-                      Container(
-                        width: box.maxWidth * _Board.laneFraction,
-                        padding: EdgeInsets.fromLTRB(
-                          _Board.gap,
-                          0,
-                          stage == Stage.values.last ? _Board.gap : 0,
-                          _Board.gap,
+              builder: (context, box) {
+                final fraction = _fraction = wide
+                    ? _Board.wideFraction(box.maxWidth)
+                    : _Board.laneFraction;
+                return SingleChildScrollView(
+                  key: boardLanesKey,
+                  controller: _lanes,
+                  scrollDirection: Axis.horizontal,
+                  physics: _LaneSnap(fraction),
+                  // A row rather than a list, so every lane stays built:
+                  // a lane thrown away while a card carried out of it is
+                  // still in the air takes the drag's callbacks with it,
+                  // and the board could neither turn back nor hear the
+                  // card let go.
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final stage in Stage.values)
+                        Container(
+                          width: box.maxWidth * fraction,
+                          padding: EdgeInsets.fromLTRB(
+                            _Board.gap,
+                            0,
+                            stage == Stage.values.last ? _Board.gap : 0,
+                            _Board.gap,
+                          ),
+                          child: _Column(
+                            stage: stage,
+                            tasks: columns[stage]!,
+                            onTap: _open,
+                            onDrop: (task) => _move(task, stage),
+                            finger: _finger,
+                            onLift: _lift,
+                            onPutDown: _putDown,
+                            byMouse: wide,
+                          ),
                         ),
-                        child: _Column(
-                          stage: stage,
-                          tasks: columns[stage]!,
-                          onTap: _open,
-                          onDrop: (task) => _move(task, stage),
-                          finger: _finger,
-                          onLift: _lift,
-                          onPutDown: _putDown,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -273,17 +285,20 @@ const boardLanesKey = Key('boardLanes');
 /// as a `PageView` pages, the middle lane sat against the left edge too,
 /// and the lane before it was nowhere on the screen.
 class _LaneSnap extends ScrollPhysics {
-  const _LaneSnap({super.parent});
+  /// How much of the board's width a lane takes.
+  final double fraction;
+
+  const _LaneSnap(this.fraction, {super.parent});
 
   @override
   _LaneSnap applyTo(ScrollPhysics? ancestor) =>
-      _LaneSnap(parent: buildParent(ancestor));
+      _LaneSnap(fraction, parent: buildParent(ancestor));
 
   /// Where the board stands with each lane on show: that lane's middle at
   /// the screen's, as far as the ends allow.
-  static List<double> stops(ScrollMetrics m) {
+  static List<double> stops(ScrollMetrics m, double fraction) {
     final width = m.viewportDimension;
-    final lane = width * _Board.laneFraction;
+    final lane = width * fraction;
     return [
       for (var i = 0; i < Stage.values.length; i++)
         ((i + 0.5) * lane + _Board.gap / 2 - width / 2).clamp(
@@ -313,7 +328,7 @@ class _LaneSnap extends ScrollPhysics {
       return super.createBallisticSimulation(position, velocity);
     }
     final tolerance = toleranceFor(position);
-    final all = stops(position);
+    final all = stops(position, fraction);
     // A swipe goes on to the next lane its way, however short, as a page
     // view's does; let go at rest, the board settles on the nearest.
     final double target;
@@ -362,6 +377,10 @@ class _Column extends StatelessWidget {
   /// The card has been let go, wherever it was.
   final VoidCallback onPutDown;
 
+  /// Whether a card is picked up by the mouse's drag, at once, rather than
+  /// by a press held: the wide layout's way with every card.
+  final bool byMouse;
+
   const _Column({
     required this.stage,
     required this.tasks,
@@ -370,6 +389,7 @@ class _Column extends StatelessWidget {
     required this.finger,
     required this.onLift,
     required this.onPutDown,
+    this.byMouse = false,
   });
 
   static String nameOf(S s, Stage stage) => switch (stage) {
@@ -449,6 +469,24 @@ class _Column extends StatelessWidget {
                         list: provider.listById(task.listId),
                         onTap: () => onTap(task),
                       );
+                      final lifted = _Lifted(
+                        width: box.maxWidth - 2 * _Board.inset,
+                        child: card,
+                      );
+                      final left = Opacity(opacity: 0.3, child: card);
+                      if (byMouse) {
+                        return MouseDraggable<Task>(
+                          key: ValueKey(task.id),
+                          data: task,
+                          onDragStarted: () => onLift(task),
+                          onDragUpdate: (d) =>
+                              finger.value = d.globalPosition.dx,
+                          onDragEnd: (_) => onPutDown(),
+                          feedback: lifted,
+                          childWhenDragging: left,
+                          child: card,
+                        );
+                      }
                       return LongPressDraggable<Task>(
                         key: ValueKey(task.id),
                         data: task,
@@ -460,11 +498,8 @@ class _Column extends StatelessWidget {
                         onDragStarted: () => onLift(task),
                         onDragUpdate: (d) => finger.value = d.globalPosition.dx,
                         onDragEnd: (_) => onPutDown(),
-                        feedback: _Lifted(
-                          width: box.maxWidth - 2 * _Board.inset,
-                          child: card,
-                        ),
-                        childWhenDragging: Opacity(opacity: 0.3, child: card),
+                        feedback: lifted,
+                        childWhenDragging: left,
                         child: card,
                       );
                     },
@@ -483,6 +518,13 @@ class _Column extends StatelessWidget {
 abstract final class _Board {
   /// How much of the screen's width a lane takes; the rest shows the next.
   static const laneFraction = 0.84;
+
+  /// In a desktop's wide window: a third each, so all three are on show —
+  /// but never less than a card can be read in, and then the board is
+  /// turned between them as a phone's is.
+  static double wideFraction(double width) =>
+      (narrowest / width).clamp(1 / 3, laneFraction);
+  static const narrowest = 264.0;
 
   /// Between the lanes, and round the board.
   static const gap = 10.0;

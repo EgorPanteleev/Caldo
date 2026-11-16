@@ -1,7 +1,6 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +19,7 @@ import 'services/today_widget.dart';
 import 'services/updates.dart';
 import 'theme/app_theme.dart';
 import 'utils/platform.dart';
+import 'widgets/desk.dart';
 import 'widgets/quick_add_bar.dart';
 import 'widgets/theme_switcher.dart';
 
@@ -135,10 +135,20 @@ class CaldoApp extends StatelessWidget {
             ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
             child: ThemeSwitcher(
               child: onDesktop
-                  ? _EscapeGoesBack(_navigator, PhoneWide(child: child!))
+                  ? DeskScope(
+                      navigator: _navigator,
+                      builder: (context, wide) => DeskKeys(
+                        navigator: _navigator,
+                        wide: wide,
+                        // A window too narrow for the desktop's layout is
+                        // the phone's app, at a phone's width.
+                        child: PhoneWide(on: !wide, child: child!),
+                      ),
+                    )
                   : child!,
             ),
           ),
+          navigatorObservers: [if (onDesktop) DeskScope.observer],
           navigatorKey: _navigator,
           home: HomeScreen(start: start, inBar: inBar),
         ),
@@ -147,52 +157,33 @@ class CaldoApp extends StatelessWidget {
   }
 }
 
-/// Escape is a desktop's Back: it leaves a page or a sheet, puts down what
-/// is picked out, and closes the menu — whatever Back would have done on a
-/// phone, asked of the same navigator. A field that wants the key for
-/// itself, as the add field does to close, is nearer the focus and has it
-/// first.
-class _EscapeGoesBack extends StatelessWidget {
-  final GlobalKey<NavigatorState> navigator;
-  final Widget child;
-
-  const _EscapeGoesBack(this.navigator, this.child);
-
-  @override
-  Widget build(BuildContext context) {
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            navigator.currentState?.maybePop(),
-      },
-      child: child,
-    );
-  }
-}
-
 /// Keeps the app to the width of a large phone, in the middle of a window
-/// made wider than that.
+/// made a little wider than that — one wider still gets the desktop's own
+/// layout (`Desk`).
 ///
-/// Every screen is laid out for a phone held upright, and a window can be
-/// made any shape: stretched across a monitor, the tab bar was a pill a
-/// metre long and a task's card a stripe from one edge to the other. A
-/// layout of its own for a wide window would be a second app; this is the
-/// first one, standing in the middle of the room it is given.
+/// Every screen here is laid out for a phone held upright, and a window can
+/// be made any shape: stretched, the tab bar was a pill a metre long and a
+/// task's card a stripe from one edge to the other.
 ///
 /// The same widgets whatever the width, so nothing under it loses its
 /// state as the window is dragged past [width]; and the window's size is
 /// handed down as the column's, for whatever measures itself against "the
 /// screen".
 class PhoneWide extends StatelessWidget {
+  /// Off for the wide layout, which has the whole window. Still in the tree
+  /// then, so the navigator under it stays where it is as the layout
+  /// changes.
+  final bool on;
   final Widget child;
 
-  const PhoneWide({super.key, required this.child});
+  const PhoneWide({super.key, this.on = true, required this.child});
 
   static const width = 640.0;
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final width = on ? PhoneWide.width : double.infinity;
     return ColoredBox(
       color: AppTheme.of(context).bg,
       child: Center(
@@ -200,7 +191,7 @@ class PhoneWide extends StatelessWidget {
         // it until it does.
         child: ClipRect(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: width),
+            constraints: BoxConstraints(maxWidth: width),
             child: MediaQuery(
               data: media.copyWith(
                 size: Size(

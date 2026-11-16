@@ -75,11 +75,8 @@ class _DaySheetState extends State<_DaySheet> {
     await quickAddTask(context, day: widget.day, title: title, group: group);
   }
 
-  Future<void> _openEditor([Task? task]) => Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => TaskEditScreen(task: task, initialDate: widget.day),
-    ),
-  );
+  Future<void> _openEditor([Task? task]) =>
+      openTaskForm(context, task: task, initialDate: widget.day);
 
   /// The list under the field fades into the sheet while there is more of
   /// it below, as the screens' lists do, rather than ending in a straight

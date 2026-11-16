@@ -7,6 +7,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart' show dayOf;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'desk.dart';
 import 'month_grid.dart';
 
 /// Asks for a date with the app's own calendar instead of the Material
@@ -18,16 +19,12 @@ Future<DateTime?> showAppDatePicker({
   DateTime? lastDate,
 }) {
   final now = dayOf(DateTime.now());
-  return showModalBottomSheet<DateTime>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => PickerSheet(
-      child: _DateSheet(
-        initial: initial ?? now,
-        firstDate: firstDate ?? DateTime(now.year - 5),
-        lastDate: lastDate ?? DateTime(now.year + 10),
-      ),
+  return showAppSheet<DateTime>(
+    context,
+    child: _DateSheet(
+      initial: initial ?? now,
+      firstDate: firstDate ?? DateTime(now.year - 5),
+      lastDate: lastDate ?? DateTime(now.year + 10),
     ),
   );
 }
@@ -38,16 +35,78 @@ Future<TimeOfDay?> showAppTimePicker({
   required BuildContext context,
   TimeOfDay? initial,
 }) {
-  return showModalBottomSheet<TimeOfDay>(
+  return showAppSheet<TimeOfDay>(
+    context,
+    child: _TimeSheet(initial: initial ?? const TimeOfDay(hour: 9, minute: 0)),
+  );
+}
+
+/// Asks for something the way the app asks: in a sheet from the foot of a
+/// phone's screen ([PickerSheet]), and in the wide layout in a panel in the
+/// middle of the window — a sheet the width of a monitor, rising from its
+/// foot to offer three choices, was a phone's gesture a long way from the
+/// thing that was clicked.
+///
+/// [maxHeight] holds a sheet that can be long, as a list of countries is.
+Future<T?> showAppSheet<T>(
+  BuildContext context, {
+  required Widget child,
+  double? maxHeight,
+}) {
+  if (Desk.isWide(context)) {
+    return showDialog<T>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (_) => _SheetDialog(child: child),
+    );
+  }
+  return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => PickerSheet(
-      child: _TimeSheet(
-        initial: initial ?? const TimeOfDay(hour: 9, minute: 0),
-      ),
-    ),
+    constraints: maxHeight == null
+        ? null
+        : BoxConstraints(maxHeight: maxHeight),
+    builder: (_) => PickerSheet(child: child),
   );
+}
+
+/// What a sheet is in the wide layout: the same ground and the same
+/// contents, rimmed all the way round and no wider than a sheet on a phone.
+class _SheetDialog extends StatelessWidget {
+  final Widget child;
+
+  const _SheetDialog({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.86,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Material(
+            color: p.bg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(color: p.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            elevation: 12,
+            shadowColor: Colors.black,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 10),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// The rounded panel every picker sits in, with a drag handle on top — and

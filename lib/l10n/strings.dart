@@ -349,6 +349,7 @@ class S {
   String get editGroup => _word('editGroup');
   String get groupName => _word('groupName');
   String get sectionGroup => _word('sectionGroup');
+  String get sectionGroups => _word('sectionGroups');
   String deleteGroupQuestion(String name) =>
       _fill('deleteGroupQuestion', {'name': name});
   String groupTasksMoveTo(String group) =>
@@ -435,6 +436,7 @@ class S {
   String get markDone => _word('markDone');
   String get markNotDone => _word('markNotDone');
   String get clearSelection => _word('clearSelection');
+  String get select => _word('select');
   String deleteTasksQuestion(int n) => _count('deleteTasksQuestion', n);
   String get cannotBeUndone => _word('cannotBeUndone');
 

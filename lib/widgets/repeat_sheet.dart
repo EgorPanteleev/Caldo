@@ -21,13 +21,9 @@ Future<Repeat?> showRepeatSheet({
   required Repeat initial,
   required DateTime due,
 }) {
-  return showModalBottomSheet<Repeat>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => PickerSheet(
-      child: _RepeatSheet(initial: initial, due: due),
-    ),
+  return showAppSheet<Repeat>(
+    context,
+    child: _RepeatSheet(initial: initial, due: due),
   );
 }
 

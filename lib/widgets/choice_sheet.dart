@@ -24,16 +24,10 @@ Future<T?> choose<T>(
   required T selected,
   required List<Option<T>> options,
 }) {
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * 0.7,
-    ),
-    builder: (_) => PickerSheet(
-      child: _Choices<T>(title: title, selected: selected, options: options),
-    ),
+  return showAppSheet<T>(
+    context,
+    maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+    child: _Choices<T>(title: title, selected: selected, options: options),
   );
 }
 

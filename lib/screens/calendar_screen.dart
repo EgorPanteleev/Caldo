@@ -18,10 +18,12 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/carry.dart';
 import '../widgets/day_sheet.dart';
+import '../widgets/desk.dart';
 import '../widgets/groups.dart';
 import '../widgets/day_hours.dart';
 import '../widgets/menu_button.dart';
 import '../widgets/month_grid.dart';
+import '../widgets/put_off.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/selection.dart';
 import '../widgets/tick_off.dart';
@@ -121,6 +123,9 @@ class _CalendarScreenState extends State<CalendarScreen>
     _expansion.addListener(_leaveWeek);
     _carry.addListener(_watchEdges);
     _carry.addListener(_showWeek);
+    DeskActions.instance
+      ..step = _step
+      ..today = _jumpToToday;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<TaskProvider>().loadMonth(_baseMonth);
@@ -128,8 +133,37 @@ class _CalendarScreenState extends State<CalendarScreen>
     });
   }
 
+  /// Whether this is drawn for a desktop's wide window (`Desk`): the month
+  /// opened out over all the height there is, and the day it is showing
+  /// down the right of it rather than under it. There the grid has one
+  /// state, not three, and none of what moves it between them applies.
+  bool _wide = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _wide = Desk.wideOf(context);
+  }
+
+  /// What a desktop's keys ask of the calendar: the day so many days on,
+  /// or the month so many months on.
+  void _step({int days = 0, int months = 0}) {
+    if (months != 0) {
+      if (!_controller.hasClients) return;
+      _goToPage((_controller.page?.round() ?? _basePage) + months);
+      return;
+    }
+    _selectDay(
+      DateTime(_selected.year, _selected.month, _selected.day + days),
+      openSheet: false,
+    );
+  }
+
   @override
   void dispose() {
+    DeskActions.instance
+      ..step = null
+      ..today = null;
     _turning?.cancel();
     _hold.dispose();
     _edgeShown.dispose();
@@ -382,7 +416,10 @@ class _CalendarScreenState extends State<CalendarScreen>
     // day. There is nowhere left on the screen to list it out, so it opens on
     // top of the month instead — and the month is still there underneath when
     // the card is dismissed.
-    if (openSheet && _expansion.value > 0.5) showDaySheet(context, day);
+    // In a desktop's wide window the day is already down the side.
+    if (openSheet && !_wide && _expansion.value > 0.5) {
+      showDaySheet(context, day);
+    }
   }
 
   DateTime _monthOfPage(int page) =>
@@ -548,7 +585,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       if (_wheeled.sign != delta.dy.sign) _wheeled = 0;
       _wheeled += delta.dy;
       if (_wheeled.abs() < 40) return;
-      final pager = _weekShown.value ? _weekController : _controller;
+      final pager = _weekShown.value && !_wide ? _weekController : _controller;
       if (!pager.hasClients) return;
       final forward = _wheeled > 0;
       _wheeled = 0;
@@ -716,7 +753,8 @@ class _CalendarScreenState extends State<CalendarScreen>
     final page = _controller.hasClients
         ? (_controller.page?.round() ?? _basePage)
         : _basePage;
-    final t = _expansion.value;
+    // A desktop's month is always the whole of it.
+    final t = _wide ? 0.0 : _expansion.value;
     final layout = MonthLayout(
       month: _monthOfPage(page),
       mondayFirst: context.read<SettingsProvider>().weekStartsMonday,
@@ -753,8 +791,10 @@ class _CalendarScreenState extends State<CalendarScreen>
     final cell = layout.cellSize;
     final tile = Rect.fromCenter(
       center: global,
-      width: cell.width - 4,
-      height: math.min(cell.height, cell.width) - 6,
+      // A desktop's day is far larger than a tile needs to be to be read
+      // as one going into it.
+      width: math.min(cell.width - 4, 150),
+      height: math.min(math.min(cell.height, cell.width) - 6, 64),
     );
     // Kept on the grid: held at a side to turn the month, a tile centred on
     // the finger was half off the screen.
@@ -785,13 +825,243 @@ class _CalendarScreenState extends State<CalendarScreen>
     return box.localToGlobal(visible.topLeft) & visible.size;
   }
 
-  Future<void> _openEditor([Task? task]) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => TaskEditScreen(task: task, initialDate: _selected),
+  Future<void> _openEditor([Task? task]) =>
+      openTaskForm(context, task: task, initialDate: _selected);
+
+  /// A card carried onto a day of the month and let go there.
+  void _onCarried(Task task, DateTime day) {
+    // Put down in another month, the day it went to is the one shown — the
+    // day it came from is a turn or more away and no longer loaded.
+    if (day.year != _selected.year || day.month != _selected.month) {
+      _selectDay(day, openSheet: false);
+    }
+    context.read<TaskProvider>().moveAllToDay(
+      Selection.carried(context, task),
+      day,
+    );
+  }
+
+  /// The day's tasks, as both layouts draw them: under the grid in a pager
+  /// on a phone, and on a desktop down the side, where none of the drags
+  /// that move a phone's grid are passed.
+  Widget _dayPanel(
+    DateTime day,
+    TaskProvider provider,
+    SettingsProvider settings,
+    EventsProvider? events, {
+    bool moves = true,
+  }) {
+    return _DayPanel(
+      date: day,
+      tasks: provider.tasksForDay(day),
+      holidays:
+          Holidays.around(settings.effectiveHolidayCountry, day)[day] ??
+          const <Holiday>[],
+      events: events?.on(day) ?? const [],
+      lists: provider.lists,
+      onDragStart: moves ? _onDragStart : null,
+      onDrag: moves ? _onDrag : null,
+      onDragEnd: moves ? _onDragEnd : null,
+      onPull: moves ? _onPull : null,
+      onPullStart: moves ? _onPullStart : null,
+      onPullEnd: moves ? _onPullEnd : null,
+      onScrolled: moves ? _onListScrolled : null,
+      physics: moves ? _dayListPhysics : null,
+      controller: moves ? _dayLists : null,
+      onOpen: _openEditor,
+      onToggle: (task) => tickOff(context, task),
+      isLeaving: provider.isLeaving,
+      isTicking: provider.isTicking,
+      rearranging: provider.rearranging,
+      onReorder: provider.reorder,
+      carry: _carry,
+      hours: settings.dayAsHours,
+      onHours: (on) => settings.update(dayAsHours: on),
+    );
+  }
+
+  /// The calendar in a desktop's wide window: the month opened out, every
+  /// day's tasks written in it, and the day picked down the right.
+  ///
+  /// One state where the phone has three. There is room for the opened
+  /// month and the day at once, so nothing has to be dragged between them,
+  /// and a day picked is shown beside the month rather than in a sheet over
+  /// it. The month is turned by the arrows over it, the wheel, and Page Up
+  /// and Down; a title in it is clicked to open its task, and dragged to
+  /// another day to move it there, as a card from the day's list is.
+  Widget _buildWide(
+    AppPalette p,
+    TaskProvider provider,
+    SettingsProvider settings,
+    EventsProvider? events,
+    DateTime shownMonth,
+  ) {
+    final mondayFirst = settings.weekStartsMonday;
+    final country = settings.effectiveHolidayCountry;
+    return SelectionScope(
+      child: UndoScope(
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          body: CarryArea<DateTime>(
+            carry: _carry,
+            onDrop: _onCarried,
+            child: CarryMark<DateTime>(
+              carry: _carry,
+              mark: _cellOf,
+              line: false,
+              child: DragWithin(
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    // The day keeps the form's width where there is room,
+                    // so the form covers it and nothing else; in a narrow
+                    // window it gives some of that to the month.
+                    final side =
+                        (box.maxWidth - 7 * _roomyDay - 2 * MonthLayout.inset)
+                            .clamp(300.0, Desk.side);
+                    final cell =
+                        (box.maxWidth - side - 2 * MonthLayout.inset) / 7;
+                    // Days too narrow for a desktop's titles keep a phone's.
+                    final sizes = cell >= _roomyDay
+                        ? MonthSizes.desk
+                        : MonthSizes.phone;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: ColoredBox(
+                            color: p.calendar,
+                            child: Column(
+                              children: [
+                                _WideMonthBar(
+                                  title: Dates.monthYear(shownMonth),
+                                  onPrevious: () => _step(months: -1),
+                                  onNext: () => _step(months: 1),
+                                  onToday: _jumpToToday,
+                                ),
+                                WeekdayRow(
+                                  mondayFirst: mondayFirst,
+                                  expansion: 1,
+                                  sizes: sizes,
+                                ),
+                                Expanded(
+                                  child: Stack(
+                                    children: [
+                                      SizedBox.expand(
+                                        key: _grid,
+                                        child: Listener(
+                                          onPointerSignal: _onWheel,
+                                          child: PageView.builder(
+                                            controller: _controller,
+                                            onPageChanged: _onMonthPageChanged,
+                                            itemBuilder: (context, i) =>
+                                                MonthGrid(
+                                                  month: _monthOfPage(i),
+                                                  selected: _selected,
+                                                  mondayFirst: mondayFirst,
+                                                  tasksByDay:
+                                                      provider.tasksByDay,
+                                                  holidaysByDay:
+                                                      Holidays.around(
+                                                        country,
+                                                        _monthOfPage(i),
+                                                      ),
+                                                  eventsByDay:
+                                                      events?.byDay ?? const {},
+                                                  lists: provider.lists,
+                                                  expansion: 1,
+                                                  sizes: sizes,
+                                                  onSelect: _selectDay,
+                                                  onOpen: _openFromMonth,
+                                                  onMove: _moveInMonth,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Where holding a carried card turns
+                                      // the month.
+                                      Positioned.fill(
+                                        child: IgnorePointer(
+                                          child: _EdgeHints(
+                                            carry: _carry,
+                                            edge: _edgeShown,
+                                            hold: _hold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: side,
+                          child: ColoredBox(
+                            color: p.panel,
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: Stack(
+                                    children: [
+                                      _dayPanel(
+                                        _selected,
+                                        provider,
+                                        settings,
+                                        events,
+                                        moves: false,
+                                      ),
+                                      Positioned(
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        child: GroundFade(ground: p.panel),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                QuickAddBar(
+                                  date: _selected,
+                                  controller: _quickAdd,
+                                  onSubmit: _addQuickTask,
+                                  onFullForm: () => _openEditor(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
+
+  /// The narrowest a day of the month is given a desktop's measures
+  /// ([MonthSizes.desk]): room for ten letters of a title.
+  static const _roomyDay = 72.0;
+
+  /// A title clicked in the month: its task is opened, and its day picked,
+  /// so the day down the side is the one the form is about.
+  void _openFromMonth(Task task) {
+    final day = task.dueDay;
+    if (day != null) _selectDay(day, openSheet: false);
+    _openEditor(task);
+  }
+
+  /// A title dragged to another day of the month. Offered back as a card
+  /// put off is, in the day's add row.
+  void _moveInMonth(Task task, DateTime day) => PutOff.move(
+    _grid.currentContext ?? context,
+    task,
+    day,
+    Icons.event_outlined,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -806,6 +1076,7 @@ class _CalendarScreenState extends State<CalendarScreen>
         ? (_controller.page?.round() ?? _basePage)
         : _basePage;
     final shownMonth = _monthOfPage(page);
+    if (_wide) return _buildWide(p, provider, settings, events, shownMonth);
 
     return SelectionScope(
       child: UndoScope(
@@ -822,9 +1093,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                     _MonthBar(
                       title: Dates.monthTitle(shownMonth),
                       onToday: _jumpToToday,
-                      onSearch: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const SearchScreen()),
-                      ),
+                      onSearch: () => openSearch(context),
                     ),
                     AnimatedBuilder(
                       animation: _expansion,
@@ -845,19 +1114,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                     // outlined over everything, the card included.
                     CarryArea<DateTime>(
                       carry: _carry,
-                      onDrop: (task, day) {
-                        // Put down in another month, the day it went to is the
-                        // one shown — the day it came from is a turn or more away
-                        // and no longer loaded.
-                        if (day.year != _selected.year ||
-                            day.month != _selected.month) {
-                          _selectDay(day, openSheet: false);
-                        }
-                        context.read<TaskProvider>().moveAllToDay(
-                          Selection.carried(context, task),
-                          day,
-                        );
-                      },
+                      onDrop: _onCarried,
                       child: CarryMark<DateTime>(
                         carry: _carry,
                         mark: _cellOf,
@@ -991,38 +1248,12 @@ class _CalendarScreenState extends State<CalendarScreen>
                                 child: PageView.builder(
                                   controller: _dayController,
                                   onPageChanged: _onDayPageChanged,
-                                  itemBuilder: (context, i) {
-                                    final day = _dayOfPage(i);
-                                    return _DayPanel(
-                                      date: day,
-                                      tasks: provider.tasksForDay(day),
-                                      holidays:
-                                          Holidays.around(country, day)[day] ??
-                                          const <Holiday>[],
-                                      events: events?.on(day) ?? const [],
-                                      lists: provider.lists,
-                                      onDragStart: _onDragStart,
-                                      onDrag: _onDrag,
-                                      onDragEnd: _onDragEnd,
-                                      onPull: _onPull,
-                                      onPullStart: _onPullStart,
-                                      onPullEnd: _onPullEnd,
-                                      onScrolled: _onListScrolled,
-                                      physics: _dayListPhysics,
-                                      controller: _dayLists,
-                                      onOpen: _openEditor,
-                                      onToggle: (task) =>
-                                          tickOff(context, task),
-                                      isLeaving: provider.isLeaving,
-                                      isTicking: provider.isTicking,
-                                      rearranging: provider.rearranging,
-                                      onReorder: provider.reorder,
-                                      carry: _carry,
-                                      hours: settings.dayAsHours,
-                                      onHours: (on) =>
-                                          settings.update(dayAsHours: on),
-                                    );
-                                  },
+                                  itemBuilder: (context, i) => _dayPanel(
+                                    _dayOfPage(i),
+                                    provider,
+                                    settings,
+                                    events,
+                                  ),
                                 ),
                                 builder: (context, pager) {
                                   final t = _expansion.value;
@@ -1358,6 +1589,61 @@ class _MonthBar extends StatelessWidget {
   }
 }
 
+/// The calendar's header in a desktop's wide window: the month and its year
+/// in full, and at the far end the way to the month before, back to today,
+/// and to the month after. One row, where the phone has two: the groups and
+/// search are in the sidebar, and there is width to spare. The arrows the
+/// phone's header lost are back, since a month is swiped with a finger and
+/// nobody drags one with a mouse.
+class _WideMonthBar extends StatelessWidget {
+  final String title;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onToday;
+
+  const _WideMonthBar({
+    required this.title,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onToday,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 10, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              key: monthTitleKey,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.chevron_left, color: p.muted),
+            tooltip: s.previousMonth,
+            onPressed: onPrevious,
+          ),
+          TodayButton(onTap: onToday),
+          IconButton(
+            icon: Icon(Icons.chevron_right, color: p.muted),
+            tooltip: s.nextMonth,
+            onPressed: onNext,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// One day under the grid: its bar and its tasks. The days sit side by side
 /// in a pager, so changing the day slides the next one in from the edge
 /// rather than swapping the list out where it stands — and the days can be
@@ -1368,25 +1654,29 @@ class _DayPanel extends StatelessWidget {
   final List<Holiday> holidays;
   final List<CalendarEvent> events;
   final List<TaskList> lists;
-  final ValueChanged<DragStartDetails> onDragStart;
-  final ValueChanged<DragUpdateDetails> onDrag;
-  final ValueChanged<DragEndDetails> onDragEnd;
+
+  /// The drags that move the grid, taken by the bar and by an empty day.
+  /// All of these down to [controller] are null in a desktop's wide window,
+  /// where the grid does not move and the day is only a list.
+  final ValueChanged<DragStartDetails>? onDragStart;
+  final ValueChanged<DragUpdateDetails>? onDrag;
+  final ValueChanged<DragEndDetails>? onDragEnd;
 
   /// Pulling the day's list past either of its ends drives the grid. The
   /// panel is most of the screen, and a swipe on it that had nowhere else to
   /// go should open or close the month rather than do nothing at all.
-  final void Function(double delta) onPull;
-  final VoidCallback onPullStart;
-  final ValueChanged<DragEndDetails?> onPullEnd;
+  final void Function(double delta)? onPull;
+  final VoidCallback? onPullStart;
+  final ValueChanged<DragEndDetails?>? onPullEnd;
 
   /// The list moving under a finger, which makes the rest of that drag a
   /// scroll and no pull on the grid.
-  final VoidCallback onScrolled;
+  final VoidCallback? onScrolled;
 
   /// Keeps the list still while the grid is above its week (see
   /// `_listHeld`), so every drag on it reaches [onPull].
-  final ScrollPhysics physics;
-  final ScrollController controller;
+  final ScrollPhysics? physics;
+  final ScrollController? controller;
   final ValueChanged<Task> onOpen;
   final ValueChanged<Task> onToggle;
   final bool Function(Task) isLeaving;
@@ -1406,15 +1696,15 @@ class _DayPanel extends StatelessWidget {
     required this.holidays,
     required this.events,
     required this.lists,
-    required this.onDragStart,
-    required this.onDrag,
-    required this.onDragEnd,
-    required this.onPull,
-    required this.onPullStart,
-    required this.onPullEnd,
-    required this.onScrolled,
-    required this.physics,
-    required this.controller,
+    this.onDragStart,
+    this.onDrag,
+    this.onDragEnd,
+    this.onPull,
+    this.onPullStart,
+    this.onPullEnd,
+    this.onScrolled,
+    this.physics,
+    this.controller,
     required this.onOpen,
     required this.onToggle,
     required this.isLeaving,
@@ -1454,15 +1744,15 @@ class _DayPanel extends StatelessWidget {
               // its top is no pull, and ending one used to settle the grid.
               if (notification is ScrollStartNotification &&
                   notification.dragDetails != null) {
-                onPullStart();
+                onPullStart?.call();
               }
               if (notification is ScrollUpdateNotification &&
                   notification.dragDetails != null &&
                   notification.scrollDelta != 0) {
-                onScrolled();
+                onScrolled?.call();
               }
               if (notification is ScrollEndNotification) {
-                onPullEnd(notification.dragDetails);
+                onPullEnd?.call(notification.dragDetails);
               }
               // A held list (or a short one, which cannot scroll at all)
               // passes every drag on as overscroll; in the week a long one
@@ -1470,7 +1760,7 @@ class _DayPanel extends StatelessWidget {
               // if this drag has not scrolled it there.
               if (notification is OverscrollNotification &&
                   notification.dragDetails != null) {
-                onPull(-notification.overscroll);
+                onPull?.call(-notification.overscroll);
               }
               return false;
             },

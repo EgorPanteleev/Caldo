@@ -10,7 +10,7 @@ import '../providers/events_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import 'colour_selector.dart';
-import 'date_time_pickers.dart' show PickerSheet, SheetAction;
+import 'date_time_pickers.dart' show SheetAction, showAppSheet;
 
 /// What a group is called on screen. The default group is made before
 /// anyone has named anything, as "Personal" in English; until it is
@@ -289,12 +289,7 @@ class GroupChip extends StatelessWidget {
 /// Makes a group, or with [group] renames, recolours or deletes it. Returns
 /// the group made, or null if none was.
 Future<TaskList?> showGroupSheet(BuildContext context, {TaskList? group}) {
-  return showModalBottomSheet<TaskList>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => PickerSheet(child: _GroupSheet(group: group)),
-  );
+  return showAppSheet<TaskList>(context, child: _GroupSheet(group: group));
 }
 
 class _GroupSheet extends StatefulWidget {

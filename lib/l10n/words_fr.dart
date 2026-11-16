@@ -171,6 +171,7 @@ const Map<String, Object> fr = {
   'editGroup': "Modifier le groupe",
   'groupName': "Nom",
   'sectionGroup': "GROUPE",
+  'sectionGroups': "GROUPES",
   'deleteGroupQuestion': "Supprimer « {name} » ?",
   'groupTasksMoveTo': "Ses tâches iront dans « {group} ».",
   'personal': "Personnel",
@@ -203,6 +204,7 @@ const Map<String, Object> fr = {
   'markDone': "Marquer comme faites",
   'markNotDone': "Marquer comme à faire",
   'clearSelection': "Annuler la sélection",
+  'select': "Sélectionner",
   'deleteTasksQuestion': ["Supprimer {n} tâche ?", "Supprimer {n} tâches ?"],
   'cannotBeUndone': "Cette action est irréversible.",
 

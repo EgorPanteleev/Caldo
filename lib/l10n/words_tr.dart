@@ -164,6 +164,7 @@ const Map<String, Object> tr = {
   'editGroup': "Grubu düzenle",
   'groupName': "Ad",
   'sectionGroup': "GRUP",
+  'sectionGroups': "GRUPLAR",
   'deleteGroupQuestion': "\"{name}\" silinsin mi?",
   'groupTasksMoveTo': "Görevleri \"{group}\" grubuna taşınacak.",
   'personal': "Kişisel",
@@ -196,6 +197,7 @@ const Map<String, Object> tr = {
   'markDone': "Yapıldı olarak işaretle",
   'markNotDone': "Yapılmadı olarak işaretle",
   'clearSelection': "Seçimi kaldır",
+  'select': "Seç",
   'deleteTasksQuestion': ["{n} görev silinsin mi?"],
   'cannotBeUndone': "Bu işlem geri alınamaz.",
 

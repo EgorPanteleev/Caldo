@@ -7,7 +7,7 @@ import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
-import 'date_time_pickers.dart' show PickerSheet, showAppDatePicker;
+import 'date_time_pickers.dart' show showAppDatePicker, showAppSheet;
 import 'groups.dart';
 
 /// Tasks picked out on one screen to be moved, ticked off or deleted
@@ -335,15 +335,9 @@ class _SelectionBar extends StatelessWidget {
     final tasks = _tasks(context);
     if (tasks.isEmpty) return selection.clear();
     final provider = context.read<TaskProvider>();
-    final id = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => PickerSheet(
-        child: _GroupPicker(
-          current: {for (final t in tasks) t.listId}.singleOrNull,
-        ),
-      ),
+    final id = await pickGroup(
+      context,
+      current: {for (final t in tasks) t.listId}.singleOrNull,
     );
     if (id == null) return;
     selection.clear();
@@ -457,6 +451,11 @@ class _SelectionBar extends StatelessWidget {
     );
   }
 }
+
+/// Asks which group to move tasks into; [current] is the one they are all
+/// in already, if they share one. Null if none was chosen.
+Future<int?> pickGroup(BuildContext context, {int? current}) =>
+    showAppSheet<int>(context, child: _GroupPicker(current: current));
 
 /// The groups as the form shows them, for the tasks picked out to be moved
 /// into one — or a new one made for them.

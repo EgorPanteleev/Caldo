@@ -11,6 +11,96 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart' show dayOf;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'desk.dart';
+
+/// The measures of a month's days: a phone's, where a day is the width of
+/// a thumb and every point of a chip is a letter off its title, and a
+/// desktop's, where a day is a few inches across and what a phone could
+/// only hint at can be read.
+///
+/// On a desktop the number stands at the day's top left, over titles that
+/// start there too, rather than centred over them: centred, it was a number
+/// floating above a column of words it did not line up with. A title is one
+/// line, since the day is wide enough for most of one, and a second line
+/// would cost the day a task.
+class MonthSizes {
+  final double numberTop;
+  final double badgeWidth;
+  final double badgeHeight;
+  final double badgeRadius;
+  final double numberFont;
+  final bool numberAtLeft;
+
+  final double weekdayFont;
+
+  final double chipFont;
+  final double chipLineSpacing;
+  final double chipInset;
+  final double chipGap;
+  final double chipSideInset;
+  final double chipRadius;
+  final int chipLines;
+
+  const MonthSizes._({
+    required this.numberTop,
+    required this.badgeWidth,
+    required this.badgeHeight,
+    required this.badgeRadius,
+    required this.numberFont,
+    required this.numberAtLeft,
+    required this.weekdayFont,
+    required this.chipFont,
+    required this.chipLineSpacing,
+    required this.chipInset,
+    required this.chipGap,
+    required this.chipSideInset,
+    required this.chipRadius,
+    required this.chipLines,
+  });
+
+  /// As the phone's month was measured and argued over; see [_DayCell] and
+  /// [_DayTitles] for why each is what it is.
+  static const phone = MonthSizes._(
+    numberTop: 5,
+    badgeWidth: 17,
+    badgeHeight: 16,
+    badgeRadius: 5.5,
+    numberFont: 12,
+    numberAtLeft: false,
+    weekdayFont: 10.5,
+    chipFont: 7.5,
+    chipLineSpacing: 1.2,
+    chipInset: 1.5,
+    chipGap: 1.5,
+    chipSideInset: 3,
+    chipRadius: 3,
+    chipLines: 2,
+  );
+
+  static const desk = MonthSizes._(
+    numberTop: 5,
+    badgeWidth: 24,
+    badgeHeight: 22,
+    badgeRadius: 7,
+    numberFont: 13.5,
+    numberAtLeft: true,
+    weekdayFont: 12,
+    chipFont: 11.5,
+    chipLineSpacing: 1.25,
+    chipInset: 2.5,
+    chipGap: 2.5,
+    chipSideInset: 6,
+    chipRadius: 5,
+    chipLines: 1,
+  );
+
+  /// Where what is under the number starts, from the top of the cell.
+  double get contentTop => numberTop + badgeHeight + (numberAtLeft ? 4 : 2);
+
+  /// Where a day's number and titles start, from the side of its cell.
+  double get textStart =>
+      _DayCell.padding + _DayCell.outline + (numberAtLeft ? 3 : 0);
+}
 
 /// How visible the rules between the weeks are: nothing until the grid is
 /// nearly all the way open, so they arrive as the month finishes opening and
@@ -26,12 +116,24 @@ class WeekdayRow extends StatelessWidget {
   /// same rule that separates the weeks, so the two arrive together.
   final double expansion;
 
-  const WeekdayRow({super.key, required this.mondayFirst, this.expansion = 0});
+  /// The grid's measures. A desktop's has room for "Mon" where a phone has
+  /// room for "M", and sets it over the day numbers, at the left.
+  final MonthSizes sizes;
+
+  const WeekdayRow({
+    super.key,
+    required this.mondayFirst,
+    this.expansion = 0,
+    this.sizes = MonthSizes.phone,
+  });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final labels = Dates.weekdayLabels(mondayFirst: mondayFirst);
+    final labels = Dates.weekdayLabels(
+      mondayFirst: mondayFirst,
+      short: sizes.numberAtLeft,
+    );
     return Padding(
       // Inset to match the grid, so the rule lines up with the week rules.
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -49,17 +151,26 @@ class WeekdayRow extends StatelessWidget {
             children: [
               for (var i = 0; i < labels.length; i++)
                 Expanded(
-                  child: Center(
-                    child: Text(
-                      labels[i],
-                      style: TextStyle(
-                        // Sunday sits last when the week starts on Monday
-                        // and first when it starts on Sunday.
-                        color: i == (mondayFirst ? 6 : 0)
-                            ? AppColors.weekend.withValues(alpha: 0.75)
-                            : p.faint,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
+                  child: Align(
+                    alignment: sizes.numberAtLeft
+                        ? Alignment.centerLeft
+                        : Alignment.center,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: sizes.numberAtLeft ? sizes.textStart + 7 : 0,
+                      ),
+                      child: Text(
+                        labels[i],
+                        maxLines: 1,
+                        style: TextStyle(
+                          // Sunday sits last when the week starts on Monday
+                          // and first when it starts on Sunday.
+                          color: i == (mondayFirst ? 6 : 0)
+                              ? AppColors.weekend.withValues(alpha: 0.75)
+                              : p.faint,
+                          fontSize: sizes.weekdayFont,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
@@ -213,6 +324,17 @@ class MonthGrid extends StatefulWidget {
   final DateTime? firstDate;
   final DateTime? lastDate;
 
+  /// A phone's measures, or a desktop's.
+  final MonthSizes sizes;
+
+  /// With this, a task's title in an opened day opens the task when it is
+  /// clicked, rather than only picking the day it is in.
+  final ValueChanged<Task>? onOpen;
+
+  /// With this, a task's title in an opened day can be dragged to another
+  /// day with the mouse, which is told here.
+  final void Function(Task task, DateTime day)? onMove;
+
   const MonthGrid({
     super.key,
     required this.month,
@@ -230,6 +352,9 @@ class MonthGrid extends StatefulWidget {
     this.compactHeight,
     this.firstDate,
     this.lastDate,
+    this.sizes = MonthSizes.phone,
+    this.onOpen,
+    this.onMove,
   }) : assert(
          animation == null || (openHeight != null && compactHeight != null),
        );
@@ -332,7 +457,7 @@ class _MonthGridState extends State<MonthGrid>
         ? null
         : widget.compactHeight! / rows -
               2 * (_DayCell.padding + _DayCell.outline) -
-              _DayCell.contentTop -
+              widget.sizes.contentTop -
               2;
 
     return Padding(
@@ -376,7 +501,10 @@ class _MonthGridState extends State<MonthGrid>
                             holidays: widget.holidaysByDay[day] ?? const [],
                             events: widget.eventsByDay[day] ?? const [],
                             lists: widget.lists,
+                            sizes: widget.sizes,
                             onTap: enabled ? () => widget.onSelect(day) : null,
+                            onOpen: widget.onOpen,
+                            onMove: widget.onMove,
                           );
                         },
                       ),
@@ -669,7 +797,10 @@ class _DayCell extends StatelessWidget {
   final List<Holiday> holidays;
   final List<CalendarEvent> events;
   final List<TaskList> lists;
+  final MonthSizes sizes;
   final VoidCallback? onTap;
+  final ValueChanged<Task>? onOpen;
+  final void Function(Task task, DateTime day)? onMove;
 
   const _DayCell({
     required this.day,
@@ -683,7 +814,10 @@ class _DayCell extends StatelessWidget {
     required this.holidays,
     required this.events,
     required this.lists,
+    required this.sizes,
     required this.onTap,
+    this.onOpen,
+    this.onMove,
   });
 
   /// Air around the cell, inside which the selected day's outline is drawn.
@@ -698,10 +832,8 @@ class _DayCell extends StatelessWidget {
   // place whatever the grid height, so the first week never moves as the
   // month opens — only what sits under the number changes. Centring it in a
   // compact cell was tried, and slid to the top as the month opened; it was
-  // asked for and then asked back.
-  static const numberTop = 5.0;
-  static const numberHeight = 16.0;
-  static const contentTop = numberTop + numberHeight + 2;
+  // asked for and then asked back. How far down, and how large, is the
+  // sizes' to say ([MonthSizes]).
 
   TaskList? _listOf(Task task) {
     for (final list in lists) {
@@ -755,8 +887,8 @@ class _DayCell extends StatelessWidget {
       // screenshot this is matched to, the badge there is a square a fifth
       // wider than the number inside it; ours was half again as wide as that,
       // a slab with the date floating in the middle of it.
-      width: 17,
-      height: 16,
+      width: sizes.badgeWidth,
+      height: sizes.badgeHeight,
       // Centred on the digits rather than on the line box they are laid out
       // in. A line box carries room for descenders under the baseline and
       // none of these numbers has one, so centring the box drops the date
@@ -765,7 +897,7 @@ class _DayCell extends StatelessWidget {
       alignment: const Alignment(0, 0.2),
       decoration: BoxDecoration(
         color: isToday ? badge : Colors.transparent,
-        borderRadius: BorderRadius.circular(5.5),
+        borderRadius: BorderRadius.circular(sizes.badgeRadius),
       ),
       child: Text(
         '${day.day}',
@@ -774,7 +906,7 @@ class _DayCell extends StatelessWidget {
           // Measured against the same screenshot: a date there stands about
           // two percent of the screen's width tall, and at 13.5 ours stood
           // nearer two and a third.
-          fontSize: 12,
+          fontSize: sizes.numberFont,
           // One line's worth and no more, so what is centred is close to the
           // digits themselves.
           height: 1,
@@ -806,7 +938,8 @@ class _DayCell extends StatelessWidget {
     ];
     final markerBars = _MarkerBars(colors: markerColours);
 
-    return GestureDetector(
+    final contentTop = sizes.contentTop;
+    final cell = GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
@@ -818,10 +951,15 @@ class _DayCell extends StatelessWidget {
             return Stack(
               children: [
                 Positioned(
-                  top: numberTop,
-                  left: 0,
+                  top: sizes.numberTop,
+                  left: sizes.numberAtLeft ? 3 : 0,
                   right: 0,
-                  child: Center(child: number),
+                  child: Align(
+                    alignment: sizes.numberAtLeft
+                        ? Alignment.centerLeft
+                        : Alignment.center,
+                    child: number,
+                  ),
                 ),
                 if (box.maxHeight > contentTop + 2)
                   Positioned(
@@ -857,23 +995,29 @@ class _DayCell extends StatelessWidget {
                                     label: holiday.name,
                                     color: AppColors.holiday,
                                     done: false,
+                                    task: null,
                                   ),
                                 for (final event in events)
                                   (
                                     label: event.title,
                                     color: event.color,
                                     done: false,
+                                    task: null,
                                   ),
                                 for (final task in tasks)
                                   (
                                     label: task.title,
                                     color: taskColor(task),
                                     done: task.done,
+                                    task: task,
                                   ),
                               ],
                               muted: p.faint,
                               text: p.text,
                               ground: p.calendar,
+                              sizes: sizes,
+                              onOpen: onOpen,
+                              draggable: onMove != null,
                             ),
                           ),
                       ],
@@ -882,6 +1026,60 @@ class _DayCell extends StatelessWidget {
               ],
             );
           },
+        ),
+      ),
+    );
+    final move = onMove;
+    if (move == null) return cell;
+    return _DropDay(day: day, onMove: move, child: cell);
+  }
+}
+
+/// A day of a desktop's month, as somewhere a task's title can be dragged
+/// to: it lightens under the pointer, so the day about to be clicked is
+/// seen, and is ringed while a title is held over it.
+class _DropDay extends StatefulWidget {
+  final DateTime day;
+  final void Function(Task task, DateTime day) onMove;
+  final Widget child;
+
+  const _DropDay({
+    required this.day,
+    required this.onMove,
+    required this.child,
+  });
+
+  @override
+  State<_DropDay> createState() => _DropDayState();
+}
+
+class _DropDayState extends State<_DropDay> {
+  bool _over = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return DragTarget<Task>(
+      onWillAcceptWithDetails: (d) => d.data.dueDay != widget.day,
+      onAcceptWithDetails: (d) => widget.onMove(d.data, widget.day),
+      builder: (context, held, _) => MouseRegion(
+        onEnter: (_) => setState(() => _over = true),
+        onExit: (_) => setState(() => _over = false),
+        child: DecoratedBox(
+          position: DecorationPosition.background,
+          decoration: BoxDecoration(
+            color: held.isNotEmpty
+                ? p.text.withValues(alpha: 0.14)
+                : _over
+                ? p.text.withValues(alpha: 0.045)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: held.isNotEmpty ? p.text : Colors.transparent,
+              width: 1.6,
+            ),
+          ),
+          child: widget.child,
         ),
       ),
     );
@@ -935,7 +1133,7 @@ class _MarkerBars extends StatelessWidget {
 }
 
 /// What an opened day writes out: one line per holiday and task.
-typedef DayEntry = ({String label, Color color, bool done});
+typedef DayEntry = ({String label, Color color, bool done, Task? task});
 
 /// The fill of a chip in an opened day: [colour] mixed into the calendar's
 /// own [ground] rather than laid over it, the same way a task card is inked.
@@ -957,16 +1155,28 @@ class _DayTitles extends StatelessWidget {
   /// The colour a title is written in, and the ground the chip is mixed into.
   final Color text;
   final Color ground;
+  final MonthSizes sizes;
+
+  /// Opens a task whose title is clicked, where a click on a title is not
+  /// only a click on its day.
+  final ValueChanged<Task>? onOpen;
+
+  /// Whether a task's title can be picked up with the mouse and dropped on
+  /// another day.
+  final bool draggable;
 
   const _DayTitles({
     required this.entries,
     required this.muted,
     required this.text,
     required this.ground,
+    this.sizes = MonthSizes.phone,
+    this.onOpen,
+    this.draggable = false,
   });
 
-  static const _fontSize = 7.5;
-  static const _lineSpacing = 1.2;
+  double get _fontSize => sizes.chipFont;
+  double get _lineSpacing => sizes.chipLineSpacing;
 
   /// Room above and below the text inside a chip, and between two chips, and
   /// at either end of the title. All kept tight: the chip is the width of a
@@ -974,19 +1184,19 @@ class _DayTitles extends StatelessWidget {
   /// Kept as tight as it was: a point of air per chip reads as calmer right
   /// up until it costs the day a whole task, and a day showing two of its
   /// four with "+2 more" under them hides more than the air was worth.
-  static const _inset = 1.5;
-  static const _gap = 1.5;
-  static const _sideInset = 3.0;
+  double get _inset => sizes.chipInset;
+  double get _gap => sizes.chipGap;
+  double get _sideInset => sizes.chipSideInset;
 
-  /// A title may wrap onto a second line — a day is a few characters wide —
-  /// but no further.
-  static const _maxLines = 2;
+  /// A title may wrap onto a second line — a phone's day is a few characters
+  /// wide — but no further.
+  int get _maxLines => sizes.chipLines;
 
   /// Enough to read as a chip rather than a brick, and not so much that the
   /// corners start eating the first letter of the title.
-  static const _radius = 3.0;
+  double get _radius => sizes.chipRadius;
 
-  static const _style = TextStyle(
+  TextStyle get _style => TextStyle(
     fontSize: _fontSize,
     height: _lineSpacing,
     fontWeight: FontWeight.w600,
@@ -1004,7 +1214,7 @@ class _DayTitles extends StatelessWidget {
   /// inputs change while it runs, so the answer cannot either.
   static final _measured = <String, ({double height, bool overran})>{};
 
-  static ({double height, bool overran}) _measure(
+  ({double height, bool overran}) _measure(
     String label,
     double width,
     TextStyle style,
@@ -1016,7 +1226,8 @@ class _DayTitles extends StatelessWidget {
     }
     final key =
         '$label|$width|${style.fontSize}|${style.fontFamily}'
-        '|${scaler.scale(10)}|${direction.index}';
+        '|${scaler.scale(10)}|${direction.index}|$_maxLines|$_inset';
+    final inset = _inset;
     return _measured.putIfAbsent(key, () {
       final painter = TextPainter(
         text: TextSpan(text: label, style: style),
@@ -1027,12 +1238,12 @@ class _DayTitles extends StatelessWidget {
       final height = painter.height;
       final overran = painter.didExceedMaxLines;
       painter.dispose();
-      return (height: height.ceilToDouble() + _inset * 2, overran: overran);
+      return (height: height.ceilToDouble() + inset * 2, overran: overran);
     });
   }
 
   /// One line's worth, for the "+N" that stands for what did not fit.
-  static double get _lineHeight => (_fontSize * _lineSpacing).ceilToDouble();
+  double get _lineHeight => (_fontSize * _lineSpacing).ceilToDouble();
 
   @override
   Widget build(BuildContext context) {
@@ -1085,58 +1296,63 @@ class _DayTitles extends StatelessWidget {
     int hidden,
     List<({double height, bool overran})> sizes,
   ) {
+    Widget chip(int i) => Container(
+      height: sizes[i].height,
+      // A gap only where something follows, so the column never runs
+      // two pixels past the height it was measured against.
+      margin: EdgeInsets.only(bottom: i == shown - 1 && hidden == 0 ? 0 : _gap),
+      padding: EdgeInsets.symmetric(horizontal: _sideInset, vertical: _inset),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: dayChipColour(entries[i].color, ground, done: entries[i].done),
+        borderRadius: BorderRadius.circular(_radius),
+      ),
+      child: Text(
+        entries[i].label,
+        maxLines: _maxLines,
+        // A title too long for the chip's *width* fades out at the end
+        // of its line, which is what a fade is good at: no letter cut
+        // in half, no ellipsis eating two of the few characters there
+        // are. A title too long for its *height* is a different thing
+        // — there Flutter fades the bottom half of the last line it
+        // drew, so every letter on it is sliced through the middle and
+        // the chip reads as a rendering fault. That one is cut at the
+        // line instead, which is a whole line of whole letters; the
+        // rest of the title is a tap away in the day card.
+        //
+        // A desktop's title is one line and never wraps, so it only ever
+        // runs off the end of that line, and fades there.
+        softWrap: _maxLines > 1,
+        overflow: _maxLines > 1 && sizes[i].overran
+            ? TextOverflow.clip
+            : TextOverflow.fade,
+        style: _style.copyWith(
+          color: entries[i].done ? muted : text,
+          decoration: entries[i].done ? TextDecoration.lineThrough : null,
+        ),
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var i = 0; i < shown; i++)
-          Container(
-            height: sizes[i].height,
-            // A gap only where something follows, so the column never runs
-            // two pixels past the height it was measured against.
-            margin: EdgeInsets.only(
-              bottom: i == shown - 1 && hidden == 0 ? 0 : _gap,
+          switch (entries[i].task) {
+            final task? when onOpen != null || draggable => _TaskTitle(
+              task: task,
+              colour: entries[i].color,
+              onOpen: onOpen,
+              draggable: draggable,
+              child: chip(i),
             ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: _sideInset,
-              vertical: _inset,
-            ),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              color: dayChipColour(
-                entries[i].color,
-                ground,
-                done: entries[i].done,
-              ),
-              borderRadius: BorderRadius.circular(_radius),
-            ),
-            child: Text(
-              entries[i].label,
-              maxLines: _maxLines,
-              // A title too long for the chip's *width* fades out at the end
-              // of its line, which is what a fade is good at: no letter cut
-              // in half, no ellipsis eating two of the few characters there
-              // are. A title too long for its *height* is a different thing
-              // — there Flutter fades the bottom half of the last line it
-              // drew, so every letter on it is sliced through the middle and
-              // the chip reads as a rendering fault. That one is cut at the
-              // line instead, which is a whole line of whole letters; the
-              // rest of the title is a tap away in the day card.
-              overflow: sizes[i].overran
-                  ? TextOverflow.clip
-                  : TextOverflow.fade,
-              style: _style.copyWith(
-                color: entries[i].done ? muted : text,
-                decoration: entries[i].done ? TextDecoration.lineThrough : null,
-              ),
-            ),
-          ),
+            _ => chip(i),
+          },
         if (hidden > 0)
           SizedBox(
             height: _lineHeight + _inset * 2,
             child: Padding(
               // Lined up with the titles it stands for rather than centred
               // under them — centred, it read as a caption on the day.
-              padding: const EdgeInsets.only(left: _sideInset),
+              padding: EdgeInsets.only(left: _sideInset),
               child: Text(
                 S.of(context).moreCount(hidden),
                 style: TextStyle(
@@ -1152,6 +1368,78 @@ class _DayTitles extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A task's title in a desktop's opened day: clicked, it opens the task,
+/// and dragged, it is carried to another day — the two things a pointer
+/// expects of something with a name on it. On a phone a title is only part
+/// of its day, and the day is what a tap picks.
+class _TaskTitle extends StatelessWidget {
+  final Task task;
+  final Color colour;
+  final ValueChanged<Task>? onOpen;
+  final bool draggable;
+  final Widget child;
+
+  const _TaskTitle({
+    required this.task,
+    required this.colour,
+    required this.onOpen,
+    required this.draggable,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final title = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onOpen == null ? null : () => onOpen!(task),
+        child: child,
+      ),
+    );
+    if (!draggable) return title;
+    return MouseDraggable<Task>(
+      data: task,
+      // Under the pointer, wherever on the title it was taken hold of.
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: FractionalTranslation(
+        translation: const Offset(-0.5, -0.5),
+        child: Material(
+          color: Color.alphaBlend(colour.withValues(alpha: 0.55), p.field),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: Color.alphaBlend(
+                Colors.white.withValues(alpha: 0.38),
+                colour,
+              ),
+              width: 1.5,
+            ),
+          ),
+          elevation: 8,
+          shadowColor: Colors.black,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Text(
+              task.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: p.text,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: child),
+      child: title,
     );
   }
 }
