@@ -995,10 +995,16 @@ class _CalendarScreenState extends State<CalendarScreen>
                             ),
                           ),
                         ),
-                        SizedBox(
+                        Container(
                           width: side,
-                          child: ColoredBox(
+                          // Ruled off from the month: in the light theme
+                          // the two grounds are one white.
+                          decoration: BoxDecoration(
                             color: p.panel,
+                            border: Border(left: BorderSide(color: p.border)),
+                          ),
+                          child: Material(
+                            type: MaterialType.transparency,
                             child: Column(
                               children: [
                                 Expanded(

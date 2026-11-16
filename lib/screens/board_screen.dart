@@ -524,7 +524,7 @@ abstract final class _Board {
   /// turned between them as a phone's is.
   static double wideFraction(double width) =>
       (narrowest / width).clamp(1 / 3, laneFraction);
-  static const narrowest = 264.0;
+  static const narrowest = 200.0;
 
   /// Between the lanes, and round the board.
   static const gap = 10.0;

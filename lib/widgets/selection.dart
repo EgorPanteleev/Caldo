@@ -222,6 +222,15 @@ class _SelectionSlotState extends State<SelectionSlot>
   );
 
   @override
+  void initState() {
+    super.initState();
+    // Made now. A slot that never has a selection — the tab bar's, on a
+    // screen with no field — would otherwise first ask for them in
+    // `dispose`, where a ticker can no longer be made.
+    _eased;
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _follow();

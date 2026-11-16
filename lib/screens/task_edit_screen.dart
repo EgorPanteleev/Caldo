@@ -107,32 +107,55 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   bool _dirty = false;
 
   void _touched() {
-    if (_dirty) return;
-    setState(() => _dirty = true);
+    if (!_dirty) setState(() => _dirty = true);
     if (widget.inPanel) TaskPanel.instance.dirty = true;
+  }
+
+  /// A text field's controller has spoken — which it does when the caret
+  /// is put in it as well as when something is typed. The form is touched
+  /// either way, as it always was; but the panel is only told there is
+  /// something to lose once the words differ, so a new task opened and left
+  /// alone gives way to a click on another, and closes on one Escape.
+  void _typed() {
+    if (!_dirty) setState(() => _dirty = true);
+    if (widget.inPanel && _wordsDiffer) TaskPanel.instance.dirty = true;
+  }
+
+  bool get _wordsDiffer {
+    final task = widget.task;
+    final steps = task?.subtasks ?? const <Subtask>[];
+    if (_title.text != (task?.title ?? '') ||
+        _notes.text != (task?.notes ?? '') ||
+        _newStep.text.isNotEmpty ||
+        _steps.length != steps.length) {
+      return true;
+    }
+    for (var i = 0; i < steps.length; i++) {
+      if (_steps[i].title.text != steps[i].title) return true;
+    }
+    return false;
   }
 
   /// The way out once there is nothing left to ask: back off the page, or
   /// out of the panel.
-  void _close() => widget.inPanel
-      ? TaskPanel.instance.close()
-      : Navigator.of(context).pop();
+  void _close() =>
+      widget.inPanel ? TaskPanel.instance.close() : Navigator.of(context).pop();
 
   @override
   void initState() {
     super.initState();
     final task = widget.task;
     _title = TextEditingController(text: task?.title ?? '')
-      ..addListener(_touched);
+      ..addListener(_typed);
     _notes = TextEditingController(text: task?.notes ?? '')
-      ..addListener(_touched);
+      ..addListener(_typed);
     _priority = task?.priority ?? Priority.none;
     _repeat = task?.repeat ?? Repeat.none;
     _remindBefore = task?.remindBefore;
     for (final step in task?.subtasks ?? const <Subtask>[]) {
-      _steps.add(_Draft(step.title, done: step.done, onEdit: _touched));
+      _steps.add(_Draft(step.title, done: step.done, onEdit: _typed));
     }
-    _newStep.addListener(_touched);
+    _newStep.addListener(_typed);
     _attachments.addAll(task?.attachments ?? const []);
     // A new task takes its group's colour; an existing one keeps whatever
     // it was given.
@@ -182,7 +205,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   void _addStep() {
     final title = _newStep.text.trim();
     if (title.isEmpty) return;
-    setState(() => _steps.add(_Draft(title, onEdit: _touched)));
+    _touched();
+    setState(() => _steps.add(_Draft(title, onEdit: _typed)));
     _newStep.clear();
     _newStepFocus.requestFocus();
     // The new line pushes the field down a row each time, and nothing else

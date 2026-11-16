@@ -1,5 +1,7 @@
 #include "my_application.h"
 
+#include <cstdio>
+
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
@@ -13,6 +15,49 @@ struct _MyApplication {
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+// Where the window's size is kept from one run to the next: beside the
+// database, as `width height maximized`.
+static gchar* window_file() {
+  return g_build_filename(g_get_user_data_dir(), APPLICATION_ID, "window",
+                          nullptr);
+}
+
+// The size the window was last left at. The first time, wide enough for the
+// desktop's layout — the sidebar, a month and the day beside it — on any
+// laptop.
+static void read_window(gint* width, gint* height, gint* maximized) {
+  *width = 1240;
+  *height = 780;
+  *maximized = 0;
+  g_autofree gchar* path = window_file();
+  g_autofree gchar* text = nullptr;
+  if (!g_file_get_contents(path, &text, nullptr, nullptr)) return;
+  gint w = 0, h = 0, m = 0;
+  if (sscanf(text, "%d %d %d", &w, &h, &m) >= 2 && w >= 340 && h >= 560 &&
+      w <= 16384 && h <= 16384) {
+    *width = w;
+    *height = h;
+    *maximized = m != 0;
+  }
+}
+
+// Called as the window is closed: notes its size for the next opening. A
+// maximized window keeps the size it had before it was, to go back to.
+static gboolean save_window(GtkWidget* widget, GdkEvent* event, gpointer data) {
+  GtkWindow* window = GTK_WINDOW(widget);
+  gint width, height, maximized;
+  read_window(&width, &height, &maximized);
+  maximized = gtk_window_is_maximized(window);
+  if (!maximized) gtk_window_get_size(window, &width, &height);
+  g_autofree gchar* path = window_file();
+  g_autofree gchar* dir = g_path_get_dirname(path);
+  g_mkdir_with_parents(dir, 0700);
+  g_autofree gchar* text =
+      g_strdup_printf("%d %d %d\n", width, height, maximized);
+  g_file_set_contents(path, text, -1, nullptr);
+  return FALSE;
+}
 
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
@@ -67,10 +112,13 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "Caldo");
   }
 
-  // Wide enough for the desktop's layout — the sidebar, a month and the day
-  // beside it — on any laptop; it can be made any other size, down to a
-  // small phone's and no further, and narrow it is the phone's app.
-  gtk_window_set_default_size(window, 1240, 780);
+  // The size it was closed at. It can be made any other, down to a small
+  // phone's and no further, and narrow it is the phone's app.
+  gint width, height, maximized;
+  read_window(&width, &height, &maximized);
+  gtk_window_set_default_size(window, width, height);
+  if (maximized) gtk_window_maximize(window);
+  g_signal_connect(window, "delete-event", G_CALLBACK(save_window), nullptr);
   GdkGeometry smallest;
   smallest.min_width = 340;
   smallest.min_height = 560;

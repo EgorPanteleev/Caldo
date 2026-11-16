@@ -484,22 +484,26 @@ class _DeskFormPanelState extends State<DeskFormPanel>
   /// The form on show — kept, once closed, for as long as it takes to go.
   FormRequest? _shown = TaskPanel.instance.request;
 
-  late final _slide = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 220),
-    reverseDuration: const Duration(milliseconds: 180),
-    value: _shown == null ? 0 : 1,
-  )..addStatusListener(_onSlide);
-
-  late final _eased = CurvedAnimation(
-    parent: _slide,
-    curve: Curves.easeOutCubic,
-    reverseCurve: Curves.easeInCubic,
-  );
+  late final AnimationController _slide;
+  late final CurvedAnimation _eased;
 
   @override
   void initState() {
     super.initState();
+    // Made here rather than when first asked for: with no form ever opened
+    // the first to ask would be `dispose`, by when it is too late to make
+    // a ticker.
+    _slide = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      reverseDuration: const Duration(milliseconds: 180),
+      value: _shown == null ? 0 : 1,
+    )..addStatusListener(_onSlide);
+    _eased = CurvedAnimation(
+      parent: _slide,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
     TaskPanel.instance.addListener(_changed);
   }
 

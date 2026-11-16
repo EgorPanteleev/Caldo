@@ -172,6 +172,14 @@ class _UndoSlotState extends State<UndoSlot>
   final _away = ValueNotifier<double>(0);
 
   @override
+  void initState() {
+    super.initState();
+    // Made now, for the reason `SelectionSlot`'s are: a slot with no scope
+    // to follow would first ask for them in `dispose`.
+    _eased;
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _follow();

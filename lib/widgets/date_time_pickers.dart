@@ -7,6 +7,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart' show dayOf;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../utils/platform.dart';
 import 'desk.dart';
 import 'month_grid.dart';
 
@@ -261,6 +262,31 @@ class _DateSheetState extends State<_DateSheet> {
 
 // ---- Time -----------------------------------------------------------------
 
+/// A time as it is typed at a keyboard: "9", "930", "9:30", "21.15",
+/// "9:30 pm", "9p". Null for anything that is not one.
+///
+/// With no AM or PM said the hour is taken as written, so "15" is three in
+/// the afternoon and "9" nine in the morning on either clock.
+TimeOfDay? parseClock(String text) {
+  final match = RegExp(
+    r'^\s*(\d{1,2})(?:\s*[:.]?\s*(\d{2}))?\s*(?:([ap])\.?m?\.?)?\s*$',
+    caseSensitive: false,
+  ).firstMatch(text);
+  if (match == null) return null;
+  var hour = int.parse(match[1]!);
+  final minute = int.parse(match[2] ?? '0');
+  final half = match[3]?.toLowerCase();
+  if (half != null) {
+    if (hour < 1 || hour > 12) return null;
+    hour = hour % 12 + (half == 'p' ? 12 : 0);
+  }
+  if (hour > 23 || minute > 59) return null;
+  return TimeOfDay(hour: hour, minute: minute);
+}
+
+/// The field a time can be typed into, over the wheels.
+const timeFieldKey = Key('time-field');
+
 /// The height of one row of a wheel, and of the whole drum.
 const _itemExtent = 56.0;
 const _wheelHeight = 224.0;
@@ -368,6 +394,40 @@ class _TimeSheetState extends State<_TimeSheet> {
             ),
           ),
         ),
+        // At a keyboard a time is typed. The wheels follow what is typed
+        // as it becomes a time, and Enter takes it; they are still there
+        // to be turned by the wheel of the mouse or dragged.
+        if (onDesktop)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: SizedBox(
+              width: 150,
+              child: TextField(
+                key: timeFieldKey,
+                autofocus: true,
+                textAlign: TextAlign.center,
+                keyboardType: TextInputType.datetime,
+                style: TextStyle(
+                  color: p.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: Dates.clock(current, h24: _h24),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+                onChanged: (text) {
+                  final typed = parseClock(text);
+                  if (typed != null) _apply(typed);
+                },
+                onSubmitted: (_) => Navigator.of(context).pop(current),
+              ),
+            ),
+          ),
         SizedBox(
           height: _wheelHeight,
           // The band down the middle is nothing but a window in the mask — no
