@@ -41,9 +41,9 @@ elif a[0] == 'drag':
         move(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps); time.sleep(0.016)
     time.sleep(float(a[7]) / 1000 if len(a) > 7 else 0.004); btn(1, False)
 elif a[0] == 'type':
-    names = {'/': 'slash', '-': 'minus', '.': 'period', '_': 'underscore', ':': 'colon', ' ': 'space'}
+    names = {'/': 'slash', '-': 'minus', '.': 'period', '_': 'underscore', ':': 'colon', ' ': 'space', '@': 'at'}
     for ch in a[1]:
-        key(XK.string_to_keysym(names.get(ch, ch)), shift=ch.isupper() or ch in '_:'); time.sleep(0.03)
+        key(XK.string_to_keysym(names.get(ch, ch)), shift=ch.isupper() or ch in '_:@'); time.sleep(0.03)
 elif a[0] == 'key':
     key(XK.string_to_keysym(a[1]), ctrl='ctrl' in a[2:])
 elif a[0] == 'wheel':
