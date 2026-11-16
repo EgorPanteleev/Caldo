@@ -12,6 +12,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/backup.dart';
 import '../services/reminders.dart';
+import '../services/sync.dart';
 import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
@@ -250,6 +251,8 @@ class _HomeScreenState extends State<HomeScreen>
     Reminders.instance.recheckExact();
     context.read<TaskProvider>().catchUp();
     Backup.autoIfDue(context.read<SettingsProvider>());
+    // Another device may have changed things while this one was away.
+    Sync.instance.run();
   }
 
   /// A reminder tapped with the phone in use opens its task, as a row of

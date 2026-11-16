@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sync server runs on the PC Caldo is built on until it has a home
+     with HTTPS of its own, and plain HTTP is let through to that PC alone:
+     10.0.2.2 is the PC as the emulator sees it. Everything else - GitHub's
+     releases - stays HTTPS only. Remove this once the server is on a VPS. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

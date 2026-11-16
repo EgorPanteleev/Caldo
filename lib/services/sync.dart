@@ -9,6 +9,10 @@ abstract class SyncServer {
   /// Who is signed in, or null.
   String? get account;
 
+  /// Asked before each round: a session that could not be renewed while
+  /// offline is tried again here.
+  Future<void> ready() async {}
+
   /// Hands up rows changed here. The server keeps the later edit of each.
   Future<void> push(List<SyncRow> rows);
 
@@ -23,6 +27,9 @@ abstract class SyncServer {
 /// weighed against everyone else's on the server. A round asked for while
 /// one is running is run once that one ends, rather than alongside it.
 class Sync {
+  /// The app's own, on its database; [Account] hands it a server.
+  static final instance = Sync(SyncStore());
+
   final SyncStore store;
   SyncServer? server;
 
@@ -41,6 +48,18 @@ class Sync {
 
   Future<bool>? _round;
   bool _again = false;
+  Timer? _soon;
+
+  /// A round in a moment: for a change just made here, or one heard of
+  /// there. Changes come in bursts — a tick is a write and a read-back, a
+  /// drag writes a whole day — and one round can carry the lot.
+  ///
+  /// Nothing at all without a server, so no timer is left behind in a test.
+  void soon() {
+    if (server?.account == null) return;
+    _soon?.cancel();
+    _soon = Timer(const Duration(seconds: 2), run);
+  }
 
   /// Runs a round, or has one run after the one under way. Says whether
   /// anything here changed.
@@ -63,8 +82,10 @@ class Sync {
 
   Future<bool> _once() async {
     final server = this.server;
-    final account = server?.account;
-    if (server == null || account == null) return false;
+    if (server == null) return false;
+    await server.ready();
+    final account = server.account;
+    if (account == null) return false;
     running.value = true;
     try {
       await store.adopt(account);

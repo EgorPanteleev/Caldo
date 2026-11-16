@@ -18,8 +18,9 @@ which run against a real one; `path_provider_linux` and `file_selector_linux`
 are the desktop's directories and file dialogs — see the Linux section.
 The home-screen widget is native (`TodayWidget.kt`, plain `RemoteViews`, no
 Glance and no `home_widget` package).
-The app is local-only except for one thing: asking GitHub whether a newer
-release is out, and fetching it — see the decision below.
+The app is local-only except for two things: asking GitHub whether a newer
+release is out, and fetching it, and — once signed in — syncing with a
+Supabase of Caldo's own — see the decisions below.
 
 ## Layout
 
@@ -43,6 +44,7 @@ lib/
   services/updates.dart  the newer-release check, download and install
   services/backup.dart   everything as one JSON file, saved and restored
   services/sync.dart     a round of sync: push what changed, pull the rest
+  services/account.dart  signing in by emailed code, and the server synced with
   services/attachments.dart  files and photos on tasks: picked, copied in,
                          opened elsewhere, swept up
   screens/               home (shell: tab bar or menu), tasks (Schedule), calendar,
@@ -62,7 +64,7 @@ lib/
                          tick_off (+ AsShown), carry, selection,
                          reorderable_task_list, attachments_field,
                          desk (Desk, TaskPanel, the mouse and the keys),
-                         task_menu
+                         task_menu, sign_in_sheet
 ```
 
 On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
@@ -1650,6 +1652,24 @@ Changing them back will be noticed.
   against an in-memory server with the SQL's rules (`sync_test.dart`,
   `FakeServer`), two devices each on a database of its own
   (`AppDatabase.named`).
+  **Signing in is a six-figure code sent by email** (`Account`,
+  `showSignInSheet`, Settings' Sync page, between Reminders and Backup):
+  a link would open a browser, which on the desktop has no way back into
+  the program. The client is the plain Dart `supabase` package, not
+  `supabase_flutter`, which would bring deep links and a browser launcher
+  for nothing. The session is kept in the preferences and renewed on
+  opening; offline it is tried again before each round, and the page says
+  who is signed in from the kept session meanwhile. A round runs on
+  opening, on every return, two seconds after any read-back of the lists
+  (`Sync.soon`, from `_afterRead` — every change ends there), when realtime
+  says the account's rows changed, and every five minutes while open. One
+  that changed something here bumps `Background.changed`, the path a
+  reminder's buttons already use. **The server is set per device, in
+  Settings**, until it has one address: the emulator reaches this PC at
+  10.0.2.2, the desktop at localhost. Plain HTTP is allowed to those
+  addresses alone (`res/xml/network_security.xml`), to come out once the
+  server has HTTPS. The server's side is `supabase/`: `config.toml`, the
+  migration, and `tests/sync_test.sql` (`supabase test db`).
 
 - **Everything can be saved to a file and read back** (`Backup`,
   `AppDatabase.dump`/`replaceAll`, `SettingsProvider.exported`/`restore`,

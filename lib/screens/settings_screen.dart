@@ -5,9 +5,11 @@ import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/account.dart';
 import '../services/backup.dart';
 import '../services/device_calendars.dart';
 import '../services/reminders.dart';
+import '../services/sync.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -17,6 +19,7 @@ import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
+import '../widgets/sign_in_sheet.dart';
 import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/theme_switcher.dart';
 import 'home_screen.dart' show menuItems;
@@ -54,8 +57,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// The page open beside the list, in a desktop's wide window.
   int _page = 0;
 
-  /// The pages, the settings first and the backup last — on the list it is
-  /// a panel of its own, being the one thing there that is not a setting.
+  // The list says who is signed in, which is not a setting.
+  @override
+  void initState() {
+    super.initState();
+    Account.instance.email.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    Account.instance.email.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() => setState(() {});
+
+  /// The pages, the settings first and the sync and backup last — on the
+  /// list they are a panel of their own, being the things there that are
+  /// not settings.
   List<_Entry> _entries(SettingsProvider settings, S s) => [
     (
       icon: Icons.menu_open_rounded,
@@ -97,6 +116,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: (s) => s.pageReminders,
       value: settings.reminders ? s.remindOn : s.remindOff,
       rows: _reminders,
+    ),
+    (
+      icon: Icons.sync_rounded,
+      title: (s) => s.pageSync,
+      value: Account.instance.email.value ?? s.syncOff,
+      rows: _sync,
     ),
     (
       icon: Icons.backup_outlined,
@@ -162,7 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: ScreenHeader(title: s.settings),
         ),
         _Group(children: [for (var i = 0; i < 6; i++) row(i)]),
-        _Group(children: [row(6)]),
+        _Group(children: [row(6), row(7)]),
         _Group(
           label: s.sectionAbout,
           footnote: s.about,
@@ -594,6 +619,137 @@ Future<void> _clearCompleted(BuildContext context) async {
 /// A panel of its own on the list rather than a row among the settings:
 /// it is the one thing on it that is not a setting, and the one that says
 /// how long it has been left.
+List<Widget> _sync(BuildContext context, SettingsProvider settings, S s) => [
+  const _SyncRows(),
+];
+
+/// The account, how the last round went, and the server: what the page is
+/// drawn from changes outside the settings, so it listens for itself.
+class _SyncRows extends StatelessWidget {
+  const _SyncRows();
+
+  @override
+  Widget build(BuildContext context) {
+    final account = Account.instance;
+    final sync = Sync.instance;
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        account.email,
+        account.server,
+        sync.running,
+        sync.lastSynced,
+        sync.error,
+      ]),
+      builder: (context, _) {
+        final s = S.of(context);
+        final email = account.email.value;
+        final server = account.server.value;
+        final last = sync.lastSynced.value;
+        final failed = sync.error.value != null;
+        final status = sync.running.value
+            ? s.syncing
+            : failed
+            ? s.syncFailed
+            : last != null
+            ? s.syncLast(
+                Dates.time(
+                  last,
+                  h24: MediaQuery.alwaysUse24HourFormatOf(context),
+                ),
+              )
+            : s.syncNever;
+        return Column(
+          children: [
+            _Group(
+              footnote: s.syncNote,
+              children: [
+                if (email == null)
+                  _Row(
+                    icon: Icons.person_outline_rounded,
+                    title: s.syncSignIn,
+                    value: server == null
+                        ? s.syncServerFirst
+                        : s.syncSignInHint,
+                    onTap: server == null
+                        ? () => showServerSheet(context)
+                        : () => showSignInSheet(context),
+                  )
+                else ...[
+                  _Row(
+                    icon: Icons.person_outline_rounded,
+                    title: email,
+                    value: status,
+                    warn: failed && !sync.running.value,
+                  ),
+                  _Row(
+                    icon: Icons.sync_rounded,
+                    title: s.syncNow,
+                    onTap: sync.run,
+                  ),
+                ],
+              ],
+            ),
+            _Group(
+              children: [
+                _Row(
+                  icon: Icons.dns_outlined,
+                  title: s.syncServer,
+                  value: server ?? s.syncServerNone,
+                  onTap: () => showServerSheet(context),
+                ),
+              ],
+            ),
+            if (email != null)
+              _Group(
+                children: [
+                  _Row(
+                    icon: Icons.logout_rounded,
+                    title: s.syncSignOut,
+                    value: s.syncSignOutHint,
+                    onTap: account.signOut,
+                  ),
+                  _Row(
+                    icon: Icons.delete_outline,
+                    title: s.syncDelete,
+                    danger: true,
+                    onTap: () => _deleteAccount(context),
+                  ),
+                ],
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+Future<void> _deleteAccount(BuildContext context) async {
+  final s = S.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.syncDeleteQuestion),
+      content: Text(s.syncDeleteNote),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(s.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(s.delete),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await Account.instance.deleteAccount();
+  } catch (_) {
+    if (context.mounted) _say(context, s.syncUnreachable);
+  }
+}
+
 List<Widget> _backup(BuildContext context, SettingsProvider settings, S s) => [
   _Group(
     footnote: s.backupNote,

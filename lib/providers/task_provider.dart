@@ -7,6 +7,7 @@ import '../models/task.dart';
 import '../models/task_list.dart';
 import '../services/background.dart';
 import '../services/reminders.dart';
+import '../services/sync.dart';
 import '../services/today_widget.dart';
 
 /// Strips the time from [date], giving the calendar day it belongs to.
@@ -307,6 +308,9 @@ class TaskProvider extends ChangeNotifier {
     Reminders.instance.lists = _lists;
     await Reminders.instance.sync([..._allOverdue, ..._allUpcoming]);
     await TodayWidget.publish(this);
+    // The same reasoning brings the account in: whatever changed here, a
+    // round goes up shortly after.
+    Sync.instance.soon();
   }
 
   /// The dated tasks grouped into days, ordered soonest first.

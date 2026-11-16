@@ -11,7 +11,7 @@ import 'support/test_db.dart';
 /// The server as `supabase/migrations/…_sync.sql` makes it, in memory: the
 /// later edit of a row wins and is laid over it, and the edit that lost has
 /// the winner handed back on the next pull.
-class FakeServer implements SyncServer {
+class FakeServer extends SyncServer {
   @override
   String? account = 'me';
 

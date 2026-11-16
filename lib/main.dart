@@ -10,11 +10,13 @@ import 'providers/events_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/task_provider.dart';
 import 'screens/home_screen.dart';
+import 'services/account.dart';
 import 'services/attachments.dart';
 import 'services/background.dart';
 import 'services/desktop.dart';
 import 'services/device_calendars.dart';
 import 'services/reminders.dart';
+import 'services/sync.dart';
 import 'services/today_widget.dart';
 import 'services/updates.dart';
 import 'theme/app_theme.dart';
@@ -51,6 +53,10 @@ void main() async {
   // they are heard the same way.
   if (!onDesktop) TodayWidget.enable();
   Background.listen();
+  // A round that changed something here is read back as a change from
+  // outside is, and the account is taken up if there is one.
+  Sync.instance.onChanged = () => Background.changed.value++;
+  await Account.instance.enable();
   if (!onDesktop) DeviceCalendars.enable();
   // Where the attachments are kept, before the first form can draw one;
   // then the copies no task refers to any more are let go of.

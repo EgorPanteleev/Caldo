@@ -38,6 +38,7 @@
          wins (LauncherFilled), and only Settings and the recent apps show
          this one. -->
     <application
+        android:networkSecurityConfig="@xml/network_security"
         android:label="Caldo"
         android:name=".CaldoApplication"
         android:icon="@mipmap/ic_launcher_free">
