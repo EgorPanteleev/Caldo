@@ -890,11 +890,14 @@ class _Tab extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Icon(
-                    selected ? item.activeIcon : item.icon,
-                    color: color,
-                    size: 22,
-                  ),
+                  if (item.glyph case final glyph?)
+                    glyph(selected, color)
+                  else
+                    Icon(
+                      selected ? item.activeIcon : item.icon,
+                      color: color,
+                      size: 22,
+                    ),
                   if (dot)
                     Positioned(
                       top: -2,
@@ -951,16 +954,106 @@ final screenItems = [
   ScreenItem(Icons.settings_outlined, Icons.settings, (s) => s.settings),
 ];
 
-/// The bar's one tab for the three task views.
+/// The bar's one tab for the three task views. Drawn, not a font icon: a
+/// lone checkbox read as a form field, not as a screen of tasks.
 final tasksItem = ScreenItem(
   Icons.check_box_outlined,
   Icons.check_box,
   (s) => s.tasks,
+  glyph: (selected, color) => _TasksGlyph(selected: selected, color: color),
 );
 
 class ScreenItem {
   final IconData icon;
   final IconData activeIcon;
   final String Function(S) label;
-  const ScreenItem(this.icon, this.activeIcon, this.label);
+
+  /// Draws the tab in place of [icon] where a font icon won't do.
+  final Widget Function(bool selected, Color color)? glyph;
+
+  const ScreenItem(this.icon, this.activeIcon, this.label, {this.glyph});
+}
+
+/// Two task rows in small: a ticked box over an open one, each with its
+/// line of title. The tick is the one purple in the bar — asked for — and
+/// only the lit tab fills its box, so the colour stays a mark, not a slab.
+class _TasksGlyph extends StatelessWidget {
+  final bool selected;
+  final Color color;
+
+  const _TasksGlyph({required this.selected, required this.color});
+
+  static const purple = Color(0xFF8B6CF0);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 22,
+      child: CustomPaint(
+        painter: _TasksPainter(selected: selected, lines: color, tick: purple),
+      ),
+    );
+  }
+}
+
+class _TasksPainter extends CustomPainter {
+  final bool selected;
+  final Color lines;
+  final Color tick;
+
+  const _TasksPainter({
+    required this.selected,
+    required this.lines,
+    required this.tick,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // In a 22-unit square, at the font icons' weight of two units.
+    final u = size.width / 22;
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 * u
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    RRect box(double top) => RRect.fromRectAndRadius(
+      Rect.fromLTWH(2 * u, top * u, 7.5 * u, 7.5 * u),
+      Radius.circular(2.3 * u),
+    );
+
+    // The ticked row. Filled, the box takes the stroke's outer edge, so
+    // it is no smaller lit than unlit.
+    if (selected) {
+      canvas.drawRRect(box(2.75).inflate(u), Paint()..color = tick);
+    } else {
+      canvas.drawRRect(box(2.75), Paint.from(stroke)..color = tick);
+    }
+    canvas.drawPath(
+      Path()
+        ..moveTo(3.9 * u, 6.8 * u)
+        ..lineTo(5.3 * u, 8.2 * u)
+        ..lineTo(7.7 * u, 5.3 * u),
+      Paint.from(stroke)
+        ..color = selected ? Colors.white : tick
+        ..strokeWidth = 1.8 * u,
+    );
+    canvas.drawLine(
+      Offset(13 * u, 6.5 * u),
+      Offset(16.5 * u, 6.5 * u),
+      Paint.from(stroke)..color = lines,
+    );
+
+    // The open row. Its title is the longer: the overdue dot sits at the
+    // top corner, and on the first row's end it hid it.
+    canvas.drawRRect(box(12.75), Paint.from(stroke)..color = lines);
+    canvas.drawLine(
+      Offset(13 * u, 16.5 * u),
+      Offset(20 * u, 16.5 * u),
+      Paint.from(stroke)..color = lines,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TasksPainter old) =>
+      old.selected != selected || old.lines != lines || old.tick != tick;
 }
