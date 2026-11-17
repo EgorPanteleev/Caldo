@@ -135,6 +135,24 @@ class _TasksScreenState extends State<TasksScreen> {
       child: wide ? card(task) : PutOff(task: task, child: card(task)),
     );
 
+    final field = DeskColumn(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const KeyboardNumbers(),
+          QuickAddBar(
+            date: today,
+            controller: _quickAdd,
+            onSubmit: _addQuickTask,
+            onFullForm: () => _openEditor(null, today),
+          ),
+        ],
+      ),
+    );
+    // The tab bar's room at the foot of the screen, which the field rests in.
+    final barRoom = BarRoom.of(context);
+    final overBar = barRoom > 0;
+
     // A tick on any card here is offered back in this screen's field, and
     // cards picked out here are dealt with there.
     return SelectionScope(
@@ -178,6 +196,7 @@ class _TasksScreenState extends State<TasksScreen> {
                         gutter: gutter,
                         // Room at the top for the groups laid over it.
                         top: wide ? 0 : FrostedGroupChips.heightOf(context),
+                        bottom: barRoom,
                         ground: p.bg,
                         entry: entry,
                         onReorder: provider.reorder,
@@ -258,39 +277,57 @@ class _TasksScreenState extends State<TasksScreen> {
                         top: 0,
                         child: FrostedGroupChips(),
                       ),
-                    // The fade goes up with the field it belongs to; left at the
-                    // foot of the screen it would be fading the run into a strip
-                    // behind the keyboard.
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: KeyboardLift(child: GroundFade(ground: p.bg)),
-                    ),
+                    // With the tab bar, the field rests in the bar's room
+                    // over the foot of the run, and the run goes on under
+                    // the bar, which is frosted. Its ground, and the fade
+                    // into it, are only there while the field is out on the
+                    // keys: left in place they made a black slab of the
+                    // bar's room, and there was nothing under the bar to
+                    // see through it.
+                    if (overBar)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: KeyboardLift(
+                          child: KeyboardUp(
+                            builder: (context, up, child) => Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                GroundFade(ground: p.bg, strength: up ? 1 : 0),
+                                // Not a ColoredBox: that takes taps meant
+                                // for the cards beside the bar.
+                                DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: up ? p.bg : null,
+                                  ),
+                                  child: child,
+                                ),
+                              ],
+                            ),
+                            child: field,
+                          ),
+                        ),
+                      )
+                    else
+                      // The fade goes up with the field it belongs to; left
+                      // at the foot of the screen it would be fading the run
+                      // into a strip behind the keyboard.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: KeyboardLift(child: GroundFade(ground: p.bg)),
+                      ),
                   ],
                 ),
               ),
               // Opaque, now that it rides up over the run rather than sitting in
               // a slot of its own below it.
-              KeyboardLift(
-                child: ColoredBox(
-                  color: p.bg,
-                  child: DeskColumn(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const KeyboardNumbers(),
-                        QuickAddBar(
-                          date: today,
-                          controller: _quickAdd,
-                          onSubmit: _addQuickTask,
-                          onFullForm: () => _openEditor(null, today),
-                        ),
-                      ],
-                    ),
-                  ),
+              if (!overBar)
+                KeyboardLift(
+                  child: ColoredBox(color: p.bg, child: field),
                 ),
-              ),
             ],
           ),
         ),
@@ -351,8 +388,10 @@ class _RunOfDays extends StatefulWidget {
   /// width, so a wheel turned beside the cards still scrolls them.
   final double gutter;
 
-  /// The room left above the first run for what is laid over its top.
+  /// The room left above the first run and below the last for what is
+  /// laid over the top and the foot of it.
   final double top;
+  final double bottom;
   final Color ground;
   final Widget Function(Task) entry;
   final ValueChanged<List<Task>> onReorder;
@@ -374,6 +413,7 @@ class _RunOfDays extends StatefulWidget {
     required this.runs,
     this.gutter = 0,
     this.top = 0,
+    this.bottom = 0,
     required this.ground,
     required this.entry,
     required this.onReorder,
@@ -588,6 +628,7 @@ class _RunOfDaysState extends State<_RunOfDays> {
     // be scrolled clear of the keys on a screen that is not shortened for
     // them.
     slivers.add(const SliverToBoxAdapter(child: KeyboardRoom()));
+    slivers.add(SliverToBoxAdapter(child: SizedBox(height: widget.bottom)));
 
     final side = EdgeInsets.symmetric(horizontal: widget.gutter);
     return CustomScrollView(

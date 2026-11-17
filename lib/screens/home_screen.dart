@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -727,10 +728,10 @@ class _TabBar extends StatelessWidget {
     // seam of the bar's fill is kept, or the pill's grey runs into the rim
     // and the rim is lost round the picked tab.
     const inset = 1.0;
-    return Container(
+    final pill = Container(
       padding: const EdgeInsets.all(inset),
       decoration: BoxDecoration(
-        color: p.panelHi,
+        color: p.panelHi.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(_height / 2),
         border: Border.all(color: BarRoom.rim(p), width: BarRoom.rimWidth),
       ),
@@ -770,6 +771,15 @@ class _TabBar extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+    // A little frosted: what scrolls under the bar shows through it,
+    // blurred, rather than the bar being a solid slab over the screen.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_height / 2),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: pill,
       ),
     );
   }

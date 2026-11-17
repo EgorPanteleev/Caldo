@@ -288,6 +288,27 @@ class _WhileKeyboardUp extends StatelessWidget {
   }
 }
 
+/// Builds [builder] with whether the keyboard is up for a field: for what
+/// stands under a field resting in the tab bar's room, which is only wanted
+/// while the field is out on the keys. Rebuilt on every frame of a slide,
+/// like [_WhileKeyboardUp], so keep what it builds small.
+class KeyboardUp extends StatelessWidget {
+  final Widget Function(BuildContext context, bool up, Widget? child) builder;
+  final Widget? child;
+
+  const KeyboardUp({super.key, required this.builder, this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: KeyboardGap.instance.changes,
+      builder: (context, child) =>
+          builder(context, KeyboardGap.up(context), child),
+      child: child,
+    );
+  }
+}
+
 /// Draws the field in the tab bar's room only while it is being written in
 /// with the keyboard up, which is when the bar is out of the way: the shell
 /// puts the bar away while the keys are up, and the field takes its place

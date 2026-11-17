@@ -258,8 +258,10 @@ them will be noticed.
 - **One group per task; Schedule and Calendar can show one group**
   (`GroupChips`, `TaskProvider.showGroup`). Tags were built and removed. Chip
   row (All, groups, plus) always shown; long press carries a chip to reorder
-  (`lists.sort_order`, schema v9), released in place opens it to edit. Chips
-  stand on `GroupChips.ground`.
+  (`lists.sort_order`, schema v9), released in place opens it to edit. A
+  carried chip stands on `GroupChips.ground`. **On Schedule the run scrolls
+  under the row** (`FrostedGroupChips`): the row is clear, each chip frosted
+  glass — a frosted strip behind the whole row was asked off.
 - **Default group is the oldest** (`TaskList.oldest`), never deletable;
   deleting another moves its tasks there.
 - With a group chosen: only its tasks, no phone events, holidays stay, new
@@ -288,7 +290,9 @@ them will be noticed.
 - **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light rim,
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
-  the screens. Back goes to the start screen before leaving
+  the screens, a little frosted (blur 12, fill at 78%). On Schedule the run
+  goes on under it; the field's ground and fade are drawn only while the
+  keys are up (`KeyboardUp`). Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
   short checklist, a purple tick over a ring, each with a line — chosen
   from mock-ups. The tick is the bar's one colour, asked for, dimmer
@@ -323,7 +327,7 @@ them will be noticed.
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):
   keyboard goes, focus stays, so the next opening doesn't start the IME
   connection from scratch (that opening was the one that misplaced the bar).
-- **Only `KeyboardLift`, `KeyboardRoom` and `_WhileKeyboardUp` read the inset.**
+- **Only `KeyboardLift`, `KeyboardRoom`, `_WhileKeyboardUp` and `KeyboardUp` read the inset.**
 - **Long-press the Settings title for keyboard numbers**
   (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
 - **The field's ground and fade follow what is actually under it**
