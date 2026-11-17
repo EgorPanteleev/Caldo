@@ -975,8 +975,9 @@ class ScreenItem {
 }
 
 /// Two task rows in small: a ticked box over an open one, each with its
-/// line of title. The tick is the one purple in the bar — asked for — and
-/// only the lit tab fills its box, so the colour stays a mark, not a slab.
+/// line of title. The ticked box is the one purple in the bar — asked for.
+/// It is filled lit or not, only dimmer unlit: a purple outline round the
+/// tick looked bad.
 class _TasksGlyph extends StatelessWidget {
   final bool selected;
   final Color color;
@@ -990,20 +991,27 @@ class _TasksGlyph extends StatelessWidget {
     return SizedBox.square(
       dimension: 22,
       child: CustomPaint(
-        painter: _TasksPainter(selected: selected, lines: color, tick: purple),
+        painter: _TasksPainter(
+          lines: color,
+          // Half way to the unlit grey, so the tab doesn't outshine the
+          // one that is lit.
+          fill: selected ? purple : Color.lerp(purple, color, 0.45)!,
+          // Unlit, the tick is cut out of the box in the bar's grey.
+          tick: selected ? Colors.white : AppTheme.of(context).panelHi,
+        ),
       ),
     );
   }
 }
 
 class _TasksPainter extends CustomPainter {
-  final bool selected;
   final Color lines;
+  final Color fill;
   final Color tick;
 
   const _TasksPainter({
-    required this.selected,
     required this.lines,
+    required this.fill,
     required this.tick,
   });
 
@@ -1022,19 +1030,15 @@ class _TasksPainter extends CustomPainter {
     );
 
     // The ticked row. Filled, the box takes the stroke's outer edge, so
-    // it is no smaller lit than unlit.
-    if (selected) {
-      canvas.drawRRect(box(2.75).inflate(u), Paint()..color = tick);
-    } else {
-      canvas.drawRRect(box(2.75), Paint.from(stroke)..color = tick);
-    }
+    // it is as big as the open one below.
+    canvas.drawRRect(box(2.75).inflate(u), Paint()..color = fill);
     canvas.drawPath(
       Path()
         ..moveTo(3.9 * u, 6.8 * u)
         ..lineTo(5.3 * u, 8.2 * u)
         ..lineTo(7.7 * u, 5.3 * u),
       Paint.from(stroke)
-        ..color = selected ? Colors.white : tick
+        ..color = tick
         ..strokeWidth = 1.8 * u,
     );
     canvas.drawLine(
@@ -1055,5 +1059,5 @@ class _TasksPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TasksPainter old) =>
-      old.selected != selected || old.lines != lines || old.tick != tick;
+      old.lines != lines || old.fill != fill || old.tick != tick;
 }
