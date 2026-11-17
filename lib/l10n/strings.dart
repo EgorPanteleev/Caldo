@@ -184,8 +184,12 @@ class S {
 
   // ---- The update banner ---------------------------------------------------
   String updateOut(String version) => _fill('updateOut', {'version': version});
-  String downloading(String version, int percent) =>
-      _fill('downloading', {'version': version, 'percent': percent});
+  String downloading(int percent) => _fill('downloading', {'percent': percent});
+  String get updateReady => _word('updateReady');
+  String get updateImportantLine => _word('updateImportantLine');
+  String get updateImportant => _word('updateImportant');
+  String get whatsNew => _word('whatsNew');
+  String get later => _word('later');
   String get allowInstall => _word('allowInstall');
 
   /// The notification an update leaves behind: Android stops Caldo to

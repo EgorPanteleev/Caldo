@@ -23,6 +23,7 @@ import '../widgets/screen_header.dart';
 import '../widgets/sign_in_sheet.dart';
 import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/theme_switcher.dart';
+import '../widgets/update_banner.dart' show showUpdateSheet;
 import 'home_screen.dart' show menuItems;
 
 /// Appearance, calendar and task preferences. Everything here applies
@@ -192,12 +193,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         _Group(children: [for (var i = 0; i < 6; i++) row(i)]),
         _Group(children: [row(6), row(7)]),
-        _Group(
-          label: s.sectionAbout,
-          footnote: Account.instance.email.value == null
-              ? s.about
-              : s.aboutSynced,
-          children: const [_Version()],
+        // The update row only when there is one, so no hairline is drawn
+        // under the version for nothing.
+        ValueListenableBuilder<Update?>(
+          valueListenable: Updates.instance.available,
+          builder: (context, update, _) => _Group(
+            label: s.sectionAbout,
+            footnote: Account.instance.email.value == null
+                ? s.about
+                : s.aboutSynced,
+            children: [
+              const _Version(),
+              if (update != null) _UpdateRow(update: update),
+            ],
+          ),
         ),
       ],
     );
@@ -1461,6 +1470,25 @@ class _CalendarTick extends StatelessWidget {
         border: Border.all(color: color, width: 1.6),
       ),
       child: on ? const CustomPaint(painter: CheckMark(progress: 1)) : null,
+    );
+  }
+}
+
+/// A newer release — the way to it while the banner is put off.
+class _UpdateRow extends StatelessWidget {
+  final Update update;
+
+  const _UpdateRow({required this.update});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return _Row(
+      icon: Icons.download_rounded,
+      title: s.updateOut(update.version),
+      value: update.urgent ? s.updateImportantLine : s.whatsNew,
+      warn: update.urgent,
+      onTap: () => showUpdateSheet(context, update),
     );
   }
 }

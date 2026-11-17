@@ -29,7 +29,12 @@ const Map<String, Object> be = {
   'undo': "Адрабіць",
 
   'updateOut': "Выйшла Caldo {version}",
-  'downloading': "Загрузка {version} — {percent}%",
+  'downloading': "Загрузка… {percent}%",
+  'updateReady': "Новая версія гатовая",
+  'updateImportantLine': "Важнае абнаўленне — усталюйце яго",
+  'updateImportant': "Важна",
+  'whatsNew': "Што новага",
+  'later': "Пазней",
   'allowInstall':
       "Дазвольце Caldo ўсталёўваць праграмы і зноў націсніце «Абнавіць»",
   'downloadFailed': "Не ўдалося загрузіць — націсніце яшчэ раз",

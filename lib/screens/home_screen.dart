@@ -24,6 +24,7 @@ import '../widgets/quick_add_bar.dart' show BarFoot, BarRoom, KeyboardGap;
 import '../widgets/selection.dart';
 import '../widgets/sign_in_sheet.dart' show showJoinSheet;
 import '../widgets/tick_off.dart' show UndoSlot, withdrawUndo;
+import '../widgets/update_banner.dart';
 import 'board_screen.dart';
 import 'calendar_screen.dart';
 import 'desk_shell.dart';
@@ -149,18 +150,14 @@ class _HomeScreenState extends State<HomeScreen>
   static final _board = AppScreen.board.index;
   static final _done = AppScreen.done.index;
 
-  /// A release newer than this one, once the check on opening has found it.
-  Update? _update;
-
   @override
   void initState() {
     super.initState();
     // After the first frame rather than before it: the answer comes off the
     // network, and nothing on screen should wait for it.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final update = await Updates.instance.check();
-      if (mounted && update != null) setState(() => _update = update);
-    });
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Updates.instance.look(),
+    );
     TodayWidget.listen(_openFromWidget, invited: _openInvite);
     // One that started the app is already waiting by the first frame.
     Reminders.opened.addListener(_openReminder);
@@ -478,11 +475,12 @@ class _HomeScreenState extends State<HomeScreen>
       child: Column(
         children: [
           const SizedBox(width: double.infinity),
-          if (_update != null)
-            _UpdateBanner(
-              update: _update!,
-              onDismiss: () => setState(() => _update = null),
-            ),
+          ValueListenableBuilder<Update?>(
+            valueListenable: Updates.instance.offered,
+            builder: (context, update, _) => update == null
+                ? const SizedBox(width: double.infinity)
+                : UpdateBanner(update: update),
+          ),
           if (offerFullScreen)
             _FullScreenBanner(
               onAllow: Reminders.instance.requestFullScreen,
@@ -604,120 +602,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
-/// Says a newer Caldo is out, and fetches and installs it on a tap.
-///
-/// Closing it hides it until the app is next opened, and no longer than
-/// that: an update put off is not an update refused, and a banner that could
-/// be closed for good would leave nothing anywhere to say one was waiting.
-class _UpdateBanner extends StatefulWidget {
-  final Update update;
-  final VoidCallback onDismiss;
-
-  const _UpdateBanner({required this.update, required this.onDismiss});
-
-  @override
-  State<_UpdateBanner> createState() => _UpdateBannerState();
-}
-
-class _UpdateBannerState extends State<_UpdateBanner> {
-  /// Said in place of the usual line when the last tap did not end in the
-  /// install — why not, and what to do about it.
-  String? _note;
-
-  Future<void> _install() async {
-    setState(() => _note = null);
-    try {
-      final started = await Updates.instance.install(widget.update);
-      if (!mounted) return;
-      if (!started) {
-        setState(() => _note = S.of(context).allowInstall);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _note = S.of(context).downloadFailed);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context).color;
-    return ValueListenableBuilder<DownloadProgress>(
-      valueListenable: Updates.instance.progress,
-      builder: (context, progress, _) {
-        final downloading = progress != null;
-        final s = S.of(context);
-        final line = downloading
-            ? s.downloading(widget.update.version, (progress * 100).round())
-            : _note ?? s.updateOut(widget.update.version);
-        return Container(
-          margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-          padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
-          decoration: BoxDecoration(
-            color: p.panel,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.system_update_alt_rounded,
-                    size: 20,
-                    color: accent,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      line,
-                      style: TextStyle(color: p.text, fontSize: 14),
-                    ),
-                  ),
-                  if (!downloading) ...[
-                    TextButton(
-                      onPressed: _install,
-                      child: Text(
-                        s.update,
-                        style: TextStyle(
-                          color: accent,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: s.notNow,
-                      icon: Icon(Icons.close_rounded, color: p.muted, size: 20),
-                      onPressed: widget.onDismiss,
-                    ),
-                  ] else
-                    const SizedBox(height: 48),
-                ],
-              ),
-              if (downloading)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 12, 10),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 3,
-                      color: accent,
-                      backgroundColor: p.field,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
 /// Offers to let reminders take the whole screen while the phone is locked,
 /// when that has been asked for in Settings and Android does not allow it.
 ///
-/// Drawn as the update banner is, above whichever screen is open. Allow
+/// Shown where the update banner is, above whichever screen is open. Allow
 /// opens the page in Android's settings; the shell asks again on the way
 /// back and the banner goes once it is allowed. Closing it puts it off until
 /// the app is next opened; switching full screen off in Settings is the way

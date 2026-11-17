@@ -29,7 +29,12 @@ const Map<String, Object> uk = {
   'undo': "Скасувати",
 
   'updateOut': "Вийшла Caldo {version}",
-  'downloading': "Завантаження {version} — {percent}%",
+  'downloading': "Завантаження… {percent}%",
+  'updateReady': "Нова версія готова",
+  'updateImportantLine': "Важливе оновлення — встановіть його",
+  'updateImportant': "Важливо",
+  'whatsNew': "Що нового",
+  'later': "Пізніше",
   'allowInstall':
       "Дозвольте Caldo встановлювати застосунки й знову натисніть «Оновити»",
   'downloadFailed': "Не вдалося завантажити — натисніть ще раз",

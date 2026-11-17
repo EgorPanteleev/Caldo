@@ -30,7 +30,12 @@ const Map<String, Object> tr = {
   'undo': "Geri al",
 
   'updateOut': "Caldo {version} çıktı",
-  'downloading': "{version} indiriliyor — %{percent}",
+  'downloading': "İndiriliyor… %{percent}",
+  'updateReady': "Yeni sürüm hazır",
+  'updateImportantLine': "Önemli güncelleme — lütfen yükleyin",
+  'updateImportant': "Önemli",
+  'whatsNew': "Yenilikler",
+  'later': "Sonra",
   'allowInstall':
       "Caldo'nun uygulama yüklemesine izin verin, sonra yeniden Güncelle'ye dokunun",
   'downloadFailed': "İndirme başarısız — yeniden denemek için dokunun",

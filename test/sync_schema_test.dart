@@ -12,8 +12,11 @@ void main() {
   Future<Database> db() => AppDatabase.instance.database;
 
   Future<Map<String, Object?>> row(String table, int id) async =>
-      (await (await db()).query(table, where: 'id = ?', whereArgs: [id]))
-          .single;
+      (await (await db()).query(
+        table,
+        where: 'id = ?',
+        whereArgs: [id],
+      )).single;
 
   Future<List<Map<String, Object?>>> tombstones() async =>
       (await db()).query('tombstones');
@@ -35,8 +38,12 @@ void main() {
     final r = await row('tasks', saved.id!);
     expect(
       r['uuid'],
-      matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-'
-          r'[0-9a-f]{12}$')),
+      matches(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-'
+          r'[0-9a-f]{12}$',
+        ),
+      ),
     );
     expect(r['dirty'], 1);
     expect(r['updated_at'] as int, greaterThanOrEqualTo(before - 1));
@@ -58,22 +65,24 @@ void main() {
     expect(r['uuid'], uuid);
   });
 
-  test('a deletion leaves a tombstone, and a row put back takes it away',
-      () async {
-    final saved = await AppDatabase.instance.insert(task('Ship'));
-    final uuid = (await row('tasks', saved.id!))['uuid'];
-    await AppDatabase.instance.delete(saved.id!);
-    expect(
-      (await tombstones()).single,
-      allOf(containsPair('table_name', 'tasks'), containsPair('uuid', uuid)),
-    );
+  test(
+    'a deletion leaves a tombstone, and a row put back takes it away',
+    () async {
+      final saved = await AppDatabase.instance.insert(task('Ship'));
+      final uuid = (await row('tasks', saved.id!))['uuid'];
+      await AppDatabase.instance.delete(saved.id!);
+      expect(
+        (await tombstones()).single,
+        allOf(containsPair('table_name', 'tasks'), containsPair('uuid', uuid)),
+      );
 
-    await (await db()).insert('tasks', {
-      ...task('Ship').toMap()..remove('id'),
-      'uuid': uuid,
-    });
-    expect(await tombstones(), isEmpty);
-  });
+      await (await db()).insert('tasks', {
+        ...task('Ship').toMap()..remove('id'),
+        'uuid': uuid,
+      });
+      expect(await tombstones(), isEmpty);
+    },
+  );
 
   test('a tick and its taking back leave the log as a tombstone', () async {
     final saved = await AppDatabase.instance.insert(task('Ship'));
@@ -83,8 +92,10 @@ void main() {
     await AppDatabase.instance.untick(saved);
     expect(
       (await tombstones()).single,
-      allOf(containsPair('table_name', 'completions'),
-          containsPair('uuid', tick['uuid'])),
+      allOf(
+        containsPair('table_name', 'completions'),
+        containsPair('uuid', tick['uuid']),
+      ),
     );
   });
 
@@ -103,8 +114,7 @@ void main() {
     expect(await tombstones(), isEmpty);
   });
 
-  test('a backup carries uuids but not how rows stand with the sync',
-      () async {
+  test('a backup carries uuids but not how rows stand with the sync', () async {
     await AppDatabase.instance.insert(task('Ship'));
     final dump = await AppDatabase.instance.dump();
     final row = dump['tasks']!.single;
@@ -128,74 +138,78 @@ void main() {
     expect((await row('tasks', 1))['dirty'], 1);
     // The old default's tombstone is gone: the same group is back.
     expect(
-      (await tombstones()).where((t) => t['uuid'] == AppDatabase.defaultListUuid),
+      (await tombstones()).where(
+        (t) => t['uuid'] == AppDatabase.defaultListUuid,
+      ),
       isEmpty,
     );
   });
 
-  test('an upgrade from v10 gives every row a uuid and claims the default',
-      () async {
-    await AppDatabase.instance.close();
-    final path = '${await databaseFactory.getDatabasesPath()}/caldo.db';
-    final old = await databaseFactory.openDatabase(
-      path,
-      options: OpenDatabaseOptions(
-        version: 10,
-        onCreate: (db, _) async {
-          await db.execute(
-            'CREATE TABLE lists (id INTEGER PRIMARY KEY AUTOINCREMENT, '
-            "name TEXT NOT NULL, style_id TEXT NOT NULL DEFAULT 'violet', "
-            'created_at INTEGER NOT NULL, sort_order INTEGER)',
-          );
-          await db.execute(
-            'CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, '
-            'list_id INTEGER NOT NULL DEFAULT 1, title TEXT NOT NULL, '
-            "notes TEXT NOT NULL DEFAULT '', due_at INTEGER, "
-            'has_time INTEGER NOT NULL DEFAULT 0, '
-            'done INTEGER NOT NULL DEFAULT 0, '
-            'priority INTEGER NOT NULL DEFAULT 0, '
-            "repeat_rule TEXT NOT NULL DEFAULT 'none', style_id TEXT, "
-            'created_at INTEGER NOT NULL, completed_at INTEGER, '
-            "sort_order INTEGER, subtasks TEXT NOT NULL DEFAULT '[]', "
-            "attachments TEXT NOT NULL DEFAULT '[]', remind_before INTEGER, "
-            'snoozed_until INTEGER, started_at INTEGER, duration INTEGER)',
-          );
-          await db.execute(
-            'CREATE TABLE completions (id INTEGER PRIMARY KEY AUTOINCREMENT, '
-            'task_id INTEGER, title TEXT NOT NULL, '
-            'list_id INTEGER NOT NULL DEFAULT 1, style_id TEXT, '
-            'done_at INTEGER NOT NULL)',
-          );
-          await db.insert('lists', {'name': 'Uni', 'created_at': 5});
-          await db.insert('lists', {'name': 'Personal', 'created_at': 2});
-          for (final title in ['A', 'B']) {
-            await db.insert('tasks', {'title': title, 'created_at': 1});
-          }
-          await db.insert('completions', {
-            'task_id': 1,
-            'title': 'A',
-            'done_at': 3,
-          });
-        },
-      ),
-    );
-    await old.close();
+  test(
+    'an upgrade from v10 gives every row a uuid and claims the default',
+    () async {
+      await AppDatabase.instance.close();
+      final path = '${await databaseFactory.getDatabasesPath()}/caldo.db';
+      final old = await databaseFactory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 10,
+          onCreate: (db, _) async {
+            await db.execute(
+              'CREATE TABLE lists (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+              "name TEXT NOT NULL, style_id TEXT NOT NULL DEFAULT 'violet', "
+              'created_at INTEGER NOT NULL, sort_order INTEGER)',
+            );
+            await db.execute(
+              'CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+              'list_id INTEGER NOT NULL DEFAULT 1, title TEXT NOT NULL, '
+              "notes TEXT NOT NULL DEFAULT '', due_at INTEGER, "
+              'has_time INTEGER NOT NULL DEFAULT 0, '
+              'done INTEGER NOT NULL DEFAULT 0, '
+              'priority INTEGER NOT NULL DEFAULT 0, '
+              "repeat_rule TEXT NOT NULL DEFAULT 'none', style_id TEXT, "
+              'created_at INTEGER NOT NULL, completed_at INTEGER, '
+              "sort_order INTEGER, subtasks TEXT NOT NULL DEFAULT '[]', "
+              "attachments TEXT NOT NULL DEFAULT '[]', remind_before INTEGER, "
+              'snoozed_until INTEGER, started_at INTEGER, duration INTEGER)',
+            );
+            await db.execute(
+              'CREATE TABLE completions (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+              'task_id INTEGER, title TEXT NOT NULL, '
+              'list_id INTEGER NOT NULL DEFAULT 1, style_id TEXT, '
+              'done_at INTEGER NOT NULL)',
+            );
+            await db.insert('lists', {'name': 'Uni', 'created_at': 5});
+            await db.insert('lists', {'name': 'Personal', 'created_at': 2});
+            for (final title in ['A', 'B']) {
+              await db.insert('tasks', {'title': title, 'created_at': 1});
+            }
+            await db.insert('completions', {
+              'task_id': 1,
+              'title': 'A',
+              'done_at': 3,
+            });
+          },
+        ),
+      );
+      await old.close();
 
-    final lists = await (await db()).query('lists', orderBy: 'id');
-    expect(lists.map((l) => l['uuid']).toList(), [
-      isNot(AppDatabase.defaultListUuid),
-      AppDatabase.defaultListUuid,
-    ]);
-    final uuids = {
-      for (final t in ['lists', 'tasks', 'completions'])
-        for (final r in await (await db()).query(t)) r['uuid'],
-    };
-    expect(uuids, hasLength(5));
-    expect(uuids, isNot(contains(null)));
-    expect(
-      (await (await db()).query('tasks')).map((t) => t['dirty']).toSet(),
-      {1},
-    );
-    expect(await tombstones(), isEmpty);
-  });
+      final lists = await (await db()).query('lists', orderBy: 'id');
+      expect(lists.map((l) => l['uuid']).toList(), [
+        isNot(AppDatabase.defaultListUuid),
+        AppDatabase.defaultListUuid,
+      ]);
+      final uuids = {
+        for (final t in ['lists', 'tasks', 'completions'])
+          for (final r in await (await db()).query(t)) r['uuid'],
+      };
+      expect(uuids, hasLength(5));
+      expect(uuids, isNot(contains(null)));
+      expect(
+        (await (await db()).query('tasks')).map((t) => t['dirty']).toSet(),
+        {1},
+      );
+      expect(await tombstones(), isEmpty);
+    },
+  );
 }

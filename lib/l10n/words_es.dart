@@ -29,7 +29,12 @@ const Map<String, Object> es = {
   'undo': "Deshacer",
 
   'updateOut': "Ya está Caldo {version}",
-  'downloading': "Descargando {version} — {percent} %",
+  'downloading': "Descargando… {percent} %",
+  'updateReady': "Hay una versión nueva",
+  'updateImportantLine': "Actualización importante: instálala",
+  'updateImportant': "Importante",
+  'whatsNew': "Novedades",
+  'later': "Más tarde",
   'allowInstall':
       "Permite que Caldo instale aplicaciones y vuelve a tocar Actualizar",
   'downloadFailed': "Error al descargar — toca para reintentar",

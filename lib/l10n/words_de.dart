@@ -29,7 +29,12 @@ const Map<String, Object> de = {
   'undo': "Rückgängig",
 
   'updateOut': "Caldo {version} ist da",
-  'downloading': "{version} wird geladen — {percent} %",
+  'downloading': "Wird geladen… {percent} %",
+  'updateReady': "Eine neue Version ist da",
+  'updateImportantLine': "Ein wichtiges Update – bitte installieren",
+  'updateImportant': "Wichtig",
+  'whatsNew': "Neuigkeiten",
+  'later': "Später",
   'allowInstall':
       "Erlaube Caldo, Apps zu installieren, und tippe erneut auf Aktualisieren",
   'downloadFailed': "Download fehlgeschlagen — zum Wiederholen tippen",

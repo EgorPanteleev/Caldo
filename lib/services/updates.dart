@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/strings.dart';
 import '../utils/platform.dart';
@@ -17,12 +18,38 @@ class Update {
   final String version;
   final Uri file;
 
-  const Update(this.version, this.file);
+  /// What each release between the one installed and this one says about
+  /// itself, newest first — skipping a few versions shows all their notes.
+  final List<ReleaseNotes> notes;
+
+  /// Whether any of those releases is marked as one not to put off
+  /// ([Updates.urgentMark]): it is offered without Later.
+  final bool urgent;
+
+  const Update(
+    this.version,
+    this.file, {
+    this.notes = const [],
+    this.urgent = false,
+  });
+}
+
+/// A release's own words, as written on GitHub.
+@immutable
+class ReleaseNotes {
+  final String version;
+  final String text;
+
+  const ReleaseNotes(this.version, this.text);
 }
 
 /// Where a download has got to, from nothing to all of it, or null while
 /// nothing is being downloaded.
 typedef DownloadProgress = double?;
+
+/// What kept an install from reaching Android's installer: Caldo isn't
+/// allowed to install apps yet, or the download failed.
+enum InstallHitch { allow, failed }
 
 /// Finds out whether a newer Caldo has been released, fetches it, and hands
 /// it to Android to install over this one.
@@ -46,9 +73,24 @@ class Updates {
   static final instance = Updates._();
 
   static const _channel = MethodChannel('caldo/updates');
-  static final _latest = Uri.parse(
-    'https://api.github.com/repos/EgorPanteleev/Caldo/releases/latest',
+  // Every recent release rather than only the latest, so that notes and an
+  // urgent mark on one in between are not lost on a phone that skipped it.
+  static final _releases = Uri.parse(
+    'https://api.github.com/repos/EgorPanteleev/Caldo/releases?per_page=20',
   );
+
+  /// Written in a release's notes, marks it as one not to be put off. A
+  /// comment, so GitHub's page does not show it.
+  static final urgentMark = RegExp(
+    r'<!--\s*priority:\s*high\s*-->',
+    caseSensitive: false,
+  );
+
+  /// How long Later keeps the banner away. A newer release than the one put
+  /// off is offered at once.
+  static const laterFor = Duration(days: 3);
+
+  static const _laterKey = 'updateLater';
 
   /// Where a release can be read about and fetched by hand.
   static const _page = 'https://github.com/EgorPanteleev/Caldo/releases/tag';
@@ -61,6 +103,17 @@ class Updates {
 
   /// Where the current download has got to.
   final ValueNotifier<DownloadProgress> progress = ValueNotifier(null);
+
+  /// The newer release, once [look] has found one, whether or not it has
+  /// been put off — Settings offers it either way.
+  final ValueNotifier<Update?> available = ValueNotifier(null);
+
+  /// The release the banner offers: [available] unless it was put off.
+  final ValueNotifier<Update?> offered = ValueNotifier(null);
+
+  /// Why the last install did not get as far as Android's installer, until
+  /// the next one starts.
+  final ValueNotifier<InstallHitch?> hitch = ValueNotifier(null);
 
   void enable() => _enabled = true;
 
@@ -86,6 +139,30 @@ class Updates {
     }
   }
 
+  /// Checks for a newer release and offers it, unless it was put off.
+  Future<void> look() async {
+    final update = await check();
+    if (update == null) return;
+    available.value = update;
+    if (update.urgent || !await _putOff(update)) offered.value = update;
+  }
+
+  /// Keeps the banner away for [laterFor]. An urgent release can't be.
+  Future<void> later(Update update) async {
+    if (update.urgent) return;
+    offered.value = null;
+    final until = DateTime.now().add(laterFor).millisecondsSinceEpoch;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_laterKey, '${update.version}@$until');
+  }
+
+  Future<bool> _putOff(Update update) async {
+    final prefs = await SharedPreferences.getInstance();
+    final [version, until] = (prefs.getString(_laterKey) ?? '@').split('@');
+    return version == update.version &&
+        DateTime.now().millisecondsSinceEpoch < (int.tryParse(until) ?? 0);
+  }
+
   /// The newer release, if there is one. Null on any failure at all — no
   /// network, GitHub out of reach or rate-limited, a release with no file
   /// for this phone — because not hearing about an update is the cost of
@@ -100,32 +177,90 @@ class Updates {
       if (installed.isEmpty) return null;
       final abi = info['abi'] as String? ?? '';
 
-      final release = await _getJson(_latest);
-      final tag = release['tag_name'] as String? ?? '';
-      final version = tag.startsWith('v') ? tag.substring(1) : tag;
-      if (!isNewer(version, than: installed)) return null;
-
-      final assets = [
-        for (final a in release['assets'] as List<dynamic>? ?? const [])
-          if (a is Map) a,
-      ];
-      String? urlOf(String name) {
-        for (final a in assets) {
-          if (a['name'] == name) return a['browser_download_url'] as String?;
-        }
-        return null;
-      }
-
       // No falling back on a desktop: the APK for every phone is still
       // not a program for this one, and nor is one built for another
       // processor.
-      final url = onDesktop
-          ? (Abi.current() == Abi.linuxX64 ? urlOf(linuxFile) : null)
-          : urlOf(apkFor(abi)) ?? urlOf('Caldo-universal.apk');
-      if (url == null) return null;
-      return Update(version, Uri.parse(url));
+      final names = onDesktop
+          ? [if (Abi.current() == Abi.linuxX64) linuxFile]
+          : [apkFor(abi), 'Caldo-universal.apk'];
+      return pick(
+        await _getJson(_releases) as List<dynamic>,
+        installed: installed,
+        names: names,
+      );
     } catch (_) {
       return null;
+    }
+  }
+
+  /// The newest of [releases] (GitHub's list) newer than [installed], with
+  /// the first of [names] it carries, or null if it is not newer or carries
+  /// none of them. Drafts and pre-releases don't count.
+  @visibleForTesting
+  static Update? pick(
+    List<dynamic> releases, {
+    required String installed,
+    required List<String> names,
+  }) {
+    final newer = <(String, Map<dynamic, dynamic>)>[
+      for (final r in releases)
+        if (r is Map && r['draft'] != true && r['prerelease'] != true)
+          if (_versionOf(r) case final v when isNewer(v, than: installed))
+            (v, r),
+    ]..sort((a, b) => isNewer(a.$1, than: b.$1) ? -1 : 1);
+    if (newer.isEmpty) return null;
+
+    final (version, latest) = newer.first;
+    final assets = [
+      for (final a in latest['assets'] as List<dynamic>? ?? const [])
+        if (a is Map) a,
+    ];
+    String? url;
+    for (final name in names) {
+      for (final a in assets) {
+        if (a['name'] == name) url ??= a['browser_download_url'] as String?;
+      }
+    }
+    if (url == null) return null;
+
+    final bodies = [
+      for (final (v, r) in newer) (v, r['body'] as String? ?? ''),
+    ];
+    return Update(
+      version,
+      Uri.parse(url),
+      notes: [
+        for (final (v, body) in bodies)
+          if (cleanNotes(body) case final text when text.isNotEmpty)
+            ReleaseNotes(v, text),
+      ],
+      urgent: bodies.any((b) => urgentMark.hasMatch(b.$2)),
+    );
+  }
+
+  static String _versionOf(Map<dynamic, dynamic> release) {
+    final tag = release['tag_name'] as String? ?? '';
+    return tag.startsWith('v') ? tag.substring(1) : tag;
+  }
+
+  /// A release's notes as they read on its page: without comments (the
+  /// [urgentMark] among them), Windows line ends, or blank lines at either
+  /// end.
+  @visibleForTesting
+  static String cleanNotes(String body) => body
+      .replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '')
+      .replaceAll('\r', '')
+      .trim();
+
+  /// Installs [update], noting in [hitch] what stopped it. A tap while a
+  /// download is under way does nothing.
+  Future<void> start(Update update) async {
+    if (progress.value != null) return;
+    hitch.value = null;
+    try {
+      if (!await install(update)) hitch.value = InstallHitch.allow;
+    } catch (_) {
+      hitch.value = InstallHitch.failed;
     }
   }
 
@@ -224,7 +359,7 @@ class Updates {
     return outcome == 'started';
   }
 
-  Future<Map<String, dynamic>> _getJson(Uri url) async {
+  Future<Object?> _getJson(Uri url) async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 6);
     try {
       final request = await client.getUrl(url);
@@ -239,7 +374,7 @@ class Updates {
         throw HttpException('status ${response.statusCode}');
       }
       final body = await response.transform(utf8.decoder).join();
-      return jsonDecode(body) as Map<String, dynamic>;
+      return jsonDecode(body);
     } finally {
       client.close();
     }

@@ -29,7 +29,12 @@ const Map<String, Object> nl = {
   'undo': "Ongedaan maken",
 
   'updateOut': "Caldo {version} is uit",
-  'downloading': "{version} downloaden — {percent}%",
+  'downloading': "Downloaden… {percent}%",
+  'updateReady': "Er is een nieuwe versie",
+  'updateImportantLine': "Belangrijke update — installeer hem",
+  'updateImportant': "Belangrijk",
+  'whatsNew': "Wat is er nieuw",
+  'later': "Later",
   'allowInstall':
       "Sta Caldo toe apps te installeren en tik daarna opnieuw op Bijwerken",
   'downloadFailed': "Downloaden mislukt — tik om het opnieuw te proberen",

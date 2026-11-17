@@ -29,7 +29,12 @@ const Map<String, Object> ru = {
   'undo': "Отменить",
 
   'updateOut': "Вышла Caldo {version}",
-  'downloading': "Загрузка {version} — {percent}%",
+  'downloading': "Загрузка… {percent}%",
+  'updateReady': "Новая версия готова",
+  'updateImportantLine': "Важное обновление — установите его",
+  'updateImportant': "Важно",
+  'whatsNew': "Что нового",
+  'later': "Позже",
   'allowInstall':
       "Разрешите Caldo устанавливать приложения и снова нажмите «Обновить»",
   'downloadFailed': "Не удалось загрузить — нажмите ещё раз",

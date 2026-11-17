@@ -29,7 +29,12 @@ const Map<String, Object> it = {
   'undo': "Annulla",
 
   'updateOut': "È uscito Caldo {version}",
-  'downloading': "Download di {version} — {percent}%",
+  'downloading': "Download… {percent}%",
+  'updateReady': "È pronta una nuova versione",
+  'updateImportantLine': "Aggiornamento importante: installalo",
+  'updateImportant': "Importante",
+  'whatsNew': "Novità",
+  'later': "Più tardi",
   'allowInstall':
       "Consenti a Caldo di installare app, poi tocca di nuovo Aggiorna",
   'downloadFailed': "Download non riuscito — tocca per riprovare",

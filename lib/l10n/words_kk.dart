@@ -30,7 +30,12 @@ const Map<String, Object> kk = {
   'undo': "Болдырмау",
 
   'updateOut': "Caldo {version} шықты",
-  'downloading': "{version} жүктелуде — {percent}%",
+  'downloading': "Жүктелуде… {percent}%",
+  'updateReady': "Жаңа нұсқа дайын",
+  'updateImportantLine': "Маңызды жаңарту — орнатыңыз",
+  'updateImportant': "Маңызды",
+  'whatsNew': "Не жаңа",
+  'later': "Кейінірек",
   'allowInstall':
       "Caldo-ға қолданба орнатуға рұқсат беріп, «Жаңарту» түймесін қайта басыңыз",
   'downloadFailed': "Жүктеу сәтсіз — қайталау үшін басыңыз",

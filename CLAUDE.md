@@ -423,9 +423,15 @@ them will be noticed.
   capitalised. Kotlin side uses `getBestDateTimePattern` and
   `values-xx/strings.xml`. `l10n_screens_test.dart` draws key screens in every
   language. Unreviewed translations.
-- **Updates** (`services/updates.dart`, `_UpdateBanner`, `caldo/updates`,
-  `SelfUpdate.kt`): GitHub's latest release vs installed (dotted-number
-  compare); banner downloads the ABI's APK and installs through Caldo's own
+- **Updates** (`services/updates.dart`, `widgets/update_banner.dart`,
+  `caldo/updates`, `SelfUpdate.kt`): GitHub's recent releases vs installed
+  (dotted-number compare, `Updates.pick`); the newest is offered with every
+  skipped release's notes. Banner: version, a line, Later + filled Update;
+  a tap opens What's new (`showUpdateSheet`, notes drawn from their
+  `New:`/`- ` lines). **Later** hides it 3 days for that version
+  (`updateLater` pref); Settings › About keeps an "is out" row meanwhile.
+  **A release whose notes hold `<!-- priority: high -->` is urgent**: no
+  Later, an Important tag. Banner downloads the ABI's APK and installs through Caldo's own
   `PackageInstaller` session (keeps full-screen permission, no prompt on
   12+); ends on the home screen with an `UpdateDone` notification since
   Android won't relaunch it. The repo is public so no token is needed. No
@@ -588,7 +594,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 288 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 293 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
@@ -628,7 +634,9 @@ Caldo again — keep copies off this machine. A release build without
 publish unprompted (the in-app updater ships whatever is latest). A release
 means both `release/` (`Caldo-arm64.apk`, `Caldo-armv7.apk`,
 `Caldo-universal.apk`) and `gh release create vX.Y.Z release/*.apk` from the
-latest commit. `tool/package_linux.sh` adds `Caldo-linux-x64.tar.gz`; whether a
+latest commit. An update users must not put off carries
+`<!-- priority: high -->` in its notes (`--notes`); add it only when asked.
+`tool/package_linux.sh` adds `Caldo-linux-x64.tar.gz`; whether a
 release carries it is the user's call.
 
 Linux: `flutter build linux --release` → `build/linux/x64/release/bundle`.
