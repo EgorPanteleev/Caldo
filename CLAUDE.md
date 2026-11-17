@@ -1,2139 +1,618 @@
 # Caldo — working notes
 
-A calendar + to-do app for Android — and for Linux, where a wide window
-gets a desktop's layout of its own and a narrow one is the phone's app —
-Flutter, local-only storage. Private repo:
-`github.com/EgorPanteleev/Caldo`. It is modelled on its sibling app **Dicty**
-(`/home/igor/dev/src/Dicty`) — same stack, same theme. When a question about
-style or structure comes up, look there first.
+A calendar + to-do app for Android, and for Linux (a wide window gets a
+desktop layout; a narrow one is the phone's app). Flutter, local-first
+storage. Private repo `github.com/EgorPanteleev/Caldo`. Modelled on its
+sibling **Dicty** (`/home/igor/dev/src/Dicty`) — same stack and theme; look
+there first for style and structure questions.
+
+The full history behind each decision below (what was tried, measured and
+rejected) is in the git history of this file, before the commit that
+shortened it. Look there before reopening one.
 
 ## Stack
 
-Flutter 3.38.6 / Dart 3.10.7. `provider` (state), `sqflite` (storage),
-`shared_preferences` (settings), `intl` (dates),
-`flutter_local_notifications` + `timezone` + `flutter_timezone` (reminders).
-The type is the platform's own font — see the decision below.
-`sqflite_common_ffi` is the database on Linux and under the widget tests,
-which run against a real one; `path_provider_linux` and `file_selector_linux`
-are the desktop's directories and file dialogs — see the Linux section.
-The home-screen widget is native (`TodayWidget.kt`, plain `RemoteViews`, no
-Glance and no `home_widget` package).
-The app is local-only except for two things: asking GitHub whether a newer
-release is out, and fetching it, and — once signed in — syncing with a
-Supabase of Caldo's own — see the decisions below.
+Flutter 3.38.6 / Dart 3.10.7. `provider`, `sqflite` (`sqflite_common_ffi` on
+Linux and in tests), `shared_preferences`, `intl`,
+`flutter_local_notifications` + `timezone` + `flutter_timezone`. Platform
+font. `path_provider_linux`, `file_selector_linux` on the desktop. The
+home-screen widget is native (`TodayWidget.kt`, plain `RemoteViews`). The
+network is used only for the GitHub release check/download and Supabase sync.
 
 ## Layout
 
 ```
 lib/
-  data/holidays.dart     public-holiday rules, computed on device (no network)
-  l10n/strings.dart      every word the app says; words_*.dart, a table
-                         per language
-  db/database.dart       schema v11: lists, tasks, completions, and what
-                         a sync needs (+ migrations)
-  db/sync_store.dart     local rows to the server's and back (uuids for ids)
-  models/                task.dart (Repeat, Priority), task_list.dart
-                         (ListStyle, colorOfTask), completion.dart
-  providers/             task_provider.dart, settings_provider.dart,
-                         events_provider.dart
-  services/reminders.dart  the notification each dated task gets
-  services/background.dart a reminder's buttons and the widget's ticks,
-                         run on isolates of their own
-  services/today_widget.dart  the copy of the agenda the widget draws from
-  services/device_calendars.dart  the phone's own calendars, read-only
-  services/updates.dart  the newer-release check, download and install
-  services/backup.dart   everything as one JSON file, saved and restored
-  services/sync.dart     a round of sync: push what changed, pull the rest
-  services/account.dart  signing in by emailed code, and the server synced with
-  services/attachments.dart  files and photos on tasks: picked, copied in,
-                         opened elsewhere, swept up
-  screens/               home (shell: tab bar or menu), tasks (Schedule), calendar,
-                         board, done, search, task_edit, settings
-  theme/app_theme.dart   AppPalette + AccentColors ThemeExtensions, AppColors
-  services/desktop.dart  on Linux, what the activity does on a phone:
-                         directories, file dialogs, opening a file, updating
-  screens/desk_shell.dart  the wide layout's sidebar and form panel
-  utils/dates.dart       every date/time string the UI shows
-  utils/platform.dart    onDesktop
-  widgets/               month_grid, task_card (+ HolidayCard),
-                         colour_selector, groups,
-                         date_time_pickers, repeat_sheet, day_sheet, day_hours,
-                         menu_button (+ MenuScope), put_off,
-                         quick_add_bar, screen_header (+ TodayButton),
-                         theme_switcher, slide_into_place, choice_sheet,
-                         tick_off (+ AsShown), carry, selection,
-                         reorderable_task_list, attachments_field,
-                         desk (Desk, TaskPanel, the mouse and the keys),
-                         task_menu, sign_in_sheet
+  data/holidays.dart       public holidays, computed on device
+  l10n/                    strings.dart (S) + words_*.dart, a table per language
+  db/database.dart         schema v11 (+ migrations); db/sync_store.dart
+  models/                  task (Repeat, Priority), task_list (ListStyle,
+                           colorOfTask), completion
+  providers/               task, settings, events
+  services/                reminders, background (isolates), today_widget,
+                           device_calendars, updates, backup, sync, account,
+                           attachments, desktop
+  screens/                 home (shell), tasks (Schedule), calendar, board,
+                           done, search, task_edit, settings, desk_shell
+  theme/app_theme.dart     AppPalette + AccentColors, AppColors
+  utils/                   dates.dart (every date/time string), platform.dart
+  widgets/                 month_grid, task_card, day_sheet, day_hours,
+                           quick_add_bar, tick_off, selection, put_off, carry,
+                           desk, … (see the directory)
 ```
 
-On the Android side, `MainActivity.kt` (refresh rate, keyboard, updates,
-widget launches, the phone's calendars, backups), `PhoneEvents.kt` (the
-calendar query the app and the widget share), `Attachments.kt` (the pickers,
-the camera and the `FileProvider` behind a task's files), `TodayWidget.kt` (the widget and the `Headless` engine its
-ticks run on), `TodayWidgetRuns.kt` (its runs and cards), `CaldoApplication.kt`
-(redraws the widget when its copy changes) and `LauncherIcon.kt` (which of
-the two launcher icons a phone gets).
+Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
+launches, calendars, backups), `PhoneEvents.kt`, `Attachments.kt`,
+`TodayWidget.kt` + `TodayWidgetRuns.kt`, `CaldoApplication.kt`,
+`LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`.
+Linux: `linux/` is Flutter's GTK runner plus the window
+(`runner/my_application.cc`), `sqlite_shim.cc`, icon + desktop entry,
+`install.sh`. No channels on Linux.
+Icon: SVG in `assets/icon/src`, rendered by `tool/make_icon.sh`
+(`rsvg-convert`); PNGs checked in.
 
-On the Linux side, `linux/` is Flutter's GTK runner with four things of
-Caldo's: the window (`runner/my_application.cc`), SQLite's name beside the
-program (`sqlite_shim.cc`, `CMakeLists.txt`), the icon and the desktop entry
-(`icon/`, `com.igor.caldo.desktop`), and `install.sh`. Nothing there answers
-a channel — see the Linux section.
+Five destinations: **Schedule, Calendar, Board, Done, Settings**. Any of the
+first four can be hidden; Settings can't.
 
-The launcher icon is drawn in SVG under `assets/icon/src` and turned into
-Android's sizes, and Linux's one, by `tool/make_icon.sh` (needs
-`rsvg-convert`); the PNGs it writes are checked in.
-
-Five destinations — **Schedule**, **Calendar**, **Board**, **Done**,
-**Settings** — in a tab bar floating along the foot of the window, or in a
-menu behind a button at the top left of each, as Settings chooses; nothing
-else is in either. In a desktop's wide window they are in a sidebar
-instead (see Linux). Done was asked for as "a Done log or simple stats";
-Board came after it. Any of the first four can be taken out of the bar in
-Settings; Settings itself cannot.
-
-**Lists are groups, and there are still no list screens.** The Lists, list
-and list-edit screens were deleted once they had been unreachable for a
-while. The lists underneath every task (`list_id`, `TaskList`, the default
-"Personal") came back to the surface as **groups** — see the decision below
-— through a row of chips and a sheet, not through screens of their own. The
-provider's old "open list" (`openList`, `tasks`, `search`),
-`GradientIconButton` and `SelectionBar` stay gone. Tests that need a task by
-name read it from the database (`taskNamed` in `test/support/test_db.dart`).
+**Lists are "groups"; there are no list screens.** Groups surface through a
+chip row and a sheet only. `openList`, `GradientIconButton`, `SelectionBar`
+stay deleted. Tests find a task by name with `taskNamed`
+(`test/support/test_db.dart`).
 
 ## Decisions worth keeping
 
-These were all asked for explicitly or fixed after being seen on a device.
-Changing them back will be noticed.
+All asked for explicitly or fixed after being seen on a device. Reverting
+them will be noticed.
 
-- **The calendar has three states**, driven by one `AnimationController` with
-  bounds `[-1, 1]`: `-1` the selected day's week alone, `0` the compact month,
-  `+1` the month opened out with each day's tasks written out. Drag anywhere on
-  the grid; the invisible strip under it and the day bar below take drags too.
-- **A tap on the strip steps one state along and turns around at either end**
-  — month, opened, month, week. It used to toggle between two of the three, so
-  the week could only be reached by dragging.
-- **A drag a fifth of the way towards the next state commits to it**, and the
-  snap carries the drag's own speed, not a fixed ease from a standstill.
-  Pulling the whole way was never the point. **One drag goes one state along
-  and no further** (`_dragBy` clamps to either side of where it started): a
-  long pull from the week used to run on through the month and open it out. **The snap is a glide, not a
-  spring** (`_Glide`): a cubic that starts at the finger's speed and stops
-  dead on the state at a set time — 460ms for a whole step, down to half
-  that for a short remainder — and never overshoots. A flick sets its
-  starting speed (up to three times the average, beyond which it is eased
-  down from) but does not shorten it: letting it do so, at 420ms, was "too
-  fast", since most snaps follow a flick and those took a quarter second.
-  A tap sets off at the average speed rather than easing in, which read as
-  a pause before anything moved. It
-  was a critically damped spring, softened twice to be "a little bit
-  slower" (stiffness 340, then 200, then 120), and the softest was "not
-  smooth": it crept its last few points for most of a second (60 frames
-  for one snap) and a flick carried it past the state and back, which at
-  the open and week ends was cut off at the controller's bound. A slower
-  spring is a longer tail and an easier overshoot; slow it here by
-  lengthening `_snap`.
-- **Day numbers sit at a fixed offset from the top of their cell.** This is
-  why the first week never moves as the grid grows. An earlier version
-  cross-faded a centred layout with a top-aligned one and the numbers visibly
-  teleported mid-drag. Centring them in a compact cell and sliding them to the
-  top as it opens does work — it was built, on a lerped offset — but it was
-  asked for and then asked back, so they are at the top in both states.
-- **A day's tasks are marked with a line each**, the width of the day, stacked
-  under the number — not dots. Holidays come first, in green.
-- **An opened day's task titles take the lines they need, up to two.** A day
-  cell is about seven characters wide, so one line cut most names off — but a
-  chip is measured (`TextPainter`, in the chip's own font and width) and a
-  short title still gets a single-line chip. Take the height from the painter
-  and round it up: a box worked out from the font size instead is a box the
-  text can overflow by a fraction of a pixel.
-- **A title too long for the chip's width fades; one too long for its height
-  is cut at the line** (`_measure` keeps the painter's `didExceedMaxLines`
-  beside its height). A fade is right when it runs off the end of a line —
-  no letter cut in half, no ellipsis eating two of the few characters there
-  are. It is wrong when the paragraph has overrun its last line, because
-  what Flutter fades then is the bottom half of that line: every letter on
-  it is sliced through the middle and the chip reads as a rendering fault.
-  It was reported as "in the bottom it's like more transparent, looks ugly",
-  and the ghost under such a line is that line's own lower half.
-- **An opened day's chips are inked, not painted** (`dayChipColour`). They
-  were the task's colour at nine tenths — the only saturated blocks left in
-  the app once the cards were inked — and six of them in a cell shouted over
-  the day number they belonged to, so a month with anything on it read as a
-  sheet of violet bricks. The colour is mixed into the calendar's ground
-  instead, a little stronger than a card's since a chip is the size of a word,
-  with the title in the ordinary text colour. The function is top-level so a
-  test can say "this chip wears the task's own colour" without pinning how
-  deep the ink is.
-- **The chips stay tight.** A point of air per chip reads as calmer right up
-  until it costs the day a whole task: at `_inset`/`_gap` of 2 a day with four
-  tasks showed two and "+2 more", which hides more than the air was worth.
-  What did change is the shape — corners at 3 rather than barely off square —
-  and `+N more` is left-aligned under the titles it stands for; centred, it
-  read as a caption on the day rather than the rest of its list.
-- **Collapsing to the week slides the grid past a shrinking window**; every
-  week keeps its full-month height and the selected one is where the window is
-  left sitting. Shrinking the rows themselves made the numbers close in on each
-  other and read as a glitch. **Each row is carried from its place in the
-  month to its place in the week, and the week's row is a fifth taller than a
-  month's** (`MonthLayout.weekScale`), so the rows below the selected one draw
-  apart from it and stay behind as the day panel comes over them. All of it
-  moving up as one block at a row's height looked, for a week mid-month, as
-  if the grid trailed the panel — "laggy when the date is not in the first or
-  last row" (frame times were the same for every row: it was the motion).
-  Matched to a recording of another calendar the user supplied, measured
-  frame by frame: its week row is 79–82 points to its month rows' 68, and its
-  rows' positions there fit this interpolation. Holding the selected week
-  still until the closing edge reached it, then letting the edge carry it,
-  was tried before this and rejected.
-- **Picking a day in the opened month opens it in a sheet from the foot of
-  the screen** (`day_sheet`) rather than collapsing the calendar to make room
-  — the tap was made from that view, so it should still be there above it.
-  It was a card in the middle of the screen, a panel within a panel with two
-  lines to every task, and a day of six filled the screen: "too big and
-  inconvenient to use". Chosen from three mockups (a sheet, a popover at the
-  day, folding back to the month). The sheet sizes to the day and stops at
-  56% of the screen; its cards are one line each (`TaskCard.dense`, the time
-  at the far end and the repeat rule as a mark), an empty day is a line of
-  text rather than the screens' placeholder, and the list fades under the
-  field only while there is more of it below. Dragged down, it goes. Its list
-  is penned without an overlay of its own (`DragWithin.overlay`): an overlay
-  takes all the height offered, which made every day's sheet as tall as the
-  fullest. The keyboard lifts the whole sheet, measured as the screens
-  measure it (`KeyboardGap`), so the field sits on the keys.
-- **The days below the grid are a pager, one page per day.** Picking a day
-  slides it in from the edge it lies on and the days can be swiped through
-  directly, carrying the month round with them. A day within a grid's
-  span (`_passThrough`, 42) slides past every day between — any day picked
-  on the month on show, and the first or today a turned month lands on.
-  It was ten, and a day picked two weeks off came in as if it were the
-  next one while one a week off passed through the week: "like no between
-  1 and 15". Further than that (Today from months away) it is brought in
-  as the very next page and slid across alone (`_dayAnchor`, `_heldPage`):
-  the pager's anchor moves under it, and the page on show keeps its own
-  day until it has slid off, so nothing jumps. It used to be cut to, which
-  for a turned month changed the panel in place under a grid that slid. The two pagers
-  each ignore the change the other has already made, which is what keeps a
-  swipe across a month boundary from bouncing.
-- **In the week, a sideways swipe turns a week** (`_weekController`,
-  `_weekShown`). While the grid rests on the week a second pager lies over
-  the month's, a page per week, each drawing the same `MonthGrid` held at
-  its week state — so the swap at rest changes no pixel. A swipe keeps to
-  the weekday picked (Tuesday to Tuesday) and cuts the day panel and the
-  hidden month across rather than sliding them: seven day pages passing
-  under the grid in a quarter second was a smear. The month pager takes
-  over again the moment the grid moves off the week, and while a card is
-  carried, since the carry turns months and finds its days through the
-  month's layout. It is driven to the selected week like the other two
-  pagers (`_selectDay`), and ignored while driven (`_driving`).
-- **A timed task can have an end, and the day can be read as hours**
-  (`Task.duration`, schema v8; `DayHours`; `SettingsProvider.dayAsHours`).
-  The end is stored as a length in minutes, not a moment, so a move, a
-  roll on or a new start carries it with nothing to remember; it lives on
-  one day, and an end at or before the start is turned down on the form
-  ("Ends", under Time). Cards, the hours and the widget write it as
-  "15:00 – 16:30", as the app already wrote an event's span. The hours
-  view replaces the day panel's list when the bar is switched to it, and
-  the choice is kept: untimed tasks, holidays and all-day events as dense
-  cards across the top, then midnight to midnight with each timed task
-  and event a block from start to end (half an hour for one with no end,
-  enough for its title), overlapping ones side by side, a red line at now
-  on today. Tap a task's block to open it, an event's to open it in the
-  calendar app. It opens a little above what began in the two hours
-  before now, or now, on today; on another day above its first thing, or
-  at eight. Until a finger moves it, it is placed again whenever the day's
-  contents change — the phone's events arrive after the tasks, and an
-  all-day one landing above the timeline pushed it a card down from where
-  it had been placed. It scrolls whatever state the grid is in (held as
-  the list is, it would show nothing past five in the morning), and a pull
-  past either end still reaches the grid through the panel's listener.
-  The opened month's day sheet stays a list.
-- **Week rules only arrive at the end of the opening** (`weekRuleAlpha`, last
-  quarter) and never while the month is shrinking.
-- **Which screen the app opens on is a setting** — any of Schedule,
-  Calendar, Board and Done (`AppScreen`, read in `main` before the first
-  frame). It cannot wait for
-  `SettingsProvider.load`: that ends by asking Android about notifications,
-  which on a first run is a dialog the user has to answer, and waiting for it
-  would hold the app on a blank screen. So the start and the hidden screens
-  are read on their own first, and the shell takes the start as it is built
-  and never again — a screen that jumped out from under the setting being
-  changed would be startling, and the setting is about the next launch.
-- **Each of those four can be switched off, and leaves the tab bar**
-  (`hiddenScreens`, asked for as "set in settings which to show or hide in
-  left list"). Never all four — the last one's switch is disabled and the
-  provider refuses it — and Settings is always there, being the way back.
-  The start is always a screen in the bar: hide the one chosen and the app
-  opens on the first one left, but the choice is kept, so putting the screen
-  back puts it back as the start (`SettingsProvider.startScreen`). The
-  overdue dot moves from Schedule to Calendar while Schedule is out. A
-  hidden screen is still built behind the others; it is only unreachable.
-- **Settings is a list of six pages, not one long page** (`_Page`, and
-  `_screens`, `_general`, `_appearance`, `_calendar`, `_tasks`, `_reminders`):
-  Screens, General, Appearance, Calendar, Tasks, Reminders, each row saying
-  under its name how that page stands ("English · 3:00 PM"), with About on
-  the list itself. Every setting on one page ran to four screens of
-  scrolling — "too long … split it up in subgroups". A page is pushed over
-  the shell with a back arrow, and splits again into small panels: the
-  holidays and the phone's calendars a panel each, clearing completed
-  tasks on its own away from the switch above it.
-- **Every page of Settings is a panel per section, the way the phone's own are drawn**
-  (`_Group`, `_Row`, `_SwitchRow`, `choose`): a row is an icon, what it is,
-  and under that what it is set to; a tap flips its switch or opens a sheet
-  of the choices, the one in force ticked. Asked for as "make settings better
-  at all". It was a stack of separately outlined boxes with a segmented bar,
-  a dropdown or a switch each — three ways of choosing on one screen, and a
-  box round every line. The value goes under the title rather than at the
-  far end because twelve languages have to fit beside a chevron. Clear
-  completed is the one red row, with no chevron: it is a thing done, not a
-  setting opened. About shows the installed version (`Updates.installed`).
-- **Nothing on a screen moves when the keyboard does** (`SafeArea`'s
-  `maintainBottomViewPadding` in the shell). Android stops counting the
-  gesture bar as padding the moment the keys cover it, so a screen drawn edge
-  to edge grows by that much as the keyboard arrives: it was reported as the
-  month and the day's tasks shifting slightly every time the add field was
-  tapped, on a phone and not on the emulator, whose window stops above the
-  navigation bar and never had the padding to lose. The strip stays reserved
-  instead, and `KeyboardGap` subtracts it from the lift, since the bar now
-  starts that much above the window's edge.
-- **Ticking a task off is drawn at once, crossed out a beat later, and only
-  taken away if it is leaving** (`CheckMark`, `TaskProvider.settle`/`linger`/
-  `leave`, `TaskCard.ticking`/`leaving`, `TaskProvider.isTicking`/`isLeaving`).
-  The tick answers the tap: the square fills and the stroke runs through it
-  (240ms). 250ms after that the card is crossed out and its ink sinks — the
-  same moment a card that is leaving its run starts to go — and a card
-  leaves only if its task will not be in that run once it is read back: a
-  done task leaves the overdue backlog, since it is not overdue any more,
-  and a repeating one rolls on to its next date and leaves every run. Those
-  fade over the first half of 280ms while the gap they leave closes over the
-  whole. Everything else is crossed out in place, holds there 150ms
-  (`TaskProvider.hold`), and then **slides** to the end of its day as the
-  run is read back (`SlideIntoPlace`, 260ms), with the cards below it rising
-  into the gap — under a second from tap to rest, after "make it faster".
-  Schedule and Calendar must play this the same way: Schedule's days were
-  once re-sorted on every build (`upcomingByDay` as a getter), so a ticked
-  task there jumped to the end the instant it was marked done, while the
-  calendar waited. The grouping is now made once per load and marked in
-  place like the rest. Three rounds got here: the card used
-  to leave the instant the tick was drawn ("disappears too fast"), then every
-  ticked card faded out — including ones the reload put straight back at the
-  end of the day, which was a card disappearing and reappearing ("it's
-  wrong") — and then it stayed put, which was asked back: "move it to the
-  bottom". Taking a tick back goes at once, and a second tap while a card
-  waits stops it.
-- **A tick off offers Undo for four seconds** (`tickOff`, `_UndoBar`, in
-  the quick-add row's place). Undo writes back the task as it was before
-  the tap (`TaskProvider.restore`) rather than ticking it again, because a
-  repeating task has already rolled on to its next date and a second tick
-  would only roll it further. Every card's tick goes through `tickOff`;
-  untick is already an undo and gets no bar.
-  **It takes the add row's place, field and plus together, at their size**
-  (`UndoScope`, `UndoSlot`): each screen with a field, and the day card, is
-  a scope, and a tick on a card in it is offered in that scope's row, which
-  cross-fades to the bar and back. Chosen from mockups of four ways of
-  drawing it. Before this it floated above the field — first a snack bar,
-  then an entry on the root overlay so it could be frosted glass — and
-  however it was dressed it was a second grey pill the height of the field
-  stacked on the first, which read as two fields, and it cut across the card
-  under it ("still looks bad"). The cost is the field, for four seconds, so a
-  tap on the bar anywhere but Undo puts it away and opens the field. The
-  field stays in the tree under it, so what is typed and its hold on the
-  keyboard survive. One offer at a time, across scopes.
-  **The four seconds are drawn across the whole bar** (`_Countdown`, asked
-  for as "the timer like gradient in all panel"): the field's grey with the
-  accent mixed in a quarter covers it at first and draws back to the start,
-  its leading edge a ramp four tenths of the bar wide. A finger holding the
-  bar holds it still. Three earlier countdowns were taken out unasked for —
-  a ring round the tick ("i dont like this rounded checkbox"), a line along
-  the foot, and the tint draining out of an Undo chip alone, a smudge.
-  **It keeps its own time and can be brushed off** (asked for as "make
-  ability to brush off the undo"). A finger resting on it holds the offer,
-  and letting go starts it running again. It follows the finger sideways or
-  down (upwards it only gives a little), stays solid for the first sixth of
-  the screen and fades after, and goes past a quarter of the width, 36
-  points down, or on a throw; short of that it settles back. The add row
-  comes back under it as it goes (`UndoSlot._away`), all of it by the point
-  where letting go would throw it: pulled off a blank strip, the bar looked
-  as if it was taking the field with it ("i dont see add task under it when
-  im moving undo bar").
-  On it: a plain grey tick, the task's name, and Undo as plain words
-  (`_UndoButton`) in the accent lifted a third towards white, the arrow
-  drawn (`_UndoArrow`) in the tick's round-ended stroke. Undo is the only
-  thing on it in the accent: a filled accent tick and an accent countdown
-  beside it made three purple things on one small bar — "too many accent
-  colours" — and on a chip of the accent's tint it was a pill in a pill.
-- **A card slides to its new place by task, not by card** (`SlideIntoPlace`).
-  `TaskProvider.rearranging` fires just before a re-read; every card notes
-  where it stands in its scrollable's content space (so a scroll is never
-  taken for a move), and after the new layout each one that moved is drawn
-  back at its old place and eased to the new one. Notes are keyed by
-  (screen, task id): a reorderable list hands card state to a different task
-  when it reorders, and Schedule and Calendar are both alive at once in the shell.
-  **The move is found while the card is painted** (`_RenderSlide`), in the
-  frame that lays out the new order. Found after the frame, as it first was,
-  that frame had already gone out with every card at its destination, and
-  the slide began by jumping back — a stutter at the start of every one.
-  Painting is the earliest the new place is known, and a card that has only
-  moved is not repainted on its own (the list's repaint boundary just shifts
-  it), so a rebuild marks it for paint.
-- **A tick does not rebuild the screens; only the read-back after it does**
-  (`TaskProvider.ticked`, `shown`, `AsShown`). A notify from the provider
-  rebuilds both screens, the calendar's month and pager among them, and the
-  tick used to send one when it was drawn and another when it was crossed
-  out: measured on the emulator with frame timings logged from a release
-  build, those frames took 9–14ms to build, past the 8ms a 120Hz phone has,
-  at the very frame each step started on — reported as "laggy". The cards
-  listen to `ticked` instead and draw a task as `shown` says, and the lists
-  are read back, with one notify for month and agenda together, once the
-  tick is over. That read-back is the one heavy frame left (8–10ms on the
-  emulator), and it lands before the slide moves anything. Settings and the
-  tab bar `select` the one value each wants rather than watching the provider:
-  Settings, hidden in the stack, was being rebuilt in whole on every change
-  to any task.
-- **The screens are a tab bar floating along the foot, or a menu, as
-  Settings says** (`_TabBar`, `_Tab`, `BarRoom`; `screensInBar`, "Switch
-  screens with" on the Screens page, the bar out of the box). The menu came
-  first; the bar replaced it in 2.8.14 and the menu was asked back as a
-  choice beside it. Like the start screen, the choice is read before the
-  first frame (`storedScreensInBar`), or a menu user would see the bar
-  flash. Every page keeps both of its wrappers (`BarRoom`, the padding)
-  at nothing with the menu, so switching keeps every screen's state. The
-  menu button is handed to the headers by `MenuScope`, not threaded through
-  each screen's constructor; with the bar there is no scope and no button.
-  The bar: Asked for from a screenshot of another
-  app's bottom ("i strongly like bottoms like this"), and chosen from
-  mockups as "make a, but do not change bottom task bar". A pill with a light
-  edge (1.4pt, matched to another app's bar: "more noticable"), standing
-  23 points in from either side (`BarRoom.tabsSide`; the field that takes
-  its place while writing keeps 12, as that app's field is wider), each
-  screen an icon over its name, the one on show lifted in a grey pill that
-  slides to the one picked (240ms) — neutral, as the menu's current entry
-  was. Settings is the last tab. The red dot for something overdue sits on
-  Schedule's icon (Calendar's while Schedule is out). Names too long for a
-  fifth of a phone are shrunk, not cut. Back returns to the screen the app
-  opened on before it leaves the app, as in any app with tabs along the
-  foot, but a selection answers to it first (`Selection.anyActive`).
-  The bar floats over the screens rather than taking a slot under them, so
-  the ground a screen stands on runs on beneath it — the calendar's day
-  panel used to end at a band of black. Schedule and Calendar keep the
-  room under it in their ground's colour (`BarRoom`), and the other three
-  are simply padded above it. The cost is about 74 points of height on
-  every screen, which on the calendar comes out of the day panel.
-  **With the bar there is no add field at the foot; a round plus floating
-  above the bar's right end brings it up** (`_AddButton`, `BarFoot`,
-  `_WhileWriting`, `_WhileKeyboardDown`). The field sat over the bar as a
-  second grey pill, and the two read as one toolbar stacked on another —
-  "badly fit … remove add task bar and mb add smth else". Chosen from
-  three: a plus beside the bar, a plus as a sixth tab (squeezes every name,
-  and is a tab that is not a screen), or the field and the bar merged into
-  one panel. It was in the bar's row first, the bar's height, and was asked
-  up out of it ("mustn't be in the same row"): now a 56-point disc,
-  shadowed since it floats over the cards, its edge in line with the
-  bar's, and the bar has the whole width again. The field now
-  rests in the bar's own room, drawn only while it is focused with the
-  keyboard up; the bar is put away while the keys are up and the field
-  rides them in its place. So `KeyboardGap.of` takes nothing off for the
-  bar. A tap on the plus opens the screen's field (or, with the field still
-  focused after Back, only asks for the keyboard back — asking for focus a
-  field already has does nothing); held, it opens the full form, as the
-  plus beside the field did. **It is only over Schedule and the
-  calendar**: on the board, Done and Settings it opened the form on its
-  own, and was asked off them ("remove plus … from settings, done and
-  board"). It fades out as the bar switches to one of those; the board
-  keeps the plus in its header for a new task, with the bar or the menu. The screen's field lends the
-  shell its Undo and selection through its `BarFoot`, and those stand in
-  the bar's place, as they stood in the field's; the plus stays over Undo
-  and goes while tasks are picked out. That
-  costs the tabs for Undo's four seconds, so a tap on it away from Undo
-  only puts it away rather than opening the field; moving to another
-  screen withdraws it (`withdrawUndo`), as it puts down a selection. The
-  menu keeps the field at the foot, as it always had it.
-- **With the menu, the hamburger sits at the top left of each screen** and
-  carries a dot when something is overdue — the one thing worth pulling
-  the user back to a screen they are not on. Back closes the menu, and
-  otherwise leaves from whatever screen is open, as it always did.
-- **The menu moves the screen aside; it does not cover it.** Opening slides the
-  whole screen `_menuWidth` to the right and the menu in from off the left
-  edge, so what is on the screen stays legible instead of being hidden under a
-  panel. The menu is drawn **over** the screen, rounded down its leading edge
-  and shadowed, so it reads as a panel above the window rather than something
-  uncovered behind it. It laps over the screen by `_menuOverlap`: the screen
-  slides that much less than the menu is wide, so the menu's rounded corners
-  cut into it and its shadow falls across it. Flush, with both of them
-  rounded, nothing said which was in front — and the screen, being the rounded
-  lit one, read as the panel on top, which is backwards. The screen is square
-  now; its leading edge runs underneath.
-  This is not a Material `Drawer` — the menu is always in the tree
-  while it is the way between screens,
-  behind the screen, which is why a test cannot tell open from closed by
-  looking for its text and reads the screen's offset instead. Back closes it
-  (`PopScope`), as does a tap or a leftward swipe on the screen.
-  **The screen goes out of focus under it** (`_OutOfFocus`, a blur of 4),
-  asked for as "blur other content": the menu is the one thing to read
-  while it is open. A picture of the screen is taken at half a pixel per
-  point as the menu starts to open, blurred once at each of four strengths,
-  and faded from one strength to the next over the live screen, on the
-  slide's own curve; they are let go of when the menu is shut. One picture
-  at the full blur, faded in alone, was "not linear": the sharp edges
-  showed through until it was all but opaque, so the blur came late and at
-  once. The blur was 6 and asked to be "a little less blurry". Blurring the screen
-  itself (`ImageFiltered`, in 2.8.6) re-rendered and re-blurred all of it
-  on every frame of the slide — "a bit laggy". Measured on the emulator
-  with frame timings from a release build, opening and closing six times
-  on the calendar: 7.7–8.2ms of raster a frame on average with that, 4.9–6
-  with no blur at all, 4.3 with the picture. The live screen stays under
-  it, so one picked from the menu is there as the menu closes, with the
-  picture of the old one fading off it.
-- **Today is a badge, the selected day a thin neutral outline.** Accent on
-  either was "too much". The badge takes the colour the day's own
-  number would have had — red on a Sunday, light on every other day — since a
-  light badge on a red date was the one place the red stopped halfway. The
-  number on the red badge is black; on the light one it is the ground itself.
-  The badge is near enough square and tight around the digits — measured off
-  the screenshot this was matched to, theirs is a square a fifth wider than
-  the number in it, where ours had been half again as wide as that, a slab
-  with the date floating in the middle.
-- **The app is set in the platform's own font.** It was Inter, fetched by
-  `google_fonts` on first launch. Two things were wrong with that: this
-  calendar sits beside other calendars on the same phone and did not look like
-  them — every one of those uses the system font, which is what a date is
-  expected to be set in — and an emulator with no network silently falls back
-  to Roboto, so nothing judged by eye here was ever showing the font that
-  actually shipped. Measured against the screenshot this was matched to, the
-  numbers now come out within two percent on width at the same cap height, and
-  a date stands the same fraction of the screen tall — 2.04% against 2.03%,
-  which is what 12 points rather than 13.5 buys.
-- **Every day number carries the same weight**, semibold. A grid of dates is
-  read by glancing at it, not by reading along it, and today and the selected
-  day being the only bold ones was a distinction the badge and the outline
-  were already making. Bold for all of them was heavier than the dates on any
-  other calendar on the phone, which is what this is read beside.
-- **The day numbers are pulled together** (`letterSpacing`, on the day bar,
-  the day card's header and the grid; `FontFeature.proportionalFigures` in the
-  grid as well). Digits are laid out in boxes of one width so columns of them
-  line up, and nothing here is in a column. Two things follow from that: the
-  hole between the ones of an 11 reads as two numbers rather than one, and —
-  since a 1 is a narrow glyph in a wide box — the ink of an 11 sits left of
-  where the pair is centred, which is what had the date looking off-centre in
-  its badge.
-- **The date in the badge is centred on its digits, not on its line box**
-  (`Alignment(0, 0.2)` with `height: 1`). A line box carries room for
-  descenders under the baseline and no date has one, so a date centred by its
-  box sits low — in a badge this tight, all but resting on the bottom edge.
-- **Only Sundays are red.** A holiday does not recolour the number — its green
-  mark says it already.
-- **Holidays are not tasks.** They are computed read-only entries; nothing is
-  written to the database, so they can't be ticked, edited or deleted. The
-  country follows the device locale, overridable in Settings.
-- **"Show completed tasks" is honoured everywhere a run is drawn**
-  (`TaskProvider.setShowCompleted`, handed over by a
-  `ChangeNotifierProxyProvider` from the first build). Off, done tasks are
-  left out of Schedule, the calendar and search — the widget already left
-  them out — and a ticked card fades out of its run as a rolling one does.
-  It had been handed to search alone, and only once switched in Settings,
-  since the list screens it was made for were deleted. The full lists
-  (`allUpcomingByDay`) keep them: the widget hides them itself.
-- **A repeating task ticked off late rolls on to today or after**
-  (`Task._nextRound`). One round on from its due date, a task a week
-  overdue stayed overdue, its card fading out of the backlog and straight
-  back in. The rounds passed over are not counted off a count of rounds;
-  a rule that ended before today keeps its plain next round, so it agrees
-  with `rollsOn`.
-- **A task may carry its own colour** (`Task.styleId`, same swatches a list
-  wears) and falls back to its list's colour. Always resolve through
-  `colorOfTask`.
-- **The palette is sixteen colours, and any other can be made**
-  (`ListStyle.presets`, `ColourSelector`, `showCustomColourSheet`). Eight
-  was "a limited kit", and four of the eight were blue or green. They are
-  laid out as two rows of eight round the wheel — red to graphite — with a
-  last row under them: the group's own colour (the link, on a task), the
-  colours last made, and a plus ringed with the wheel that opens a sheet
-  of a hue strip and five tones, over a sample card in the colour.
-  Chosen from three ways of doing it (a larger fixed set and a free picker
-  were the others). The tones are not a free square: a card is a quarter
-  of its colour over black, so a darker colour is a black card and a
-  paler one a grey card. A made colour is stored as `#RRGGBB` in the same
-  `style_id` column, so nothing in the schema changed, and the six last
-  made are kept in Settings (`customColours`) and go with a backup. The
-  first eight ids are the old ones, colours unchanged, and a new group is
-  still offered those first, in the old order (`ListStyle.freeFor`). The
-  widget's tick has a drawable per preset (`tool/make_widget_ticks.py`), so
-  a made colour's card is inked in its own colour and ticks in the
-  nearest preset's.
-- **The date and time pickers are our own sheets** — a month grid and scroll
-  wheels. Material's dialog and clock dial were rejected by name.
-- **The clock's middle band is a window in a mask, not a panel.** Nothing is
-  drawn behind the numbers — no fill, no outline, no band. Every number on a
-  wheel is the same size, weight and colour, and a `ShaderMask` down the drum
-  carries them at full strength inside one row's worth in the middle and at a
-  third of it outside. Doing that to the pixels rather than to each number is
-  the whole point: a number halfway across the edge comes out bright above the
-  line and dim below it, and that split is what shows a wheel standing between
-  two values. Per-number colouring cannot produce it — that was tried twice.
-- **The wheel under a finger goes over to the accent**, all of it, and back to
-  white the moment the finger lifts — tracked on pointer down/up, not on the
-  scrolling, so a flung wheel coasts to rest in plain white. The colour is
-  there to say what is being touched, so it leaves with the touch. Each wheel
-  does this on its own, so turning the hour leaves the other two alone.
-- The drum is flat (`diameterRatio: 100`): a curve pulls the numbers away from
-  the eye, and the band is already saying which of them is the one.
-- **Every time in the app is written on one clock, which Settings chooses**
-  ("Times are written": 3:00 PM or 15:00; until it is chosen, the phone's
-  own). It was a 12-hour picker over cards that wrote 24-hour times, so a
-  task picked as 6:00 PM read 18:00 — "make it consistent for both".
-  `Dates.time`/`Dates.clock` are the only places a time is formatted, and
-  take `h24`; widgets pass `MediaQuery.alwaysUse24HourFormatOf(context)`,
-  which `CaldoApp`'s builder sets from the setting, so a change redraws
-  every time on screen at once. A notification has no screen to read, so it
-  uses `Dates.use24Hour`, kept in step by `SettingsProvider`, and changing
-  the clock re-sets the alarms already standing (`Reminders.refresh`) so
-  their text follows. On a 24-hour clock the picker's hour wheel runs 00 to
-  23 and the AM/PM wheel goes; the shortcuts under it follow suit.
-- **The task form hides its way back once anything is changed**, and puts
-  Cancel and Save at the foot instead. An arrow beside unsaved edits is an
-  invitation to lose them. Untouched, the arrow is there and there is nothing
-  to save. Every field marks the form as touched, including the clears and the
-  two text controllers. The pair is pinned to the foot of the screen, with
-  the form fading out under it (`GroundFade`) — written after the last
-  field, it was a scroll away. It rides the keyboard as the quick-add bar
-  does (`KeyboardLift`, no `Scaffold` resize, the gesture strip kept); a
-  resized form made it misbehave the way that bar once did. Only the list's
-  viewport is shortened (`KeyboardRoom` under it), so a field's own scroll
-  into view clears the keys, and every field keeps the fade's height clear
-  below it as well (`_reveal`), or it comes to rest dimmed inside it. Save
-  and Cancel put the keyboard away; left up, it is handed to whatever field
-  had it on the screen underneath.
-- **A sheet's actions are two plain words**, Cancel and Save, drawn in towards
-  the middle rather than pushed out to the corners — pinned to the edges they
-  read as one control at each end rather than as a pair to choose between. A filled button beside an outlined one were the only heavy things in a
-  sheet this plain, and they argued over which was the one to press.
-- **The plus beside the quick-add field opens the full form**; the tick files
-  what has been typed. A plus that did nothing at all on an empty field was
-  the state it was left in when the Schedule header's add button was removed.
-- **A task is in one group, and Schedule and the calendar can show one
-  group at a time** (`GroupChips`, `TaskProvider.showGroup`, `groups.dart`).
-  Asked for as "split tasks in groups, for ex university, friends", without
-  setting anything up in Settings. A group is one of the lists every task
-  already had. **Tags came first and were taken back out** — any number per
-  task, `#uni` in the add field, a filter button in the header: "i dont
-  like tags like this, it must be more group than tag". Chosen from three
-  mockups: a row of chips under each screen's header — All, each group with
-  its colour as a dot, and a plus — always there, even with only the default
-  group, since it is where groups are found to exist. The two screens share
-  one choice. A group is made from the plus there or beside the form's
-  Group row; there is no list of groups anywhere else.
-  **The groups can be dragged into an order** (`lists.sort_order`, schema
-  v9, `TaskProvider.reorderLists`; asked for as "change groups order"). The
-  chip row is a reorderable list, All and the plus fixed at either end: a
-  long press picks a chip up and it is carried along the row, and one held
-  and let go within 18 points opens it to be renamed, recoloured or deleted
-  — the long press that used to do only that, split the way a card's is
-  between carrying and picking out. On the form a long press still opens
-  it. A chip stands on its row's ground (`GroupChips.ground`), since one
-  not chosen is only an outline and its neighbours' names showed through
-  it while it was carried. A group made later goes at the end. **The
-  default group is the oldest, not the first** (`TaskList.oldest`): it
-  used to be read as `lists.first`, which a drag would have changed. Deleting moves its
-  tasks into the default group (the oldest, "Personal", written in the app's
-  language until renamed), which cannot itself be deleted.
-  **With All on show, the open add field offers the groups** (`_GroupPick`
-  in `QuickAddBar`, asked for as "set group for task instantly"): a row
-  of them rides the keyboard above the field, the default lit, and a tap
-  picks where this task goes without the keyboard going (the row is a
-  `TextFieldTapRegion`). **It is there while the keys are, not while the
-  field has focus** (`_WhileKeyboardUp`): Back puts the keyboard away and
-  leaves the field focused, and the row left over the closed field was
-  "before I clicked to add task do not show me this groups". Back to the default every time the field opens,
-  so a pick for one task does not quietly file the next. Not drawn with
-  one group on show (that is where it goes) or with only one group.
-  While a group is chosen: only its tasks are drawn, the phone's calendar
-  events go (they are in no group), holidays stay (they are the calendar's,
-  like the red Sundays), and a task added on either screen or from the form
-  goes into it — anywhere else, it would vanish as it was filed. The choice
-  is held for the run of the app and not stored. The provider keeps the full
-  lists beside the narrowed ones; alarms, the home-screen widget and the
-  tab bar's overdue dot read the full ones (`allOverdue`, `allUpcomingByDay`).
-  **A group's colour is its tasks' colour.** New tasks have no colour of
-  their own, and moving a task to another group in the form puts it back on
-  the group's. The Settings colour that every new task used to start in
-  ("New tasks start in the colour Settings names") would have hidden every
-  group's colour, so it went: whatever it was set to became the default
-  group's colour, once, on the first start after (`_taskColourToGroup`).
-- **The quick-add button is a plus until the field is opened, then a tick**,
-  and it is plain rather than the accent gradient the headers wear — it sits
-  beside the field the eye is already on.
-- **The day below the grid is a grey panel, the grid is black.** The month and
-  the day it is showing are two surfaces, not one dark field; `panel` under the
-  day, `calendar` under the grid. The day bar takes the panel's grey too — it
-  had a shade of its own, which put a band across the screen and cut the day in
-  two, when the date and the things on that date are one panel and the bar is
-  only the top of it. The strip under the add field follows, so it is the
-  panel's grey while the day is on screen and the calendar's black once the
-  month is opened out over it.
-- **The day bar names its day, and switches it between a list and hours.**
-  The open-count and the full-form button once beside it were noise on a
-  bar whose whole job is to say which day is below it; the full form is
-  still reached from the day card's header, or by tapping a task. The
-  switch (`_ViewSwitch`) was chosen from mockups as the place for the
-  hours view; it is as tall as the date beside it, so the bar keeps its
-  height.
-- **The calendar's header is two rows**: the controls across the top — the
-  menu button on the left while there is one, Search and Today on the
-  right — and the month name
-  alone on the row beneath. Sharing one row meant the name had to be kept clear
-  of whatever sat beside it. The month chevrons are gone; the grid is swiped.
-- **Today is drawn as today's date on a page**, so the button names the day it
-  will take you to.
-- **The month header shows `Sep`, centred**, gaining the year only when it is
-  not the current one.
-- **The field and the button beside it are a filled grey** (`AppPalette.field`,
-  a step above `panelHi`), rimmed as the tab bar is (`BarRoom.rim`), and
-  nothing marking the focus but the cursor. Outlined and unfilled on true
-  black the pair read as holes cut in the screen; filled and unrimmed they
-  were asked to match the bar's edge. The rim is the same with focus or
-  without.
-- **The strip the add field sits on, and the fade above it, follow what the
-  field is actually standing over** (`_groundUnderField`, `_fadeStrength`,
-  `_overGrid`). That is the calendar's own black once the month is opened
-  out and the day panel's grey while the day's tasks are on screen — but
-  the keyboard moves the field, and once it has carried the field up past
-  the panel onto the grid, the grid is what is under it. Following only the
-  calendar's state, the field rode up over the month as a grey slab in the
-  compact view, and in the opened one it lost its fade and cut the week
-  under it off square — reported as "no smooth transition between add task
-  and calendar". The day panel's drawn height is kept from the layout so
-  the field can tell where it is: past the top of the panel, the ground
-  turns to the calendar's over one fade's height, and the fade is on
-  whenever the keyboard has lifted the field at all.
-- **Whatever is above the add field fades into the ground it sits on**
-  (`GroundFade`, 48 points, on both the calendar and Schedule). Sliced off
-  square by the field, the last card in a full day ended in a straight cut
-  across the middle of a word. The ramp is a smoothstep, not a straight one: a
-  straight ramp has a visible edge at each end, where it starts and where it
-  finishes, and both read as lines. It is one widget rather than two copies
-  because the two screens have to look the same doing it — which is how it
-  came to be asked for on Schedule in the first place.
-- **The fade goes as the month opens out — while the keyboard is down**
-  (`GroundFade.strength`, driven by the calendar's expansion and the lift). It is for a list that runs under the field, and
-  the calendar only has one while the day's tasks are on screen. Opened out,
-  what sits above the field is the grid — a fixed layout that ends above the
-  field with nothing to soften — so the fade only dimmed the last week of
-  the month. Measured: the outline around a selected day in the bottom row
-  fell from 155 to 112 over its last sixty pixels, and a day with enough
-  tasks had the chips in that strip washed out with it. It was reported as
-  "when I extend my calendar, in the bottom it's like more transparent".
-- **The keyboard arrives over both screens, it does not shorten either.**
-  Neither `Scaffold` resizes for the inset; the quick-add bar is wrapped in
-  `KeyboardLift`, which translates it instead, and the fade above it goes up
-  with it. A resizing `Scaffold` takes the room out of whatever is above the
-  field, which on an opened month means squeezing the very grid being looked
-  at. Schedule keeps the end of its run reachable by putting the keyboard's
-  own height at the foot of it (`KeyboardRoom`) rather than by shrinking the
-  viewport. The shell's `Scaffold` does not resize either — it would shorten
-  all three screens before any of them was asked.
-- **The quick-add bar is attached to the keyboard: its bottom edge is the
-  keyboard's top edge, at every moment of the slide.** `KeyboardLift`
-  translates the bar and that is the whole of it — no animation, no spring,
-  no speed limit, no rule about which reports to believe. Android says where
-  the keyboard is; the bar is there in the same frame. If the keyboard
-  jumps, the bar jumps with it, because that is what attached means.
-  Three cleverer answers were tried first and each was wrong the same way: a
-  real keyboard covers 154 points in the first 50ms of its rise, better than
-  3000 points a second, so any cap under that turns following into trailing,
-  and no tuning turns a lag back into an attachment. **Do not put a curve
-  back in here.**
-- **Where the keyboard is comes from Android as well as from Flutter, and
-  the two are reconciled by taking whichever reaches further**
-  (`KeyboardGap`, `MainActivity`). `viewInsets.bottom` is not one
-  measurement: on a window drawn edge to edge it leaves the system bar strip
-  at the foot of the screen out of a slide's animated values and puts it
-  back at the end. That is the ten points the bar used to ride low for the
-  length of a slide, and the jump at the end of it, reported in the first
-  message of this whole thread.
-  Two cleverer answers failed before this one, and both failed the same way
-  — they tried to correct a number whose meaning changes. Adding the strip
-  while an animation was running put the bar a strip *above* the keys on any
-  slide whose insets already counted it, which turns out to be some of them:
-  opening the field, closing it and opening it again quickly produces one of
-  each. Capping the correction at the keyboard's known height only helped
-  once a slide had settled, so it did nothing at all for the fast case,
-  which is the only case that shows it. The flag saying which meaning is in
-  force arrives down one channel while the number arrives down another;
-  that is a race, and no arithmetic on the far end of it can win.
-  So the activity reports where the keyboard is — `Type.ime()` from the
-  bottom of the display, less whatever lies below this window, which is the
-  navigation bar below Android 15 and nothing at all edge to edge — and
-  `KeyboardGap.of` takes the larger of that and `viewInsets`. One number
-  cannot disagree with itself, and the larger of two cannot put the bar over
-  the keyboard: the worst either can do is hold it where the keys were a
-  frame ago.
-  Measured off a phone recording of the bug: the field sat 17px from the
-  keys on the first opening and 62px on the second, and waiting a couple of
-  seconds between them made it go away — which is what pointed at two
-  overlapping slides rather than at any one convention.
-- **Whether the window reaches past the system bars is read from the
-  insets the content view is handed, never from how tall it happens to be**
-  (`MainActivity.contentNav`). A window that fits the bars has them taken
-  out of the insets before they reach its content view; one drawn edge to
-  edge does not. That reading does not move with `adjustResize`.
-  Working it out from the content view's height against the display's is
-  what four attempts at one bug came down to. `adjustResize` leaves that
-  view between its two heights for a while after the keys have gone; a
-  reading taken then says the window reaches the bottom of the display when
-  it does not, and once believed it was never contradicted, because on a
-  phone where the honest answer is "it does not" no measurement ever says
-  so out loud — the honest answer is the default. From then on the keyboard
-  was reported a navigation bar too tall and the field rode a bar above the
-  keys for the length of every slide. The user had it right before the
-  numbers did: it was never about doing it fast, it was about which button
-  closed the keyboard, because that is what decided when a poisoned reading
-  was taken.
-  Measured from a recording with the numbers on screen, against the
-  keyboard's painted position: on a good slide the app's figure was right
-  to within a point at every moment; on a bad one it was a constant 29
-  points — two of that phone's 14.9-point bars — too tall from the first
-  frame to the last.
-- **A tick on an empty field does what cancel does: the keyboard goes and
-  the field keeps hold of it** (`QuickAddBar._submit`). On a phone, the
-  opening after a tick on an empty field came up with the field a strip
-  above the keys, every time, and the opening after a cancel never did. Six
-  releases went at the keyboard arithmetic and at how the keyboard was
-  hidden before the difference that remained was looked at: letting go of
-  the field closes its connection to the keyboard, so the next tap brings
-  the keyboard up from scratch, and that is the only opening that ever went
-  wrong. Back leaves the connection open. With a title typed the tick still
-  lets go, since a task has been filed and the field's job is done — if the
-  same jump turns up after filing, that is where to look.
-- **Long-pressing the Settings title puts the keyboard's numbers on screen**
-  (`KeyboardGap.showNumbers`, drawn by `KeyboardNumbers` above the add
-  field): the inset Flutter reports, what Android says, the strip the layout
-  reserves, the lift the three of them come to, and on a second line the
-  raw figures Android was asked — the IME inset, the navigation bar, and
-  the offset below the window. Four rounds went into
-  one keyboard bug on a phone that cannot be plugged into this machine,
-  every one of them a guess at which number was lying. A recording of the
-  fault with this on answers that in one go. Off by default, not stored.
-- **The inset is read in `KeyboardLift` and `KeyboardRoom` and nowhere
-  else** — and in `_WhileKeyboardUp`, which wraps only the groups' row. It changes on every frame of a slide and whoever reads it rebuilds
-  that often, so the two widgets that move with it are the two that read it,
-  and the screens around them are left alone.
-- **The dark ground is true black.** The calendar's already was, so an app
-  background a shade lighter put a seam down the screen — and on the OLED panels
-  this is built for, black is black rather than a very dark grey. Everything
-  above it is a raised grey instead.
-- **The controls are neutral; the accent is kept for what is rare**
-  (`AppTheme._build`'s text-button, filled-button, input-focus
-  and selection themes; the tab bar's current screen; the carry marks). The
-  selected segment and the open screen in the tab bar are lifted in `field` grey, a
-  focused field is outlined in `muted`, and a dialog's buttons are plain
-  text beside a light filled one. Every one of those was the accent, and on
-  a dark screen they added up to most of the colour there was — "too many
-  accent colours … all app". What keeps the accent: the switches in
-  Settings (made neutral with the rest, and asked back), Undo, the update
-  banner,
-  a clock wheel under the finger, and the accent and colour pickers in
-  Settings, which are choosing a colour. Tasks wear their own colour, not
-  the accent; that the default list is violet, the same hue as the default
-  accent, is why the calendar still reads purple when nothing else does.
-- **The greys are neutral.** Every surface used to carry a few points of extra
-  blue, which over a whole screen read as a violet wash instead of as grey. The
-  accent and the list swatches came off the bright web palette they were taken
-  from at the same time; the ids are unchanged, so a saved choice still lands
-  on its own colour.
-- **Both pagers ignore the pages an animation passes through** (`_driving`).
-  A jump of a week reports six days nobody chose, and each was taken for a new
-  pick and sent the other pager off after it. The month header reads its page
-  off the controller, so `_onMonthPageChanged` owes it a `setState` even when
-  the change was driven rather than swiped.
-- **Schedule is a running order of days, not a list of tasks.** A day is a
-  plain date written out — not an uppercase section label with a count and an
-  add button beside it, which made a heading of something the eye should pass
-  straight over. Under it, everything is the same filled card the calendar puts
-  under its grid, and holidays fall in among them.
-- **Timed tasks are not a separate form.** There was one: a bare row with the
-  hour at the far end and a bar in the list's colour. Beside the filled cards
-  it sat between, the lone bar read as a stray mark and the title and hour were
-  stranded at opposite ends of a void. The card already writes the hour where
-  an all-day task's says "All day", so the row was drawing a distinction that
-  was already being made — quietly, and better.
-- **A task card is inked with its colour — a quarter of it, over whatever the
-  card is standing on.** Against true black that comes out as the deep
-  near-navy the cards wear. The same colour at a sixth strength with an
-  outline a third of the way up was a haze with a blurred edge; so was
-  dropping the colour for a neutral panel, which was rejected by name. There
-  is no border: the fill is the shape. The ink is left translucent rather than
-  blended into one named colour, so a card is inked by the ground it is
-  actually on — the calendar's day panel is grey, the agenda and the day card
-  are black, and a card worked out against the wrong one of those is a card
-  darker than the sheet under it. A done card keeps a twentieth of the colour,
-  so it sinks most of the way back into the ground without leaving the run,
-  and its tick square fills in instead of standing empty.
-- **A day's tasks can be dragged into an order of their own** (`sort_order`,
-  schema v3, null until a day is actually dragged). Null rather than zero on
-  purpose: a column of zeros would claim every task had been placed by hand,
-  and a day nobody has touched should keep the order it has always had. A task
-  that arrives in a day somebody has already arranged goes after the arranged
-  ones. **Done tasks go after open ones** (`TaskProvider._compare`, the
-  database's `_order`), and the hand order sits under that. It was taken out
-  once, because a ticked task jumped to the end of its day the moment the
-  list was read back and looked like a card vanishing and turning up
-  somewhere else; it came back once the move could be shown as a slide,
-  since a day's done tasks at the top of it were in the way of what is left.
-  Done tasks are in the order they were ticked, the latest last, ahead of
-  any hand placement (`completed_at`, in both orderings), so the card just
-  ticked slides to the very end of its day. They used to be ordered by
-  creation like any others, which put a newly ticked task below every open
-  one but somewhere among the done ones. The cost: a done task dragged
-  among other done ones goes back to its place by tick when the day is read
+### Calendar grid
+
+- **Three states on one `AnimationController` in `[-1, 1]`**: -1 week, 0
+  compact month, +1 opened month with titles. Drag anywhere on the grid, the
+  strip under it, or the day bar. A tap on the strip steps one state and
+  turns around at either end.
+- **A drag a fifth of the way commits; one drag moves one state at most**
+  (`_dragBy` clamps). **The snap is a glide, not a spring** (`_Glide`): a
+  cubic starting at the finger's speed, 460ms for a full step (half for a
+  short remainder), no overshoot. A flick sets the start speed (capped at 3×
+  average) but not the duration. Springs were tried and crept/overshot; to
+  slow it, lengthen `_snap`.
+- **Day numbers sit at a fixed offset from the cell top** in every state
+  (so the first week never moves). Centred-then-sliding was built and asked
   back.
-- **A task can carry a checklist** (`Subtask`, `Task.subtasks`, schema v4).
-  It is stored as JSON in a column of the task's own row, not in a table of
-  its own, because a task is written back whole — by Undo
-  (`TaskProvider.restore`) and by a repeating task rolling on — and the
-  checklist has to go with it every time; a repeating task comes round
-  again with every step unticked. The form has a Subtasks panel under the
-  notes: each step is ticked, edited or removed where it stands, and the
-  line at its foot adds one on Enter and keeps the keyboard for the next
-  (Enter on an empty line closes it); a line left typed without Enter is
-  saved as a step too. A card shows how far through it is ("☑ 2/5") beside
-  its time, and tapping that opens the steps **under the title row**, where
-  each can be ticked without opening the task — in the row, the card's own
-  tick sank to the middle of the taller card. The steps are ticked in the
-  task's colour, as the card's tick is; in the form they are neutral, like
-  its other controls. The count is a pill with a chevron, lifted out of
-  the card in the text's colour: written in muted grey like the time beside
-  it, it read as one more fact about the task and nobody found that it
-  opened. **Open steps hold the first tick back** (`_WithChecklist._tick`):
-  a task with steps left is not ticked off by the first tap — the tick
-  shakes and the steps open under the title — and a tap while they are
-  open ticks it off anyway. Asked for after a task was ticked off with
-  steps forgotten; chosen over a sheet asking first, refusing outright, and
-  a warning on the Undo bar. Only the card's tick: carrying a card into the
-  board's Done, Mark done on a selection and a reminder's Done are
-  deliberate enough, and the widget does not draw the steps.
-  Search matches a step's words, but the JSON is
-  filtered in Dart afterwards: a search for "done" or "title" would
-  otherwise find every task with a checklist.
-- **A task can carry files and photos** (`Attachment`, `Task.attachments`,
-  schema v10, `Attachments`, `Attachments.kt`, `AttachmentsField`). Kept as
-  JSON in a column of the task's own row, for the checklist's reason: Undo
-  and a repeat rolling on write the task back whole. The form has an
-  Attachments panel under Subtasks — photos as thumbnails, other files a
-  line each with their size, and Photo, Camera and File along its foot.
-  Photo is the system photo picker (images only: left to itself it offers
-  videos, which came back as files under "Photo"), File the document
-  picker, Camera the camera app writing into a file of ours; none needs a
-  permission, and Caldo declares no camera permission so that the camera
-  app can be started without one. What is picked is **copied** into
-  `files/attachments/<uuid>/<its own name>`: a picked document's link lasts
-  only as long as its grant, and the original can move. The folder per copy
-  is so another app shows and shares it by its name — the first build named
-  copies by UUID and the PDF viewer was titled "0a89f043-be94-…". Over 100MB
-  is refused with a word on the form. A thumbnail opens the task's photos
-  full screen (swipe, pinch, and open in another app); a file opens in
-  whatever app reads it, through a `FileProvider` that serves that
-  directory and nothing else, or says no app can. A copy whose file is not
-  on the phone is drawn as missing rather than failing. **Nothing deletes a
-  copy when a task lets go of it**: Undo, Cancel and a deleted task all
-  leave copies behind, and on each start `Attachments.sweep` deletes those
-  no task names, unless made within the hour (a form may be open, or the
-  process may have been put away under the picker). Cards and board cards
-  carry a paperclip, with a count past one. Search matches an
-  attachment's name, filtered in Dart as the checklist's words are.
+- **Tasks are lines under the number, not dots**; holidays first, in green.
+- **Opened day chips**: title takes up to two lines, measured with
+  `TextPainter` (round the height up). Overflowing the width fades; overflowing
+  the height is cut at the line (`didExceedMaxLines`) — a fade there slices the
+  last line in half. Chips are inked, not painted (`dayChipColour`, colour
+  mixed into the ground, ordinary text colour). Keep them tight
+  (`_inset`/`_gap`); corners 3; `+N more` left-aligned.
+- **Collapsing to the week slides rows past a shrinking window**; rows keep
+  their month height, each is carried from its month place to its week
+  place, and the week row is a fifth taller (`MonthLayout.weekScale`).
+  Shrinking rows, and holding the week still, were both rejected.
+- **Week rules fade in only in the last quarter of opening** (`weekRuleAlpha`).
+- **The month is laid out once and only moved while changing state**
+  (`MonthGrid.animation`, `_RenderRows`): rows laid out at opened height,
+  clipped, each a repaint boundary; outline and week rules drawn by the
+  render object. Cells keep 1.4pt inset. The month pager is outside the
+  `AnimatedBuilder`.
+- **Keep the drag cheap**: `Holidays.around` and chip heights are cached; the
+  day pager is the `AnimatedBuilder`'s `child`. Look there first if it feels
+  rough.
+- **Today is a tight, near-square badge** in the colour the number would
+  have (red Sunday, light otherwise; black/ground text). Selected day is a
+  thin neutral outline. No accent on either. Badge text is centred on digits
+  (`Alignment(0, 0.2)`, `height: 1`).
+- **All day numbers semibold**, tightened (`letterSpacing`,
+  `proportionalFigures`). **Only Sundays are red**; holidays don't recolour.
+- **Header**: controls row on top (menu, Search, Today), month name alone
+  below, `Sep` centred, year only if not current. No chevrons on the phone.
+  Today's button shows today's date on a page.
+- **Grid black, day panel grey** (`calendar` vs `panel`); the day bar takes the
+  panel's grey.
 
-- **A long press picks a card up; it used to open the editor**, which a tap
-  already does, so nothing was lost. There are no drag handles: the card is
-  the handle, and a grip beside every row would be a column of furniture down
-  a list whose whole job is to be read.
-- **Several tasks can be picked out and dealt with at once** (`Selection`,
-  `SelectionScope`, `SelectionSlot`, `TaskProvider.moveAllToDay`/
-  `moveAllToGroup`/`setAllDone`/`removeAll`). Asked for as "select several
-  tasks to move it to another day or delete or smth". The long press
-  stays the drag's: a card held and moved is carried, and one held and let
-  go within 18 points of where it was pressed is picked out — the scope's
-  `Listener` sees the release before the list's drag does, and the lists
-  report what they lifted (`Selection.lifted`). Once anything is picked
-  out, a tap anywhere on a card, its tick included, picks it out or puts
-  it back, so nothing is ticked off or opened by mistake halfway through.
-  A picked-out card is lit in its own colour: a 1.5pt rim of the task's
-  colour lifted two fifths towards white, in front of its ink
-  (`foregroundDecoration`, so the title does not shift), a soft glow of
-  that colour outside it only (`BlurStyle.outer`; under the translucent ink
-  a shadow clouds the card), and a little more ink. The first rim was
-  white at 1.8pt — a frame put round the card rather than the card lit up,
-  and asked to look nicer. The leaving animation's `ClipRect` clips only
-  while a card is leaving; at rest it cut the glow off flat along the top. The quick-add row gives its place to a bar the field's
-  size, as it does to Undo: a cross, "3 selected", and Move to a day (the
-  date sheet; each task keeps its time), Move to a group (back on the
-  group's colour, as on the form), Mark done (each tick logged, a
-  repeating task rolling on; Mark not done when every one is done
-  already) and Delete, the one action that asks first. A picked-out card
-  carried to another day takes the rest with it (`Selection.carried`).
-  Schedule, the calendar and the day sheet are each a scope; one
-  selection at a time across them, put down by Back, by choosing another
-  group, and by changing screens, since the screens stay alive behind it
-  and one left holding a selection would have Back answer to it from out
-  of sight. Not on the board, whose cards are moved between lanes.
-- **A card on Schedule swiped left is put off** (`PutOff`, `offerUndo`,
-  `TaskProvider.putBack`). Chosen from three options (a "Move to today"
-  on the Overdue heading, or both, were the others). Pulled part of the
-  way it stays open on two neutral actions, the next day and Pick day (the
-  calendar sheet); pulled past 55% of the card or thrown, it does the first
-  at once. "The next day" is tomorrow for anything due by today or undated,
-  and the day after its own for anything later — tomorrow would have
-  brought that forward. The card springs back and then slides to its new
-  run as the list is read back, and the add row offers the move back as it
-  does a tick, with the arrow in the tick's place; Undo writes the task
-  back as it was (`putBack`, not `restore`, which would take a tick out of
-  the Done log). The actions' strip is only as wide as the gap the card
-  leaves: under the card, its grey would show through the translucent ink.
-  Open, a tap on the card closes it rather than opening the task; one card
-  open at a time. A done card, or one while tasks are picked out, does not
-  answer the swipe — asked when the drag starts, so the card's widgets do
-  not change with its state and a tick plays out undisturbed. Schedule
-  only: under the calendar a sideways swipe turns the day.
-- **A card carried to another day moves to that day** (`Carry`,
-  `CarryArea`, `CarryMark`, `TaskProvider.moveToDay`). This was ruled out
-  once — "a change of date wearing the clothes of a change of order" — and
-  then asked for. On Schedule a card can be let go in any other run, at the
-  place a rule marks between its cards, and moves to that run's day (No
-  date clears the date); the Overdue run takes nothing, since it has no one
-  date to give. On the calendar a card can be carried up out of the day's
-  list onto the month, where the day under the finger is outlined, and goes
-  to the end of that day. Either way it keeps its time of day. Let go
-  inside its own run, it is the same reorder as ever.
-  **Over the month the card turns into a tile the size of a day**
-  (`_ShrinkingCard`, `Carry.shrinkTo`): the card fades while a tile draws
-  in from its outline to the finger and then moves freely with it, with
-  the day it would land on marked by the outline as before — asked for as
-  "transform into smaller rect like day of calendar". The tile is a rounded
-  square (corners 14) in a clear fill of the task's colour, with a 1.5pt
-  light rim — asked for "more rounded" and "more outlined" — a shadow
-  under it, and the title centred on two lines ending in an ellipsis; its
-  first form, a chip's dim ink with three lines of small type cut off at
-  the bottom, was "ugly". It is kept on the grid at the sides. Off the month it grows back into the card. On Schedule, which
-  has no days to shrink into, the card instead thins out over another run
-  so the rule under it shows. Two details cost a round each: a reorderable
-  list moves its carried card along its own axis only, so a tile placed
-  relative to the card stayed behind when the finger went sideways — it is
-  placed on the screen, in paint (`_AtFinger`); and a `LayoutBuilder`
-  inside the proxy is handed an unbounded height, which made the tile's
-  rectangle NaN and pinned it to the left edge, so the card's outline is
-  read from the render box's own laid-out size instead. The tile was once
-  snapped into the cell under the finger, inside the outline; that was
-  asked back — "it should not stick to date … must move freely" — so the
-  tile follows the finger and the outline alone says which day.
-  **Held at either side of the grid, the month turns** (`_watchEdges`,
-  `_turn`): after 600ms within 24 points of the side, then every 900ms
-  while it stays there. Held rather than touched, because the outer
-  columns are days too. **The sides say so** (`_EdgeHints`): while a task
-  is over the month, a small rounded tab with a chevron shows at the
-  middle of each side, in the tile's own terms (the field's grey, a light
-  rim), and the side being held widens and fills from the bottom over the
-  hold, its chevron nudging outwards — without them, "user mb cant realize
-  that he can move to another month". Neutral, not accent. The first try
-  was a gradient down the whole height of each side, which read as a
-  shadow across the days: "very bad". While a card is carried the turning month does not
-  pick a new day below the grid — that would page the day's list, and the
-  card with it, out from under the finger — and `loadMonth(keep:)` holds on
-  to the day it came from even when the new month's range does not reach
-  it. Put down in another month, the day it went to becomes the day shown;
-  let go without a drop, the month on show picks its day as a swipe would.
-  The lists' own drag is not touched. A `Listener` around each screen
-  watches where the finger goes, and the pointer's release reaches it
-  before the list's drag hears of it, so a release over another day calls
-  `cancelReorder` — taking the card off the list without the drop it would
-  otherwise animate back into its old place — and hands the task over. A
-  move without a place lets go of the hand placement the task had (its
-  `sort_order` is cleared), so it arrives after whatever the new day has
-  arranged, as a new task would. The grid and the calendar's carry find
-  days through one `MonthLayout`, so the cell outlined and the cell the
-  grid draws cannot come apart. Every run can be dragged, the overdue backlog included — it was left out at
-  first on the grounds that the order a backlog wants is how late each thing
-  is, which ignored that on most days it is the larger part of what is on the
-  screen, so Schedule read as a list that could not be dragged at all.
-  Holidays sit in the list but cannot be picked up or displaced: nobody placed
-  them there.
-- **High priority leads a day nobody has arranged** (`TaskProvider._compare`,
-  the database's `_order`). Under the hand placement and over the time:
-  a day dragged into an order keeps it, and in one that has not been, a
-  high task at six in the evening comes before an ordinary one at eight in
-  the morning. Asked for as "sort high first", from three options (a mark
-  on the cards and setting it from the add field were the others). The
-  overdue backlog and the undated tail, which the database orders, follow
-  the same rule.
-- **A hand placement is read before the date, not after it** (the database's
-  `_order`). A run that has been arranged is made of tasks from different
-  days, and sorting on the date first would quietly undo the arranging. The
-  cost is that a day arranged by hand keeps that arrangement when its tasks
-  later turn up in the backlog, ahead of ones nobody has touched — which
-  settles the moment the backlog itself is dragged, since that writes a
-  placement for all of it.
-- **A card being carried is held inside the screen it can be dropped on**
-  (`DragWithin`, `_KeepInside`). A reorderable list puts the card into an
-  `Overlay`, and the nearest one is the app's — the whole screen — so it could
-  be carried above Schedule's header or over the calendar's month bar,
-  somewhere it could never be dropped. A `DragWithin` gives it a box:
-  Schedule's whole run of days, and on the calendar the grid and the day
-  together (the day's list is `penned: false` so it uses the calendar's).
-  Clipping it to that box was worse than letting it wander, because it
-  vanished a sliver at a time into the top of the screen; it is held against
-  the edge instead. Before cards could change day it was penned inside its
-  own run, between the headings on either side; the day sheet's list, which
-  has nowhere else to go, still is.
-  Three details, each of which cost a round: an overlay reads `initialEntries`
-  once, so the entry is told to rebuild whenever the list changes; the keys
-  belong to the state, not the class, because the day pager has several of
-  these lists alive at once and a key may only be in the tree in one place;
-  and the pen is anchored to rows that **cannot** be dragged — a heading, a
-  holiday — because a row that can be dragged is lifted clean out of the list
-  while it is carried and takes its key with it. Anchoring to the run's own
-  first and last row meant that dragging the first card of a run, or the only
-  card of a day, left nothing to measure against and it was clipped in half
-  under the day bar.
-- **A card being carried is the card and nothing else** (`liftedCard`). A
-  reorderable list left to itself wraps it in a `Material` of the theme's
-  canvas colour, which here is true black, so a card lifted off the calendar's
-  grey day panel dragged a black slab around with it; painting the ground
-  instead fixed the colour and kept the slab. What is painted is the card's
-  own rectangle, in its own corners (`TaskCard.margin`, `TaskCard.radius`), in
-  the colour it is standing on — nothing you can see. It cannot simply be
-  transparent: the ink in a task card is translucent and has to land on
-  something, or it goes muddy over whatever it is passing across. The lift is
-  said with a little scale rather than with a box.
-- **A day the reader has a word for wears it on a badge**, with the date
-  written beside it — `Today` on a light pill, then `Sat, 4 Oct`. The word
-  used to replace the date, which left the one day most likely to be looked up
-  as the one day not written down. Overdue and No date are badges of the same
-  shape, the first in red.
-- **Pulling the day panel past either end drives the grid.** The panel is most
-  of the screen; a swipe on it that had nowhere else to go used to do nothing.
-  **The day's list only scrolls once the grid is down to its week**
-  (`_HeldScrollPhysics`, `_listHeld`). Above that, every drag on it is a
-  drag on the grid: the physics hands the whole of it on as overscroll and
-  throws no fling. It used to scroll until it ran out and only then move
-  the grid, so one gesture did either depending on where the list stood,
-  and could leave the grid stopped halfway beside a scrolled list —
-  reported as behaving "like UB". In the week a pull down scrolls the list
-  back to its top, and **a drag that has scrolled the list never opens the
-  month** (`_listScrolled`) — not by running on past the top, and not by a
-  flick as it gets there, which ended the drag with a speed that
-  `_onDragEnd` took for a pull. Opening the month mid-read was "while I'm
-  scrolling I mustn't". A fresh drag from the top opens it; a list left scrolled when
-  the grid opens some other way is run back to its top, since it could not
-  be scrolled there.
-  A day with nothing on it has no list at all, so the whole panel takes the
-  drag directly, as the day bar does, and its placeholder is shrunk to fit
-  rather than scrolled (`EmptyState.scrolls`). It used to be the
-  placeholder's own small scroll view that answered: everywhere around the
-  words did nothing, and a drag on the words moved the grid a few points
-  and left it stuck between states.
-- **Schedule is a heading and a reorderable list per run, not one list with
-  headings scattered through it** (`_RunOfDays`, `_Run`). One list cannot tell
-  a heading from a task, so the gap it opens for the card being carried could
-  land at the very top — above the Overdue badge — and the screen appeared to
-  jump down by a card's height. A list per run can only open a gap inside its
-  own run, and the drop then needs no clamping at all: a run holds nothing but
-  its own tasks, so there is nowhere else to land. The calendar's day panel is
-  split the same way, holidays in one sliver and tasks in a reorderable one.
-  They are **slivers** rather than nested lists so the whole thing is still
-  one scroll, still lazy, and still auto-scrolls while a card is near the edge
-  — `ListView(children: [...])` constructs every row on every build, and this
-  screen rebuilds on each frame of the keyboard sliding in.
-- **Search lays out what it finds as Schedule lays out days**
-  (`SearchScreen`, `_Results`): the same cards under the same headings —
-  Overdue, the days from today on, No date, then days gone by, latest
-  first, since a search is more often after something still to do. A
-  tick there is a tick like any other (`tickOff`, `AsShown`), and the
-  results are read again when the provider reads its lists back. It was
-  bordered rows with round ticks in an outlined field (`TaskRow`), the
-  last screen left in the app's first style.
+### Calendar pagers and day panel
 
-- **Schedule's header carries Search and Today**, the same pair the calendar
-  has, and its quick-add field at the foot files on today. Today is a scroll
-  home here, since today is the top of the run.
+- **Days below the grid are a pager, one page per day.** Within a grid's span
+  (`_passThrough`, 42) a pick slides through the days between; further away it
+  is brought in as the next page (`_dayAnchor`, `_heldPage`). Pagers ignore
+  pages an animation passes through (`_driving`); `_onMonthPageChanged` still
+  owes the header a `setState`.
+- **In the week, a sideways swipe turns a week** (`_weekController`,
+  `_weekShown`): a second pager over the month's, keeps the weekday, cuts
+  (doesn't slide) the day panel. The month pager takes over off the week and
+  during a carry.
+- **Picking a day in the opened month opens a bottom sheet** (`day_sheet`),
+  sized to the day up to 56%, dense one-line cards (`TaskCard.dense`), no own
+  overlay (`DragWithin.overlay`), lifted by `KeyboardGap`. Drag down to close.
+- **Hours view** (`DayHours`, `SettingsProvider.dayAsHours`, `_ViewSwitch` in
+  the day bar): untimed items across the top, then a midnight-to-midnight
+  timeline, blocks side by side when overlapping, red now-line. Re-placed when
+  contents change until the user scrolls. Day sheet stays a list.
+- **Day bar names its day and holds the list/hours switch only.**
+- **The day's list scrolls only in the week state** (`_HeldScrollPhysics`,
+  `_listHeld`); otherwise every drag drives the grid. A drag that scrolled the
+  list never opens the month (`_listScrolled`). An empty day has no list; the
+  whole panel takes the drag (`EmptyState.scrolls`).
 
-- **The lists are read again when the date moves on** (`TaskProvider.catchUp`,
-  on every return to the app and at midnight while it is open). Left in the
-  background overnight, it came back with yesterday as Today, yesterday's
-  leftovers not yet overdue, and the today badge a day behind, until some
-  change happened to read the lists back.
+### Tasks and cards
 
-- **The month is laid out once and only moved while the calendar changes
-  state** (`MonthGrid.animation`, `_RenderRows`). Every week row is laid out
-  at its opened height and clipped to the height it has now, each behind a
-  repaint boundary, so a frame of opening or closing places and clips six
-  pictures and draws no day. It used to be rebuilt and laid out from scratch
-  on every frame — forty-two cells, their numbers, marks and titles —
-  because a cell was as tall as its row; on the emulator that was 3ms of
-  every frame's UI work (now 1.3ms), and a 120Hz phone has 8ms for all of
-  it: "laggy", once the snap was slowed enough to show it. What did depend
-  on the row's height is drawn by the rows' render object: the selected
-  day's outline (with its 160ms fade from the day before) and the week
-  rules. The marks are still sized to the compact cell (`markerRoom`), and
-  the cells keep the outline's 1.4 points of inset, which a `Container`
-  border used to give them — without it the whole month sat that much
-  higher. The fades follow the animation (`FadeTransition`), and the grid
-  is rebuilt only when the marks or titles come or go. The month pager is
-  built outside the calendar's `AnimatedBuilder` for the same reason.
-- **The calendar's drag is kept cheap rather than kept short.** It rebuilds on
-  every frame, so anything expensive in that subtree shows up as judder:
-  `Holidays.around` was running three full years of rules per frame per page
-  and is cached; every task chip was being measured with a `TextPainter` per
-  frame and those heights are cached; and the day pager is hoisted into
-  `AnimatedBuilder`'s `child`, since nothing in it depends on how far the month
-  is open. Look there first if it ever feels rough again.
-- **A dated task gets a notification, and the alarms are rebuilt from the
-  agenda rather than kept in step by hand** (`services/reminders.dart`). Every
-  path that changes a task ends in `TaskProvider.loadTasks`, so that is where
-  the alarms are brought back in line: an edited date, a tick, a deletion
-  cannot leave an alarm behind. The first sync of a run cancels everything
-  and sets the lot; after that only alarms whose time, title or text changed
-  are cancelled or set (`Reminders._standing`), and the sync runs after the
-  lists have been put on screen. Re-setting all of them on every tick ran on
-  Android's main thread — where frames come from — while the ticked card was
-  sliding, and the plugin rewrites its whole stored list per alarm; it was
-  reported as the slide being "a little bit laggy". A timed task is announced at its own time, an
-  all-day one at the hour Settings names (nine by default, since midnight is
-  the one hour nobody wants to hear about it) — including one due today, as
-  long as that hour has not already gone by.
-- **Changing a reminder setting re-sets the alarms already standing**
-  (`Reminders.configure` keeps the task list its last sync was built from).
-  Settings and the agenda load at the same time when the app starts and
-  whichever lands first wins: with the tasks first, every alarm was worked out
-  against the default hour, and an all-day task went on announcing itself at
-  nine however many times the hour was changed in Settings.
-- **Reminders are no-ops until `init` has been through.** The widget tests
-  drive the real providers and nothing in a test can answer the plugin's
-  channels, so the service checks a flag and does nothing rather than throwing
-  on every save. `init` is called from `main` and nowhere else.
-- **Permission is asked for on the first run**, from `SettingsProvider.load`,
-  because reminders are on out of the box and nothing else would ever ask. A
-  permission that was never requested looks exactly like a feature that does
-  not work. Alarms are exact (`USE_EXACT_ALARM`, the calendar-app permission
-  that is granted on install) and fall back to inexact if a device refuses —
-  a reminder that arrives whenever the system next wakes up is worth having,
-  but only as a fallback.
-- **A newer release is offered in a banner, fetched in the app, and
-  installed by Caldo itself** (`services/updates.dart`, `_UpdateBanner`, the
-  `caldo/updates` channel in `MainActivity`, `SelfUpdate.kt`). On opening, the app asks the
-  GitHub API for the latest release; if its tag is newer than the installed
-  version, a banner sits above whichever screen is open. Tapping it downloads
-  the APK built for the phone's processor into the app's cache, with
-  progress, and writes it into an install session of Caldo's own.
-  The first time, Android wants Caldo allowed to install apps; the settings
-  page for that is opened instead and the banner says to tap again. Closing
-  the banner hides it until the next opening and no longer — an update put
-  off is not one refused, and nothing else anywhere says one is waiting.
-  **The repository is public so that this needs no account**: reading a
-  private repo's releases takes a token, and a token inside an APK is one
-  anyone holding the APK can take out. Versions are compared as dotted
-  numbers, since as text 1.3.10 sorts before 1.3.9. Nothing checks until
-  `main` calls `Updates.enable`, so the widget tests never go online.
-  **An update leaves one Caldo in the recent apps.** The activity has no
-  `taskAffinity=""`, though Flutter's template sets one: an empty affinity
-  matches no task, so the installer's "Open" started a second Caldo beside
-  the one the update was tapped in — "after update i have 2 same apps
-  opened". The installer is started in a task of its own marked
-  `FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS`, which otherwise outlived the install
-  as a blank card. Started inside Caldo's task instead, it lost that task to
-  the update and "Open" landed on the home screen. Checked end to end with
-  two builds served from the host (the URL pointed at `10.0.2.2` and
-  cleartext allowed, in the test builds only): one task after "Open".
-  The version doing the updating decides this, so the first update away
-  from a build without the fix still shows the old behaviour once.
-  **It is not handed to the system installer any more** ("every update i
-  should give the app permissions, that i already gave"): an update
-  installed by that app turns full-screen reminders off on Android 14, and
-  only that — the "Allow" banner was back after every update. Measured on
-  the emulator: `appops` read `Uid mode: USE_FULL_SCREEN_INTENT: deny`
-  after an update through the installer, and `allow` after the same APK
-  through `adb` or through Caldo's own session, which says the permission
-  is granted (`setPermissionState`). An app updating itself is also let
-  through without the "Do you want to update" prompt (Android 12+,
-  `USER_ACTION_NOT_REQUIRED`), so a tap on Update is the whole of it. **The
-  cost is "Open"**: Android stops the app to replace it and refuses to
-  start it again afterwards — from the session's answer and from
-  `MY_PACKAGE_REPLACED` alike (`BAL_BLOCK` in the log) — so the update ends
-  on the home screen with a notification saying it is in, which opens
-  Caldo when tapped (`UpdateDone`). Its words are handed over in the app's
-  language before the commit, since the new version wakes without Dart.
-  To try it, `adb root` works on this AVD: install a build labelled lower
-  than the latest release, and put the build to update to in its
-  `cache/updates/` as `Caldo-<latest>.apk` (chowned to the app), which the
-  banner then installs instead of downloading.
-  Measured end to end on the emulator: a build labelled 1.3.12 offered
-  1.3.13, downloaded the universal APK with progress, asked once to be
-  allowed to install, and came back as 1.3.13. It only offers what a GitHub
-  release carries — `gh release create` with the three APKs is what makes an
-  update appear on the phone.
-- **A reminder's notification has Done, Snooze 15 min and Dismiss**
-  (`Reminders.done`, `Reminders.snoozes`, `Reminders.dismissed`,
-  `onReminderAction`). Dismiss was asked for by name ("smth like snooze
-  dismiss"): it takes the reminder away and leaves the task as it was.
-  Android draws three buttons at most, so the hour's snooze went from the
-  notification to the full-screen page, which has all four.
-- **A reminder takes the whole screen only while the phone is locked**
-  (`fullScreenIntent`, `ReminderCover.kt`, `MainActivity.wakeFor`), as an
-  alarm does — asked for as "full screen … only if my phone is locked …
-  a bit transparent … add blur". It is drawn natively and opaque over the
-  app: glass buttons on a glow in the task's own colour (`Reminders.lists`
-  resolves it; it rides in the payload), blurred with `RenderEffect` from
-  Android 12 and radial gradients before. **It cannot show the wallpaper or
-  the lock screen through it**: over the lock screen Android draws the
-  wallpaper behind an app black — measured at 1/255 where the lock screen
-  showed it at 200, with the window translucent and the wallpaper targeted
-  at it — and a translucent activity does not cover the lock screen at
-  all, which then draws over it. **Do not hide the app's view under it**:
-  Flutter's `onStart` shows it again (the Schedule showed through a dimmed
-  cover on a locked phone), and on a cold start Flutter holds the window's
-  first draw until its own first frame, so a hidden view left the phone on
-  the splash screen. The cover being opaque is the whole guarantee. The
-  status bar's backdrop is cleared and the navigation strip set to black
-  while it is up. Its buttons send the plugin's own action broadcast, so
-  they run `onReminderAction` exactly as the notification's do; its words
-  ride in the payload, in the app's language, and a reminder without them
-  is left to the notification without letting the app over the lock
-  screen. A tap on the notification with the phone in use opens the task
-  (Dart asks `covered`). On by default, a switch on Settings' Reminders
-  page; if Android does not allow full screen, a banner on opening offers
-  Allow (`_FullScreenBanner`), rechecked on every return. To try it without
-  waiting for an alarm, lock the emulator and hand the activity the
-  plugin's intent: `am start -n com.igor.caldo/.MainActivity -a
-  SELECT_NOTIFICATION --ei notificationId 999 --es payload '{"title":…}'`.
-- **The buttons are answered off the app's screens** (`Background`). They are answered on the
-  notification plugin's own isolate whether or not the app is open, so that
-  isolate does the whole of a change itself (`Background._change`): writes
-  the task, puts that one task's alarm right (`Reminders.reset`, never a full
-  sync — a first sync cancels everything, which would take down every other
-  notification on show), redraws the widget, and tells the app if it is
-  running (an `IsolateNameServer` port, `Background.listen`), which reads its
-  lists back. Done is the same tick the cards make (`Task.completed`), so a
-  repeating task rolls on and its next alarm is set from the notification.
-  A snooze is stored on the task (`snoozed_until`, schema v5) rather than
-  only scheduled: the app's next sync would otherwise see an alarm for a
-  time already past and cancel it. While set it is the one time the task is
-  announced; a tick, a move to another day, or a new date or lead on the
-  form ends it. The alarms are synced over the overdue run as well as the
-  days to come, because a task snoozed late at night comes back after
-  midnight, by which time it is overdue.
-  **The plugin's `ActionBroadcastReceiver` is declared in the manifest by
-  hand.** Without it the buttons are drawn and every tap on them is dropped
-  without a word — that was the first build.
-- **A repeat is a rule, not one of five words** (`Repeat`, `RepeatUnit`,
-  `showRepeatSheet`). Every N days, weeks, months or years; a weekly one
-  on chosen weekdays ("Every weekday" is that, Monday to Friday); a monthly
-  one on the date or on the last day; and an end, by date or by a count of
-  rounds that goes down as each is ticked (`Repeat.left`, `rolled`). Its
-  last round closes the task instead of rolling it, and `Task.rollsOn` is
-  false for it, so the card leaves or stays as a one-off does. The five old
-  rules are constants stored under their old names; anything richer is a
-  short RRULE-like string in the same column, so no row changed. Picked in
-  one sheet from the form's Repeat row: the presets as chips across the
-  top, everything they stand for laid out under them, and the rule written
-  back at the top as the cards will write it ("Every 2 weeks · Mon, Thu ·
-  5 times left"). Pieces after the first are joined with a dot rather than
-  built into a sentence, which twelve grammars would each build
-  differently. Weeks for an every-other-week rule are counted from Monday.
-  A monthly rule on the 31st still clamps and then keeps the clamped day,
-  as it always did; "last day" is the way to stay on the month's end.
-- **A task can be announced ahead of its time** (`Task.remindBefore`,
-  `SettingsProvider.reminderLead`, `_ReminderField`, `Dates.lead`). Null
-  follows Settings ("Timed tasks at the time" by default, which is what it
-  always was); `Task.silent` is never. An all-day task takes only whole days
-  of a lead — on its day or the day before, at the all-day hour — and none
-  of the default, since "fifteen minutes before nine" on a day with no time
-  in it means nothing. The form offers minutes for a timed task, and both
-  kinds 1, 2 or 3 days or 1 or 2 weeks ahead (`SettingsProvider.dayLeads`) —
-  "the day before" alone was too little for a birthday, which is what it was
-  asked for. The choice is a row of the form like Due date and Repeat,
-  opening the sheet Settings chooses from (`choose`, `choice_sheet.dart`);
-  it was a Material dropdown, the one control on the form that was not a
-  row opening a sheet.
-- **The home-screen widget is Schedule in small** (`TodayWidget.kt`,
-  `TodayWidgetRuns.kt`): Overdue, Today, Tomorrow and each later day with
-  something on it, the cards inked as the app inks them, a tick that works
-  without opening the app, a row that opens its task's form, and a plus that
-  opens a new one on today. It is always dark, like the app out of the box.
-  It reads a copy of the agenda the app leaves in its own preferences
-  (`TodayWidget.publish`, at the end of every read of the lists, beside the
-  alarms) and sorts it into runs against today as it is when drawn — so a
-  copy left overnight is right in the morning, and an alarm at midnight
-  redraws it. **Nobody tells the widget to redraw**: `CaldoApplication`
-  listens to the preferences, because three different engines write the
-  copy (the app's, the plugin's for a reminder's buttons, and the widget's
-  own) and only the app's has a channel of ours on it. Writing an unchanged
-  copy redraws nothing, since Android only reports a value that differs.
-  A tick is drawn at once in the copy, then done by Dart on one engine kept
-  for the process (`Headless`, `widgetMain`) and fed one tap at a time: two
-  engines would each redraw from their own read and the slower would win.
-  A done task in the overdue run leaves the widget, as it leaves the app's
-  backlog; the widget has no Undo, so that tick can only be taken back in
-  the app.
-  **It looks like Schedule, not like a calendar's widget**: the app's true
-  black under the launcher's corners, "Schedule" and the quick-add plus
-  across the top, each run headed as Schedule heads it (a Today/Tomorrow
-  badge with the date beside it, Overdue a red badge), and cards as the app
-  draws them — a quarter of the colour, the title over its time or "All
-  day", an overdue time in red. Today is said even when it is empty
-  ("Nothing left for today"), and the list fades out at its foot. A face of
-  its own came first — a graphite panel, the day's number large, lighter
-  single-line cards — and was "bad … make it like in app".
-  **The tick animates** (asked for): from Android 12 each row's tick is a
-  real `CheckBox`, which the launcher toggles and animates itself the
-  moment it is tapped, from an `animated-selector` of ours, on the app
-  card's own timings — the square's colour comes up over 240ms and the
-  check is drawn through it from 60ms; off in 110ms. A widget cannot tint a
-  drawable without tinting the white check
-  too, so each of `ListStyle`'s eight swatches has its own drawable and its
-  own row layout (`layout-v31/widget_task_<swatch>.xml`), written by
-  `tool/make_widget_ticks.py`; the row takes the swatch nearest the task's
-  colour. Change a swatch, run the script. The box never saves its state
-  (`saveEnabled="false"`): every card's box has the one id, and once the
-  cards stopped being a list, a launcher rebuilding itself — a night-mode
-  switch is enough — restored one box's state into all of them, which
-  fired every box's tick and ticked every open task (2.3.3 shipped with
-  that). **A ticked card is seen going to the end of its day**, not
-  teleported there: "it not moves to the bottom of list but teleports". So
-  the widget is not a list. A collection rebinds a card where it now
-  stands, and making each row a whole run did no better — the launcher
-  swapped the run out whole behind a "Loading…" frame — and inside a row
-  Android refuses a fill-in intent on a nested view ("available only from
-  RemoteViewsFactory"), so every tap did nothing. Every heading and card
-  is drawn into one frame instead (`layout/widget_page.xml`), each under
-  its own key (`addStableView`), so the launcher redraws the frame it
-  already has and keeps the views whose keys it knows. **It scrolls**
-  ("make ability to scroll"): a widget can only scroll a list, so that
-  frame is the one row of a `ListView` (`layout-v31/widget_runs.xml`),
-  handed over inline (`RemoteCollectionItems`, one item, a stable id, one
-  view type). The launcher draws the new row over the view it has rather
-  than making another, and keeps the scroll where it was; the "Loading…"
-  frame and the dead taps of the earlier attempt came with a
-  `RemoteViewsService`, whose rows are applied off the main thread. Inside
-  a list a card cannot carry an intent of its own, so each fills in which
-  task and which tap (`setOnClickFillInIntent`, `fromFillInIntent` for the
-  box) on the list's template. At most 60 cards are drawn
-  (`TodayWidgetRuns.MOST`), every one sent to the launcher whole each time,
-  and their measured heights are cached by text, width and text size.
-  Before Android 12 there is no inline list and no stable keys: the runs
-  are drawn afresh, stacked, and neither scroll nor move.
-  Stacked, it still teleported: the launcher keeps only the keys that come
-  in the order it already has and takes out the ones in between, so the
-  ticked card was taken out and a new one faded in at the end. So nothing
-  is stacked. The frame holds its views in the order of their keys, which
-  a move never changes, each placed by a top margin from the heights of
-  everything above it, and a move is only a margin changed. The heights are
-  measured in the app's process by applying the view at the widget's width
-  (`fit`), and a title is then held to the lines it took there, so a
-  pixel's difference in the launcher's width cannot make a card taller
-  than its room. The frame's height is set outright: left to wrap, it was
-  held to the room above the widget's foot and measured a card sent past
-  it to nothing. A resize redraws (`onAppWidgetOptionsChanged`), since the
-  heights depend on the width.
-  **And it plays a tick one to one with the app** ("animation in widget
-  must be the same as in app"): the same steps (`TodayWidget.tick`, after
-  `TaskProvider.toggleDone`), timings and curves (`SlideIntoPlace`,
-  `TaskCard`). A launcher's layout animation could not be told either —
-  it slid in 300ms on its own curve — so the widget does what
-  `SlideIntoPlace` does: a view that has moved is drawn back where it was
-  (`translationY`) and eased home by an animator of its own, in XML, which
-  is started by flipping the view's enabled state, the one thing a widget
-  may change on a view that an animator answers to (`stateListAnimator`,
-  `animator/widget_*.xml`, `interpolator/widget_*.xml`). The tick: 490ms
-  after the tap (`SETTLE`) the card is crossed out — the ink sinking from a
-  quarter to a fourteenth (the ink's view alpha) and the title fading to
-  the faint grey over 240ms on
-  easeOut, with the strike coming in 70ms along, where the app's text style
-  switches it (two titles, open and crossed out). A card that stays holds
-  150ms (`HOLD`), then slides to the end of its day, 260ms on
-  easeInOutCubic, the cards it passes rising into its place and showing
-  through it, as the app's translucent card lets them. It had a black base
-  under its ink, so it would not show what it slid over, and it blotted
-  out each card it passed: "moves to the bottom badly". One that
-  leaves — done out of the backlog, a repeating task rolling on, or any
-  done task with done tasks hidden (`TodayWidgetRuns.leaving`) — fades over
-  the first 138ms of the app's 280 (`interpolator/widget_leave.xml` is the
-  first half of easeInOutCubic, split off) while what is after it closes
-  up over the whole 280. Views are painted in the order of the run
-  (`translationZ`), as Flutter paints a list. Taken back, a tick is
-  un-crossed at once and the run read back 240ms later (`UNSETTLE`). The
-  moves are worked out in the copy (`TodayWidget.last`) rather than waited
-  for: Dart is asked to write the task only once the card has gone, and
-  its copy, landing after, says what is already shown; a view whose place
-  has not changed is not touched, so a slide under way is left to finish.
-  Dart used to be called at the tap, and a warm engine's copy rebuilt the
-  row before its square had filled — "too fast". The box's own state is
-  what Dart writes (`Background.toggle(done:)`), so two quick taps end
-  where the box ended. Measured off a recording: the square fills over
-  the first 240ms, the ink starts sinking ~530ms after the tap (the
-  broadcast's latency on top of 490) and is down 190ms later, and the
-  slide starts 150ms after that.
-  Before Android 12 the tick is the old image, changed on the next redraw.
+- **Timed tasks may have an end** (`Task.duration`, minutes, schema v8),
+  same day only, written "15:00 – 16:30".
+- **Cards are inked**: a quarter of the task's colour, translucent over the
+  ground they stand on, no border. Done keeps a twentieth. Timed tasks use the
+  same card (no separate row form).
+- **A task may carry its own colour** (`Task.styleId`), else its group's.
+  Always resolve through `colorOfTask`. Moving group on the form resets to the
+  group colour.
+- **Palette: sixteen presets plus made colours** (`ListStyle.presets`,
+  `ColourSelector`, `showCustomColourSheet`; hue strip + five tones, stored as
+  `#RRGGBB` in `style_id`; six recent in `customColours`). The first eight ids
+  are the old ones; `ListStyle.freeFor` offers those first.
+- **Ticking off** (`CheckMark`, `TaskProvider.settle/linger/leave/hold`,
+  `TaskCard.ticking/leaving`): tick drawn at once (240ms), crossed out 250ms
+  later, then a card that leaves its run (done overdue, rolling repeat, hidden
+  completed) fades over 280ms; otherwise it holds 150ms and slides to the end
+  of its day (`SlideIntoPlace`, 260ms). Schedule and Calendar must behave
+  identically (grouping is made once per load, not in a getter).
+- **A tick doesn't rebuild screens; only the read-back does**
+  (`TaskProvider.ticked`, `shown`, `AsShown`). Settings and the tab bar
+  `select` single values.
+- **`SlideIntoPlace` slides by (screen, task id)**, noting positions in
+  content space on `TaskProvider.rearranging`, and finds the move in paint
+  (`_RenderSlide`) so the first frame doesn't jump.
+- **Undo for four seconds** (`tickOff`, `_UndoBar`, `UndoScope`, `UndoSlot`,
+  `TaskProvider.restore` — writes the old task back, never re-ticks). Takes the
+  add row's place at its size; the field stays in the tree beneath. Countdown
+  is a gradient across the whole bar (`_Countdown`); holding pauses it. Can be
+  brushed off sideways/down (`UndoSlot._away` reveals the row). Only Undo is
+  in the accent (`_UndoButton`, `_UndoArrow`); no rings, lines or chips.
+- **Done tasks sort after open ones, in tick order** (`completed_at`), hand
+  order beneath that. **High priority leads an unarranged day.** **Hand
+  placement (`sort_order`, null until dragged) is read before the date** in
+  the database's `_order`.
+- **A repeating task ticked late rolls on to today or later** (`Task._nextRound`).
+- **Repeat is a rule** (`Repeat`, `RepeatUnit`, `showRepeatSheet`): every N
+  units, weekdays, month day or last day, end by date or count (`left`,
+  `rolled`; `rollsOn` false on the last round). Old five rules keep their
+  stored names; richer ones are an RRULE-like string. Pieces joined by " · ".
+- **Checklist** (`Subtask`, JSON in the task row, schema v4) so Undo and
+  roll-on carry it. Card shows a "☑ 2/5" pill that opens steps under the
+  title. **Open steps hold back the card's first tick** (`_WithChecklist._tick`
+  shakes and opens them); other tick paths don't. Search filters the JSON in
+  Dart.
+- **Attachments** (`Attachment`, JSON column, schema v10, `Attachments`,
+  `Attachments.kt`, `AttachmentsField`): Photo (photo picker, images only),
+  Camera, File; copied into `files/attachments/<uuid>/<name>`; >100MB refused;
+  opened through a `FileProvider` for that directory only. Nothing deletes a
+  copy when a task drops it; `Attachments.sweep` on start removes unreferenced
+  copies older than an hour. No camera permission declared, on purpose.
+- **Holidays are not tasks**: computed, read-only, country from locale or
+  Settings.
+- **"Show completed" applies everywhere a run is drawn**
+  (`TaskProvider.setShowCompleted` via `ChangeNotifierProxyProvider`); the
+  full lists (`allUpcomingByDay`) keep them.
+- **In-progress tasks show `InProgressBadge` on every card.**
 
-- **Done is a log of ticks, not a list of done tasks** (`completions`,
-  schema v6, `Completion`, `DoneScreen`). Every tick writes a row with the
-  task's title and colour as they were (`AppDatabase.complete`), and taking
-  a tick back or undoing it removes the latest row for that task
-  (`AppDatabase.untick`) — every tick path goes through those two, the
-  notification's and the widget's included. Read from the tasks instead, a
-  repeating task would count once however often it was done (it rolls on
-  and is never "done"), and clearing completed tasks would empty the log.
-  The v6 migration starts the log from each task's `completed_at`, which is
-  as much history as there was. The screen is three figures — today, this
-  week (from the day Settings starts it on), days in a row (counted up to
-  yesterday while today has nothing yet) — and the last seven days as
-  bars, all neutral, over the ticks day by day, latest first. Its rows are
-  not crossed out: everything there is done. It reads the log only while it
-  is the screen on show (`shown`), since the shell builds all four at once.
+### Moving, selecting, putting off
 
-- **The board is a screen of its own, three columns: Not started, In
-  progress, Done** (`BoardScreen`, `Stage`, `Task.startedAt`, schema v7,
-  `TaskProvider.moveToStage`). Asked for as "work in progress, done and not
-  started … separate mode (not schedule and calendar) … like 3 cols". Only
-  In progress is new and stored: `started_at`, the moment the task was put
-  there, which orders that column latest first; the other two are whether
-  the task is done. A card is carried across by a long press, as cards are
-  everywhere else, and the column under it lightens; it is drawn in its new
-  column at once and written after (`Task.toStage`, shared with the
-  provider), since waiting for the write put it back in the column it came
-  from for the length of the read. Into Done is a tick like any other —
-  logged, and a repeating task rolls on, which lands it in Not started,
-  since its next round has not been begun. Out of Done is the tick taken
-  back. Any tick, from anywhere, ends In progress. Not started is by due
-  date, undated last; Done latest first, every done task there is (Settings
-  clears them). It follows the group chips as the other two screens do,
-  reads the tasks only while on show, as Done does, and has a plus in its
-  header for the full form rather than a field, since a board's new task
-  has no day to be filed on. Each column scrolls on its own and fades at
-  its foot.
-  **It is drawn as a Jira board** ("its must looks like more like jira"):
-  grey lanes on the black, each headed in small capitals with its count
-  ("IN PROGRESS 1"); flat neutral cards a step lighter than the lane, 6pt
-  corners, the title across the top and along the foot a square in the
-  task's colour where Jira puts the issue type (ticked once done), the
-  date, and the marks — repeat, checklist count, priority as Jira's
-  chevrons. A carried card is lifted and shadowed but held square — it tilted,
-  as Jira's do, and was "crooked"; the lane under it is ringed.
-  An empty lane is just empty. Two looks came before it: grey panels with
-  inked cards and done ones crossed out ("it looks bad"), then bare
-  columns on the black with inked cards — simpler, but not Jira. The cards
-  are not inked here, unlike everywhere else: tinted cards in grey lanes
-  were a wash of colour, and the square says the colour.
-  **A lane is a page, most of the screen wide, with its neighbours
-  showing at the sides** (`_Board.laneFraction`), matched to a Jira
-  board's screenshot the user supplied: "make the tasks bigger". Three
-  lanes at once left each a third of a phone and a title a word a line.
-  **The lanes snap to three places** (`_LaneSnap`, a row in a
-  `SingleChildScrollView`): Not started against the left edge, Done
-  against the right, In progress centred with a strip of each neighbour.
-  A `PageView` pages a lane's width at a time, so In progress sat against
-  the left edge too and Not started was nowhere on screen — "when im on
-  WIP i see the part of DONE but dont see not started".
-  A card is laid out as Jira's is: the title; then the group as a lozenge
-  in its colour (Jira's epic label) and the due date on a grey one, red
-  once gone by; then the type square and the marks at the far end. Jira's
-  issue key beside the square — the group's first letters and the task's
-  id, "PER-12", struck through once done — is hidden for now
-  (`BoardCard.showKey`): nothing else knows a task by it, and it was asked
-  what it meant. The lane's name
-  stands in line with the titles.
-  A card comes up to be carried after 300ms held (`_Board.pickUp`) rather
-  than the platform's 500. A move button on each card, opening the lanes
-  in a menu, was tried for "make easier to move task to another col" and
-  taken back out: what was wanted was the next lane on show sooner.
-  **A card is moved by carrying it onto a lane**, the one on show or the
-  strip of a neighbour. **Taken towards either side, the card turns the
-  board at once** (`_watchEdges`), and on every 900ms while it stays. It
-  used to wait 500ms first, and holding still at the edge to reach the
-  next lane was disliked by name; and the side was the last 28 points of
-  the screen, where it is now the outer 18% (`_Board.edge`), about as far
-  in as the strip of the next lane — "make it easier by earlier show the
-  second col". Every lane stays built (the row, not a list): a lane
-  turned off the screen was thrown away with the card being carried out
-  of it, and its drag's callbacks with it, so the board could not turn
-  back and never heard the card let go. **The carried card stays where it
-  was taken hold of, at its size** (`_Lifted`). Two things came and went
-  around it, each asked back out: a bar of the three lanes rising along
-  the foot to drop on ("remove the bottom not started in progress and
-  done when im moving the task"), with the card see-through over it; and
-  the card riding above the finger, shrunk to a tile and then at its size
-  ("now task is taking above my finger").
-  **A task in progress says so everywhere a card is drawn**
-  (`InProgressBadge`, in `TaskCard`): Jira's status lozenge, in Jira's
-  blue for it, ahead of the time on a two-line card and before the time on
-  a one-line one. Asked for as seeing "that the task WIP in schedule and
-  calendar"; without it, starting a task changed nothing off the board.
+- **Long press picks a card up** (no drag handles). Held and released within
+  18pt, it is picked out instead (`Selection.lifted`).
+- **Selection** (`Selection`, `SelectionScope`, `SelectionSlot`,
+  `moveAllToDay/moveAllToGroup/setAllDone/removeAll`): taps toggle while
+  anything is picked; picked cards get a lifted colour rim
+  (`foregroundDecoration`) and an outer glow. The add row becomes a bar: Move
+  to day, Move to group, Mark done, Delete (asks). One selection across
+  scopes; Back, group change and screen change put it down. Not on the board.
+  `ClipRect` only while leaving, or it clips the glow.
+- **Swipe left on Schedule puts off** (`PutOff`, `offerUndo`,
+  `TaskProvider.putBack`): part way shows Next day / Pick day; past 55% or a
+  fling does Next day (tomorrow, or the day after its own if later). Undo via
+  `putBack`. Not for done cards or during selection. Schedule only.
+- **Carrying a card to another day moves it** (`Carry`, `CarryArea`,
+  `CarryMark`, `moveToDay`), keeping its time, clearing `sort_order`. On
+  Schedule drop in any run except Overdue. On the calendar, over the month
+  the card becomes a free-moving day-sized tile (`_ShrinkingCard`,
+  `Carry.shrinkTo`, `_AtFinger`, rounded 14, light rim) — it doesn't snap to
+  cells; the outline says which day. Holding at a side turns the month
+  (`_watchEdges`, `_turn`, 600ms then 900ms) with side tabs (`_EdgeHints`,
+  neutral). The drop is done by a `Listener` that calls `cancelReorder`. Grid
+  and carry share one `MonthLayout`. Holidays can't be moved or displaced.
+- **A carried card is penned in the screen it can drop on** (`DragWithin`,
+  `_KeepInside`), held against the edge, not clipped; pens anchor to
+  undraggable rows; keys belong to the state. **It's the card alone**
+  (`liftedCard`): painted in the ground colour in its own corners, a little
+  scale, no `Material` slab.
+- **Schedule is a heading + reorderable sliver per run** (`_RunOfDays`, `_Run`),
+  as is the calendar's day panel; slivers so it stays one lazy scroll.
 
-- **Events from the phone's own calendars sit beside the tasks the way
-  holidays do** (`EventsProvider`, `DeviceCalendars`, `EventCard`, the
-  `caldo/calendars` channel). Off until Settings is asked ("Show events from
-  your calendars"), which asks Android for `READ_CALENDAR`; nothing is ever
-  written. Each of the phone's calendars can be left out, stored as the ones
-  left out so a calendar added later shows up unasked — a holidays calendar
-  is the one most worth leaving out, since Caldo marks those itself. An
-  event is marked on the grid after the holidays and before the tasks,
-  written out in an opened day, and carded in the day panel, the day card
-  and Schedule, where a day with only an event on it gets a run of its own.
-  It cannot be ticked or dragged; a tap opens it in the calendar app. What
-  is read is the agenda's days plus the month on show (`cover`), again on
-  every return to the app, since the events live in another one. All-day
-  events are stored at midnight UTC, so their dates are read in UTC and set
-  at local midnight — read in the local zone, west of Greenwich, they land
-  a day early (`events_test.dart` passes under `TZ=America/Los_Angeles`).
-  Screens read the provider as nullable, so a test that pumps a screen
-  without it still draws. **The home-screen widget shows them too**
-  (`PhoneEvents.kt`, shared with `MainActivity`; `layout/widget_event.xml`):
-  each one a card ahead of its day's tasks, inked in its colour with a
-  calendar mark where a task has its tick, and a tap that opens it in the
-  calendar app. The widget reads them itself as it is drawn, for today and
-  the agenda's thirty days after — they change in other apps, and the copy
-  only changes when Caldo does — but whether they are wanted and which
-  calendars are left out ride on the copy (`SettingsProvider.storedEvents`,
-  re-published when either changes). An all-day event is on each day it
-  covers; a timed one on the day it starts. A day with only events gets a
-  run. Their keys start at a billion, clear of the tasks' ids, one per
-  event per day. They are as fresh as the widget's last drawing: the copy,
-  midnight, or Android's half-hourly update.
+### Schedule, Search, Done, Board
 
-- **Caldo speaks the language of every country it keeps holidays for**
-  (`S`, `l10n/strings.dart`, `l10n/words_*.dart`): English, Russian,
-  Ukrainian, Belarusian, Kazakh, German, French, Spanish, Italian, Dutch,
-  Polish and Turkish — the phone's by default, any of them by choice in
-  Settings, each named in itself in the list. The words are a table per
-  language, not generated ARB files and not a class each: twelve tables of
-  a couple of hundred strings are data. A key missing from a table falls
-  back to English, and `l10n_test.dart` fails if any table lacks a key or
-  has different `{blanks}` in it than English does. Counted words are lists
-  of forms picked by a rule per family — one/other (English, German,
-  Spanish, Italian, Dutch), French (0 counts as 1), East Slavic (1 день,
-  2 дня, 5 дней), Polish (only 1 itself is singular) and none at all
-  (Turkish, Kazakh: "3 gün"). Read with `S.of(context)` on a screen and
-  `S.current` where there is none — a notification, the widget's copy, the
-  background isolates (`SettingsProvider.prime` sets it there).
-  Dates follow `intl`'s locale, which `S.use` keeps in step. English keeps
-  the patterns it was drawn with ("Sat, 4 Oct", "Oct"); every other
-  language takes `intl`'s skeletons, which know its order and dots ("Mo.,
-  2. Nov."), writes the month header in full (short forms mostly end in a
-  full stop), and gets a capital at the start of a line, since many write
-  weekdays and months in lower case. The widget is the same in Kotlin
-  (`getBestDateTimePattern`, `values-xx/strings.xml`). Changing the language
-  re-sets the alarms, whose text and buttons are in it, and rewrites the
-  widget's copy, which carries the language because the launcher draws the
-  widget in the phone's. `l10n_screens_test.dart` draws Schedule, the
-  calendar, Settings and the form in every language on a small phone;
-  it found Schedule's day heading overflowing, and the date there now
-  fades rather than pushing. The translations were written without a native
-  speaker's review.
+- **Schedule is a running order of days**: plain dates, same filled cards,
+  holidays among them. Badges for words (`Today` pill + date; Overdue red; No
+  date). Header has Search and Today (scrolls home).
+- **Search** lays results out like Schedule (Overdue, upcoming, No date, then
+  past latest first); ticks work as anywhere.
+- **Lists are re-read when the date changes** (`TaskProvider.catchUp`, on
+  resume and at midnight).
+- **Done is a log of ticks** (`completions`, schema v6, `AppDatabase.complete`
+  / `untick` — every tick path goes through these). Three figures and seven
+  bars, neutral; reads only while shown.
+- **Board**: Not started / In progress (`started_at`, schema v7) / Done
+  (`BoardScreen`, `Stage`, `moveToStage`, `Task.toStage`). Drawn like Jira:
+  grey lanes, small-caps headers with counts, flat neutral cards (not
+  inked), colour square, group lozenge, date lozenge (red when past),
+  chevrons for priority; key hidden (`BoardCard.showKey`). A lane is most of
+  the screen (`laneFraction`), snapping to three places (`_LaneSnap`), all
+  lanes kept built. Pick-up after 300ms; carried card stays at its size
+  (`_Lifted`), square, not tilted; outer 18% (`_Board.edge`) turns at once,
+  then every 900ms. No move button, no bottom drop bar. Plus in header.
 
-- **Every row is ready to be synced, though nothing syncs yet** (schema
-  v11, `AppDatabase._addSync`). Accounts and sync were asked for — a
-  Supabase of Caldo's own, on this PC first and a VPS after, with the
-  phone's database still the one the app reads. The groundwork came
-  first: each row of the three tables has a `uuid`, an `updated_at` and a
-  `dirty` flag, and a deletion leaves a row in `tombstones`. **The integer
-  ids stay**: the alarms, the widget and every screen go by them, so ids
-  that point at other rows are to be put into uuids only on the way to the
-  server. **Triggers do the stamping, not the writes**: a write comes from
-  a screen, a reminder's button, the widget's isolate or a restore, and one
-  path that forgot would be a change no other device heard of. While
-  `sync_state.applying` is set none of them fire, so what a sync pulls is
-  not sent straight back. Every device's default group has one uuid
-  (`defaultListUuid`), or each would bring its own "Personal" to the
-  account. A backup carries the uuids and leaves out the stamp and the
-  flag; a restore is stamped as a change of its own.
-  **A round pushes first and pulls after** (`Sync`, `SyncStore`): what
-  comes down has already been weighed against this device's changes on the
-  server. A pulled row is passed over if it was changed here later (it goes
-  up next round and wins there), and a row is marked sent only as it was
-  sent, so an edit made mid-round is not lost. The cursor is written in the
-  same transaction as the rows it covers. Signing in to an account other
-  than the last marks every row to be sent, keeping its stamp. Tested
-  against an in-memory server with the SQL's rules (`sync_test.dart`,
-  `FakeServer`), two devices each on a database of its own
-  (`AppDatabase.named`).
-  **Signing in is a six-figure code sent by email** (`Account`,
-  `showSignInSheet`, Settings' Sync page, between Reminders and Backup):
-  a link would open a browser, which on the desktop has no way back into
-  the program. The client is the plain Dart `supabase` package, not
-  `supabase_flutter`, which would bring deep links and a browser launcher
-  for nothing. The session is kept in the preferences and renewed on
-  opening; offline it is tried again before each round, and the page says
-  who is signed in from the kept session meanwhile. A round runs on
-  opening, on every return, two seconds after any read-back of the lists
-  (`Sync.soon`, from `_afterRead` — every change ends there), when realtime
-  says the account's rows changed, and every five minutes while open. One
-  that changed something here bumps `Background.changed`, the path a
-  reminder's buttons already use. **The server is set per device, in
-  Settings**, until it has one address: the emulator reaches this PC at
-  10.0.2.2, the desktop at localhost. Plain HTTP is allowed to those
-  addresses alone (`res/xml/network_security.xml`), to come out once the
-  server has HTTPS. The server's side is `supabase/`: `config.toml`, the
-  migration, and `tests/sync_test.sql` (`supabase test db`).
-  **An all-day task travels as a day, not an instant** (`SyncStore._toDay`,
-  `_fromDay`): it is kept as the local midnight that starts its day, and
-  that instant sent as it is was another day on a device in another time
-  zone — a task filed on the 16th on the desktop, in Moscow, arrived
-  overdue on the emulator, which is on GMT. Each end makes the day its own
-  midnight. Timed tasks stay instants, as a meeting at three in Moscow is
-  at noon in London.
+### Groups
 
-- **Everything can be saved to a file and read back** (`Backup`,
-  `AppDatabase.dump`/`replaceAll`, `SettingsProvider.exported`/`restore`,
-  the `caldo/backup` channel, Settings' Backup page). Caldo keeps nothing
-  anywhere but the phone, so a lost phone or an update that had to be
-  installed by uninstalling took every task with it. The file is JSON of the
-  database's own rows, not of the models — a column added later is carried
-  without anyone remembering to — with the schema version beside them: a
-  newer one is refused, an older one restores with its missing columns left
-  to their defaults, and a column nothing knows any more is dropped. Restore
-  is one transaction, so a bad file leaves what was there. The settings go
-  with it, all but the phone's own calendars (their ids are the phone's, and
-  showing them needs a permission a new phone has not given); a setting the
-  backup does not have goes back to its default. It is written and read
-  through Android's document picker (`ACTION_CREATE_DOCUMENT`/
-  `OPEN_DOCUMENT`), which reaches Drive as readily as Downloads and needs no
-  storage permission; nothing over 64MB is read. Restore says what the file
-  holds — when it was saved, how many tasks and groups — before it replaces
-  anything, since that is how a wrong file is caught. The Settings list
-  says when a backup was last saved ("Never saved" until one is).
-  **It can also save itself every day or week** (`Backup.autoIfDue`,
-  "Back up automatically" on the Backup page; asked for as "making a
-  backup time to time"). Turning it on asks for a folder once, through
-  Android's folder picker (`ACTION_OPEN_DOCUMENT_TREE`), and Caldo keeps
-  its hold on it (`takePersistableUriPermission`), letting go of any folder
-  held before. A copy is written there as `caldo-auto-<date>.json` on
-  opening and on every return to the app when one is due — counted in
-  calendar days, so a daily one is the first opening of each day — and
-  one at once when the folder is chosen. The last seven are kept; only
-  files with that prefix are ever deleted, so one saved by hand into the
-  same folder is left alone. No job in the background: nothing changes
-  while Caldo is shut but a reminder's buttons and the widget's ticks, and
-  the next opening carries those. A copy that cannot be written (the
-  folder deleted, the hold taken away) is said in red on the Folder row
-  and tried again on the next return. Drive does not offer itself to the
-  folder picker; a folder a sync app watches is the way off the phone.
-  The interval and the folder are not in a backup, being this phone's.
-  Tried on the emulator: the first copy, a day-old one rewritten on a
-  cold start with the oldest two of nine pruned and a hand-saved file
-  kept, and a folder with no hold showing the red row.
-- **The icon is the Samsung calendar's page — standing free on a Samsung,
-  filling the shape everywhere else** (`LauncherIcon.kt`, two
-  `activity-alias`es, `assets/icon/src/caldo*` and `caldo_free*`). On a
-  Samsung: a pale blue-grey sheet with round corners, a red header, and
-  three navy rings rising out of it above the sheet, on a transparent
-  ground — measured edge by edge off a screenshot of Caldo and the user's
-  Samsung Calendar in one folder ("it's not the same, but must be the
-  same"), the launcher's squircle taken as the layer's middle 72dp, and
-  within a pixel or two of it at that size. Elsewhere: the header and
-  rings over the sheet's colour (`@color/ic_launcher_page`), so the page
-  is whatever shape the launcher cuts. Plain Android cannot show the free
-  page: the Pixel launcher fills a transparent ground black and its
-  circle cuts the page's corners ("on pure android is there no ability to
-  make part of it transparent?").
-  The free page is the alias on out of the box; a phone that is not a
-  Samsung switches to the other **as the user leaves the app**
-  (`MainActivity.onStop`, `leftForGood`), because Android closes a task
-  whose launcher entry is switched off. Switched in `onCreate`, the first
-  launch went straight back to the home screen; in `onUserLeaveHint`, it
-  did the same under the notification permission's prompt, which Android
-  counts as leaving. So not with the screen off, and not with another
-  app's activity (the document picker, the calendar app) on top of
-  Caldo's task. Until it has been left once, a fresh install off a Samsung
-  shows the free page. **The application's own icon is the free page**, because
-  Samsung's launcher draws an app with that rather than with the launcher
-  entry's: 2.8.4 had the filled one there and went on showing the filled
-  page on a Samsung, in the folder and the apps list, through a reboot;
-  2.8.5, with the free page there, showed it on the user's phone.
-  On a Pixel the entry's icon wins in the launcher, and only App info and
-  the recent apps show the free page, on the black the Pixel puts under
-  it. A launcher may drop a home-screen icon when the
-  entry under it changes: on a Samsung that happens once, on the update
-  that moved the launcher entry off `MainActivity`.
-  Before this: Dicty's sibling (graphite square, white page, a violet
-  tick tile); the page small on a slate tile ("too small"); and the
-  sheet's colour as the ground everywhere, rings tucked inside the
-  header — a misreading of the reference, which is a page inside the
-  icon's room, not one cut to its shape. The monochrome layers for Android
-  13's themed icons are the sheet and rings in one colour, the header told
-  apart by a seam cut across the page and the rings by a gap cut round
-  each.
-- **The window asks Android for the fastest display mode** (`MainActivity`).
-  Flutter's stock activity never does, so a 120Hz phone renders the app at 60.
-  The ask is for the fastest mode at the resolution already in use — the
-  supported-mode list mixes resolutions, and the fastest of all of them can
-  drop the screen to a coarser one.
+- **One group per task; Schedule and Calendar can show one group**
+  (`GroupChips`, `TaskProvider.showGroup`). Tags were built and removed. Chip
+  row (All, groups, plus) always shown; long press carries a chip to reorder
+  (`lists.sort_order`, schema v9), released in place opens it to edit. Chips
+  stand on `GroupChips.ground`.
+- **Default group is the oldest** (`TaskList.oldest`), never deletable;
+  deleting another moves its tasks there.
+- With a group chosen: only its tasks, no phone events, holidays stay, new
+  tasks go into it; not stored. Alarms, widget and overdue dot use full lists
+  (`allOverdue`, `allUpcomingByDay`). **A group's colour is its tasks' colour**
+  (`_taskColourToGroup` migrated the old setting).
+- **With All shown, the open add field offers groups** (`_GroupPick`, a
+  `TextFieldTapRegion`), only while the keyboard is up (`_WhileKeyboardUp`),
+  reset to default each opening.
+
+### Shell, navigation, menu
+
+- **Start screen is a setting** (`AppScreen`), read in `main` before the first
+  frame, never waiting for `SettingsProvider.load` (it may show a permission
+  dialog). The shell takes it once.
+- **Hidden screens** (`hiddenScreens`): never all four; start falls back to the
+  first visible but the choice is kept (`startScreen`). Overdue dot moves to
+  Calendar if Schedule is hidden. Hidden screens still build.
+- **Tab bar or menu, chosen in Settings** (`screensInBar`,
+  `storedScreensInBar`, read before first frame). Every page keeps both
+  wrappers (`BarRoom`, padding) so switching keeps state. `MenuScope` hands
+  the menu button to headers.
+- **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light rim,
+  23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
+  pill slides to the current tab (240ms), names shrink not cut. Floats over
+  the screens. Back goes to the start screen before leaving
+  (`Selection.anyActive` first).
+- **With the bar, a 56pt round plus floats above its right end** (`_AddButton`,
+  `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`), only on Schedule and
+  Calendar. Tap opens the field (which lives in the bar's room while the
+  keyboard is up, the bar hidden); hold opens the full form. Undo and
+  selection take the bar's place; `withdrawUndo` on screen change. With the
+  menu, the field stays at the foot.
+- **The menu** (hamburger top-left with an overdue dot) slides the screen
+  `_menuWidth` right and the menu in over it, lapping by `_menuOverlap`, menu
+  rounded and shadowed, screen square. Not a Material `Drawer`; tests read the
+  screen's offset. Screen beneath is blurred (`_OutOfFocus`, 4) by a
+  half-resolution snapshot at four strengths cross-faded — not `ImageFiltered`
+  live.
+- **Settings is six pages** (`_Page`; Screens, General, Appearance, Calendar,
+  Tasks, Reminders, plus Sync and Backup; About on the list), each a panel of
+  rows like the phone's settings (`_Group`, `_Row`, `_SwitchRow`, `choose`):
+  icon, name, value underneath; tap flips or opens a choice sheet. Clear
+  completed is the one red row.
+
+### Keyboard and the add field (read before touching)
+
+- **Nothing moves when the keyboard does**: no `Scaffold` resizes;
+  `SafeArea(maintainBottomViewPadding)` in the shell; `KeyboardGap` subtracts
+  the kept strip.
+- **The quick-add bar is attached to the keyboard** (`KeyboardLift` translates
+  it, same frame, nothing else). **Do not put a curve, spring or cap back.**
+- **Keyboard height is the larger of Flutter's `viewInsets` and Android's
+  own report** (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the
+  display bottom minus what lies below the window. Don't try to correct
+  `viewInsets` arithmetically — its meaning changes mid-slide.
+- **Edge-to-edge is read from the content view's insets, never its height**
+  (`MainActivity.contentNav`).
+- **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):
+  keyboard goes, focus stays, so the next opening doesn't start the IME
+  connection from scratch (that opening was the one that misplaced the bar).
+- **Only `KeyboardLift`, `KeyboardRoom` and `_WhileKeyboardUp` read the inset.**
+- **Long-press the Settings title for keyboard numbers**
+  (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
+- **The field's ground and fade follow what is actually under it**
+  (`_groundUnderField`, `_fadeStrength`, `_overGrid`). `GroundFade` (48pt,
+  smoothstep) on Schedule and Calendar; it goes as the month opens while the
+  keyboard is down (`GroundFade.strength`). Schedule pads its end with
+  `KeyboardRoom`.
+- **Field and its button are filled `AppPalette.field` with the bar's rim**
+  (`BarRoom.rim`); focus shows only the caret. **Quick-add button: plus →
+  tick when open**, plain, not gradient. Plus opens the full form.
+
+### Forms and pickers
+
+- **Date/time pickers are our own sheets** (month grid, wheels); no Material
+  dialog or dial.
+- **Clock wheels**: no band behind the middle — a `ShaderMask` carries full
+  strength in one row's height, a third outside (applied to pixels, not per
+  number). The touched wheel turns accent on pointer down, white on up.
+  `diameterRatio: 100`.
+- **One clock everywhere, chosen in Settings** (`Dates.time`/`Dates.clock`
+  with `h24`; `MediaQuery.alwaysUse24HourFormatOf`; `Dates.use24Hour` for
+  notifications; `Reminders.refresh` on change).
+- **Task form**: back arrow hides once anything is touched; Cancel/Save pinned
+  at the foot over `GroundFade`, riding `KeyboardLift`; `KeyboardRoom` below
+  the list, `_reveal` keeps fields clear of the fade. Save/Cancel dismiss the
+  keyboard.
+- **Sheet actions are two plain words, Cancel and Save, drawn towards the
+  middle.**
+- **Reminder lead** (`Task.remindBefore`, `reminderLead`, `_ReminderField`,
+  `Dates.lead`, `dayLeads`): null follows Settings, `Task.silent` never;
+  all-day tasks take whole days only. A row opening a choice sheet, not a
+  dropdown.
+
+### Look
+
+- **Platform font**, not Inter/google_fonts.
+- **True black ground; neutral greys** (no blue tint); raised greys above.
+- **Controls are neutral; accent is rare**: switches, Undo, update banner, a
+  touched clock wheel, colour pickers. Tasks wear their own colour.
+
+### Reminders
+
+- **Alarms are rebuilt from the agenda in `TaskProvider.loadTasks`**
+  (`services/reminders.dart`): first sync of a run resets all, later ones
+  diff (`Reminders._standing`), after the lists are on screen. All-day at the
+  Settings hour (default 9), timed at their time.
+- **Changing a reminder setting re-sets standing alarms** (`Reminders.configure`).
+- **Reminders no-op until `init`** (called only from `main`) — keeps tests quiet.
+- **Permission asked on first run** from `SettingsProvider.load`. Exact alarms
+  (`USE_EXACT_ALARM`), inexact fallback.
+- **Buttons: Done, Snooze 15 min, Dismiss** (`Reminders.done/snoozes/dismissed`,
+  `onReminderAction`); the hour's snooze is on the full-screen page only.
+- **Full-screen only when locked** (`fullScreenIntent`, `ReminderCover.kt`,
+  `MainActivity.wakeFor`): native, opaque, glow in the task's colour,
+  `RenderEffect` blur. Must stay opaque; don't hide Flutter's view under it.
+  Switch on the Reminders page; `_FullScreenBanner` if not allowed. Try it
+  with `am start -n com.igor.caldo/.MainActivity -a SELECT_NOTIFICATION --ei
+  notificationId 999 --es payload '{"title":…}'` on a locked emulator.
+- **Buttons are handled on the plugin's isolate** (`Background._change`):
+  write, `Reminders.reset` for that task only (never a full sync), redraw
+  widget, ping the app via `IsolateNameServer` (`Background.listen`). Snooze
+  is stored (`snoozed_until`, schema v5). Alarms cover the overdue run too.
+  **`ActionBroadcastReceiver` is declared in the manifest by hand.**
+
+### Home-screen widget
+
+- **It is Schedule in small** (`TodayWidget.kt`, `TodayWidgetRuns.kt`): runs,
+  inked cards, working tick, tap opens the form, plus opens a new task;
+  always dark; looks like the app (not a calendar widget).
+- Reads a copy of the agenda (`TodayWidget.publish`) and sorts against today
+  at draw time. **Nobody tells it to redraw**: `CaldoApplication` listens to
+  the preferences. Ticks run Dart on one process-wide engine (`Headless`,
+  `widgetMain`).
+- **Android 12+**: each tick is a real `CheckBox` with an `animated-selector`
+  per swatch (`layout-v31/widget_task_<swatch>.xml`, generated by
+  `tool/make_widget_ticks.py` — rerun after changing a swatch);
+  `saveEnabled="false"` (2.3.3 ticked every task without it). The page is one
+  frame (`layout/widget_page.xml`) of stable-keyed views placed by top margins
+  — never stacked — inside a one-row inline `ListView` for scrolling
+  (`RemoteCollectionItems`; no `RemoteViewsService`). Heights measured in
+  process (`fit`), cached; at most 60 cards (`MOST`).
+- **A tick plays as in the app** (`TodayWidget.tick`): `SETTLE` 490ms, `HOLD`
+  150ms, slide 260ms via `stateListAnimator`/`translationY`
+  (`animator/widget_*.xml`), leaving cards fade (`widget_leave.xml`). Moves
+  are computed from `TodayWidget.last`; Dart writes only after the card has
+  gone; `Background.toggle(done:)` writes the box's state.
+- **Phone events show too** (`PhoneEvents.kt`, `layout/widget_event.xml`),
+  read by the widget itself; whether shown rides on the copy
+  (`SettingsProvider.storedEvents`). Event keys start at 1e9.
+
+### Phone calendars, language, updates, backup, sync
+
+- **Phone events sit beside tasks like holidays** (`EventsProvider`,
+  `DeviceCalendars`, `EventCard`, `caldo/calendars`): opt-in, read-only,
+  calendars stored as excluded ones. All-day events read in UTC
+  (`events_test.dart` passes under `TZ=America/Los_Angeles`). Screens read the
+  provider as nullable.
+- **Twelve languages** (`S`, `l10n/strings.dart`, `words_*.dart` tables;
+  missing keys fall back to English; `l10n_test.dart` checks keys and
+  `{blanks}`). Plural rule per family. `S.of(context)` on screens,
+  `S.current` elsewhere (`SettingsProvider.prime` on isolates). English keeps
+  its fixed patterns; others use `intl` skeletons, full month headers,
+  capitalised. Kotlin side uses `getBestDateTimePattern` and
+  `values-xx/strings.xml`. `l10n_screens_test.dart` draws key screens in every
+  language. Unreviewed translations.
+- **Updates** (`services/updates.dart`, `_UpdateBanner`, `caldo/updates`,
+  `SelfUpdate.kt`): GitHub's latest release vs installed (dotted-number
+  compare); banner downloads the ABI's APK and installs through Caldo's own
+  `PackageInstaller` session (keeps full-screen permission, no prompt on
+  12+); ends on the home screen with an `UpdateDone` notification since
+  Android won't relaunch it. The repo is public so no token is needed. No
+  `taskAffinity=""` (it caused two Caldos). Nothing checks until
+  `Updates.enable`. To test: `adb root`, install a lower-labelled build, drop
+  the target as `cache/updates/Caldo-<latest>.apk` (chowned).
+- **Backup** (`Backup`, `AppDatabase.dump/replaceAll`,
+  `SettingsProvider.exported/restore`, `caldo/backup`): JSON of raw rows +
+  schema version (newer refused), one transaction, settings included except
+  phone calendars, ≤64MB, restore previews what the file holds. **Auto backup**
+  (`Backup.autoIfDue`) to a persisted folder (`ACTION_OPEN_DOCUMENT_TREE`) on
+  open/resume when due, keeps the last seven `caldo-auto-*` files only.
+- **Sync groundwork** (schema v11, `AppDatabase._addSync`): every row has
+  `uuid`, `updated_at`, `dirty`; deletions go to `tombstones`. **Integer ids
+  stay** (alarms, widget, screens use them). **Triggers stamp, not writes**;
+  suppressed while `sync_state.applying`. One `defaultListUuid` everywhere.
+- **A round pushes then pulls** (`Sync`, `SyncStore`); a pulled row loses to a
+  newer local change; rows are marked sent only as sent; cursor written with
+  the rows. A different account marks everything dirty. Tested with
+  `FakeServer` and `AppDatabase.named` (`sync_test.dart`).
+- **Sign-in is a six-digit emailed code** (`Account`, `showSignInSheet`,
+  Settings' Sync page), plain `supabase` package (not `supabase_flutter`).
+  Session in preferences. Rounds on open, resume, `Sync.soon` (2s after any
+  read-back), realtime, every 5 min. Server URL is per device for now;
+  cleartext allowed only to local addresses (`res/xml/network_security.xml`).
+- **All-day tasks travel as a day** (`SyncStore._toDay`/`_fromDay`); timed
+  tasks as instants.
+
+### Android platform bits
+
+- **Launcher icon** (`LauncherIcon.kt`, two `activity-alias`es): on Samsung the
+  free-standing page on transparent; elsewhere the filled page. Switched in
+  `MainActivity.onStop` (`leftForGood`) — not `onCreate` or
+  `onUserLeaveHint`, which close the task. The application's own icon is the
+  free page (Samsung draws that).
+- **Ask for the fastest display mode at the current resolution** (`MainActivity`).
 
 ## Linux
 
-Asked for as "port this to linux", and then as "full port to linux, like
-change ui too, so it be full pc app". So there are two layouts on a
-desktop: **a window 900 points wide or more is laid out as a desktop
-program** — "The wide layout", below — and **a narrower one is the phone's
-app in a window**, every screen, sheet and gesture the one above. Both were
-tried on a display of their own (`tool/desktop/try.sh`, below), and
-**neither has yet been seen by the user on their own desk** — the first
-thing they say about it outranks all of this.
+Two layouts on a desktop: **≥900pt wide is a desktop program**, narrower is
+the phone app in a window. **Neither has been seen by the user on their own
+desk** — their first word outranks this section.
 
-- **`onDesktop` is asked of Flutter, not of `dart:io`** (`utils/platform.dart`).
-  The widget tests run on a Linux host and are told they are on Android,
-  which is what keeps them testing the phone; `Platform.isLinux` is true in
-  every one of them. A test of the desktop says so
-  (`variant: TargetPlatformVariant.only(TargetPlatform.linux)`).
-- **The services do the desktop's work themselves; the runner answers no
-  channel** (`Desktop`, and an `if (onDesktop)` at the head of each call in
-  `Attachments`, `Backup`, `Updates`, `Reminders`). On Android each is a
-  channel because each needs an activity. On a desktop a path is a path:
-  the file dialog is GTK's (`file_selector_linux`), a file is opened with
-  `xdg-open`, and the copying, pruning and unpacking are Dart, where the
-  tests can reach them (`desktop_test.dart`).
-- **Everything is kept under `~/.local/share/com.igor.caldo`**: `caldo.db`,
-  `attachments/`, and `shared_preferences.json`, which is where the
-  settings plugin puts it. Downloads go to `~/.cache/com.igor.caldo`.
-- **The Linux halves of two plugins are named directly** in `pubspec.yaml`,
-  not `path_provider` and `file_selector`: those would bring their Android
-  halves (and `jni`) into the APK, which has `MainActivity` for both jobs.
-- **SQLite is the system's, on Linux and in the tests** (`hooks:
-  user_defines: sqlite3: source: system`). The `sqlite3` package otherwise
-  bundles a copy for every platform it is built for — which, as a test
-  dependency, is what had put a `libsqlite3.so` nothing opened into every
-  APK up to 2.9.2, 1.7MB an ABI (the universal APK went from 62.3MB to
-  57.1). Gradle packages whatever is in `build/native_assets/android`, so
-  after changing the hook delete that directory, or the old copy rides on.
-  **The app asks for "libsqlite3.so", and that name is put beside the
-  program** (`linux/sqlite_shim.cc`: an empty library that needs
-  `libsqlite3.so.0`). Outside Arch the bare name only exists with the
-  development package; the engine looks in its own `lib/` first (measured
-  with `LD_DEBUG=libs`), and every lookup through the empty one lands in
-  the system's. Not a copy of SQLite: GTK has already loaded the system's
-  into the process, and two builds of it resolve each other's insides.
-- **Reminders are put up by the app, while it is open** (`Reminders._alarms`,
-  `_arm`, `_announce`). The Linux plugin cannot book a notification ahead,
-  and nothing on a desktop holds one for a program that is not running. So
-  `_schedule` only notes when and what, and one timer waits for the soonest
-  — never longer than 30 seconds before reading the clock again, because a
-  timer counts time awake and a laptop shut overnight would otherwise ring
-  an hour into the morning. What fell due while Caldo was shut is simply
-  overdue when it opens. The buttons are Done and both snoozes, with no
-  Dismiss: closing a notification is that. They are answered in the app
-  (`_onOpened` hands them to `onReminderAction`), and **`Background._prepare`
-  does nothing on a desktop**: `DartPluginRegistrant.ensureInitialized()`
-  in the app's own isolate registers every plugin a second time, which swaps
-  the started notifications plugin for a fresh one — the first button
-  pressed worked, and every reminder after it was dropped without a word.
-  Seen with two tasks due fifteen seconds apart. A click on the
-  notification itself opens the task's form; it cannot bring the window to
-  the front.
-- **"The keys are up" means an add field has the focus** (`KeyboardGap.writing`,
-  `up`, `changes`). The tab bar, the field in its room and the groups above
-  it all went by the keyboard's height, which on a desktop is nothing for
-  ever: the plus focused a field nobody could see. A phone never sets
-  `writing`, so nothing there changed. With no keyboard to put away while
-  the field is still held, Enter on an empty field lets go of it, and so
-  does Escape.
-- **Escape is Back** (`_EscapeGoesBack`, asking the navigator to
-  `maybePop`): out of a page or a sheet, down with a selection, shut with
-  the menu, and from another tab to the one the app opened on.
-- **In the phone's layout a mouse scrolls as a finger does**
-  (`DesktopScrolling`): drags count, or the month, the days under it, the
-  board's lanes and the clock's wheels could not be turned at all; and no
-  scrollbars, which Flutter otherwise draws down every list on a desktop,
-  the wheels and the row of groups included. A pager dragged slowly and let
-  go at rest short of half way goes back, as under a finger. The wide
-  layout scrolls otherwise (`WideScrolling`, below); a dialog over it
-  still scrolls this way, which is what turns the clock's wheels there.
-- **The wheel over the grid turns the month, or the week** (`_onWheel`).
-  The grid has no arrows and nobody tries dragging a calendar with a
-  mouse. A page a notch, and no second page until the first has landed,
-  since a trackpad sends a stream of small turns. Over the day's list the
-  wheel scrolls the list, whatever state the grid is in.
-- **The group chips are picked up by a long press here too**
-  (`buildDefaultDragHandles: false`). Left to itself a reorderable list
-  gives a desktop a grip, drawn over the end of every chip.
-- **The theme says a phone's sizes outright** (`visualDensity`,
-  `materialTapTargetSize`). Unsaid, a desktop draws every button and row a
-  size tighter.
-- **A window between 640 and 900 wide keeps the phone's app in its middle**
-  (`PhoneWide`). Stretched, the tab bar was a pill the width of the monitor
-  and a card a stripe from edge to edge. The column is handed down as "the
-  screen" (`MediaQuery.size`), and clipped, since the menu waits beyond its
-  edge. The board measured a carried card's place against the window's
-  width and now measures it against itself. `PhoneWide` stays in the tree
-  in the wide layout, switched off, so the navigator under it is not moved
-  when the layout changes.
-- **The window opens at the size it was closed at — the first time 1240 by
-  780 — no smaller than 340 by 560, one at a time** (`my_application.cc`).
-  The size is kept beside the database, in `window`, as `width height
-  maximized`, written when the window is closed (`delete-event`; a kill
-  writes nothing). Started again, the one running is brought forward: two
-  would each ring every reminder, over one database. Its title bar is
-  asked to be dark, the app being dark out of the box; it stays dark under
-  the light theme.
-- **What is not there**: the home-screen widget, the phone's calendars
-  (their Settings panel is hidden), the full-screen reminder (its switch is
-  hidden), the camera (Photo and File only), the keyboard numbers.
-- **Five phrases that name the phone are worded again**
-  (`followSystem` and four `…Desktop` keys, chosen in `S`'s getters): "on
-  this computer", in all twelve languages, as unreviewed as the rest.
-- **Installed, it is `~/.local/opt/caldo`** (`linux/install.sh`, which
-  rides in the bundle): no root, a `caldo` in `~/.local/bin`, the entry
-  `com.igor.caldo.desktop` and the icon — the page standing free, as on a
-  Samsung, a desktop having no shape to cut one to. The entry's name is the
-  application id, which is how GNOME and anything on Wayland finds a
-  window's icon. Checked into a stand-in home; not run on the user's.
-- **It updates itself, where it may** (`Updates`, `Desktop.replaceWith`).
-  A release that carries `Caldo-linux-x64.tar.gz` is offered in the same
-  banner; the tap downloads it, unpacks it beside the installed program,
-  swaps the two by name, and starts the new one a second after leaving —
-  at once, it would find this one still running and hand over to it.
-  Installed where the user cannot write, the release's page is opened
-  instead. A release with no such file is offered to phones alone. Tried
-  end to end against a feed on localhost (the address in `_latest` changed
-  for that build only): 2.9.1 offered 2.9.3, and came back as it.
-  **The version is the one in `pubspec.yaml`**: `--build-name` does not
-  reach `version.json` on Linux, which is where it is read from.
+- **`onDesktop` asks Flutter, not `dart:io`** (`utils/platform.dart`); tests
+  run as Android. Desktop tests use
+  `TargetPlatformVariant.only(TargetPlatform.linux)`.
+- **Services do desktop work in Dart** (`Desktop`, `if (onDesktop)` in
+  `Attachments`, `Backup`, `Updates`, `Reminders`); GTK dialogs, `xdg-open`.
+  Tested in `desktop_test.dart`.
+- Data under `~/.local/share/com.igor.caldo`; downloads in
+  `~/.cache/com.igor.caldo`.
+- **Name the Linux plugin halves directly** in `pubspec.yaml` (keeps Android
+  halves and `jni` out of the APK).
+- **System SQLite** (`hooks: user_defines: sqlite3: source: system`); after
+  changing it, delete `build/native_assets/android`. `linux/sqlite_shim.cc`
+  provides `libsqlite3.so` beside the program, linking `libsqlite3.so.0` —
+  never a bundled copy.
+- **Reminders fire only while the app is open** (`Reminders._alarms`, `_arm`,
+  `_announce`; a timer re-checks every ≤30s). Buttons: Done and snoozes.
+  **`Background._prepare` does nothing on desktop** — re-registering plugins
+  broke every reminder after the first.
+- **"Keys up" means an add field has focus** (`KeyboardGap.writing`). Enter on
+  empty or Escape lets go.
+- **Escape is Back** (`_EscapeGoesBack`).
+- **Narrow layout**: mouse drags scroll like a finger, no scrollbars
+  (`DesktopScrolling`); wheel over the grid turns a month/week a notch at a
+  time (`_onWheel`); group chips use long press (`buildDefaultDragHandles:
+  false`); theme states phone density. 640–900 wide keeps the phone column in
+  the middle (`PhoneWide`, left in the tree switched off when wide).
+- **Window** (`my_application.cc`): reopens at the closed size (first time
+  1240×780, min 340×560), saved in `window` on `delete-event`; single
+  instance; dark title bar.
+- **Not on desktop**: home widget, phone calendars, full-screen reminder,
+  camera, keyboard numbers. Five phrases have `…Desktop` variants.
+- **Install**: `linux/install.sh` → `~/.local/opt/caldo`, `~/.local/bin/caldo`,
+  entry `com.igor.caldo.desktop`.
+- **Self-update** (`Desktop.replaceWith`) from `Caldo-linux-x64.tar.gz` when a
+  release carries it; unpack beside, swap by name, relaunch after a second. If
+  unwritable, open the release page. Version comes from `pubspec.yaml`
+  (`--build-name` doesn't reach `version.json`).
 
 ### The wide layout
 
-Chosen from three mockups (a sidebar with wide screens; the agenda always
-down the left with one big view beside it; tabs across the top), and for
-the form from three more (a panel on the right; a dialog; the full page).
-What was chosen: **a sidebar, each screen drawn for the width it has, and a
-task's form in a panel down the right**.
+Sidebar, each screen drawn for its width, task form as a right panel.
 
-- **`Desk.wideOf(context)` is the one question** (`widgets/desk.dart`).
-  `DeskScope`, in `MaterialApp.builder` above the navigator so a dialog can
-  ask as readily as a screen, answers it: on a desktop, at 900 points or
-  more. The tests are told they are on a phone, and nothing over a screen
-  pumped alone provides a `Desk`, so there it is always narrow; a test of
-  the wide layout says Linux and pumps what `CaldoApp` builds
-  (`desk_test.dart`, `pumpApp`). `Desk.isWide` is the same asked from a
-  callback, without subscribing.
-- **The layout only changes while nothing is open over the screens.** A
-  form with something typed in it is a panel in one layout and a page in
-  the other; a window dragged across the line would have taken it away
-  with the layout it was in. So the layout in force is kept while the
-  panel is open or the navigator can pop, and `DeskScope.observer` tells
-  the scope when a route has gone. **Each screen sits under a `GlobalKey`
-  in the shell** (`_pages`), so it is moved from one layout to the other
-  with its state: the day picked, how far it is scrolled.
-- **The sidebar is the tab bar stood on end** (`DeskSidebar`): New task
-  (Ctrl N), Search (Ctrl F), the four screens with the overdue backlog as
-  a count, the groups, and Settings at its foot. **The groups are a list
-  there, for every screen at once**, and the rows of chips are not drawn:
-  a click shows one group, a drag carries one to another place, and a
-  right click — or the pencil that comes up under the pointer — opens it,
-  which is what a long press let go of does to a chip. A group picked from
-  Done or Settings goes to the first screen that goes by groups.
-- **The form is a panel over the right edge, not a route** (`TaskPanel`,
-  `DeskFormPanel`). Everything that opens a form goes through
-  `openTaskForm`, which pushes the page on a phone and asks the panel
-  here; `TaskEditScreen.inPanel` closes through the panel rather than the
-  navigator. The screen beside it stays live: a click on another task
-  swaps the form. Every screen but the calendar is padded by the panel's
-  width while it is open (`_wide` in the shell), unless that would leave
-  it under 420, when the panel lies over it.
-- **A form with changes in it does not give way.** `TaskPanel.open` only
-  shakes Cancel and Save (`nudged`, `_Nudged`) — the head-shake a held-back
-  tick gives. **"Changes" is the words differing, not the form being
-  touched** (`_typed`, `_wordsDiffer`): a text controller speaks when the
-  caret is put in its field, so a new task, which opens with the caret in
-  its name, counted as changed from the start. The phone's own rule — the
-  arrow goes once anything is touched — is as it was.
-- **Escape closes the panel, as Cancel does — in two presses if something
-  is typed and the caret is still in a field** (`_escapeForm`): the first
-  only leaves the field. Escape is pressed out of habit, and a note is a
-  lot to lose to one. What is picked out answers to Escape first.
-- **The calendar has one state, not three** (`_buildWide`): the month
-  opened out over all the height, and the day picked down the right, 384
-  wide — the form's width, so the form covers the day exactly and the
-  month does not move. It is the same `_CalendarScreenState`, so the day,
-  the month pager and the carry are shared with the phone's; `_expansion`
-  is left alone and simply not read (`_wide`). No day sheet. Arrows are
-  back over the month, with Today between them, since nobody drags a
-  month with a mouse; the wheel still turns it.
-- **The month has a desktop's sizes where its days are wide enough**
-  (`MonthSizes.desk`, 72 points a day or more; narrower, a phone's): the
-  number at the day's top left over one-line titles at 11.5 points that
-  fade at the end of the line, "Mon" for "M". **A title is clicked to open
-  its task and dragged to another day to move it** (`_TaskTitle`,
-  `_DropDay`, `MouseDraggable`) — the move offered back in the day's add
-  row, as a card put off is. A card from the day's list is still carried
-  onto the month by the phone's own `Carry`; its tile is capped at 150 by
-  64, a desktop's day being far larger than a tile needs to be.
-- **Schedule and Done keep to a column 760 wide in the middle, but their
-  lists span the window** (`DeskColumn`, `DeskGutter`): each sliver is
-  padded rather than the list narrowed, or a wheel turned over the empty
-  room beside the cards would scroll nothing. Every screen's title stands
-  at one height (`ScreenHeader`, 48), or it jumped as the sidebar swapped
-  one for the next.
-- **The board has its three lanes on show at once**, a third each, down
-  to 200 points a lane (`_Board.wideFraction`); narrower than that it is
-  turned between them, as a phone's is.
-- **Settings is its list beside the page it opens**
-  (`_SettingsScreenState._entries`, `_page`), the page in force lifted on
-  the list. "Switch screens with" is not offered: neither the bar nor the
-  menu is there.
-- **Every sheet is a dialog in the middle of the window** (`showAppSheet`,
-  which every picker goes through; `PickerSheet` on a phone): a sheet the
-  width of a monitor rising from its foot was a phone's gesture a long way
-  from what was clicked. **Search is a panel hung from the top**
-  (`openSearch`), as tall as what it has found; a task opened from it
-  takes its place.
-- **A card is picked up by dragging it, at once** (`pickUpListener`,
-  `MouseDragRecognizer`), and lists do not scroll by a drag of the mouse
-  (`WideScrolling`), which would take the drag first. **Six points of
-  movement, not Flutter's two**: under a mouse a click is rarely that
-  still, and a card clicked to be opened came up to be carried instead,
-  the click lost. The long press let go of that picks a card out is the
-  mouse's drag here, so **Ctrl and a click picks one out**, and
-  `Selection.lifted` is not told.
-- **A right click on a card opens what a phone does by gesture**
-  (`showTaskMenu`): edit, done, today, the next day, pick a day, another
-  group, select, delete. Putting off is there rather than on a swipe
-  (`PutOff` is not wrapped round a card here; `PutOff.move` is what both
-  do).
-- **The keys are heard above the navigator** (`DeskKeys`, beside Escape):
-  Ctrl+N, Ctrl+F or K, Ctrl+1 to 5 for the screens, and on the calendar
-  the arrows for the day, Page Up and Down for the month, Home or T for
-  today. A `Focus` there rather than `CallbackShortcuts` in the shell, for
-  two reasons: with nothing focused the focus is the route's own, which is
-  above the shell, so keys bound down there only worked after a click; and
-  the arrows have to be let through to a field being typed in, which a
-  shortcut that always answers cannot do — it sits nearer the focus than
-  Flutter's own text shortcuts and would take them. Nothing but Escape is
-  answered while a dialog is open. The shell and the calendar say what the
-  keys do through `DeskActions`.
-- **A time can be typed** (`parseClock`, the field over the wheels):
-  "9", "930", "9:30 pm". The wheels follow and Enter takes it.
-- **An animation made on first use must not be first used in `dispose`.**
-  `late final _slide = AnimationController(vsync: this, …)` is made when
-  first read, and for a widget that never needed it that was `dispose`,
-  where a ticker can no longer be made. The form's panel did it, and so —
-  from before — did `UndoSlot` and `SelectionSlot` under the tab bar on a
-  screen with no field; all three are made in `initState` now. It only
-  shows as an assertion, and only if the widget is torn down unused.
+- **`Desk.wideOf(context)` is the one question** (`widgets/desk.dart`,
+  `DeskScope` in `MaterialApp.builder`; `Desk.isWide` without subscribing).
+  Wide-layout tests pump `CaldoApp` (`desk_test.dart`, `pumpApp`).
+- **Layout only switches with nothing open** (`DeskScope.observer`); screens
+  sit under `GlobalKey`s (`_pages`) so state moves across.
+- **Sidebar** (`DeskSidebar`): New task, Search, four screens with overdue
+  count, groups as a list (click shows, drag reorders, right-click/pencil
+  edits), Settings at the foot. No chip rows.
+- **Form panel** (`TaskPanel`, `DeskFormPanel`, `openTaskForm`,
+  `TaskEditScreen.inPanel`): screens padded by its width unless that leaves
+  <420. With changes it doesn't give way, it nudges (`_Nudged`); "changes"
+  means differing words (`_typed`, `_wordsDiffer`). Escape closes it, in two
+  presses if a field holds the caret with something typed (`_escapeForm`).
+- **Calendar**: one state (`_buildWide`), month opened full height, day panel
+  384 wide on the right (the form's width), arrows + Today over the month.
+  `MonthSizes.desk` at ≥72pt per day. Titles click to open and drag to move
+  (`_TaskTitle`, `_DropDay`, `MouseDraggable`); carry tile capped 150×64.
+- **Schedule/Done**: 760 column, lists span the window (`DeskColumn`,
+  `DeskGutter`). Titles at one height (`ScreenHeader`, 48).
+- **Board**: three lanes at once down to 200 each (`_Board.wideFraction`).
+- **Settings**: list beside page (`_entries`, `_page`); no "Switch screens with".
+- **Sheets become centred dialogs** (`showAppSheet`; `PickerSheet` on phone);
+  **Search is a panel from the top** (`openSearch`).
+- **Mouse**: drag picks up at once after 6pt (`pickUpListener`,
+  `MouseDragRecognizer`), no drag-scroll (`WideScrolling`); Ctrl+click
+  selects; right-click opens `showTaskMenu` (put-off lives there,
+  `PutOff.move`).
+- **Keys** (`DeskKeys`, a `Focus` above the navigator, `DeskActions`): Ctrl+N,
+  Ctrl+F/K, Ctrl+1–5; calendar arrows, PgUp/PgDn, Home/T. Only Escape while a
+  dialog is open; arrows pass through to fields.
+- **Typed times** (`parseClock`): "9", "930", "9:30 pm".
+- **Never first-use a `late final` `AnimationController` in `dispose`**; make
+  it in `initState` (form panel, `UndoSlot`, `SelectionSlot`).
 
 ## Tests
 
-`flutter test` — 279 tests, all passing. Keep them that way; several real bugs
-in this app were caught by them before the emulator ever saw the code.
+`flutter test` — 279 tests, all passing; keep it so.
 
-Things that will bite you:
-
-- **Each test file gets its own temp database dir** (`test/support/test_db.dart`,
-  `initTestDatabase`). Files run in parallel and would otherwise fight over one
-  `caldo.db`. `AppDatabase.close()` exists for the same reason.
-- **Real database work cannot complete inside `testWidgets`' fake-async zone.**
-  Seed inside `tester.runAsync`. For a write triggered by the UI, either use a
-  capturing provider subclass (see `_CapturingProvider` in `screens_test.dart`)
-  or poll inside `runAsync`.
-- **Screens are pumped at phone sizes** so layout overflows fail the run. That
-  is intentional — it has caught an overflowing task row, an empty state, and a
-  day cell that laid out one title row too many.
-- **The test font draws every glyph as an em square.** Never assert glyph
-  widths; assert layout invariants instead (e.g. "the title is given all the
-  width the controls leave").
-- Widget keys are exported for tests: `monthTitleKey`, `calendarHandleKey`,
-  `daySheetKey`, `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`,
-  and for the wide layout `deskSidebarKey`, `deskFormKey`, `deskNewTaskKey`.
-- **A test that ends with a widget never having used its animation finds
-  the `dispose` fault above**; "A Timer is still pending" after it is the
-  same failure, the teardown having stopped halfway.
-- `TaskPanel` is one for the app, so a test of the wide layout closes it
-  in `tearDown`.
+- Each test file has its own temp DB dir (`initTestDatabase`);
+  `AppDatabase.close()` for the same reason.
+- Real DB work can't finish in `testWidgets`' fake async: seed in
+  `tester.runAsync`; for UI-triggered writes use a capturing provider
+  (`_CapturingProvider` in `screens_test.dart`) or poll inside `runAsync`.
+- Screens are pumped at phone sizes so overflows fail — intentional.
+- The test font draws em squares: assert layout invariants, not glyph widths.
+- Exported keys: `monthTitleKey`, `calendarHandleKey`, `daySheetKey`,
+  `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`,
+  `deskSidebarKey`, `deskFormKey`, `deskNewTaskKey`.
+- "A Timer is still pending" after a test usually means the `dispose`
+  animation fault above.
+- `TaskPanel` is app-wide: wide-layout tests close it in `tearDown`.
 
 ## Building
 
-Four things in `android/` exist only for the reminders, and all four are
-load-bearing: **desugaring** in `app/build.gradle.kts` (the plugin schedules
-through `java.time`, and the build fails without it), the **action
-receiver** in the manifest (a reminder's buttons do nothing without it),
-the **two scheduled receivers and three permissions** in the manifest (a
-scheduled notification is held by the system, which forgets them on a
-reboot and on an update), and
-**`res/raw/keep.xml`** (R8 cannot see that a notification icon is used, and a
-stripped icon fails silently at the moment the reminder was meant to appear).
+Load-bearing for reminders: **desugaring** in `app/build.gradle.kts`, the
+**action receiver**, the **two scheduled receivers and three permissions** in
+the manifest, and **`res/raw/keep.xml`** (keeps the notification icon from
+R8).
 
-`android/gradle.properties` is capped on purpose: **`-Xmx2G`, four workers, a
-1G Kotlin daemon**. Flutter's template ships `-Xmx8G`, and on this 13GB machine
-the daemon sat on 3.4GB between builds and starved the emulator into an ANR.
-Do not raise it. Stop the daemon when you are done:
+`android/gradle.properties` is capped on purpose (`-Xmx2G`, four workers, 1G
+Kotlin daemon) — 13GB machine; do not raise. Stop the daemon afterwards:
 
 ```sh
 flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
 (cd android && ./gradlew --stop)
 ```
 
-**Releases are signed with `~/keys/caldo-release.jks`, named by
-`android/key.properties`** (both outside git). It holds the key the app
-was signed with from the start — Flutter's debug key on this machine,
-copied out with its own alias and password — so every install already on
-a phone takes the next release as an update. Android refuses an update
-signed by any other key unless the app is uninstalled first, which deletes
-every task: **lose those two files and no release can be installed over
-Caldo again.** Keep a copy of both somewhere off this machine. A release
-build without `key.properties` fails on purpose (AGP would otherwise build
-it unsigned, and falling back to the debug key would sign it with whatever
-key a fresh `~/.android` generated). Debug builds still use the debug key,
-which is the same key for as long as `~/.android/debug.keystore` survives.
+**Signing**: `~/keys/caldo-release.jks` via `android/key.properties` (both
+outside git; the original debug key). Lose them and no update installs over
+Caldo again — keep copies off this machine. A release build without
+`key.properties` fails on purpose.
 
-**Releases are made when the user asks for one, and not otherwise.** Commit
-each change as it is made, but do not bump the version, build, or publish
-unprompted — since 1.3.14 the in-app updater offers whatever the latest GitHub
-release is, so publishing one puts it on the user's phone, and that is theirs to
-decide. When a release is asked for, it means both: the three APKs staged in
-`release/` (gitignored; `Caldo-arm64.apk`, `Caldo-armv7.apk`,
-`Caldo-universal.apk`) and a GitHub release carrying the same three,
-`gh release create vX.Y.Z release/*.apk`, built from the latest commit.
-`tool/package_linux.sh` builds the Linux program and puts
-`Caldo-linux-x64.tar.gz` beside them, which the same command would then
-carry; without it a release is a phone's only, and the desktop is not
-offered it. Whether a release carries it is the user's to say.
+**Release only when asked.** Commit each change, but don't bump, build or
+publish unprompted (the in-app updater ships whatever is latest). A release
+means both `release/` (`Caldo-arm64.apk`, `Caldo-armv7.apk`,
+`Caldo-universal.apk`) and `gh release create vX.Y.Z release/*.apk` from the
+latest commit. `tool/package_linux.sh` adds `Caldo-linux-x64.tar.gz`; whether a
+release carries it is the user's call.
 
-For Linux alone, the build is `flutter build linux --release`, the result
-`build/linux/x64/release/bundle`, which runs from where it is. It needs
-SQLite's headers on the machine (`pkg-config sqlite3`), for the name beside
-the program. A stale `lib/native_assets.json` in the bundle is the tests'
-and harmless; the packaging leaves it out.
+Linux: `flutter build linux --release` → `build/linux/x64/release/bundle`.
+Needs SQLite headers (`pkg-config sqlite3`).
 
 ## Running on the emulator
 
-The shell has `ANDROID_SDK_ROOT=/opt/android-sdk`, which has **no emulator and
-no system images** — the real SDK is `~/Android/Sdk`, and the AVD's image path
-is relative, so it resolves against the wrong root and dies with "Broken AVD
-system path". Launch it like this:
+`ANDROID_SDK_ROOT` in the shell points at `/opt/android-sdk`, which has no
+emulator; use `~/Android/Sdk`:
 
 ```sh
 SD=~/Android/Sdk
 ANDROID_SDK_ROOT=$SD ANDROID_HOME=$SD $SD/emulator/emulator -avd pixel_api34 &
 adb install -r build/app/outputs/flutter-apk/app-release.apk
 adb shell monkey -p com.igor.caldo -c android.intent.category.LAUNCHER 1
-# monkey follows the launch with one random key, which can be Home — and
-# leaving the app is when LauncherIcon switches. To watch that, launch with
-# am start -a android.intent.action.MAIN -n com.igor.caldo/.LauncherFree
-adb exec-out screencap -p > shot.png     # then look at it
+# (monkey may send Home, which switches LauncherIcon; use
+#  am start -a android.intent.action.MAIN -n com.igor.caldo/.LauncherFree to avoid)
+adb exec-out screencap -p > shot.png
 ```
 
-**The emulator always runs the latest commit.** After every change, build a
-release APK (`flutter build apk --release` — no version bump, no GitHub
-release) and `adb install -r` it, starting the emulator first if it is down.
-Releases only go out when asked for, so the emulator is where a change can be
-tried in between, and a stale one means judging a fix that is not there.
+**The emulator always runs the latest commit**: after every change, build a
+release APK (no version bump) and `adb install -r` it. Judge changes by eye
+from a screenshot before saying they work. Screen is 1080×1920 at **dpr
+2.625** (411×731). `input text` can't send Cyrillic.
 
-Changes here are judged by eye: take the screenshot and check it before saying
-it works. `adb shell input tap/swipe/text` drives it; the screen is 1080x1920
-at **dpr 2.625** (411x731 logical) — `adb shell wm density` says 420, and the
-note here said dpr 3 for months, which is what kept the keyboard arithmetic
-from reconciling for a whole morning. `input text` cannot send Cyrillic, so
-seed Russian titles some other way or use Latin ones of the same length.
-
-**A long press cannot be done with `input swipe`.** It interpolates from the
-first millisecond, so the press has moved past the touch slop long before the
-half-second a long press needs and the gesture is cancelled. Nothing that
-starts with a long press — picking a card up to drag it — can be driven that
-way. Use the event stream instead, where the latency between `adb` calls is
-itself the hold:
+**Long press can't be done with `input swipe`**; use motion events:
 
 ```sh
 adb shell input motionevent DOWN 540 880
@@ -2142,154 +621,72 @@ for y in 840 760 680 600; do adb shell input motionevent MOVE 540 $y; done
 adb shell input motionevent UP 540 600
 ```
 
-Screenshot between the MOVEs to catch a gesture in flight — that is how the
-carried card was measured against the run it was supposed to stay inside.
+Not bugs:
 
-Three things that look like bugs and are not:
-
-- An ANR under load is usually host starvation (a Gradle daemon plus the
-  emulator on 13GB), not a hang in the app. Check whether unrelated processes
-  ANR'd in the same second before hunting for a layout loop.
-- **A loaded host makes the emulator drop app frames, and a dropped frame
-  looks exactly like a bar that is not attached.** Judge anything that rides
-  the keyboard on a release build, and run the committed build as a control
-  before concluding that a change caused a lag: measured on a quiet machine
-  the bar held within 1-2px of the keys on every frame, and after a morning
-  of Gradle builds the *same commit* trailed them by up to 67px. What
-  distinguishes a real fault from this one is that frame lag scales with how
-  fast the keyboard is moving and vanishes when it stops, while a number
-  that means the wrong thing is off by the same distance at every speed.
-- **The emulator's keyboard does slide, and finely enough to follow** —
-  contrary to what was written here before, which was taken from a single
-  lump the inset once arrived in. Measured off `screenrecord` on
-  `pixel_api34`: the keys rise over sixteen frames, about 270ms, in steps the
-  quick-add bar matches one for one, and it is reported in small enough
-  pieces that the bar is glued to them rather than gliding after them. The
-  bar is behind the keys for the first half of that, so it only becomes
-  measurable once it clears the keyboard's top edge. The way down is a single
-  lump here, as it is on real devices.
-- **A debug build draws at about half the rate on this emulator, which
-  makes anything glued to the keyboard look broken.** Measured with the
-  quick-add bar's box painted red, so its edge could be read against the
-  keys: in a debug build the bar holds each position for two display frames
-  while the IME moves on every one, so half the frames of a slide show a gap
-  of up to 68px under the bar or a 20px overlap. The same code in a release
-  build is within 1-2px of the keyboard's top edge on **every** frame of the
-  slide, first to last. Judge anything that rides the keyboard on a release
-  build, and if a mismatch is reported, measure that before touching the
-  code — three rounds went into the lift when the lift was not what was
-  wrong. The emulator's window on the host can resample again on top of
-  that; a phone is the only place to settle how it feels.
-- **The first opening of the month after a cold start draws slowly on the
-  emulator** — about 16ms of raster a frame, where every later opening takes
-  2ms — in most launches but not all, and not because of anything the grid
-  draws. Measured with frame timings from a release build: the slow frames
-  begin a few frames into the opening, before any task title is on the
-  screen, and four fixes each looked right on one run and failed on the
-  next few — rows placed on whole pixels, a startup warm-up drawing faded
-  text, titles faded through their colours instead of a layer, and the
-  titles not faded at all. It is the emulator's GL translation warming up
-  (this AVD runs Impeller on OpenGL ES; phones run it on Vulkan). Nothing
-  was kept. If it is ever seen on a phone, measure there first; take
-  several cold starts per build, since one run proves nothing either way.
-- **`screenrecord` drops frames**, and more of them the more the host is
-  doing. Frame-by-frame measurements off a recording show the *shape* of a
-  movement — whether it builds and decays, or jumps and catches — which is
-  enough to tell a spring from a teleport. They do not show whether it is
-  smooth. Say which of the two was checked.
+- ANRs under load are usually host starvation (Gradle + emulator).
+- A loaded host drops frames, which looks like a detached keyboard bar. Judge
+  keyboard-riding UI on a **release** build, on a quiet machine, against the
+  committed build as a control. Frame lag scales with speed; a wrong number is
+  off by the same amount at every speed.
+- Debug builds draw at half rate here; never judge motion on them.
+- The emulator's keyboard does slide (~270ms, sixteen steps); down is one lump.
+- First month opening after a cold start is slow on the emulator (GL warm-up);
+  nothing in the grid causes it. Measure on a phone, over several cold starts.
+- `screenrecord` drops frames: it shows a movement's shape, not smoothness.
 
 ## Running the sync server
 
-Supabase runs in Docker on this PC (`supabase/`, the CLI at
-`~/.local/bin/supabase`, v3.1.0). From the repo:
+Supabase in Docker (`supabase/`, CLI `~/.local/bin/supabase` v3.1.0):
 
 ```sh
-supabase start -x imgproxy      # the stack; first time pulls a few GB
-supabase test db                # the pgTAP tests
-supabase stop                   # it holds 2-3GB; stop it when done
+supabase start -x imgproxy
+supabase test db
+supabase stop          # holds 2-3GB
 ```
 
-The API is `http://127.0.0.1:54321` (the emulator's 10.0.2.2:54321), the
-dashboard :54323, and every email it sends — the sign-in codes — lands in
-Mailpit at :54324 rather than going out (`/api/v1/messages` to read one
-from a script). The anon key built into `Account` is the one every local
-Supabase starts with. A shell started before its user joined the docker
-group can still reach it through `newgrp docker`.
+API `http://127.0.0.1:54321` (emulator: `10.0.2.2:54321`), dashboard :54323,
+emails (sign-in codes) in Mailpit :54324 (`/api/v1/messages`). The anon key in
+`Account` is the local default. If docker access fails, `newgrp docker`.
 
 ## Running on Linux
 
-`tool/desktop/try.sh` runs the built program on a display of its own
-(Xvfb, `:99`) with a home and a session bus of its own, so nothing of the
-user's is read, written or popped up on their desk; `--stop` ends it. It
-is how every claim in the Linux section was looked at.
+`tool/desktop/try.sh` runs the build on its own Xvfb display (`:99`) with its
+own home and session bus; `--stop` ends it.
 
 ```sh
 flutter build linux --release
 tool/desktop/try.sh
-import -display :99 -window root -crop 1240x780+0+0 shot.png   # then look
-python tool/desktop/x.py click 80 230      # Calendar; needs python-xlib
-python tool/desktop/x.py key n ctrl        # a new task
+import -display :99 -window root -crop 1240x780+0+0 shot.png
+python tool/desktop/x.py click 80 230      # needs python-xlib (use a venv)
+python tool/desktop/x.py key n ctrl
 python tool/desktop/x.py type "Buy milk"; python tool/desktop/x.py key Return
-python tool/desktop/x.py resize 480 780    # and it is the phone's app
+python tool/desktop/x.py resize 480 780
 ```
 
-`x.py` clicks, right-clicks, drags (with a hold, for a long press), types,
-presses a key with or without Ctrl, turns the wheel and resizes the
-window; its header says how. python-xlib is not installed on this machine:
-make a venv for it. With no window manager on that display the window is
-closed, to see its size kept, by sending it `WM_DELETE_WINDOW`. `notifd.py` stands in
-for the notification server: what Caldo sends is written to `notifd.log`,
-and a button's key written to a file called `press` is pressed. To try a
-reminder, stop the app, put a task a minute ahead with `sqlite3` (`due_at`
-in milliseconds, `has_time` 1), and start it again.
+`notifd.py` stands in for the notification server (`notifd.log`; write a
+button key to `press` to press it). To try a reminder: stop the app, insert a
+task a minute ahead with `sqlite3` (`due_at` ms, `has_time` 1), restart. Close
+the window with `WM_DELETE_WINDOW` to test size saving.
 
-Things that looked like bugs and were not:
-
-- **A drag that rests before letting go is not a fling.** Flutter takes
-  more than 40ms without movement for a stop, and a month dragged less than
-  half way and let go at rest goes back. The first harness paused 50ms
-  before the release, and for a while no pager could be turned by a mouse.
-- **Typing a path into GTK's file dialog can lose its second character**,
-  the first one being what opens the location bar. Type "/" and wait.
-- **The save dialog selects the name without its ending**, so typing over
-  it leaves ".json" behind.
-- **A file row clicked opens the file** in whatever the desk has for it,
-  on the test display; close that program by its pid, having checked its
-  `DISPLAY`, since the user may have one of their own open.
-- **Never `pkill -f`** with a pattern that the command doing the killing
-  also contains: it stops its own shell (exit 144), and the rest of the
-  line with it.
+Not bugs: a drag that pauses >40ms before release isn't a fling; GTK's file
+dialog may drop the second typed character (type "/" and wait); the save
+dialog selects the name without ".json"; clicking a file row opens it (kill
+that program by pid after checking its `DISPLAY`). **Never `pkill -f` a
+pattern the killing command itself contains.**
 
 ## Conventions
 
-- Comments explain **why**, at roughly Dicty's density. No narrating what the
-  line already says.
-- Commit messages are prose: what changed and the reason it needed changing.
-  End with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
-- `flutter analyze` must be clean before a commit.
+- Comments explain **why**, at about Dicty's density.
+- Commit messages are prose: what changed and why. End with the
+  `Co-Authored-By` line.
+- `flutter analyze` clean before every commit.
 
 ## Known gaps
 
-- **On Linux a reminder needs Caldo open.** There is no tray icon and
-  nothing running once the window is shut; keeping it alive behind a tray
-  icon, or starting it with the session, is the way to more.
-- **A notification clicked cannot bring the window forward.**
-- **The wide layout has no scrollbars**, and the board in a wide window
-  too small for three lanes is turned only by carrying a card to its side
-  or a sideways scroll.
-- **Undo's brush-off is measured against the window**, not the bar, so in
-  a wide window it takes a long pull; nobody brushes with a mouse.
-- **Linux is built for x64 only**; a release's file is not offered to any
-  other processor.
-
-- **A backup carries what is attached, not the files themselves.** The
-  `attachments` column rides along with the rest of the row, so restored on
-  the same phone everything is there, but on a new phone each attachment is
-  drawn as missing ("Not on this phone"). Carrying the files would mean a
-  backup that is an archive rather than JSON, and photos would put it past
-  the 64MB a restore reads.
-
-- Holiday names are in each country's own language, except the English-
-  speaking ones and Canada, which is English only.
-- The debug keyboard numbers (long press on the Settings title) are English
-  in either language.
+- Linux: reminders need Caldo open; a clicked notification can't raise the
+  window; no scrollbars in the wide layout; x64 only. Undo's brush-off is
+  measured against the window.
+- Backups carry attachment records, not files (on a new phone they show as
+  missing).
+- Holiday names are in each country's language (English-speaking countries
+  and Canada in English).
