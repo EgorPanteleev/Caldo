@@ -1,7 +1,11 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:caldo/db/database.dart';
 import 'package:caldo/db/sync_store.dart';
 import 'package:caldo/models/task.dart';
 import 'package:caldo/models/task_list.dart';
+import 'package:caldo/services/file_sync.dart';
 import 'package:caldo/services/sync.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -14,6 +18,12 @@ import 'support/test_db.dart';
 class FakeServer extends SyncServer {
   @override
   String? account = 'me';
+
+  /// Kept files, once a test gives the server somewhere to keep them.
+  FakeFiles? kept;
+
+  @override
+  FileStore? get files => kept;
 
   final _rows =
       <String, ({Map<String, Object?>? data, int at, bool gone, int seq})>{};
@@ -68,13 +78,68 @@ class FakeServer extends SyncServer {
       _rows['$account/$table/$uuid']?.data;
 }
 
-/// One phone: its own database, synced with [server].
+/// The account's files, in memory, each with when it was put there.
+class FakeFiles implements FileStore {
+  final kept = <String, (Uint8List, DateTime)>{};
+  var now = DateTime.now();
+
+  @override
+  Future<Map<String, DateTime>> list() async => {
+    for (final MapEntry(:key, value: (_, made)) in kept.entries) key: made,
+  };
+
+  @override
+  Future<void> put(String key, File file, String mime) async =>
+      kept[key] = (await file.readAsBytes(), now);
+
+  @override
+  Future<Uint8List?> get(String key) async => kept[key]?.$1;
+
+  @override
+  Future<void> remove(List<String> keys) async => keys.forEach(kept.remove);
+}
+
+/// One phone: its own database and attachments, synced with [server].
 class Device {
   final AppDatabase db;
+  final Directory files = Directory.systemTemp.createTempSync('caldo_files');
   late final Sync sync;
 
   Device(String name, SyncServer server) : db = AppDatabase.named(name) {
-    sync = Sync(SyncStore(db), server: server);
+    sync = Sync(
+      SyncStore(db),
+      server: server,
+      files: FileSync(db, dir: () => files.path),
+    );
+  }
+
+  /// A task with a file attached, its copy written here.
+  Future<Task> attach(String title, String folder, String text) async {
+    final copy = File('${files.path}/$folder/note.txt');
+    await copy.parent.create();
+    await copy.writeAsString(text);
+    return db.insert(
+      Task(
+        listId: 1,
+        title: title,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+        attachments: [
+          Attachment(
+            file: '$folder/note.txt',
+            name: 'note.txt',
+            mime: 'text/plain',
+          ),
+        ],
+      ),
+    );
+  }
+
+  File copyOf(String folder) => File('${files.path}/$folder/note.txt');
+
+  /// A round, and the files it set going.
+  Future<void> round() async {
+    await sync.run();
+    await sync.carried;
   }
 
   Future<Database> get raw => db.database;
@@ -140,6 +205,8 @@ void main() {
   tearDown(() async {
     await a.db.close();
     await b.db.close();
+    await a.files.delete(recursive: true);
+    await b.files.delete(recursive: true);
   });
 
   test('a task made on one phone turns up on the other', () async {
@@ -193,28 +260,31 @@ void main() {
     );
   });
 
-  test('a pull notes the tasks it wrote or deleted, for their alarms', () async {
-    final kept = await a.add('Ship');
-    final dropped = await a.add('Drop');
-    await a.sync.run();
-    await b.sync.run();
-    final there = (await b.named('Ship'))!.id!;
-    final gone = (await b.named('Drop'))!.id!;
-    expect(b.sync.store.touchedTasks, {there, gone});
+  test(
+    'a pull notes the tasks it wrote or deleted, for their alarms',
+    () async {
+      final kept = await a.add('Ship');
+      final dropped = await a.add('Drop');
+      await a.sync.run();
+      await b.sync.run();
+      final there = (await b.named('Ship'))!.id!;
+      final gone = (await b.named('Drop'))!.id!;
+      expect(b.sync.store.touchedTasks, {there, gone});
 
-    b.sync.store.touchedTasks.clear();
-    await tick();
-    await a.db.update(kept.copyWith(title: 'Ship it'));
-    await a.db.delete(dropped.id!);
-    await a.sync.run();
-    await b.sync.run();
-    expect(b.sync.store.touchedTasks, {there, gone});
-    expect(
-      a.sync.store.touchedTasks,
-      isEmpty,
-      reason: 'its own rows coming back write nothing',
-    );
-  });
+      b.sync.store.touchedTasks.clear();
+      await tick();
+      await a.db.update(kept.copyWith(title: 'Ship it'));
+      await a.db.delete(dropped.id!);
+      await a.sync.run();
+      await b.sync.run();
+      expect(b.sync.store.touchedTasks, {there, gone});
+      expect(
+        a.sync.store.touchedTasks,
+        isEmpty,
+        reason: 'its own rows coming back write nothing',
+      );
+    },
+  );
 
   test('of two edits made apart, the later wins on both phones', () async {
     await a.add('Ship');
@@ -368,5 +438,60 @@ void main() {
     server.account = null;
     expect(await a.sync.run(), isFalse);
     expect(await a.dirty(), greaterThan(0));
+  });
+
+  group('attachments', () {
+    const folder = '0a89f043-be94-4c3e-9d2b-5f1e2a3b4c5d';
+
+    setUp(() => server.kept = FakeFiles());
+
+    test('a file attached on one phone turns up on the other', () async {
+      await a.attach('Receipt', folder, 'paid');
+      await a.round();
+      expect(server.kept!.kept.keys, [folder]);
+
+      await b.round();
+      expect(await b.copyOf(folder).readAsString(), 'paid');
+      expect(
+        b.files
+            .listSync(recursive: true)
+            .where((f) => f.path.endsWith('.part')),
+        isEmpty,
+      );
+    });
+
+    test('a file goes up once, and only after its row', () async {
+      await a.attach('Receipt', folder, 'paid');
+      expect(await server.pull(0, 500), isEmpty);
+      await a.round();
+      final made = server.kept!.kept[folder]!.$2;
+      server.kept!.now = made.add(const Duration(minutes: 1));
+      await a.round();
+      expect(server.kept!.kept[folder]!.$2, made, reason: 'not sent again');
+    });
+
+    test('a file no task names goes from the server after a day', () async {
+      final task = await a.attach('Receipt', folder, 'paid');
+      await a.round();
+      await a.db.update(task.copyWith(attachments: const []));
+      await a.round();
+      expect(server.kept!.kept, contains(folder), reason: 'a day to be named');
+
+      final store = server.kept!;
+      await a.sync.files.carry(
+        store,
+        now: DateTime.now().add(const Duration(days: 1, minutes: 1)),
+      );
+      expect(store.kept, isEmpty);
+    });
+
+    test('a file named anywhere but its own folder is left alone', () {
+      Attachment named(String file) =>
+          Attachment(file: file, name: 'x', mime: 'text/plain');
+      expect(FileSync.keyOf(named('$folder/note.txt')), folder);
+      expect(FileSync.keyOf(named('../databases/caldo.db')), isNull);
+      expect(FileSync.keyOf(named('$folder/..')), isNull);
+      expect(FileSync.keyOf(named('$folder/a/b')), isNull);
+    });
   });
 }

@@ -10,6 +10,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +57,16 @@ class DailySync(context: Context, params: WorkerParameters) :
                     },
                 )
             } else {
-                Headless.call(applicationContext, "sync", emptyMap(), PATIENCE, answer)
+                // The widget's engine has no activity to ask where the
+                // attachments are kept.
+                val attachments = File(applicationContext.filesDir, Attachments.DIR).path
+                Headless.call(
+                    applicationContext,
+                    "sync",
+                    mapOf("attachments" to attachments),
+                    PATIENCE,
+                    answer,
+                )
             }
         }
         // Offline after all, or the server asleep: again in a while rather
@@ -67,8 +77,12 @@ class DailySync(context: Context, params: WorkerParameters) :
     companion object {
         private const val NAME = "caldo-sync"
 
-        /** A cold engine, a renewed session and a round of a few pages. */
-        private const val PATIENCE = 60_000L
+        /**
+         * A cold engine, a renewed session, a round of a few pages and the
+         * files it names: a few photos up or down. Short of the ten minutes
+         * Android gives a job.
+         */
+        private const val PATIENCE = 8 * 60_000L
 
         /** The app's own engine, while there is one; set by [MainActivity]. */
         var app: MethodChannel? = null

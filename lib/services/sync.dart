@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../db/sync_store.dart';
+import 'file_sync.dart';
 
 /// Where the rows go: the account's copy on the server.
 abstract class SyncServer {
@@ -18,6 +19,9 @@ abstract class SyncServer {
 
   /// The account's rows written after [since], oldest first, at most [page].
   Future<List<SyncRow>> pull(int since, int page);
+
+  /// Where the account's attachment files are kept, or null for nowhere.
+  FileStore? get files => null;
 }
 
 /// One round of sync: what changed here goes up, then what changed anywhere
@@ -31,12 +35,14 @@ class Sync {
   static final instance = Sync(SyncStore());
 
   final SyncStore store;
+  final FileSync files;
   SyncServer? server;
 
   /// Called when a round has changed something here, to read the lists back.
   VoidCallback? onChanged;
 
-  Sync(this.store, {this.server});
+  Sync(this.store, {this.server, FileSync? files})
+    : files = files ?? FileSync(store.db);
 
   static const _batch = 200;
   static const _page = 500;
@@ -49,6 +55,8 @@ class Sync {
   Future<bool>? _round;
   bool _again = false;
   Timer? _soon;
+  Future<void>? _carrying;
+  bool _carryAgain = false;
 
   /// A round in a moment: for a change just made here, or one heard of
   /// there. Changes come in bursts — a tick is a write and a read-back, a
@@ -108,6 +116,7 @@ class Sync {
       lastSynced.value = DateTime.now();
       error.value = null;
       if (changed) onChanged?.call();
+      _carry();
       return changed;
     } catch (e) {
       // Nothing is lost: what was not sent is still marked to send, and the
@@ -117,5 +126,37 @@ class Sync {
     } finally {
       running.value = false;
     }
+  }
+
+  /// Done once the files the rounds so far have asked for are carried.
+  Future<void> get carried async {
+    while (_carrying != null) {
+      await _carrying;
+    }
+  }
+
+  /// Carries the attachments' files after a round, apart from it: a photo
+  /// on its way up should not hold back the next round's rows, and the
+  /// rows naming a file have to be there before it.
+  void _carry() {
+    if (_carrying != null) {
+      _carryAgain = true;
+      return;
+    }
+    _carrying = _carryAll().whenComplete(() => _carrying = null);
+  }
+
+  Future<void> _carryAll() async {
+    do {
+      _carryAgain = false;
+      final store = server?.files;
+      if (store == null || server?.account == null) return;
+      try {
+        if (await files.carry(store)) onChanged?.call();
+      } catch (e) {
+        // Unreachable, most likely; carried after the next round.
+        debugPrint('Attachments not carried: $e');
+      }
+    } while (_carryAgain);
   }
 }

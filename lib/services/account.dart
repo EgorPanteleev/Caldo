@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +9,7 @@ import 'package:supabase/supabase.dart';
 
 import '../db/sync_store.dart';
 import '../utils/platform.dart';
+import 'file_sync.dart';
 import 'sync.dart';
 
 /// Signing in, and the server a signed-in device syncs with.
@@ -115,6 +117,7 @@ class Account {
       _daily.setMethodCallHandler((call) async {
         if (call.method != 'sync') return null;
         await Sync.instance.run();
+        await Sync.instance.carried;
         return Sync.instance.error.value == null;
       });
     }
@@ -152,6 +155,7 @@ class Account {
     _connect(address);
     try {
       final changed = await Sync.instance.run();
+      await Sync.instance.carried;
       final reached =
           Sync.instance.server?.account != null &&
           Sync.instance.error.value == null;
@@ -335,6 +339,10 @@ class Account {
   /// Deletes the account and everything it holds on the server. This
   /// device keeps its own.
   Future<void> deleteAccount() async {
+    // The files first: the server keeps them apart from the account, and
+    // nothing could reach them once it is gone.
+    final files = _Files(this);
+    await files.remove([...(await files.list()).keys]);
     await _client!.rpc('delete_account');
     await signOut();
   }
@@ -372,6 +380,9 @@ class _Server implements SyncServer {
   );
 
   @override
+  FileStore get files => _Files(_owner);
+
+  @override
   Future<List<SyncRow>> pull(int since, int page) async {
     final rows = await _client.rpc(
       'sync_pull',
@@ -380,5 +391,68 @@ class _Server implements SyncServer {
     return [
       for (final r in rows as List) SyncRow.fromJson(r as Map<String, Object?>),
     ];
+  }
+}
+
+/// The account's attachment files, in its own folder of the `attachments`
+/// bucket (`supabase/migrations/…_attachments.sql`).
+class _Files implements FileStore {
+  final Account _owner;
+
+  _Files(this._owner);
+
+  SupabaseClient get _client => _owner._client!;
+  StorageFileApi get _bucket => _client.storage.from('attachments');
+  String get _home => _client.auth.currentUser!.id;
+
+  static const _page = 1000;
+
+  @override
+  Future<Map<String, DateTime>> list() async {
+    final kept = <String, DateTime>{};
+    for (var offset = 0; ; offset += _page) {
+      final page = await _bucket.list(
+        path: _home,
+        searchOptions: SearchOptions(limit: _page, offset: offset),
+      );
+      for (final f in page) {
+        // A folder has no id; there are none in a home of files alone.
+        if (f.id == null) continue;
+        kept[f.name] = DateTime.tryParse(f.createdAt ?? '') ?? DateTime.now();
+      }
+      if (page.length < _page) return kept;
+    }
+  }
+
+  @override
+  Future<void> put(String key, File file, String mime) async {
+    try {
+      await _bucket.upload(
+        '$_home/$key',
+        file,
+        fileOptions: FileOptions(contentType: mime, upsert: true),
+      );
+    } on StorageException catch (e) {
+      throw FileRefused(e);
+    }
+  }
+
+  @override
+  Future<Uint8List?> get(String key) async {
+    try {
+      return await _bucket.download('$_home/$key');
+    } on StorageException catch (e) {
+      // Not found is answered as a 400 as well as a 404.
+      if (e.statusCode == '400' || e.statusCode == '404') return null;
+      throw FileRefused(e);
+    }
+  }
+
+  @override
+  Future<void> remove(List<String> keys) async {
+    for (var i = 0; i < keys.length; i += _page) {
+      final some = keys.sublist(i, (i + _page).clamp(0, keys.length));
+      await _bucket.remove([for (final k in some) '$_home/$k']);
+    }
   }
 }

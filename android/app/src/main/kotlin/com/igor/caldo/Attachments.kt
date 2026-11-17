@@ -237,10 +237,11 @@ class Attachments(private val activity: Activity) {
     private fun uriOf(file: File): Uri =
         FileProvider.getUriForFile(activity, "${activity.packageName}.files", file)
 
-    private companion object {
+    companion object {
+        /** Under the app's files; the daily sync's engine is told it too. */
         const val DIR = "attachments"
-        const val PICK = 10
-        const val TAKE = 11
-        const val LIMIT = 100L * 1024 * 1024
+        private const val PICK = 10
+        private const val TAKE = 11
+        private const val LIMIT = 100L * 1024 * 1024
     }
 }

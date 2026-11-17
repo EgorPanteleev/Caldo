@@ -13,6 +13,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../utils/platform.dart';
 import 'account.dart';
+import 'attachments.dart';
 import 'reminders.dart';
 import 'sync.dart';
 import 'today_widget.dart';
@@ -134,13 +135,15 @@ class Background {
       });
 
   /// A sync round with the app closed (`DailySync.kt`); says whether the
-  /// server was reached, so Android tries again soon if not.
+  /// server was reached, so Android tries again soon if not. [attachments]
+  /// is where the files attached to tasks are kept, for carrying them too.
   ///
   /// What came down is followed through as a tick is: the alarm of each
   /// task it touched, one by one — a full re-set would take down every
   /// notification showing — and the widget.
-  static Future<bool> sync() async {
+  static Future<bool> sync({String? attachments}) async {
     await _prepare();
+    Attachments.instance.dir ??= attachments;
     final store = Sync.instance.store..touchedTasks.clear();
     final (:reached, :changed) = await Account.instance.syncOnce();
     final touched = {...store.touchedTasks};
@@ -201,7 +204,9 @@ Future<void> widgetMain() async {
       if (call.method == 'toggle') {
         await Background.toggle(args['id'] as int, done: args['done'] as bool?);
       } else if (call.method == 'sync') {
-        answer = await Background.sync();
+        answer = await Background.sync(
+          attachments: args['attachments'] as String?,
+        );
       }
     });
     queue = answered.catchError((Object error, StackTrace stack) {

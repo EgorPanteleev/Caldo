@@ -32,7 +32,7 @@ lib/
   providers/               task, settings, events
   services/                reminders, background (isolates), today_widget,
                            device_calendars, updates, backup, sync, account,
-                           attachments, desktop
+                           attachments, file_sync, desktop
   screens/                 home (shell), tasks (Schedule), calendar, board,
                            done, search, task_edit, settings, desk_shell
   theme/app_theme.dart     AppPalette + AccentColors, AppColors
@@ -484,6 +484,16 @@ them will be noticed.
   reset: an admin does it from the dashboard.
 - **All-day tasks travel as a day** (`SyncStore._toDay`/`_fromDay`); timed
   tasks as instants.
+- **Attachment files travel after the rows** (`FileSync.carry`, `FileStore`,
+  `Account._Files`, bucket `attachments`, `…_attachments.sql`): a pass after
+  each round, apart from it (`Sync._carry`, `Sync.carried`), compares the
+  server's list with the files named here — up what is missing there, down
+  what is missing here (`.part`, then renamed). No local record of what was
+  sent. Key is the copy's folder uuid under `<user id>/`; a file named any
+  other way is ignored (`FileSync.keyOf`, guards paths from other devices).
+  Over 50MB stays on its device. A file no task names leaves the server a
+  day after it was put there. Deleting the account removes the files first
+  (Storage won't let SQL delete them).
 
 ### Android platform bits
 
@@ -578,7 +588,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 284 tests, all passing; keep it so. `supabase test db` — 28.
+`flutter test` — 288 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
@@ -728,7 +738,7 @@ pattern the killing command itself contains.**
   measured against the window. `caldo://` links open nothing on Linux.
 - No password reset for a forgotten password but by hand, and a free
   Supabase project pauses after about a week with no requests.
-- Backups carry attachment records, not files (on a new phone they show as
-  missing).
+- Backups carry attachment records, not files; on a new phone they come
+  down only if a synced device sent them. Files over 50MB never sync.
 - Holiday names are in each country's language (English-speaking countries
   and Canada in English).
