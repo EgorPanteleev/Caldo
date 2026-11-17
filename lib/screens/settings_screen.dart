@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
@@ -120,7 +121,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     (
       icon: Icons.sync_rounded,
       title: (s) => s.pageSync,
-      value: Account.instance.email.value ?? s.syncOff,
+      value: switch (Account.instance.email.value) {
+        final login? => Account.nameIn(login),
+        null => s.syncOff,
+      },
       rows: _sync,
     ),
     (
@@ -637,6 +641,7 @@ class _SyncRows extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge([
         account.email,
+        account.admin,
         account.server,
         sync.running,
         sync.lastSynced,
@@ -665,7 +670,7 @@ class _SyncRows extends StatelessWidget {
             _Group(
               footnote: s.syncNote,
               children: [
-                if (email == null)
+                if (email == null) ...[
                   _Row(
                     icon: Icons.person_outline_rounded,
                     title: s.syncSignIn,
@@ -675,11 +680,18 @@ class _SyncRows extends StatelessWidget {
                     onTap: server == null
                         ? () => showServerSheet(context)
                         : () => showSignInSheet(context),
-                  )
-                else ...[
+                  ),
+                  if (server != null)
+                    _Row(
+                      icon: Icons.person_add_alt_outlined,
+                      title: s.syncJoin,
+                      value: s.syncJoinHint,
+                      onTap: () => showJoinSheet(context),
+                    ),
+                ] else ...[
                   _Row(
                     icon: Icons.person_outline_rounded,
-                    title: email,
+                    title: Account.nameIn(email),
                     value: status,
                     warn: failed && !sync.running.value,
                   ),
@@ -688,6 +700,13 @@ class _SyncRows extends StatelessWidget {
                     title: s.syncNow,
                     onTap: sync.run,
                   ),
+                  if (account.admin.value)
+                    _Row(
+                      icon: Icons.person_add_alt_outlined,
+                      title: s.syncMakeInvite,
+                      value: s.syncMakeInviteHint,
+                      onTap: () => _makeInvite(context),
+                    ),
                 ],
               ],
             ),
@@ -723,6 +742,48 @@ class _SyncRows extends StatelessWidget {
       },
     );
   }
+}
+
+/// Makes an invite and shows its link, to be copied and sent.
+Future<void> _makeInvite(BuildContext context) async {
+  final s = S.of(context);
+  final String link;
+  try {
+    link = await Account.instance.makeInvite();
+  } catch (_) {
+    if (context.mounted) _say(context, s.syncUnreachable);
+    return;
+  }
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(s.syncMakeInvite),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SelectableText(
+            link,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+          Text(s.syncInviteMade),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.cancel)),
+        FilledButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: link));
+            if (ctx.mounted) Navigator.pop(ctx);
+            if (context.mounted) _say(context, s.syncCopied);
+          },
+          child: Text(s.syncCopy),
+        ),
+      ],
+    ),
+  );
 }
 
 Future<void> _deleteAccount(BuildContext context) async {

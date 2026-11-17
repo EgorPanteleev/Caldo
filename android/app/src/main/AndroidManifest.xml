@@ -62,6 +62,18 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- An invite to make an account, caldo://invite/<code>, handed to
+                 Dart by MainActivity.launchRequest. Flutter's own deep
+                 linking is off: it would push the link as a route. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="caldo" android:host="invite"/>
+            </intent-filter>
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false"/>
         </activity>
         <!-- The launcher's two ways in, each with its own icon, one on at a
              time (LauncherIcon): the page standing free on a Samsung, whose

@@ -10,6 +10,7 @@ import '../l10n/strings.dart';
 import '../db/database.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/account.dart';
 import '../services/backup.dart';
 import '../services/reminders.dart';
 import '../services/sync.dart';
@@ -21,6 +22,7 @@ import '../widgets/desk.dart';
 import '../widgets/menu_button.dart' show MenuScope;
 import '../widgets/quick_add_bar.dart' show BarFoot, BarRoom, KeyboardGap;
 import '../widgets/selection.dart';
+import '../widgets/sign_in_sheet.dart' show showJoinSheet;
 import '../widgets/tick_off.dart' show UndoSlot, withdrawUndo;
 import 'board_screen.dart';
 import 'calendar_screen.dart';
@@ -159,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen>
       final update = await Updates.instance.check();
       if (mounted && update != null) setState(() => _update = update);
     });
-    TodayWidget.listen(_openFromWidget);
+    TodayWidget.listen(_openFromWidget, invited: _openInvite);
     // One that started the app is already waiting by the first frame.
     Reminders.opened.addListener(_openReminder);
     WidgetsBinding.instance.addPostFrameCallback((_) => _openReminder());
@@ -262,6 +264,20 @@ class _HomeScreenState extends State<HomeScreen>
     if (id == null || !mounted) return;
     Reminders.opened.value = null;
     _openFromWidget(id);
+  }
+
+  /// An invite link opens the sheet that makes an account with it — unless
+  /// this device is already signed in, when there is nothing for it to do.
+  void _openInvite(String invite) {
+    final account = Account.instance;
+    if (account.email.value != null || account.server.value == null) return;
+    // The link that started the app arrives before its first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _closeMenu();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      showJoinSheet(context, invite: Account.inviteIn(invite));
+    });
   }
 
   /// A row of the home-screen widget opens its task's form, and the

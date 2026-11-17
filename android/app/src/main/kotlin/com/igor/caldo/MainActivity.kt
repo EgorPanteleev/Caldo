@@ -219,6 +219,7 @@ class MainActivity : FlutterActivity() {
                         result.success(launchRequest(intent))
                         intent.removeExtra(TodayWidget.EXTRA_OPEN_TASK)
                         intent.removeExtra(TodayWidget.EXTRA_NEW_TASK)
+                        intent.data = null
                     } else {
                         result.notImplemented()
                     }
@@ -581,10 +582,15 @@ class MainActivity : FlutterActivity() {
 
     /**
      * What a tap on the widget asked for: a task's form (its id), the form
-     * for a new one (no id), or nothing beyond the app itself (null).
+     * for a new one (no id), or nothing beyond the app itself (null). Or an
+     * invite link followed, caldo://invite/<code>.
      */
     private fun launchRequest(intent: Intent?): Map<String, Any?>? {
         intent ?: return null
+        val link = intent.data
+        if (intent.action == Intent.ACTION_VIEW && link?.scheme == "caldo" && link.host == "invite") {
+            return link.lastPathSegment?.let { mapOf("invite" to it) }
+        }
         if (intent.getBooleanExtra(TodayWidget.EXTRA_NEW_TASK, false)) return mapOf("task" to null)
         val id = intent.getLongExtra(TodayWidget.EXTRA_OPEN_TASK, -1)
         return if (id >= 0) mapOf("task" to id) else null

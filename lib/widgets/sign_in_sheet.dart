@@ -6,73 +6,99 @@ import '../services/account.dart';
 import '../theme/app_theme.dart';
 import 'date_time_pickers.dart' show SheetAction, showAppSheet;
 
-/// Signs in: an email address, then the code sent to it. Returns true once
-/// signed in.
+/// Signs in with a name and a password. Returns true once signed in.
 Future<bool?> showSignInSheet(BuildContext context) =>
-    showAppSheet<bool>(context, child: const _SignInSheet());
+    showAppSheet<bool>(context, child: const _AccountSheet(joining: false));
+
+/// Makes an account from an invite — [invite] filled in when a link was
+/// followed — and signs in to it. Returns true once signed in.
+Future<bool?> showJoinSheet(BuildContext context, {String? invite}) =>
+    showAppSheet<bool>(
+      context,
+      child: _AccountSheet(joining: true, invite: invite),
+    );
 
 /// Sets the address of the server this device syncs with.
 Future<void> showServerSheet(BuildContext context) =>
     showAppSheet<void>(context, child: const _ServerSheet());
 
-/// The email field in the sign-in sheet, and the code field after it.
-const signInEmailKey = Key('sign-in-email');
-const signInCodeKey = Key('sign-in-code');
+const signInNameKey = Key('sign-in-name');
+const signInPasswordKey = Key('sign-in-password');
+const signInInviteKey = Key('sign-in-invite');
 
-class _SignInSheet extends StatefulWidget {
-  const _SignInSheet();
+/// The shortest password Auth takes (its `minimum_password_length`).
+const _shortest = 6;
+
+class _AccountSheet extends StatefulWidget {
+  final bool joining;
+  final String? invite;
+
+  const _AccountSheet({required this.joining, this.invite});
 
   @override
-  State<_SignInSheet> createState() => _SignInSheetState();
+  State<_AccountSheet> createState() => _AccountSheetState();
 }
 
-class _SignInSheetState extends State<_SignInSheet> {
-  final _email = TextEditingController();
-  final _code = TextEditingController();
+class _AccountSheetState extends State<_AccountSheet> {
+  late final _invite = TextEditingController(text: widget.invite ?? '');
+  final _name = TextEditingController();
+  final _password = TextEditingController();
 
-  /// The address the code went to; null while it is still being asked for.
-  String? _sentTo;
   bool _busy = false;
   String? _problem;
 
   @override
   void dispose() {
-    _email.dispose();
-    _code.dispose();
+    _invite.dispose();
+    _name.dispose();
+    _password.dispose();
     super.dispose();
   }
 
-  /// What went wrong, in words: a code or an address the server turned
-  /// down, or no answer at all.
+  /// What went wrong, in words. An answer the server gave that none of
+  /// these covers is shown as it came, rather than as no answer at all.
   String _say(Object e, S s) {
-    if (e is AuthException) {
-      final code = e.code ?? '';
-      if (code.contains('otp') || e.statusCode == '403') return s.syncBadCode;
-      if (code.contains('email')) return s.syncBadEmail;
+    if (e is! AuthException) return s.syncUnreachable;
+    if (e.statusCode == '403') return s.syncBadInvite;
+    return switch (e.code) {
+      'invalid_credentials' => s.syncBadLogin,
+      'user_already_exists' => s.syncNameTaken,
+      'weak_password' => s.syncShortPassword(_shortest),
+      _ => e.message,
+    };
+  }
+
+  /// What is wrong with the fields before anything is sent, if anything.
+  String? _check(S s) {
+    if (widget.joining && Account.inviteIn(_invite.text).isEmpty) {
+      return s.syncBadInvite;
     }
-    return s.syncUnreachable;
+    if (!Account.fitsName(_name.text)) return s.syncBadName;
+    if (_password.text.length < _shortest) {
+      return s.syncShortPassword(_shortest);
+    }
+    return null;
   }
 
   Future<void> _go() async {
     final s = S.of(context);
     if (_busy) return;
+    final wrong = _check(s);
+    if (wrong != null) {
+      setState(() => _problem = wrong);
+      return;
+    }
     setState(() {
       _busy = true;
       _problem = null;
     });
     try {
-      final sentTo = _sentTo;
-      if (sentTo == null) {
-        final address = _email.text.trim();
-        if (!address.contains('@')) {
-          throw const AuthException('', code: 'email');
-        }
-        await Account.instance.sendCode(address);
-        if (mounted) setState(() => _sentTo = address);
+      if (widget.joining) {
+        await Account.instance.join(_invite.text, _name.text, _password.text);
       } else {
-        await Account.instance.verify(sentTo, _code.text);
-        if (mounted) Navigator.of(context).pop(true);
+        await Account.instance.signIn(_name.text, _password.text);
       }
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) setState(() => _problem = _say(e, s));
     } finally {
@@ -83,36 +109,57 @@ class _SignInSheetState extends State<_SignInSheet> {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
-    final sentTo = _sentTo;
+    final joining = widget.joining;
+    // The invite is asked for only when no link brought one.
+    final askInvite = joining && (widget.invite ?? '').isEmpty;
     return _Body(
-      title: s.syncSignIn,
-      note: sentTo == null ? s.syncSignInHint : s.syncCodeSent(sentTo),
+      title: joining ? s.syncJoin : s.syncSignIn,
+      note: joining ? s.syncJoinNote : s.syncSignInHint,
       problem: _problem,
-      field: sentTo == null
-          ? TextField(
-              key: signInEmailKey,
-              controller: _email,
-              autofocus: true,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              textInputAction: TextInputAction.send,
-              decoration: InputDecoration(labelText: s.syncEmail),
-              onSubmitted: (_) => _go(),
-            )
-          : TextField(
-              key: signInCodeKey,
-              controller: _code,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              maxLength: 10,
-              decoration: InputDecoration(
-                labelText: s.syncCode,
-                counterText: '',
+      field: AutofillGroup(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (askInvite) ...[
+              TextField(
+                key: signInInviteKey,
+                controller: _invite,
+                autofocus: true,
+                autocorrect: false,
+                textInputAction: TextInputAction.next,
+                decoration: InputDecoration(labelText: s.syncInvite),
               ),
+              const SizedBox(height: 10),
+            ],
+            TextField(
+              key: signInNameKey,
+              controller: _name,
+              autofocus: !askInvite,
+              autocorrect: false,
+              enableSuggestions: false,
+              keyboardType: TextInputType.visiblePassword,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.username],
+              decoration: InputDecoration(labelText: s.syncName),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              key: signInPasswordKey,
+              controller: _password,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.done,
+              autofillHints: [
+                joining ? AutofillHints.newPassword : AutofillHints.password,
+              ],
+              decoration: InputDecoration(labelText: s.syncPassword),
               onSubmitted: (_) => _go(),
             ),
-      action: sentTo == null ? s.syncSendCode : s.syncSignIn,
+          ],
+        ),
+      ),
+      action: joining ? s.syncJoinAction : s.syncSignIn,
       busy: _busy,
       onAction: _go,
     );
@@ -165,7 +212,7 @@ class _ServerSheetState extends State<_ServerSheet> {
   }
 }
 
-/// A sheet of one field: a title, a line about it, the field, what went
+/// A sheet of fields: a title, a line about it, the fields, what went
 /// wrong if anything did, and Cancel beside the action.
 class _Body extends StatelessWidget {
   final String title;

@@ -17,7 +17,8 @@ Linux and in tests), `shared_preferences`, `intl`,
 `flutter_local_notifications` + `timezone` + `flutter_timezone`. Platform
 font. `path_provider_linux`, `file_selector_linux` on the desktop. The
 home-screen widget is native (`TodayWidget.kt`, plain `RemoteViews`). The
-network is used only for the GitHub release check/download and Supabase sync.
+network is used only for the GitHub release check/download and Supabase sync
+(Supabase Cloud for now).
 
 ## Layout
 
@@ -445,11 +446,29 @@ them will be noticed.
   newer local change; rows are marked sent only as sent; cursor written with
   the rows. A different account marks everything dirty. Tested with
   `FakeServer` and `AppDatabase.named` (`sync_test.dart`).
-- **Sign-in is a six-digit emailed code** (`Account`, `showSignInSheet`,
-  Settings' Sync page), plain `supabase` package (not `supabase_flutter`).
-  Session in preferences. Rounds on open, resume, `Sync.soon` (2s after any
-  read-back), realtime, every 5 min. Server URL is per device for now;
-  cleartext allowed only to local addresses (`res/xml/network_security.xml`).
+- **The server is Supabase Cloud's free tier for now** (project
+  `eqgczddzmvmczwcgbenr`, URL and publishable key built into `Account`); the
+  user's VPS has 2GB, too little for the stack. A device can still be
+  pointed at a local Supabase in Settings (it then uses the local demo key);
+  cleartext is allowed only to local addresses
+  (`res/xml/network_security.xml`). Plain `supabase` package, not
+  `supabase_flutter`. Session in preferences, renewed without holding up
+  the first frame. Rounds on open, resume, `Sync.soon` (2s after any
+  read-back), realtime, every 5 min.
+- **Sign-in is a username and a password; accounts are made only by
+  invite** (`Account.signIn`/`join`, `showSignInSheet`/`showJoinSheet`,
+  `supabase/migrations/…_invites.sql`). Codes by email were first, but the
+  free tier will not send our template through its own mail, and the user
+  set no mail server up. A name is kept as `name@caldo.invalid`
+  (`Account.loginOf`/`nameIn`) — `.invalid` can never receive mail. Auth's
+  `before_user_created` hook refuses any new account without an unused
+  invite; a trigger on `auth.users` spends it (and rolls back a second
+  account in a race). Only rows in `public.admins` may `make_invite()`;
+  they get **Invite someone** in Settings (`Account.admin`). An invite is
+  one account, no expiry, sent as `caldo://invite/<code>` (claimed in the
+  manifest, handed over on the widget's launch channel; Flutter's deep
+  linking is off) — on Linux the code is pasted into Join. No password
+  reset: an admin does it from the dashboard.
 - **All-day tasks travel as a day** (`SyncStore._toDay`/`_fromDay`); timed
   tasks as instants.
 
@@ -546,7 +565,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 279 tests, all passing; keep it so.
+`flutter test` — 283 tests, all passing; keep it so. `supabase test db` — 28.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
@@ -645,8 +664,16 @@ supabase stop          # holds 2-3GB
 ```
 
 API `http://127.0.0.1:54321` (emulator: `10.0.2.2:54321`), dashboard :54323,
-emails (sign-in codes) in Mailpit :54324 (`/api/v1/messages`). The anon key in
-`Account` is the local default. If docker access fails, `newgrp docker`.
+Mailpit :54324. If docker access fails, `newgrp docker`.
+
+**The cloud project** is linked (`supabase/.temp`): `supabase db push
+--remote` applies migrations. **Never `config push` the repo's
+`config.toml`**: it is the local stack's (site URL, a 1s mail interval,
+pool sizes). Push a file declaring only what is meant, with `--workdir` on
+a scratch directory; undeclared settings are left alone. `supabase db query
+--remote` writes to the live database, so ask the user first; `--read-only`
+needs no asking. An admin is made with `insert into public.admins select id
+from auth.users where email = '<name>@caldo.invalid'`.
 
 ## Running on Linux
 
@@ -685,7 +712,9 @@ pattern the killing command itself contains.**
 
 - Linux: reminders need Caldo open; a clicked notification can't raise the
   window; no scrollbars in the wide layout; x64 only. Undo's brush-off is
-  measured against the window.
+  measured against the window. `caldo://` links open nothing on Linux.
+- No password reset for a forgotten password but by hand, and a free
+  Supabase project pauses after about a week with no requests.
 - Backups carry attachment records, not files (on a new phone they show as
   missing).
 - Holiday names are in each country's language (English-speaking countries

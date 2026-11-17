@@ -10,9 +10,11 @@ import 'sync.dart';
 
 /// Signing in, and the server a signed-in device syncs with.
 ///
-/// Sign-in is a six-figure code sent by email and typed into the app. A link
-/// would open a browser, and on the desktop a browser has no way back into
-/// the program. There is no password to forget.
+/// The login is a name and a password, and an account is made only with an
+/// invite (`supabase/migrations/…_invites.sql`). Codes sent by email were
+/// the first way in, but the server has no mail of its own to send them
+/// with. Auth wants an address, so a name is kept as one under a domain
+/// that can never receive mail ([loginOf]).
 ///
 /// Nothing happens until [enable] is called from `main`, so the widget tests
 /// never go online; without an account the app is what it always was.
@@ -20,22 +22,59 @@ class Account {
   Account._();
   static final instance = Account._();
 
-  /// Where the server is. Built in with `--dart-define=CALDO_SYNC_URL=…`
-  /// once there is one fixed address; until then each device is told in
-  /// Settings, since the emulator, the desktop and a phone each reach this
-  /// PC at a different address.
-  static const _builtServer = String.fromEnvironment('CALDO_SYNC_URL');
+  /// Where the server is: Caldo's project on Supabase's cloud, unless a
+  /// device is pointed elsewhere in Settings — a local Supabase on this PC,
+  /// which the emulator and the desktop reach at different addresses.
+  static const _builtServer = String.fromEnvironment(
+    'CALDO_SYNC_URL',
+    defaultValue: 'https://eqgczddzmvmczwcgbenr.supabase.co',
+  );
 
   /// The server's public key: it only says which project a request is for,
-  /// and every row is guarded by who is signed in, not by this. The default
-  /// is the one every local Supabase is started with.
-  static const _key = String.fromEnvironment(
+  /// and every row is guarded by who is signed in, not by this.
+  static const _builtKey = String.fromEnvironment(
     'CALDO_SYNC_KEY',
-    defaultValue:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwi'
-        'cm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnW'
-        'NReilDMblYTn_I0',
+    defaultValue: 'sb_publishable_UifMTJoD6l7uP40ZtL8aAA_2zk9ot27',
   );
+
+  /// The key every local Supabase is started with, for any other address.
+  static const _localKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwi'
+      'cm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnW'
+      'NReilDMblYTn_I0';
+
+  /// The domain a name is kept under. `.invalid` is reserved never to
+  /// resolve, so nothing could ever be mailed to one by mistake.
+  static const _domain = '@caldo.invalid';
+
+  /// The address Auth knows the name [name] by.
+  static String loginOf(String name) => name.trim().toLowerCase() + _domain;
+
+  /// The name in a login, or the login itself for an account made by email.
+  static String nameIn(String login) => login.endsWith(_domain)
+      ? login.substring(0, login.length - _domain.length)
+      : login;
+
+  /// Letters, digits, `_` and `-`, in parts joined by single dots, three to
+  /// thirty-two in all: what an address can carry before its `@`.
+  static bool fitsName(String name) {
+    final n = name.trim().toLowerCase();
+    return n.length >= 3 &&
+        n.length <= 32 &&
+        RegExp(r'^[a-z0-9_-]+(\.[a-z0-9_-]+)*$').hasMatch(n);
+  }
+
+  /// The invite in [text]: a whole link as sent (caldo://invite/…) or the
+  /// code alone, as typed or pasted on a computer, where the link opens
+  /// nothing.
+  static String inviteIn(String text) => text
+      .trim()
+      .split('/')
+      .last
+      .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
+      .toUpperCase();
+
+  static String linkTo(String invite) => 'caldo://invite/$invite';
 
   static const _serverKey = 'sync_server';
   static const _sessionKey = 'sync_session';
@@ -43,8 +82,11 @@ class Account {
   /// The server's address in force, or null for none.
   final server = ValueNotifier<String?>(null);
 
-  /// Who is signed in, or null.
+  /// The login of whoever is signed in, or null.
   final email = ValueNotifier<String?>(null);
+
+  /// Whether whoever is signed in may make invites.
+  final admin = ValueNotifier<bool>(false);
 
   SupabaseClient? _client;
   StreamSubscription<AuthState>? _auth;
@@ -66,8 +108,9 @@ class Account {
       // signed-in device as signed out while the session is renewed — or,
       // offline, until the server can be reached.
       email.value = _emailIn(stored);
-      await _restore();
-      Sync.instance.run();
+      // Not waited for: `main` waits for this, and renewing a session is a
+      // round trip to the server, which offline only ends in a timeout.
+      unawaited(_restore().then((_) => Sync.instance.run()));
     }
   }
 
@@ -83,7 +126,7 @@ class Account {
   void _connect(String address) {
     _client = SupabaseClient(
       address,
-      _key,
+      address == _builtServer ? _builtKey : _localKey,
       // A code typed in needs no PKCE, which would want somewhere to keep
       // its verifier between sending the code and checking it.
       authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),
@@ -109,6 +152,7 @@ class Account {
     if (state.event == AuthChangeEvent.signedOut) {
       await prefs.remove(_sessionKey);
       email.value = null;
+      admin.value = false;
       await _stopListening();
       return;
     }
@@ -116,6 +160,15 @@ class Account {
     await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
     email.value = session.user.email;
     _listen();
+    unawaited(_askAdmin());
+  }
+
+  Future<void> _askAdmin() async {
+    try {
+      admin.value = await _client!.rpc('is_admin') as bool;
+    } catch (_) {
+      // Unreachable; asked again on the next sign-in or opening.
+    }
   }
 
   /// Brings back the session kept from last time, renewing it if it has
@@ -176,21 +229,30 @@ class Account {
     if (next.isNotEmpty) _connect(next);
   }
 
-  /// Sends a code to [address], making the account if there is none.
-  Future<void> sendCode(String address) async {
-    await _client!.auth.signInWithOtp(email: address.trim());
-  }
-
-  /// Signs in with the code sent to [address], and syncs at once: the first
-  /// round sends everything on this device to the account.
-  Future<void> verify(String address, String code) async {
-    await _client!.auth.verifyOTP(
-      email: address.trim(),
-      token: code.trim(),
-      type: OtpType.email,
+  /// Signs in, and syncs at once: the first round sends everything on this
+  /// device to the account.
+  Future<void> signIn(String name, String password) async {
+    await _client!.auth.signInWithPassword(
+      email: loginOf(name),
+      password: password,
     );
     await Sync.instance.run();
   }
+
+  /// Makes an account with [invite] and signs in to it. The server turns
+  /// it down (403) unless the invite is one not yet used.
+  Future<void> join(String invite, String name, String password) async {
+    await _client!.auth.signUp(
+      email: loginOf(name),
+      password: password,
+      data: {'invite': inviteIn(invite)},
+    );
+    await Sync.instance.run();
+  }
+
+  /// A link that makes one account; only an admin's is honoured.
+  Future<String> makeInvite() async =>
+      linkTo(await _client!.rpc('make_invite') as String);
 
   /// Signs out. Everything stays on this device, and is sent again if it
   /// signs in to another account.

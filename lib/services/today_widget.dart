@@ -39,11 +39,22 @@ class TodayWidget {
 
   /// Has [open] called for each tap on the widget that asks for a form —
   /// with a task's id for one of its rows, with null for its add button —
-  /// including the tap the app was started by, if it was.
-  static Future<void> listen(void Function(int? task) open) async {
+  /// and [invited] for each invite link followed (caldo://invite/…),
+  /// including the one the app was started by, if it was. The launches come
+  /// down one channel, the widget's being the first there was.
+  static Future<void> listen(
+    void Function(int? task) open, {
+    required void Function(String invite) invited,
+  }) async {
     if (!_enabled) return;
     void take(Object? request) {
-      if (request is Map) open(request['task'] as int?);
+      if (request is! Map) return;
+      final invite = request['invite'];
+      if (invite is String) {
+        invited(invite);
+      } else {
+        open(request['task'] as int?);
+      }
     }
 
     _launches.setMethodCallHandler((call) async {
