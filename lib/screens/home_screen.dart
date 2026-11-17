@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' show FragmentProgram, ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -788,7 +788,7 @@ class _TabBar extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(_height / 2),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
         child: pill,
       ),
     );
@@ -796,40 +796,91 @@ class _TabBar extends StatelessWidget {
 }
 
 /// The strip under the tab bar: clear at its top, blurred more and more
-/// down to the screen's foot, and darkening into the ground. A blur can't
-/// be faded in by a gradient, so it is laid down in bands, each blurring
-/// the one before a little more; blurs add as the root of the sum of their
-/// squares, so each band adds what brings the whole to its share of [most].
-class _BarGround extends StatelessWidget {
+/// down to the screen's foot, and darkening a little into the ground.
+///
+/// A blur can't be faded in by a gradient. Laid in bands of fixed strength
+/// it showed a step at every band's edge, and the user didn't want any edge
+/// where the blur starts; so it is a shader that blurs each row by its own
+/// amount ([_program], `shaders/bar_ground.frag`), across and then down.
+/// The bands are kept for a renderer without shader filters (the desktop's).
+class _BarGround extends StatefulWidget {
   const _BarGround();
 
   /// How far above the bar's room it reaches.
   static const _lead = 24.0;
-  static const _bands = 8;
+
+  /// The blur at the foot.
   static const most = 10.0;
+
+  /// How dark it gets at the foot, of the ground.
+  static const _shade = 0.05;
+
+  static const _bands = 8;
+
+  static Future<FragmentProgram>? _loading;
+  static FragmentProgram? _program;
+
+  @override
+  State<_BarGround> createState() => _BarGroundState();
+}
+
+class _BarGroundState extends State<_BarGround> {
+  @override
+  void initState() {
+    super.initState();
+    if (_BarGround._program == null && ImageFilter.isShaderFilterSupported) {
+      (_BarGround._loading ??= FragmentProgram.fromAsset(
+        'shaders/bar_ground.frag',
+      )).then((program) {
+        _BarGround._program = program;
+        if (mounted) setState(() {});
+      }, onError: (_) {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    const height = BarRoom.room + _lead;
+    const height = BarRoom.room + _BarGround._lead;
+    final program = _BarGround._program;
+    if (program != null) {
+      WidgetsBinding.instance.addPostFrameCallback(_place);
+    }
     return IgnorePointer(
       child: SizedBox(
         height: height,
         child: Stack(
           children: [
-            for (var i = 1; i <= _bands; i++)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: height * (_bands - i + 1) / _bands,
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: _step(i),
-                    child: const SizedBox.expand(),
+            if (program != null)
+              // Two filters rather than one composed of both: composed,
+              // shader filters drew nothing at all.
+              // Nothing until it is known where the strip is.
+              for (final across in [
+                if (_foot > _top) ...[true, false],
+              ])
+                Positioned.fill(
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: _pass(program, across),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                )
+            else
+              for (var i = 1; i <= _BarGround._bands; i++)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height:
+                      height * (_BarGround._bands - i + 1) / _BarGround._bands,
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: _band(i),
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
-              ),
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -838,7 +889,7 @@ class _BarGround extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       p.bg.withValues(alpha: 0),
-                      p.bg.withValues(alpha: 0.5),
+                      p.bg.withValues(alpha: _BarGround._shade),
                     ],
                   ),
                 ),
@@ -850,9 +901,39 @@ class _BarGround extends StatelessWidget {
     );
   }
 
-  static ImageFilter _step(int i) {
+  /// Where the strip is on the screen, in pixels: the shader is handed the
+  /// screen's coordinates, not the strip's. Read after each layout.
+  double _top = 0, _foot = 0;
+
+  void _place(Duration _) {
+    if (!mounted) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final top = box.localToGlobal(Offset.zero).dy * ratio;
+    final foot = top + box.size.height * ratio;
+    if (top != _top || foot != _foot) {
+      setState(() {
+        _top = top;
+        _foot = foot;
+      });
+    }
+  }
+
+  /// One direction of the blur, growing from nothing at the strip's top.
+  ImageFilter _pass(FragmentProgram program, bool across) {
+    final shader = program.fragmentShader()
+      ..setFloat(2, across ? 1 : 0)
+      ..setFloat(3, across ? 0 : 1)
+      ..setFloat(4, _BarGround.most * MediaQuery.devicePixelRatioOf(context))
+      ..setFloat(5, _top)
+      ..setFloat(6, _foot);
+    return ImageFilter.shader(shader);
+  }
+
+  static ImageFilter _band(int i) {
     // Eased in, so it starts too faintly for its first edge to show.
-    double total(int k) => most * math.pow(k / _bands, 2);
+    double total(int k) => _BarGround.most * math.pow(k / _BarGround._bands, 2);
     final sigma = math.sqrt(math.pow(total(i), 2) - math.pow(total(i - 1), 2));
     // Mirrored at a band's edge: left to the default, the blur drew in
     // nothing from beyond it and darkened a line along each band's top.

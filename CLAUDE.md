@@ -290,9 +290,13 @@ them will be noticed.
 - **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light rim,
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
-  the screens, a little frosted (blur 20, fill at 60%), on `_BarGround`: a
-  strip blurred in eight bands from nothing to 10 at the foot, darkening to
-  half the ground. On Schedule the run
+  the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`: a
+  strip blurred from nothing to 10 at the foot, darkening to 5% of the
+  ground, with no edge where the blur starts. That takes a shader
+  (`shaders/bar_ground.frag`, a pass across and one down — composed into
+  one filter they drew nothing); it is given screen coordinates and on
+  GLES a flipped texture. Bands of fixed blur showed a step at each edge;
+  they are only the fallback where shader filters aren't (the desktop). On Schedule the run
   goes on under it; the field's ground and fade are drawn only while the
   keys are up (`KeyboardUp`). Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
