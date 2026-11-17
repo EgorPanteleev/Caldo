@@ -6,6 +6,7 @@ import '../l10n/strings.dart';
 import '../data/holidays.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
+import '../providers/vault_provider.dart';
 import '../services/account.dart';
 import '../services/backup.dart';
 import '../services/device_calendars.dart';
@@ -982,11 +983,13 @@ Future<void> _restoreBackup(BuildContext context) async {
     ),
   );
   if (ok != true || !context.mounted) return;
+  final vault = context.read<VaultProvider>();
   try {
     await backup.restore(
       context.read<SettingsProvider>(),
       context.read<TaskProvider>(),
     );
+    await vault.reload();
   } on BackupException catch (e) {
     if (context.mounted) _say(context, _backupProblem(s, e.problem));
     return;

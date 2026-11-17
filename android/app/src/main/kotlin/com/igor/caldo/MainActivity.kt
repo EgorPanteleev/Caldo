@@ -72,6 +72,9 @@ class MainActivity : FlutterActivity() {
     /** The files and photos attached to tasks, and the pickers for them. */
     private val attachments by lazy { Attachments(this) }
 
+    /** The vault's fingerprint, screen and clipboard. */
+    private val vault by lazy { Vault(this) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         useFastestRefreshRate()
@@ -297,6 +300,8 @@ class MainActivity : FlutterActivity() {
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ATTACHMENTS_CHANNEL)
             .setMethodCallHandler { call, result -> attachments.call(call, result) }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, VAULT_CHANNEL)
+            .setMethodCallHandler { call, result -> vault.call(call, result) }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -810,6 +815,7 @@ class MainActivity : FlutterActivity() {
         const val BACKUP_CHANNEL = "caldo/backup"
         const val ATTACHMENTS_CHANNEL = "caldo/attachments"
         const val SYNC_CHANNEL = "caldo/sync"
+        const val VAULT_CHANNEL = "caldo/vault"
 
         /** What the notification plugin calls the intent on a reminder. */
         const val REMINDER_ACTION = "SELECT_NOTIFICATION"

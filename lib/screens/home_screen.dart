@@ -33,6 +33,7 @@ import 'search_screen.dart';
 import 'settings_screen.dart';
 import 'task_edit_screen.dart';
 import 'tasks_screen.dart';
+import 'vault_screen.dart';
 
 /// Width the menu takes.
 const _menuWidth = 244.0;
@@ -106,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen>
       const CalendarScreen(),
       BoardScreen(shown: _boardShown),
       DoneScreen(shown: _doneShown),
+      VaultScreen(shown: _vaultShown),
       const SettingsScreen(),
     ])
       KeyedSubtree(key: GlobalKey(), child: page),
@@ -143,12 +145,15 @@ class _HomeScreenState extends State<HomeScreen>
   bool get _isOpen => _menu.value > 0.5;
 
   /// Whether the board and Done are the screen on show, which is when each
-  /// reads what it draws.
+  /// reads what it draws — and the vault, which is kept out of screenshots
+  /// only while it is.
   late final _boardShown = ValueNotifier<bool>(_index == _board);
   late final _doneShown = ValueNotifier<bool>(_index == _done);
+  late final _vaultShown = ValueNotifier<bool>(_index == _vault);
 
   static final _board = AppScreen.board.index;
   static final _done = AppScreen.done.index;
+  static final _vault = AppScreen.vault.index;
 
   @override
   void initState() {
@@ -194,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _search() => openSearch(context);
 
   /// The screen at [place] in the sidebar's order, if it is in it; Settings
-  /// is the fifth.
+  /// is the sixth.
   void _show(int place) {
     final hidden = context.read<SettingsProvider>().hiddenScreens;
     if (place < AppScreen.values.length &&
@@ -307,6 +312,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
     _boardShown.dispose();
     _doneShown.dispose();
+    _vaultShown.dispose();
     super.dispose();
   }
 
@@ -332,6 +338,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _index = i);
     _boardShown.value = i == _board;
     _doneShown.value = i == _done;
+    _vaultShown.value = i == _vault;
     DeskActions.instance.onCalendar = i == AppScreen.calendar.index;
     final provider = context.read<TaskProvider>();
     if (i == AppScreen.schedule.index) provider.loadTasks();
@@ -1404,6 +1411,7 @@ final menuItems = [
   ),
   MenuItem(Icons.view_kanban_outlined, Icons.view_kanban, (s) => s.board),
   MenuItem(Icons.task_alt_outlined, Icons.task_alt, (s) => s.done),
+  MenuItem(Icons.lock_outline_rounded, Icons.lock_rounded, (s) => s.vault),
   MenuItem(Icons.settings_outlined, Icons.settings, (s) => s.settings),
 ];
 

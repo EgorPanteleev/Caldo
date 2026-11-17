@@ -60,7 +60,17 @@ class SyncStore {
   /// by id: what a round run with the app closed has to set alarms for.
   final touchedTasks = <int>{};
 
-  static const _tables = ['lists', 'tasks', 'completions'];
+  /// In the order a pull writes them: a group before its tasks, a task
+  /// before its ticks. The vault's are sealed already, and travel as they
+  /// are kept; a secret names its key by uuid, not by id, so it needs no
+  /// link put into one.
+  static const _tables = [
+    'lists',
+    'tasks',
+    'completions',
+    'vault_keys',
+    'secrets',
+  ];
 
   /// What a row carries that is this device's alone, or put into a uuid.
   static const _local = {'id', 'uuid', 'updated_at', 'dirty'};

@@ -18,10 +18,12 @@ class AppDatabase {
   factory AppDatabase.named(String name) => AppDatabase._(name);
 
   final String _dbName;
-  static const _dbVersion = 11;
+  static const _dbVersion = 12;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
+  static const _vaultKeys = 'vault_keys';
+  static const _secrets = 'secrets';
   static const _syncState = 'sync_state';
   static const _tombstones = 'tombstones';
 
@@ -83,9 +85,10 @@ class AppDatabase {
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
         await db.execute('CREATE INDEX idx_tasks_list ON $_tasks (list_id)');
         await _createCompletions(db);
-        // The same step an upgrade takes, so a new install and an old one
+        // The same steps an upgrade takes, so a new install and an old one
         // cannot come out with different triggers.
         await _addSync(db);
+        await _addVault(db);
         await db.insert(_lists, {
           'name': 'Personal',
           'style_id': 'violet',
@@ -160,6 +163,10 @@ class AppDatabase {
           await _addSync(db);
           await _claimDefault(db);
         }
+        if (oldVersion < 12) {
+          // v11 -> the vault: its keys and the secrets they seal.
+          await _addVault(db);
+        }
       },
     );
   }
@@ -211,8 +218,7 @@ class AppDatabase {
         PRIMARY KEY (table_name, uuid)
       )
     ''');
-    const quiet = '(SELECT applying FROM $_syncState) = 0';
-    for (final table in backedUp) {
+    for (final table in const [_lists, _tasks, _completions]) {
       await db.execute('ALTER TABLE $table ADD COLUMN uuid TEXT');
       await db.execute(
         'ALTER TABLE $table ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0',
@@ -223,37 +229,84 @@ class AppDatabase {
       await db.execute(
         'UPDATE $table SET uuid = $_newUuid, updated_at = $_nowMs',
       );
-      await db.execute(
-        'CREATE UNIQUE INDEX idx_${table}_uuid ON $table (uuid)',
-      );
-      // A row given a uuid keeps it: a restore, and later a sync, write
-      // rows that already have one.
-      await db.execute('''
-        CREATE TRIGGER ${table}_inserted AFTER INSERT ON $table WHEN $quiet
-        BEGIN
-          UPDATE $table
-            SET uuid = COALESCE(NEW.uuid, $_newUuid),
-                updated_at = $_nowMs, dirty = 1
-            WHERE id = NEW.id;
-          DELETE FROM $_tombstones
-            WHERE table_name = '$table' AND uuid = NEW.uuid;
-        END
-      ''');
-      await db.execute('''
-        CREATE TRIGGER ${table}_updated AFTER UPDATE ON $table WHEN $quiet
-        BEGIN
-          UPDATE $table SET updated_at = $_nowMs, dirty = 1 WHERE id = NEW.id;
-        END
-      ''');
-      await db.execute('''
-        CREATE TRIGGER ${table}_deleted AFTER DELETE ON $table
-          WHEN OLD.uuid IS NOT NULL AND $quiet
-        BEGIN
-          INSERT OR REPLACE INTO $_tombstones (table_name, uuid, deleted_at)
-            VALUES ('$table', OLD.uuid, $_nowMs);
-        END
-      ''');
+      await _stamp(db, table);
     }
+  }
+
+  /// The columns a table made after v11 is born with, for the sync.
+  static const _syncColumns =
+      'uuid TEXT, updated_at INTEGER NOT NULL DEFAULT 0, '
+      'dirty INTEGER NOT NULL DEFAULT 1';
+
+  /// Gives [table] — one with the sync's columns — the triggers that stamp
+  /// its changes and bury its deletions.
+  static Future<void> _stamp(DatabaseExecutor db, String table) async {
+    const quiet = '(SELECT applying FROM $_syncState) = 0';
+    await db.execute('CREATE UNIQUE INDEX idx_${table}_uuid ON $table (uuid)');
+    // A row given a uuid keeps it: a restore, and later a sync, write
+    // rows that already have one.
+    await db.execute('''
+      CREATE TRIGGER ${table}_inserted AFTER INSERT ON $table WHEN $quiet
+      BEGIN
+        UPDATE $table
+          SET uuid = COALESCE(NEW.uuid, $_newUuid),
+              updated_at = $_nowMs, dirty = 1
+          WHERE id = NEW.id;
+        DELETE FROM $_tombstones
+          WHERE table_name = '$table' AND uuid = NEW.uuid;
+      END
+    ''');
+    await db.execute('''
+      CREATE TRIGGER ${table}_updated AFTER UPDATE ON $table WHEN $quiet
+      BEGIN
+        UPDATE $table SET updated_at = $_nowMs, dirty = 1 WHERE id = NEW.id;
+      END
+    ''');
+    await db.execute('''
+      CREATE TRIGGER ${table}_deleted AFTER DELETE ON $table
+        WHEN OLD.uuid IS NOT NULL AND $quiet
+      BEGIN
+        INSERT OR REPLACE INTO $_tombstones (table_name, uuid, deleted_at)
+          VALUES ('$table', OLD.uuid, $_nowMs);
+      END
+    ''');
+  }
+
+  /// The vault (schema v12): the keys secrets are sealed with, each sealed
+  /// in turn with the master password, and the secrets.
+  ///
+  /// Nothing here can be read without the password. A key's row holds the
+  /// salt and the setting the password is made into a key with, the vault's
+  /// key sealed with that, and a box (`proof`) that only the vault's key
+  /// opens — how a key handed back by the fingerprint is known to be the
+  /// right one. A secret's row holds the uuid of the key it is sealed with
+  /// and the box; even its name is inside.
+  ///
+  /// Synced and backed up like every other table: what leaves the device is
+  /// what is here, already sealed.
+  static Future<void> _addVault(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE $_vaultKeys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        salt TEXT NOT NULL,
+        kdf TEXT NOT NULL,
+        wrapped TEXT NOT NULL,
+        proof TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        $_syncColumns
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE $_secrets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key_id TEXT NOT NULL,
+        sealed TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        $_syncColumns
+      )
+    ''');
+    await _stamp(db, _vaultKeys);
+    await _stamp(db, _secrets);
   }
 
   /// Gives the oldest group — the default, which cannot be deleted — the
@@ -557,11 +610,109 @@ class AppDatabase {
     return db.delete(_tasks, where: 'done = 1');
   }
 
+  // ---- The vault ----------------------------------------------------------
+
+  /// Every key the vault has been sealed with, oldest first. Usually one; a
+  /// second comes of two devices each making a vault before either had
+  /// heard of the other's, until one of them is unlocked with both.
+  Future<List<Map<String, Object?>>> getVaultKeys() async {
+    final db = await database;
+    return db.query(_vaultKeys, orderBy: 'created_at ASC, uuid ASC');
+  }
+
+  Future<void> insertVaultKey(Map<String, Object?> key) async {
+    final db = await database;
+    await db.insert(_vaultKeys, key);
+  }
+
+  /// Writes back the key [uuid] sealed afresh, as a new master password
+  /// does.
+  Future<void> updateVaultKey(String uuid, Map<String, Object?> key) async {
+    final db = await database;
+    await db.update(_vaultKeys, key, where: 'uuid = ?', whereArgs: [uuid]);
+  }
+
+  /// Every secret, still sealed.
+  Future<List<Map<String, Object?>>> getSecrets() async {
+    final db = await database;
+    return db.query(_secrets);
+  }
+
+  /// Writes a sealed secret under its own [uuid], over the one of that uuid
+  /// if there is one.
+  Future<void> putSecret({
+    required String uuid,
+    required String keyId,
+    required String sealed,
+    required int createdAt,
+  }) async {
+    final db = await database;
+    final values = {'key_id': keyId, 'sealed': sealed};
+    final written = await db.update(
+      _secrets,
+      values,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    if (written == 0) {
+      await db.insert(_secrets, {
+        ...values,
+        'uuid': uuid,
+        'created_at': createdAt,
+      });
+    }
+  }
+
+  Future<void> deleteSecret(String uuid) async {
+    final db = await database;
+    await db.delete(_secrets, where: 'uuid = ?', whereArgs: [uuid]);
+  }
+
+  /// Moves the secrets sealed with the keys [from] over to [into], written
+  /// with each one's box sealed afresh, and lets those keys go — all at
+  /// once, so no secret is ever left sealed with a key that has gone.
+  Future<void> mergeVaultKeys({
+    required Set<String> from,
+    required String into,
+    required Map<String, String> resealed,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final MapEntry(key: uuid, value: sealed) in resealed.entries) {
+        await txn.update(
+          _secrets,
+          {'key_id': into, 'sealed': sealed},
+          where: 'uuid = ?',
+          whereArgs: [uuid],
+        );
+      }
+      for (final key in from) {
+        await txn.delete(_vaultKeys, where: 'uuid = ?', whereArgs: [key]);
+      }
+    });
+  }
+
+  /// Deletes the vault: every key and every secret, here and — through the
+  /// tombstones — on every device that syncs with this one.
+  Future<void> deleteVault() async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete(_secrets);
+      await txn.delete(_vaultKeys);
+    });
+  }
+
   // ---- Backups ------------------------------------------------------------
 
   /// The tables a backup carries, in the order they are written back: a
   /// task names its group and a tick names its task.
-  static const backedUp = [_lists, _tasks, _completions];
+  ///
+  /// The vault's go too, as sealed as they are here: a backup is a file
+  /// left lying about, and opens no secret without the master password.
+  static const backedUp = [_lists, _tasks, _completions, _vaultKeys, _secrets];
+
+  /// The vault's tables, which a backup from before them does not have.
+  static const _vaultTables = {_vaultKeys, _secrets};
 
   static int get schema => _dbVersion;
 
@@ -592,11 +743,18 @@ class AppDatabase {
     Map<String, List<Map<String, Object?>>> tables,
   ) async {
     final db = await database;
+    // A backup made before there was a vault leaves the vault as it is
+    // rather than emptying it: restoring last month's tasks should not cost
+    // every password.
+    final restored = [
+      for (final table in backedUp)
+        if (!_vaultTables.contains(table) || tables.containsKey(table)) table,
+    ];
     await db.transaction((txn) async {
-      for (final table in backedUp.reversed) {
+      for (final table in restored.reversed) {
         await txn.delete(table);
       }
-      for (final table in backedUp) {
+      for (final table in restored) {
         final columns = {
           for (final c in await txn.rawQuery('PRAGMA table_info($table)'))
             c['name'] as String,

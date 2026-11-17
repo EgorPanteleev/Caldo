@@ -13,7 +13,7 @@ import '../utils/dates.dart';
 
 /// The screens the menu leads to, Settings aside: it is always there, being
 /// the way back to the others.
-enum AppScreen { schedule, calendar, board, done }
+enum AppScreen { schedule, calendar, board, done, vault }
 
 /// Holds user-configurable settings: the screen the app opens on and which
 /// screens are in the menu, its theme mode and accent, which day the

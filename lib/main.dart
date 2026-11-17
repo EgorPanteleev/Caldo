@@ -9,6 +9,7 @@ import 'l10n/strings.dart';
 import 'providers/events_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/task_provider.dart';
+import 'providers/vault_provider.dart';
 import 'screens/home_screen.dart';
 import 'services/account.dart';
 import 'services/attachments.dart';
@@ -104,6 +105,8 @@ class CaldoApp extends StatelessWidget {
           update: (_, settings, tasks) =>
               tasks!..setShowCompleted(settings.showCompleted),
         ),
+        // The vault, which reads nothing until its screen is first shown.
+        ChangeNotifierProvider(create: (_) => VaultProvider()),
         // The phone's own calendars, read as Settings says.
         ChangeNotifierProxyProvider<SettingsProvider, EventsProvider>(
           create: (_) => EventsProvider(),

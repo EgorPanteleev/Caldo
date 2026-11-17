@@ -210,6 +210,19 @@ void main() {
         {1},
       );
       expect(await tombstones(), isEmpty);
+      // And on to v12: the vault's tables, empty, stamped like the rest.
+      for (final t in ['vault_keys', 'secrets']) {
+        expect(await (await db()).query(t), isEmpty);
+      }
+      await AppDatabase.instance.insertVaultKey({
+        'uuid': 'k',
+        'salt': '',
+        'kdf': '',
+        'wrapped': '',
+        'proof': '',
+        'created_at': 1,
+      });
+      expect((await (await db()).query('vault_keys')).single['dirty'], 1);
     },
   );
 }

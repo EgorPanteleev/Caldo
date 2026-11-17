@@ -56,6 +56,10 @@ dependencies:
   # supabase_flutter: that one brings deep links and a browser launcher for
   # sign-in by link, and Caldo signs in with a code typed into the app.
   supabase: ^2.16.5
+  # The vault's sealing: Argon2id for the master password and AES-GCM for
+  # what it holds, in pure Dart so the phone and the desktop seal alike.
+  # Already here under the Supabase client.
+  pointycastle: ^4.0.0
 
 dev_dependencies:
   flutter_test:

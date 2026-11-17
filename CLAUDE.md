@@ -26,15 +26,17 @@ network is used only for the GitHub release check/download and Supabase sync
 lib/
   data/holidays.dart       public holidays, computed on device
   l10n/                    strings.dart (S) + words_*.dart, a table per language
-  db/database.dart         schema v11 (+ migrations); db/sync_store.dart
+  db/database.dart         schema v12 (+ migrations); db/sync_store.dart
   models/                  task (Repeat, Priority), task_list (ListStyle,
-                           colorOfTask), completion
-  providers/               task, settings, events
+                           colorOfTask), completion, secret
+  providers/               task, settings, events, vault
   services/                reminders, background (isolates), today_widget,
                            device_calendars, updates, backup, sync, account,
-                           attachments, file_sync, desktop
+                           attachments, file_sync, desktop, sealing,
+                           vault_device
   screens/                 home (shell), tasks (Schedule), calendar, board,
-                           done, search, task_edit, settings, desk_shell
+                           done, search, task_edit, settings, desk_shell,
+                           vault
   theme/app_theme.dart     AppPalette + AccentColors, AppColors
   utils/                   dates.dart (every date/time string), platform.dart
   widgets/                 month_grid, task_card, day_sheet, day_hours,
@@ -45,15 +47,16 @@ lib/
 Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
 launches, calendars, backups), `PhoneEvents.kt`, `Attachments.kt`,
 `TodayWidget.kt` + `TodayWidgetRuns.kt`, `CaldoApplication.kt`,
-`LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`, `DailySync.kt`.
+`LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`, `DailySync.kt`,
+`Vault.kt`.
 Linux: `linux/` is Flutter's GTK runner plus the window
 (`runner/my_application.cc`), `sqlite_shim.cc`, icon + desktop entry,
 `install.sh`. No channels on Linux.
 Icon: SVG in `assets/icon/src`, rendered by `tool/make_icon.sh`
 (`rsvg-convert`); PNGs checked in.
 
-Five destinations: **Schedule, Calendar, Board, Done, Settings**. Any of the
-first four can be hidden; Settings can't.
+Six destinations: **Schedule, Calendar, Board, Done, Vault, Settings**. Any
+of the first five can be hidden; Settings can't.
 
 **Lists are "groups"; there are no list screens.** Groups surface through a
 chip row and a sheet only. `openList`, `GradientIconButton`, `SelectionBar`
@@ -501,6 +504,45 @@ them will be noticed.
   day after it was put there. Deleting the account removes the files first
   (Storage won't let SQL delete them).
 
+### Vault
+
+Asked for as "secrets storage, ciphered, opened by fingerprint or PIN";
+chosen: inside Caldo, synced end-to-end encrypted, fingerprint with a
+master password behind it.
+
+- **Two layers of key** (`VaultProvider`, `Sealing`): a random 32-byte vault
+  key seals every secret (AES-256-GCM, fresh nonce, the row's uuid bound in
+  as associated data); the master password (Argon2id, `Kdf.strong` 64 MiB
+  ×3, ~1s on the emulator, on an isolate) seals the vault key. The setting
+  is stored per key, so it can be raised later. A new password re-wraps
+  the same key; nothing else changes on any device. pointycastle, pure
+  Dart, so phone and desktop seal alike.
+- **Tables `vault_keys` and `secrets`** (schema v12, `_addVault`, stamped by
+  the same triggers via `_stamp`). Everything typed, the name included, is
+  inside one box (`Secret.seal`). Synced and backed up as they are; a
+  backup from before v12 leaves the vault alone (`_vaultTables`).
+- **Two vaults made apart become one**: unlocking opens every key the
+  password opens and moves secrets to the oldest (`_merge`); a key under a
+  different password waits (`sealedElsewhere`, a row that opens
+  `showOtherPassword`) and is merged into the key already open. Signed in
+  with no vault, the screen syncs first (`looking`) so a second isn't made.
+- **Fingerprint** (`Vault.kt`, `caldo/vault`): Android's own
+  `BiometricPrompt` (not AndroidX — Flutter's activity isn't a
+  FragmentActivity), API 28+. A Keystore AES key, auth per use, fingerprint
+  or (11+) the phone's PIN, invalidated by a new enrolment ("gone" → back to
+  the password). It seals a copy of the vault key kept in preferences
+  (`vault_finger`, never exported or synced); `proof` checks it is still
+  this vault's. Asked for by itself when the screen comes on show locked.
+- **Locks after the app is away `lockAfter` minutes** (default 1; 0 = at
+  once); the prompt's own pause (`asking`) doesn't count. `FLAG_SECURE`
+  only while the vault is open *and* on show — screenshots of the open
+  vault on the emulator are black on purpose; look at it on Linux.
+- **Copy** marks the clip sensitive and takes it back after 30s if still
+  ours (`VaultDevice.copy/clearCopied`, re-asked on resume since Android
+  hides the clipboard from the background).
+- Forgot the password: Delete vault on the locked page (tombstones reach
+  every device). No recovery, by design.
+
 ### Android platform bits
 
 - **Launcher icon** (`LauncherIcon.kt`, two `activity-alias`es): on Samsung the
@@ -546,7 +588,7 @@ desk** — their first word outranks this section.
   1240×780, min 340×560), saved in `window` on `delete-event`; single
   instance; dark title bar.
 - **Not on desktop**: home widget, phone calendars, full-screen reminder,
-  camera, keyboard numbers. Five phrases have `…Desktop` variants.
+  camera, keyboard numbers, the vault's fingerprint. Five phrases have `…Desktop` variants.
 - **Install**: `linux/install.sh` → `~/.local/opt/caldo`, `~/.local/bin/caldo`,
   entry `com.igor.caldo.desktop`.
 - **Self-update** (`Desktop.replaceWith`) from `Caldo-linux-x64.tar.gz` when a
@@ -586,7 +628,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
   selects; right-click opens `showTaskMenu` (put-off lives there,
   `PutOff.move`).
 - **Keys** (`DeskKeys`, a `Focus` above the navigator, `DeskActions`): Ctrl+N,
-  Ctrl+F/K, Ctrl+1–5; calendar arrows, PgUp/PgDn, Home/T. Only Escape while a
+  Ctrl+F/K, Ctrl+1–6; calendar arrows, PgUp/PgDn, Home/T. Only Escape while a
   dialog is open; arrows pass through to fields.
 - **Typed times** (`parseClock`): "9", "930", "9:30 pm".
 - **Never first-use a `late final` `AnimationController` in `dispose`**; make
@@ -594,7 +636,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 293 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 327 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

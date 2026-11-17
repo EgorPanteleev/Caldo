@@ -228,6 +228,72 @@ class S {
   String get figureWeek => _word('figureWeek');
   String daysInARow(int days) => _count('daysInARow', days);
 
+  // ---- The vault -----------------------------------------------------------
+  String get vault => _word('vault');
+  String get vaultLooking => _word('vaultLooking');
+  String get vaultSetUpTitle => _word('vaultSetUpTitle');
+  String get vaultSetUpNote => _word('vaultSetUpNote');
+  String get vaultMasterPassword => _word('vaultMasterPassword');
+  String get vaultRepeatPassword => _word('vaultRepeatPassword');
+  String get vaultFingerSwitch => _word('vaultFingerSwitch');
+  String get vaultFingerHint => _word('vaultFingerHint');
+  String get vaultCreate => _word('vaultCreate');
+  String vaultPasswordShort(int n) => _fill('vaultPasswordShort', {'n': n});
+  String get vaultPasswordsDiffer => _word('vaultPasswordsDiffer');
+  String get vaultLocked => _word('vaultLocked');
+  String get vaultUnlockHint => _word('vaultUnlockHint');
+  String get vaultUnlock => _word('vaultUnlock');
+  String get vaultUseFinger => _word('vaultUseFinger');
+  String get vaultWrongPassword => _word('vaultWrongPassword');
+  String get vaultFingerGone => _word('vaultFingerGone');
+  String get vaultFingerFailed => _word('vaultFingerFailed');
+  String get vaultForgot => _word('vaultForgot');
+  String get vaultForgotQuestion => _word('vaultForgotQuestion');
+  String get vaultForgotWarning => _word('vaultForgotWarning');
+  String get vaultDelete => _word('vaultDelete');
+  String get vaultNew => _word('vaultNew');
+  String get vaultSettings => _word('vaultSettings');
+  String get vaultLock => _word('vaultLock');
+  String get vaultEmpty => _word('vaultEmpty');
+  String get vaultEmptyHint => _word('vaultEmptyHint');
+  String get vaultSearch => _word('vaultSearch');
+  String vaultSealedElsewhere(int n) => _count('vaultSealedElsewhere', n);
+  String get vaultOtherPassword => _word('vaultOtherPassword');
+  String get vaultOtherNote => _word('vaultOtherNote');
+  String get vaultCopyPassword => _word('vaultCopyPassword');
+  String get vaultCopy => _word('vaultCopy');
+  String vaultCopied(int seconds) => _count('vaultCopied', seconds);
+  String get vaultShow => _word('vaultShow');
+  String get vaultHide => _word('vaultHide');
+  String get vaultDeleteQuestion => _word('vaultDeleteQuestion');
+  String get vaultName => _word('vaultName');
+  String get vaultNameMissing => _word('vaultNameMissing');
+  String get vaultLogin => _word('vaultLogin');
+  String get vaultPassword => _word('vaultPassword');
+  String get vaultWebsite => _word('vaultWebsite');
+  String get vaultField => _word('vaultField');
+  String get vaultFieldName => _word('vaultFieldName');
+  String get vaultFieldValue => _word('vaultFieldValue');
+  String get vaultAddField => _word('vaultAddField');
+  String get vaultNotes => _word('vaultNotes');
+  String get vaultEdit => _word('vaultEdit');
+  String get vaultGenerate => _word('vaultGenerate');
+  String vaultLength(int n) => _fill('vaultLength', {'n': n});
+  String get vaultDigits => _word('vaultDigits');
+  String get vaultSymbols => _word('vaultSymbols');
+  String get vaultUse => _word('vaultUse');
+  String get vaultLockAfter => _word('vaultLockAfter');
+  String get vaultLockAtOnce => _word('vaultLockAtOnce');
+  String vaultMinutes(int n) => _count('vaultMinutes', n);
+  String get vaultChangePassword => _word('vaultChangePassword');
+  String get vaultChangeNote => _word('vaultChangeNote');
+  String get vaultCurrentPassword => _word('vaultCurrentPassword');
+  String get vaultNewPassword => _word('vaultNewPassword');
+  String get vaultPasswordChanged => _word('vaultPasswordChanged');
+
+  /// Over Android's fingerprint prompt.
+  String get vaultPromptTitle => _word('vaultPromptTitle');
+
   // ---- Search --------------------------------------------------------------
   String get searchField => _word('searchField');
   String get searchYourTasks => _word('searchYourTasks');
