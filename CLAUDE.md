@@ -289,7 +289,9 @@ them will be noticed.
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
   the screens. Back goes to the start screen before leaving
-  (`Selection.anyActive` first).
+  (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
+  purple-ticked box over an open one, filled when lit — the bar's one
+  colour, asked for.
 - **With the bar, a 56pt round plus floats above its right end** (`_AddButton`,
   `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`), only on Schedule and
   Calendar. Tap opens the field (which lives in the bar's room while the
