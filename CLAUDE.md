@@ -45,7 +45,7 @@ lib/
 Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
 launches, calendars, backups), `PhoneEvents.kt`, `Attachments.kt`,
 `TodayWidget.kt` + `TodayWidgetRuns.kt`, `CaldoApplication.kt`,
-`LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`.
+`LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`, `DailySync.kt`.
 Linux: `linux/` is Flutter's GTK runner plus the window
 (`runner/my_application.cc`), `sqlite_shim.cc`, icon + desktop entry,
 `install.sh`. No channels on Linux.
@@ -455,6 +455,17 @@ them will be noticed.
   `supabase_flutter`. Session in preferences, renewed without holding up
   the first frame. Rounds on open, resume, `Sync.soon` (2s after any
   read-back), realtime, every 5 min.
+- **A round twice a day with the app closed** (`DailySync.kt`, WorkManager,
+  booked while signed in via `caldo/sync`). Run by whichever engine holds
+  the session: the app's if it lives (asked over `caldo/sync`), else the
+  widget's `Headless` (`Background.sync`, `Account.syncOnce`: reloads
+  preferences, holds the session for the one round only) — two engines
+  renewing one session spend its refresh token twice, and Supabase ends it.
+  Pulled tasks get their alarms one by one (`SyncStore.touchedTasks`,
+  `Reminders.reset`), never a full re-set. Not on Linux. To try it, move
+  the emulator's clock 13h on (`adb root`) and `cmd jobscheduler run -f -n
+  androidx.work.systemjobscheduler com.igor.caldo <id>`: WorkManager won't
+  run a periodic job early even when forced.
 - **Sign-in is a username and a password; accounts are made only by
   invite** (`Account.signIn`/`join`, `showSignInSheet`/`showJoinSheet`,
   `supabase/migrations/…_invites.sql`). Codes by email were first, but the
@@ -464,7 +475,9 @@ them will be noticed.
   `before_user_created` hook refuses any new account without an unused
   invite; a trigger on `auth.users` spends it (and rolls back a second
   account in a race). Only rows in `public.admins` may `make_invite()`;
-  they get **Invite someone** in Settings (`Account.admin`). An invite is
+  they get **Invite someone** in Settings (`Account.admin`, asked at
+  sign-in and before every round until yes, so a grant shows without a
+  restart). An invite is
   one account, no expiry, sent as `caldo://invite/<code>` (claimed in the
   manifest, handed over on the widget's launch channel; Flutter's deep
   linking is off) — on Linux the code is pasted into Join. No password
@@ -565,7 +578,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 283 tests, all passing; keep it so. `supabase test db` — 28.
+`flutter test` — 284 tests, all passing; keep it so. `supabase test db` — 28.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

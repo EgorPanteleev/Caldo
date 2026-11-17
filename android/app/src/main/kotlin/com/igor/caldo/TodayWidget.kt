@@ -413,23 +413,30 @@ object Headless {
     /** Long enough for a cold engine; short of the receiver's own limit. */
     private const val PATIENCE = 9_000L
 
-    private class Request(val method: String, val args: Map<String, Any>, val done: () -> Unit)
+    private class Request(val method: String, val args: Map<String, Any>, val done: (Any?) -> Unit)
 
     private var channel: io.flutter.plugin.common.MethodChannel? = null
     private var ready = false
     private val waiting = ArrayDeque<Request>()
     private val main = Handler(Looper.getMainLooper())
 
-    fun call(context: Context, method: String, args: Map<String, Any>, done: () -> Unit) {
+    /** [done] is given Dart's answer, or null if the wait ran out. */
+    fun call(
+        context: Context,
+        method: String,
+        args: Map<String, Any>,
+        patience: Long = PATIENCE,
+        done: (Any?) -> Unit,
+    ) {
         // Once only, whether Dart answers or the wait runs out.
         var finished = false
-        val once = {
+        val once = { result: Any? ->
             if (!finished) {
                 finished = true
-                done()
+                done(result)
             }
         }
-        main.postDelayed(once, PATIENCE)
+        main.postDelayed({ once(null) }, patience)
         waiting.addLast(Request(method, args, once))
         if (channel == null) start(context.applicationContext) else if (ready) drain()
     }
@@ -468,12 +475,12 @@ object Headless {
                 request.method,
                 request.args,
                 object : io.flutter.plugin.common.MethodChannel.Result {
-                    override fun success(result: Any?) = request.done()
+                    override fun success(result: Any?) = request.done(result)
 
                     override fun error(code: String, message: String?, details: Any?) =
-                        request.done()
+                        request.done(null)
 
-                    override fun notImplemented() = request.done()
+                    override fun notImplemented() = request.done(null)
                 },
             )
         }

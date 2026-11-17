@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase/supabase.dart';
 
 import '../db/sync_store.dart';
+import '../utils/platform.dart';
 import 'sync.dart';
 
 /// Signing in, and the server a signed-in device syncs with.
@@ -97,12 +99,30 @@ class Account {
   /// channel can drop without a word.
   static const _interval = Duration(minutes: 5);
 
+  /// Android's round while the app is closed (`DailySync.kt`): booked here
+  /// while signed in, and run here while the app's engine lives.
+  static const _daily = MethodChannel('caldo/sync');
+
+  /// Set for [syncOnce]: an engine with no screens, holding the session
+  /// only for one round.
+  bool _quiet = false;
+
   Future<void> enable() async {
     final prefs = await SharedPreferences.getInstance();
     final address = prefs.getString(_serverKey) ?? _builtServer;
     if (address.isEmpty) return;
+    if (!onDesktop) {
+      _daily.setMethodCallHandler((call) async {
+        if (call.method != 'sync') return null;
+        await Sync.instance.run();
+        return Sync.instance.error.value == null;
+      });
+    }
     _connect(address);
     final stored = prefs.getString(_sessionKey);
+    // Booked on every opening as well as at sign-in, so a device signed in
+    // before there was a daily round has one too.
+    unawaited(_book(stored != null));
     if (stored != null) {
       // Said at once, from what was kept, so Settings does not show a
       // signed-in device as signed out while the session is renewed — or,
@@ -111,6 +131,44 @@ class Account {
       // Not waited for: `main` waits for this, and renewing a session is a
       // round trip to the server, which offline only ends in a timeout.
       unawaited(_restore().then((_) => Sync.instance.run()));
+    }
+  }
+
+  /// One round from an engine with no screens: Android's while the app is
+  /// closed. Takes the session up from where the app keeps it, runs the
+  /// round, and lets go of it all again — no channel, no timer, and no
+  /// session left in memory to be renewed here behind the app's back.
+  Future<({bool reached, bool changed})> syncOnce() async {
+    final prefs = await SharedPreferences.getInstance();
+    // This engine may have been started long ago for the widget, and the
+    // session renewed by the app since: an old refresh token used again
+    // ends the session everywhere.
+    await prefs.reload();
+    final address = prefs.getString(_serverKey) ?? _builtServer;
+    if (address.isEmpty || prefs.getString(_sessionKey) == null) {
+      return (reached: true, changed: false);
+    }
+    _quiet = true;
+    _connect(address);
+    try {
+      final changed = await Sync.instance.run();
+      final reached =
+          Sync.instance.server?.account != null &&
+          Sync.instance.error.value == null;
+      return (reached: reached, changed: changed);
+    } finally {
+      await _disconnect();
+      _quiet = false;
+    }
+  }
+
+  /// Books Android's daily round, or calls it off.
+  Future<void> _book(bool signedIn) async {
+    if (onDesktop || _quiet) return;
+    try {
+      await _daily.invokeMethod<void>(signedIn ? 'keep' : 'stop');
+    } on MissingPluginException {
+      // No activity: the widget's engine, or a test.
     }
   }
 
@@ -154,13 +212,16 @@ class Account {
       email.value = null;
       admin.value = false;
       await _stopListening();
+      await _book(false);
       return;
     }
     if (session == null) return;
     await prefs.setString(_sessionKey, jsonEncode(session.toJson()));
     email.value = session.user.email;
+    if (_quiet) return;
     _listen();
     unawaited(_askAdmin());
+    unawaited(_book(true));
   }
 
   Future<void> _askAdmin() async {
@@ -186,6 +247,7 @@ class Account {
       if (e.statusCode == '400' || e.statusCode == '401') {
         await prefs.remove(_sessionKey);
         email.value = null;
+        await _book(false);
       }
     } catch (_) {
       // Unreachable; tried again on the next round.
@@ -265,7 +327,9 @@ class Account {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionKey);
     email.value = null;
+    admin.value = false;
     await _stopListening();
+    await _book(false);
   }
 
   /// Deletes the account and everything it holds on the server. This
@@ -289,7 +353,15 @@ class _Server implements SyncServer {
   String? get account => _owner._client?.auth.currentUser?.id;
 
   @override
-  Future<void> ready() => _owner._restore();
+  Future<void> ready() async {
+    await _owner._restore();
+    // Asked at sign-in, and again before every round until it says yes: a
+    // device signed in before it was made an admin, or offline when it
+    // asked, would otherwise not know until it was opened afresh.
+    if (!_owner._quiet && !_owner.admin.value && account != null) {
+      unawaited(_owner._askAdmin());
+    }
+  }
 
   @override
   Future<void> push(List<SyncRow> rows) => _client.rpc(

@@ -193,6 +193,29 @@ void main() {
     );
   });
 
+  test('a pull notes the tasks it wrote or deleted, for their alarms', () async {
+    final kept = await a.add('Ship');
+    final dropped = await a.add('Drop');
+    await a.sync.run();
+    await b.sync.run();
+    final there = (await b.named('Ship'))!.id!;
+    final gone = (await b.named('Drop'))!.id!;
+    expect(b.sync.store.touchedTasks, {there, gone});
+
+    b.sync.store.touchedTasks.clear();
+    await tick();
+    await a.db.update(kept.copyWith(title: 'Ship it'));
+    await a.db.delete(dropped.id!);
+    await a.sync.run();
+    await b.sync.run();
+    expect(b.sync.store.touchedTasks, {there, gone});
+    expect(
+      a.sync.store.touchedTasks,
+      isEmpty,
+      reason: 'its own rows coming back write nothing',
+    );
+  });
+
   test('of two edits made apart, the later wins on both phones', () async {
     await a.add('Ship');
     await a.sync.run();

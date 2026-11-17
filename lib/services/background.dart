@@ -12,11 +12,14 @@ import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../utils/platform.dart';
+import 'account.dart';
 import 'reminders.dart';
+import 'sync.dart';
 import 'today_widget.dart';
 
 /// Changes made to a task from outside the app's screens: a reminder's
-/// buttons, and a tick on the home-screen widget.
+/// buttons, a tick on the home-screen widget, and a sync round run while the
+/// app is closed.
 ///
 /// Both run in an isolate of their own, which may be the only one there is —
 /// the point of either is not having to open the app. So each does the whole
@@ -129,6 +132,37 @@ class Background {
         await db.untick(reopened);
         return reopened;
       });
+
+  /// A sync round with the app closed (`DailySync.kt`); says whether the
+  /// server was reached, so Android tries again soon if not.
+  ///
+  /// What came down is followed through as a tick is: the alarm of each
+  /// task it touched, one by one — a full re-set would take down every
+  /// notification showing — and the widget.
+  static Future<bool> sync() async {
+    await _prepare();
+    final store = Sync.instance.store..touchedTasks.clear();
+    final (:reached, :changed) = await Account.instance.syncOnce();
+    final touched = {...store.touchedTasks};
+    store.touchedTasks.clear();
+    if (!changed) return reached;
+    final db = AppDatabase.instance;
+    final tasks = TaskProvider();
+    await tasks.loadLists();
+    Reminders.instance.lists = tasks.lists;
+    for (final id in touched) {
+      final task = await db.getTask(id);
+      if (task == null) {
+        await Reminders.instance.dismiss(id);
+      } else {
+        await Reminders.instance.reset(task);
+      }
+    }
+    await tasks.readAgenda();
+    await TodayWidget.publish(tasks);
+    tasks.dispose();
+    return reached;
+  }
 }
 
 /// What a reminder's buttons call, on the notification plugin's own isolate.
@@ -151,8 +185,9 @@ Future<void> onReminderAction(NotificationResponse response) async {
 }
 
 /// Where the engine the widget starts begins (`Headless` in the activity's
-/// package). It answers ticks one at a time, in the order they were made: a
-/// second tap landing while the first is still being written would otherwise
+/// package), which also runs the daily sync round while the app is closed.
+/// It answers one request at a time, in the order they were made: a second
+/// tap landing while the first is still being written would otherwise
 /// redraw the widget from a read taken before the first was done.
 @pragma('vm:entry-point')
 Future<void> widgetMain() async {
@@ -160,17 +195,19 @@ Future<void> widgetMain() async {
   const channel = MethodChannel('caldo/headless');
   var queue = Future<void>.value();
   channel.setMethodCallHandler((call) {
+    Object? answer;
     final answered = queue.then((_) async {
       final args = call.arguments as Map;
-      final id = args['id'] as int;
       if (call.method == 'toggle') {
-        await Background.toggle(id, done: args['done'] as bool?);
+        await Background.toggle(args['id'] as int, done: args['done'] as bool?);
+      } else if (call.method == 'sync') {
+        answer = await Background.sync();
       }
     });
     queue = answered.catchError((Object error, StackTrace stack) {
       debugPrint('Widget ${call.method} failed: $error\n$stack');
     });
-    return queue;
+    return queue.then((_) => answer);
   });
   await channel.invokeMethod<void>('ready');
 }

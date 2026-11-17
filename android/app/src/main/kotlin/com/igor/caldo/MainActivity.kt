@@ -282,6 +282,19 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // Both ways: Dart books the daily round while signed in, and the
+        // round, when it comes, is run here while this engine lives.
+        DailySync.app = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SYNC_CHANNEL)
+            .apply {
+                setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "keep" -> DailySync.keep(applicationContext)
+                        "stop" -> DailySync.stop(applicationContext)
+                        else -> return@setMethodCallHandler result.notImplemented()
+                    }
+                    result.success(null)
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ATTACHMENTS_CHANNEL)
             .setMethodCallHandler { call, result -> attachments.call(call, result) }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
@@ -293,6 +306,13 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        // Gone with the engine: a round asked of it now would never answer,
+        // and the widget's engine takes the session over.
+        DailySync.app = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     /**
@@ -789,6 +809,7 @@ class MainActivity : FlutterActivity() {
         const val REMINDER_CHANNEL = "caldo/reminder"
         const val BACKUP_CHANNEL = "caldo/backup"
         const val ATTACHMENTS_CHANNEL = "caldo/attachments"
+        const val SYNC_CHANNEL = "caldo/sync"
 
         /** What the notification plugin calls the intent on a reminder. */
         const val REMINDER_ACTION = "SELECT_NOTIFICATION"

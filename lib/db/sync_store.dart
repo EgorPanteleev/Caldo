@@ -56,6 +56,10 @@ class SyncStore {
 
   SyncStore([AppDatabase? db]) : db = db ?? AppDatabase.instance;
 
+  /// The tasks a pull has written or deleted since this was last cleared,
+  /// by id: what a round run with the app closed has to set alarms for.
+  final touchedTasks = <int>{};
+
   static const _tables = ['lists', 'tasks', 'completions'];
 
   /// What a row carries that is this device's alone, or put into a uuid.
@@ -277,6 +281,7 @@ class SyncStore {
     if (r.deleted) {
       if (here == null) return false;
       await txn.delete(r.table, where: 'id = ?', whereArgs: [here['id']]);
+      if (r.table == 'tasks') touchedTasks.add(here['id'] as int);
       return true;
     }
     // This device's own row, come back: nothing to write.
@@ -301,16 +306,14 @@ class SyncStore {
       if (id == null && target == 'lists') id = await _defaultList(txn);
       values[column] = id;
     }
+    final int written;
     if (here == null) {
-      await txn.insert(r.table, values);
+      written = await txn.insert(r.table, values);
     } else {
-      await txn.update(
-        r.table,
-        values,
-        where: 'id = ?',
-        whereArgs: [here['id']],
-      );
+      written = here['id'] as int;
+      await txn.update(r.table, values, where: 'id = ?', whereArgs: [written]);
     }
+    if (r.table == 'tasks') touchedTasks.add(written);
     return true;
   }
 

@@ -85,4 +85,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    // The daily sync round while the app is closed (DailySync).
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
 }
