@@ -955,7 +955,8 @@ final screenItems = [
 ];
 
 /// The bar's one tab for the three task views. Drawn, not a font icon: a
-/// lone checkbox read as a form field, not as a screen of tasks.
+/// lone checkbox read as a form field, not as a screen of tasks, and the
+/// font has no clipboard with a tick.
 final tasksItem = ScreenItem(
   Icons.check_box_outlined,
   Icons.check_box,
@@ -974,10 +975,11 @@ class ScreenItem {
   const ScreenItem(this.icon, this.activeIcon, this.label, {this.glyph});
 }
 
-/// Two task rows in small: a ticked box over an open one, each with its
-/// line of title. The ticked box is the one purple in the bar — asked for.
-/// It is filled lit or not, only dimmer unlit: a purple outline round the
-/// tick looked bad.
+/// A clipboard with a tick on it: a solid shape at the weight of the lock
+/// and the gear beside it, outlined unlit and filled lit like they are.
+/// The tick is the one purple in the bar — asked for — dimmer unlit so the
+/// tab doesn't outshine the one that is lit. Two rows of boxes and dashes
+/// were drawn first and looked cramped at this size.
 class _TasksGlyph extends StatelessWidget {
   final bool selected;
   final Color color;
@@ -992,12 +994,9 @@ class _TasksGlyph extends StatelessWidget {
       dimension: 22,
       child: CustomPaint(
         painter: _TasksPainter(
-          lines: color,
-          // Half way to the unlit grey, so the tab doesn't outshine the
-          // one that is lit.
-          fill: selected ? purple : Color.lerp(purple, color, 0.45)!,
-          // Unlit, the tick is cut out of the box in the bar's grey.
-          tick: selected ? Colors.white : AppTheme.of(context).panelHi,
+          selected: selected,
+          board: color,
+          tick: selected ? purple : Color.lerp(purple, color, 0.45)!,
         ),
       ),
     );
@@ -1005,13 +1004,13 @@ class _TasksGlyph extends StatelessWidget {
 }
 
 class _TasksPainter extends CustomPainter {
-  final Color lines;
-  final Color fill;
+  final bool selected;
+  final Color board;
   final Color tick;
 
   const _TasksPainter({
-    required this.lines,
-    required this.fill,
+    required this.selected,
+    required this.board,
     required this.tick,
   });
 
@@ -1019,45 +1018,53 @@ class _TasksPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // In a 22-unit square, at the font icons' weight of two units.
     final u = size.width / 22;
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2 * u
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    RRect box(double top) => RRect.fromRectAndRadius(
-      Rect.fromLTWH(2 * u, top * u, 7.5 * u, 7.5 * u),
-      Radius.circular(2.3 * u),
+    final body = RRect.fromRectAndRadius(
+      Rect.fromLTWH(4 * u, 3.6 * u, 14 * u, 16.5 * u),
+      Radius.circular(3 * u),
+    );
+    final clip = RRect.fromRectAndRadius(
+      Rect.fromLTWH(7.5 * u, 1.4 * u, 7 * u, 4 * u),
+      Radius.circular(1.5 * u),
     );
 
-    // The ticked row. Filled, the box takes the stroke's outer edge, so
-    // it is as big as the open one below.
-    canvas.drawRRect(box(2.75).inflate(u), Paint()..color = fill);
+    // On a layer, so the gap round the clip is cut through to whatever
+    // the tab stands on — the bar, or the lit tab's pill.
+    canvas.saveLayer(Offset.zero & size, Paint());
+    if (selected) {
+      // Filled, the board takes the stroke's outer edge, so it is no
+      // bigger lit than unlit.
+      canvas.drawRRect(body.inflate(u), Paint()..color = board);
+    } else {
+      canvas.drawRRect(
+        body,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2 * u
+          ..color = board,
+      );
+    }
+    canvas.drawRRect(
+      clip.inflate(0.8 * u),
+      Paint()..blendMode = BlendMode.clear,
+    );
+    canvas.drawRRect(clip, Paint()..color = board);
+    canvas.restore();
+
     canvas.drawPath(
       Path()
-        ..moveTo(3.9 * u, 6.8 * u)
-        ..lineTo(5.3 * u, 8.2 * u)
-        ..lineTo(7.7 * u, 5.3 * u),
-      Paint.from(stroke)
-        ..color = tick
-        ..strokeWidth = 1.8 * u,
-    );
-    canvas.drawLine(
-      Offset(13 * u, 6.5 * u),
-      Offset(16.5 * u, 6.5 * u),
-      Paint.from(stroke)..color = lines,
-    );
-
-    // The open row. Its title is the longer: the overdue dot sits at the
-    // top corner, and on the first row's end it hid it.
-    canvas.drawRRect(box(12.75), Paint.from(stroke)..color = lines);
-    canvas.drawLine(
-      Offset(13 * u, 16.5 * u),
-      Offset(20 * u, 16.5 * u),
-      Paint.from(stroke)..color = lines,
+        ..moveTo(7.6 * u, 12.4 * u)
+        ..lineTo(10 * u, 14.8 * u)
+        ..lineTo(14.6 * u, 10 * u),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2 * u
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = tick,
     );
   }
 
   @override
   bool shouldRepaint(_TasksPainter old) =>
-      old.lines != lines || old.fill != fill || old.tick != tick;
+      old.selected != selected || old.board != board || old.tick != tick;
 }
