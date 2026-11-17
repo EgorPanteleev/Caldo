@@ -956,7 +956,7 @@ final screenItems = [
 
 /// The bar's one tab for the three task views. Drawn, not a font icon: a
 /// lone checkbox read as a form field, not as a screen of tasks, and the
-/// font has no box with a tick breaking out of it.
+/// font has no checklist with a tick in its own colour.
 final tasksItem = ScreenItem(
   Icons.check_box_outlined,
   Icons.check_box,
@@ -975,12 +975,11 @@ class ScreenItem {
   const ScreenItem(this.icon, this.activeIcon, this.label, {this.glyph});
 }
 
-/// A box with a tick breaking out of its corner: a solid shape at the
-/// weight of the lock and the gear beside it, outlined unlit and filled lit
-/// like they are. The tick is the one purple in the bar — asked for —
-/// dimmer unlit so the tab doesn't outshine the one that is lit. Two rows
-/// of boxes and dashes looked cramped at this size; a clipboard came next
-/// and was asked to be redone.
+/// A short checklist: a ticked line over an open one. The tick is the one
+/// purple in the bar — asked for — dimmer unlit so the tab doesn't outshine
+/// the one that is lit; lit, the rest only brightens, since filling the
+/// ring would tick it. Two rows of boxes and dashes looked cramped at this
+/// size; a clipboard, and a box with a tick breaking out of it, came next.
 class _TasksGlyph extends StatelessWidget {
   final bool selected;
   final Color color;
@@ -995,8 +994,7 @@ class _TasksGlyph extends StatelessWidget {
       dimension: 22,
       child: CustomPaint(
         painter: _TasksPainter(
-          selected: selected,
-          box: color,
+          ink: color,
           tick: selected ? purple : Color.lerp(purple, color, 0.45)!,
         ),
       ),
@@ -1005,51 +1003,40 @@ class _TasksGlyph extends StatelessWidget {
 }
 
 class _TasksPainter extends CustomPainter {
-  final bool selected;
-  final Color box;
+  final Color ink;
   final Color tick;
 
-  const _TasksPainter({
-    required this.selected,
-    required this.box,
-    required this.tick,
-  });
+  const _TasksPainter({required this.ink, required this.tick});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // In a 22-unit square, at the font icons' weight of two units.
+    // In a 22-unit square, near the font icons' weight of two units. The
+    // top line ends clear of the overdue dot.
     final u = size.width / 22;
-    final body = RRect.fromRectAndRadius(
-      Rect.fromLTWH(2.8 * u, 4.5 * u, 14 * u, 14 * u),
-      Radius.circular(3 * u),
-    );
-    // Its end stops short of the corner, where the overdue dot sits.
-    final mark = Path()
-      ..moveTo(6.5 * u, 10.6 * u)
-      ..lineTo(9.9 * u, 14 * u)
-      ..lineTo(18 * u, 5.9 * u);
-    Paint stroke(double width) => Paint()
+    Paint stroke(double width, Color color) => Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = width * u
       ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+      ..strokeJoin = StrokeJoin.round
+      ..color = color;
 
-    // On a layer, so the gap round the tick is cut through to whatever
-    // the tab stands on — the bar, or the lit tab's pill.
-    canvas.saveLayer(Offset.zero & size, Paint());
-    if (selected) {
-      // Filled, the box takes the stroke's outer edge, so it is no bigger
-      // lit than unlit.
-      canvas.drawRRect(body.inflate(u), Paint()..color = box);
-    } else {
-      canvas.drawRRect(body, stroke(2)..color = box);
-    }
-    canvas.drawPath(mark, stroke(5)..blendMode = BlendMode.clear);
-    canvas.drawPath(mark, stroke(2.4)..color = tick);
-    canvas.restore();
+    canvas.drawPath(
+      Path()
+        ..moveTo(2.8 * u, 6.6 * u)
+        ..lineTo(4.8 * u, 8.6 * u)
+        ..lineTo(8.6 * u, 4.6 * u),
+      stroke(2.2, tick),
+    );
+    canvas.drawCircle(Offset(5.6 * u, 15.2 * u), 2.6 * u, stroke(1.9, ink));
+    final line = stroke(2.2, ink);
+    canvas.drawLine(Offset(11.5 * u, 6.8 * u), Offset(19.5 * u, 6.8 * u), line);
+    canvas.drawLine(
+      Offset(11.5 * u, 15.2 * u),
+      Offset(19.5 * u, 15.2 * u),
+      line,
+    );
   }
 
   @override
-  bool shouldRepaint(_TasksPainter old) =>
-      old.selected != selected || old.box != box || old.tick != tick;
+  bool shouldRepaint(_TasksPainter old) => old.ink != ink || old.tick != tick;
 }
