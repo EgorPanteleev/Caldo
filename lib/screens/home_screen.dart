@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -479,6 +480,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
+          // What the bar stands on: the foot of the screen blurred more and
+          // more towards the bottom, so the bar isn't a pill pasted on top
+          // of sharp cards. Goes with the bar.
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _WhileKeyboardDown(child: _BarGround()),
+          ),
           // Over the screen rather than under it, so the ground the screen
           // stands on runs on beneath the bar. It goes while the keyboard is
           // up: the screen's field is brought up in its place and rides the
@@ -781,6 +791,75 @@ class _TabBar extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: pill,
       ),
+    );
+  }
+}
+
+/// The strip under the tab bar: clear at its top, blurred more and more
+/// down to the screen's foot, and darkening into the ground. A blur can't
+/// be faded in by a gradient, so it is laid down in bands, each blurring
+/// the one before a little more; blurs add as the root of the sum of their
+/// squares, so each band adds what brings the whole to its share of [most].
+class _BarGround extends StatelessWidget {
+  const _BarGround();
+
+  /// How far above the bar's room it reaches.
+  static const _lead = 24.0;
+  static const _bands = 8;
+  static const most = 10.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    const height = BarRoom.room + _lead;
+    return IgnorePointer(
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          children: [
+            for (var i = 1; i <= _bands; i++)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: height * (_bands - i + 1) / _bands,
+                child: ClipRect(
+                  child: BackdropFilter(
+                    filter: _step(i),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      p.bg.withValues(alpha: 0),
+                      p.bg.withValues(alpha: 0.5),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static ImageFilter _step(int i) {
+    // Eased in, so it starts too faintly for its first edge to show.
+    double total(int k) => most * math.pow(k / _bands, 2);
+    final sigma = math.sqrt(math.pow(total(i), 2) - math.pow(total(i - 1), 2));
+    // Mirrored at a band's edge: left to the default, the blur drew in
+    // nothing from beyond it and darkened a line along each band's top.
+    return ImageFilter.blur(
+      sigmaX: sigma,
+      sigmaY: sigma,
+      tileMode: TileMode.mirror,
     );
   }
 }
