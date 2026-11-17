@@ -290,10 +290,11 @@ them will be noticed.
   pill slides to the current tab (240ms), names shrink not cut. Floats over
   the screens. Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
-  clipboard, outlined unlit and filled lit like the font icons, with a
-  purple tick — the bar's one colour, asked for, dimmer unlit. Two rows of
-  boxes and dashes came first and looked cramped; a purple outline looked
-  bad.
+  box with a purple tick breaking out of its corner (a gap cut round the
+  tick), outlined unlit and filled lit like the font icons — the bar's one
+  colour, asked for, dimmer unlit; the tick stops short of the overdue
+  dot. Two rows of boxes and dashes came first and looked cramped; a
+  purple outline looked bad; a clipboard was asked to be redone.
 - **With the bar, a 56pt round plus floats above its right end** (`_AddButton`,
   `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`), only on Schedule and
   Calendar. Tap opens the field (which lives in the bar's room while the
