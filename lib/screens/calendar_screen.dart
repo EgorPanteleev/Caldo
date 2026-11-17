@@ -1082,6 +1082,21 @@ class _CalendarScreenState extends State<CalendarScreen>
         : _basePage;
     final shownMonth = _monthOfPage(page);
     if (_wide) return _buildWide(p, provider, settings, events, shownMonth);
+    // The tab bar's room at the foot of the screen, which the day runs on
+    // under and the field rests in.
+    final foot = BarRoom.of(context);
+    final field = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const KeyboardNumbers(),
+        QuickAddBar(
+          date: _selected,
+          controller: _quickAdd,
+          onSubmit: _addQuickTask,
+          onFullForm: () => _openEditor(),
+        ),
+      ],
+    );
 
     return SelectionScope(
       child: UndoScope(
@@ -1130,7 +1145,9 @@ class _CalendarScreenState extends State<CalendarScreen>
                               // Three heights: one week, the compact month, and the month
                               // opened to the whole area. Whatever the grid leaves goes to the
                               // selected day's tasks.
-                              final available = box.maxHeight;
+                              // The day runs on under the tab bar; the grid
+                              // is sized to what the bar leaves.
+                              final available = box.maxHeight - foot;
                               // Enough height that a day can show a couple of lines under its
                               // number, without taking the list's half of the screen.
                               final month = (available * 0.52).clamp(
@@ -1318,17 +1335,48 @@ class _CalendarScreenState extends State<CalendarScreen>
                                       // Laid out at the larger of its compact and visible
                                       // sizes, so it fills the extra room a week view leaves
                                       // and clips away instead of overflowing as it shrinks.
+                                      //
+                                      // Taller by the bar's room, which it
+                                      // runs on under. That much at its
+                                      // foot is covered in the month's
+                                      // black as the month opens: opened,
+                                      // the bar stands on the month's
+                                      // ground, with no grey band and none
+                                      // of the day showing through it.
                                       SizedBox(
-                                        height: panelVisible,
+                                        height: panelVisible + foot,
                                         child: ColoredBox(
                                           color: p.panel,
-                                          child: ClipRect(
-                                            child: OverflowBox(
-                                              alignment: Alignment.topCenter,
-                                              minHeight: panelLayout,
-                                              maxHeight: panelLayout,
-                                              child: pager,
-                                            ),
+                                          child: Stack(
+                                            children: [
+                                              ClipRect(
+                                                child: OverflowBox(
+                                                  alignment:
+                                                      Alignment.topCenter,
+                                                  minHeight: panelLayout + foot,
+                                                  maxHeight: panelLayout + foot,
+                                                  child: pager,
+                                                ),
+                                              ),
+                                              if (t > 0)
+                                                Positioned(
+                                                  left: 0,
+                                                  right: 0,
+                                                  bottom: 0,
+                                                  height: foot,
+                                                  child: IgnorePointer(
+                                                    child: ColoredBox(
+                                                      color: p.calendar
+                                                          .withValues(
+                                                            alpha: math.min(
+                                                              1.0,
+                                                              t,
+                                                            ),
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
                                           ),
                                         ),
                                       ),
@@ -1341,62 +1389,70 @@ class _CalendarScreenState extends State<CalendarScreen>
                         ),
                       ),
                     ),
-                    // Whatever is above the field fades into it rather than being
-                    // sliced off square by it — the last card in a full day used
-                    // to end in a straight cut across the middle of a word. The
-                    // fade belongs to the field, so it goes up with it: left at
-                    // the foot of the screen it would fade the day into a strip
-                    // the keyboard is sitting on, and the field, now halfway up
-                    // the panel, would be back to slicing cards in half.
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: KeyboardLift(
-                        child: AnimatedBuilder(
-                          animation: Listenable.merge([
-                            _expansion,
-                            KeyboardGap.instance.covered,
-                          ]),
-                          builder: (context, _) {
-                            final lift = KeyboardGap.of(context);
-                            return GroundFade(
-                              ground: _groundUnderField(p, lift),
-                              strength: _fadeStrength(lift),
-                            );
-                          },
+                    // With the tab bar, the field rests in the bar's room
+                    // over the foot of the day, which runs on under the bar
+                    // — the same as on Schedule. Its ground is whatever it
+                    // is over: see _groundUnderField.
+                    if (foot > 0)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: FieldInBarRoom(
+                          ground: (lift) => _groundUnderField(p, lift),
+                          fade: _fadeStrength,
+                          also: _expansion,
+                          child: field,
+                        ),
+                      )
+                    else
+                      // Whatever is above the field fades into it rather than
+                      // being sliced off square by it — the last card in a
+                      // full day used to end in a straight cut across the
+                      // middle of a word. The fade belongs to the field, so it
+                      // goes up with it: left at the foot of the screen it
+                      // would fade the day into a strip the keyboard is
+                      // sitting on, and the field, now halfway up the panel,
+                      // would be back to slicing cards in half.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: KeyboardLift(
+                          child: AnimatedBuilder(
+                            animation: Listenable.merge([
+                              _expansion,
+                              KeyboardGap.instance.covered,
+                            ]),
+                            builder: (context, _) {
+                              final lift = KeyboardGap.of(context);
+                              return GroundFade(
+                                ground: _groundUnderField(p, lift),
+                                strength: _fadeStrength(lift),
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
               // The strip the field sits on belongs to whatever it is over: see
               // _groundUnderField.
-              KeyboardLift(
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([
-                    _expansion,
-                    KeyboardGap.instance.covered,
-                  ]),
-                  builder: (context, child) => ColoredBox(
-                    color: _groundUnderField(p, KeyboardGap.of(context)),
-                    child: child,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const KeyboardNumbers(),
-                      QuickAddBar(
-                        date: _selected,
-                        controller: _quickAdd,
-                        onSubmit: _addQuickTask,
-                        onFullForm: () => _openEditor(),
-                      ),
-                    ],
+              if (foot == 0)
+                KeyboardLift(
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([
+                      _expansion,
+                      KeyboardGap.instance.covered,
+                    ]),
+                    builder: (context, child) => ColoredBox(
+                      color: _groundUnderField(p, KeyboardGap.of(context)),
+                      child: child,
+                    ),
+                    child: field,
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -1790,15 +1846,24 @@ class _DayPanel extends StatelessWidget {
                     onVerticalDragStart: onDragStart,
                     onVerticalDragUpdate: onDrag,
                     onVerticalDragEnd: onDragEnd,
-                    child: EmptyState(
-                      icon: Icons.event_available_outlined,
-                      title: S.of(context).nothingOnDay,
-                      message: S.of(context).addOneBelow,
-                      scrolls: false,
+                    // Centred in what the tab bar leaves of the panel.
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: BarRoom.of(context)),
+                      child: EmptyState(
+                        icon: Icons.event_available_outlined,
+                        title: S.of(context).nothingOnDay,
+                        message: S.of(context).addOneBelow,
+                        scrolls: false,
+                      ),
                     ),
                   )
                 : ReorderableTaskList(
-                    padding: const EdgeInsets.only(top: 4, bottom: 8),
+                    // Room to scroll the last of the day clear of the tab
+                    // bar, which it runs on under.
+                    padding: EdgeInsets.only(
+                      top: 4,
+                      bottom: 8 + BarRoom.of(context),
+                    ),
                     physics: physics,
                     controller: controller,
                     ground: AppTheme.of(context).panel,

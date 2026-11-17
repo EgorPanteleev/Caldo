@@ -11,6 +11,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/desk.dart';
+import '../widgets/quick_add_bar.dart' show BarRoom;
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart' show CheckMark, TaskCard;
 import 'task_edit_screen.dart';
@@ -121,16 +122,25 @@ class _DoneScreenState extends State<DoneScreen> {
           ),
           Expanded(
             child: _log.isEmpty
-                ? EmptyState(
-                    icon: Icons.task_alt,
-                    title: S.of(context).nothingDoneYet,
-                    message: S.of(context).doneHint,
+                ? Padding(
+                    // Centred in what the bar leaves.
+                    padding: EdgeInsets.only(bottom: BarRoom.of(context)),
+                    child: EmptyState(
+                      icon: Icons.task_alt,
+                      title: S.of(context).nothingDoneYet,
+                      message: S.of(context).doneHint,
+                    ),
                   )
                 : DeskGutter(
                     builder: (context, gutter) => ListView.builder(
-                      padding: gutter == 0
-                          ? null
-                          : EdgeInsets.symmetric(horizontal: gutter),
+                      // The log runs on under the tab bar; room at its end
+                      // to scroll the last of it clear.
+                      padding: EdgeInsets.fromLTRB(
+                        gutter,
+                        0,
+                        gutter,
+                        BarRoom.of(context),
+                      ),
                       itemCount: rows.length,
                       itemBuilder: (context, i) => rows[i],
                     ),

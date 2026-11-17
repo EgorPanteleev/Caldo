@@ -288,23 +288,57 @@ class _WhileKeyboardUp extends StatelessWidget {
   }
 }
 
-/// Builds [builder] with whether the keyboard is up for a field: for what
-/// stands under a field resting in the tab bar's room, which is only wanted
-/// while the field is out on the keys. Rebuilt on every frame of a slide,
-/// like [_WhileKeyboardUp], so keep what it builds small.
-class KeyboardUp extends StatelessWidget {
-  final Widget Function(BuildContext context, bool up, Widget? child) builder;
-  final Widget? child;
+/// A screen's add field resting in the tab bar's room, laid over the foot
+/// of a screen that runs on under the bar — Schedule's and the calendar's,
+/// one widget so the two cannot come to differ. Its ground, and the fade
+/// into it of whatever is above, are only there while the field is out on
+/// the keys: left in place they made a slab of the bar's room, and there
+/// was nothing under the bar for its frosting to show.
+///
+/// [ground] is what the field stands on at a lift, and [fade] how much of
+/// the fade to draw there; [also] is anything else they follow. Rebuilt on
+/// every frame of a slide, like [_WhileKeyboardUp], so it is kept small.
+class FieldInBarRoom extends StatelessWidget {
+  final Color Function(double lift) ground;
+  final double Function(double lift)? fade;
+  final Listenable? also;
+  final Widget child;
 
-  const KeyboardUp({super.key, required this.builder, this.child});
+  const FieldInBarRoom({
+    super.key,
+    required this.ground,
+    this.fade,
+    this.also,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: KeyboardGap.instance.changes,
-      builder: (context, child) =>
-          builder(context, KeyboardGap.up(context), child),
-      child: child,
+    return KeyboardLift(
+      child: ListenableBuilder(
+        listenable: Listenable.merge([KeyboardGap.instance.changes, ?also]),
+        builder: (context, child) {
+          final up = KeyboardGap.up(context);
+          final lift = KeyboardGap.of(context);
+          final under = ground(lift);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GroundFade(
+                ground: under,
+                strength: up ? (fade?.call(lift) ?? 1) : 0,
+              ),
+              // Not a ColoredBox: that takes taps meant for what is beside
+              // the bar.
+              DecoratedBox(
+                decoration: BoxDecoration(color: up ? under : null),
+                child: child,
+              ),
+            ],
+          );
+        },
+        child: child,
+      ),
     );
   }
 }

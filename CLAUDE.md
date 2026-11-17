@@ -296,9 +296,13 @@ them will be noticed.
   (`shaders/bar_ground.frag`, a pass across and one down — composed into
   one filter they drew nothing); it is given screen coordinates and on
   GLES a flipped texture. Bands of fixed blur showed a step at each edge;
-  they are only the fallback where shader filters aren't (the desktop). On Schedule the run
-  goes on under it; the field's ground and fade are drawn only while the
-  keys are up (`KeyboardUp`). Back goes to the start screen before leaving
+  they are only the fallback where shader filters aren't (the desktop). **Every screen runs on
+  under it** (the shell no longer pads pages): scrolls end with
+  `BarRoom.of(context)` of room; Schedule and the calendar rest their
+  field over their foot with one widget (`FieldInBarRoom`), its ground and
+  fade drawn only while the keys are up. The calendar sizes its grid to
+  what the bar leaves; its day panel is taller by the room, that foot
+  covered in black as the month opens. Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
   short checklist, a purple tick over a ring, each with a line — chosen
   from mock-ups. The tick is the bar's one colour, asked for, dimmer
@@ -333,7 +337,7 @@ them will be noticed.
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):
   keyboard goes, focus stays, so the next opening doesn't start the IME
   connection from scratch (that opening was the one that misplaced the bar).
-- **Only `KeyboardLift`, `KeyboardRoom`, `_WhileKeyboardUp` and `KeyboardUp` read the inset.**
+- **Only `KeyboardLift`, `KeyboardRoom`, `_WhileKeyboardUp` and `FieldInBarRoom` read the inset.**
 - **Long-press the Settings title for keyboard numbers**
   (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
 - **The field's ground and fade follow what is actually under it**

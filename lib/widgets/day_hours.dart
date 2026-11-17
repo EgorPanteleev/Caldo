@@ -7,6 +7,7 @@ import '../providers/task_provider.dart' show dayOf;
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'quick_add_bar.dart' show BarRoom;
 import 'task_card.dart';
 
 /// A day as hours: what has no time across the top, as dense cards, and
@@ -226,7 +227,9 @@ class _DayHoursState extends State<DayHours> {
       child: SingleChildScrollView(
         controller: _scroll,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(top: 4, bottom: 72),
+        // Room to scroll the last hours clear of the tab bar, which the
+        // day runs on under.
+        padding: EdgeInsets.only(top: 4, bottom: 72 + BarRoom.of(context)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

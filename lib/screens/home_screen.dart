@@ -89,18 +89,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   BarFoot? get _foot => _index < _feet.length ? _feet[_index] : null;
 
-  /// A page with the room the bar takes at its foot. The two screens with a
-  /// field run their ground on under the bar and rest their field in its
-  /// room ([BarRoom]); the rest simply end above it.
+  /// A page told the room the bar takes at its foot ([BarRoom]). Every
+  /// page runs on under the bar, so what scrolls is seen through its
+  /// frosting, and leaves that much room at the end of its scroll; the two
+  /// with a field rest it in the bar's room too.
   Widget _room(int i) => BarRoom(
     height: BarRoom.room,
     foot: i < _feet.length ? _feet[i] : null,
-    child: i < _feet.length
-        ? _pages[i]
-        : Padding(
-            padding: const EdgeInsets.only(bottom: BarRoom.room),
-            child: _pages[i],
-          ),
+    child: _pages[i],
   );
 
   /// The plus above the bar brings up the screen's field on the keyboard;

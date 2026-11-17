@@ -279,34 +279,15 @@ class _TasksScreenState extends State<TasksScreen> {
                       ),
                     // With the tab bar, the field rests in the bar's room
                     // over the foot of the run, and the run goes on under
-                    // the bar, which is frosted. Its ground, and the fade
-                    // into it, are only there while the field is out on the
-                    // keys: left in place they made a black slab of the
-                    // bar's room, and there was nothing under the bar to
-                    // see through it.
+                    // the bar.
                     if (overBar)
                       Positioned(
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        child: KeyboardLift(
-                          child: KeyboardUp(
-                            builder: (context, up, child) => Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                GroundFade(ground: p.bg, strength: up ? 1 : 0),
-                                // Not a ColoredBox: that takes taps meant
-                                // for the cards beside the bar.
-                                DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: up ? p.bg : null,
-                                  ),
-                                  child: child,
-                                ),
-                              ],
-                            ),
-                            child: field,
-                          ),
+                        child: FieldInBarRoom(
+                          ground: (_) => p.bg,
+                          child: field,
                         ),
                       )
                     else

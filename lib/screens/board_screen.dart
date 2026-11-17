@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/attachments_field.dart' show AttachmentMark;
 import '../widgets/desk.dart';
+import '../widgets/quick_add_bar.dart' show BarRoom;
 import '../widgets/groups.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart' show TaskCard;
@@ -456,12 +457,13 @@ class _Column extends StatelessWidget {
               Expanded(
                 child: _FadeFoot(
                   child: ListView.builder(
-                    // Room to scroll the last card clear of the fade.
-                    padding: const EdgeInsets.fromLTRB(
+                    // Room to scroll the last card clear of the fade, and
+                    // of the tab bar the lanes run on under.
+                    padding: EdgeInsets.fromLTRB(
                       _Board.inset,
                       0,
                       _Board.inset,
-                      28,
+                      28 + BarRoom.of(context),
                     ),
                     itemCount: tasks.length,
                     itemBuilder: (context, i) {

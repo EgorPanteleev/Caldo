@@ -168,7 +168,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     final list = ListView(
-      padding: const EdgeInsets.only(bottom: 90),
+      // Room to scroll the last row clear of the tab bar it runs on under.
+      padding: EdgeInsets.only(bottom: 24 + BarRoom.of(context)),
       children: [
         // A long press on the title puts the keyboard's numbers on screen,
         // above the add field. Four attempts at one keyboard bug went by

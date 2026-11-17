@@ -8,7 +8,7 @@ import '../providers/vault_provider.dart';
 import '../services/vault_device.dart';
 import '../theme/app_theme.dart';
 import '../widgets/desk.dart';
-import '../widgets/quick_add_bar.dart' show KeyboardRoom;
+import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardRoom;
 import '../widgets/screen_header.dart';
 import '../widgets/vault_sheets.dart';
 
@@ -232,7 +232,7 @@ class _Form extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + BarRoom.of(context)),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -539,7 +539,12 @@ class _OpenState extends State<_Open> {
     ];
     return DeskGutter(
       builder: (context, gutter) => ListView(
-        padding: EdgeInsets.fromLTRB(16 + gutter, 0, 16 + gutter, 24),
+        padding: EdgeInsets.fromLTRB(
+          16 + gutter,
+          0,
+          16 + gutter,
+          24 + BarRoom.of(context),
+        ),
         children: [
           if (vault.secrets.isNotEmpty)
             TextField(
