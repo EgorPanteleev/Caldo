@@ -166,8 +166,6 @@ class _TasksScreenState extends State<TasksScreen> {
                   ],
                 ),
               ),
-              if (!wide)
-                const SizedBox(width: double.infinity, child: GroupChips()),
               Expanded(
                 // The run of days fades into the ground the add field sits on
                 // rather than being cut off square by it, the same way the day's
@@ -178,6 +176,8 @@ class _TasksScreenState extends State<TasksScreen> {
                       builder: (context, gutter) => _RunOfDays(
                         controller: _scroll,
                         gutter: gutter,
+                        // Room at the top for the groups laid over it.
+                        top: wide ? 0 : FrostedGroupChips.heightOf(context),
                         ground: p.bg,
                         entry: entry,
                         onReorder: provider.reorder,
@@ -249,6 +249,15 @@ class _TasksScreenState extends State<TasksScreen> {
                         ],
                       ),
                     ),
+                    // The run passes up under the groups, blurred, rather
+                    // than being cut off square at their foot.
+                    if (!wide)
+                      const Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        child: FrostedGroupChips(),
+                      ),
                     // The fade goes up with the field it belongs to; left at the
                     // foot of the screen it would be fading the run into a strip
                     // behind the keyboard.
@@ -341,6 +350,9 @@ class _RunOfDays extends StatefulWidget {
   /// of cards should be (`DeskGutter`). The list itself has the whole
   /// width, so a wheel turned beside the cards still scrolls them.
   final double gutter;
+
+  /// The room left above the first run for what is laid over its top.
+  final double top;
   final Color ground;
   final Widget Function(Task) entry;
   final ValueChanged<List<Task>> onReorder;
@@ -361,6 +373,7 @@ class _RunOfDays extends StatefulWidget {
     required this.controller,
     required this.runs,
     this.gutter = 0,
+    this.top = 0,
     required this.ground,
     required this.entry,
     required this.onReorder,
@@ -499,7 +512,7 @@ class _RunOfDaysState extends State<_RunOfDays> {
 
   Widget _build(BuildContext context) {
     final slivers = <Widget>[
-      const SliverToBoxAdapter(child: SizedBox(height: 4)),
+      SliverToBoxAdapter(child: SizedBox(height: widget.top + 4)),
       if (widget.head != null) SliverToBoxAdapter(child: widget.head),
     ];
 

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +31,38 @@ EventsProvider? eventsOnShow(BuildContext context) {
 /// Identifies the row of groups under a screen's header.
 const groupChipsKey = Key('group-chips');
 
+/// The row of groups laid over the top of a list that scrolls up under it,
+/// on frosted glass: what passes beneath is blurred and dimmed rather than
+/// cut off at the row's edge. At rest, over the bare ground, it looks as the
+/// row always did.
+class FrostedGroupChips extends StatelessWidget {
+  /// The room under the chips before the glass ends.
+  static const foot = 8.0;
+
+  /// How much of the list the glass covers.
+  static double heightOf(BuildContext context) =>
+      GroupChips.heightOf(context) + foot;
+
+  const FrostedGroupChips({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final ground = AppTheme.of(context).bg;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: ColoredBox(
+          color: ground.withValues(alpha: 0.6),
+          child: const Padding(
+            padding: EdgeInsets.only(bottom: foot),
+            child: SizedBox(width: double.infinity, child: GroupChips()),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The row under the Schedule and calendar headers that picks which group
 /// is on show: All, then each group in the order the user has put them in,
 /// then a plus for a new one. Always there, even with only the default
@@ -49,6 +82,12 @@ class GroupChips extends StatefulWidget {
 
   const GroupChips({super.key, this.ground});
 
+  /// The row's height: the chips' own at the text size in force, so a
+  /// larger font is not cut off. A list has to be told it, and a screen
+  /// that lays the row over its contents has to leave room for it.
+  static double heightOf(BuildContext context) =>
+      math.max(32.0, MediaQuery.textScalerOf(context).scale(14) * 1.3 + 12);
+
   @override
   State<GroupChips> createState() => _GroupChipsState();
 }
@@ -65,6 +104,15 @@ class _GroupChipsState extends State<GroupChips> {
 
   /// The group held and let go in place, opened as it is dropped.
   TaskList? _open;
+
+  /// Where the chip being carried was picked up from, if one is.
+  final _carried = ValueNotifier<int?>(null);
+
+  @override
+  void dispose() {
+    _carried.dispose();
+    super.dispose();
+  }
 
   void _pressed(PointerDownEvent event) {
     if (_pointer != null) return;
@@ -111,12 +159,7 @@ class _GroupChipsState extends State<GroupChips> {
     final shown = context.select<TaskProvider, int?>((t) => t.group);
     final tasks = context.read<TaskProvider>();
     final ground = widget.ground ?? AppTheme.of(context).bg;
-    // A list has to be told its height; the chips' own, at the text size
-    // in force, so a larger font is not cut off.
-    final height = math.max(
-      32.0,
-      MediaQuery.textScalerOf(context).scale(14) * 1.3 + 12,
-    );
+    final height = GroupChips.heightOf(context);
     return Listener(
       onPointerDown: _pressed,
       onPointerMove: _moving,
@@ -141,8 +184,12 @@ class _GroupChipsState extends State<GroupChips> {
           onReorderStart: (i) {
             HapticFeedback.mediumImpact();
             _lifted = lists[i];
+            _carried.value = i;
           },
-          onReorderEnd: _dropped,
+          onReorderEnd: (i) {
+            _carried.value = null;
+            _dropped(i);
+          },
           onReorder: (from, to) => _reorder(lists, from, to),
           header: Center(
             child: GroupChip(
@@ -174,11 +221,17 @@ class _GroupChipsState extends State<GroupChips> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: Center(
-                    // The ground it stands on, so it is unchanged at rest.
-                    child: DecoratedBox(
-                      decoration: ShapeDecoration(
-                        color: ground,
-                        shape: const StadiumBorder(),
+                    // The ground it stands on, while it is carried only: at
+                    // rest a chip not chosen is clear, so a row on frosted
+                    // glass shows the glass through every chip alike.
+                    child: ValueListenableBuilder<int?>(
+                      valueListenable: _carried,
+                      builder: (context, carried, chip) => DecoratedBox(
+                        decoration: ShapeDecoration(
+                          color: carried == i ? ground : null,
+                          shape: const StadiumBorder(),
+                        ),
+                        child: chip,
                       ),
                       child: GroupChip(
                         label: groupLabel(context, list),
