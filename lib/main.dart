@@ -67,8 +67,7 @@ void main() async {
   // not open on Schedule and swap a frame later. It is one small read, and
   // the provider reads the rest for itself once it is up.
   final start = await SettingsProvider.storedStartScreen();
-  final inBar = await SettingsProvider.storedScreensInBar();
-  runApp(CaldoApp(start: start, inBar: inBar));
+  runApp(CaldoApp(start: start));
 }
 
 class CaldoApp extends StatelessWidget {
@@ -78,14 +77,7 @@ class CaldoApp extends StatelessWidget {
   /// The screen to open on, read from storage before the app was built.
   final AppScreen start;
 
-  /// Whether the screens are in the tab bar, read with it.
-  final bool inBar;
-
-  const CaldoApp({
-    super.key,
-    this.start = AppScreen.schedule,
-    this.inBar = true,
-  });
+  const CaldoApp({super.key, this.start = AppScreen.schedule});
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +151,7 @@ class CaldoApp extends StatelessWidget {
           ),
           navigatorObservers: [if (onDesktop) DeskScope.observer],
           navigatorKey: _navigator,
-          home: HomeScreen(start: start, inBar: inBar),
+          home: HomeScreen(start: start),
         ),
       ),
     );

@@ -9,7 +9,7 @@ const Map<String, Object> uk = {
   'notStarted': "Не почато",
   'inProgress': "У роботі",
   'settings': "Налаштування",
-  'menu': "Меню",
+  'tasks': "Завдання",
   'search': "Пошук",
 
   'today': "Сьогодні",
@@ -81,9 +81,6 @@ const Map<String, Object> uk = {
 
   'pageGeneral': "Загальні",
   'startScreen': "Екран під час запуску",
-  'switchScreens': "Перехід між екранами",
-  'tabBar': "Панель унизу",
-  'sideMenu': "Меню зліва вгорі",
   'timesWritten': "Формат часу",
   'language': "Мова",
   'followPhone': "Як на телефоні ({language})",
@@ -137,9 +134,9 @@ const Map<String, Object> uk = {
   'remindOn': "Сповіщення для кожного завдання з датою",
   'remindOff': "Сповіщень немає",
   'pageScreens': "Екрани",
-  'sectionInMenu': "У МЕНЮ",
-  'inMenuHint':
-      "Вимкнений екран зникає з меню. Налаштування лишаються в ньому завжди.",
+  'sectionShown': "ПОКАЗАНІ",
+  'shownHint':
+      "Вимкнений екран зникає з застосунку. Налаштування лишаються завжди.",
   'theme': "Тема",
   'accent': "Колір акценту",
   'holidayCountry': "Країна",

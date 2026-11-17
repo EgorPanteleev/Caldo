@@ -9,7 +9,7 @@ const Map<String, Object> ru = {
   'notStarted': "Не начато",
   'inProgress': "В работе",
   'settings': "Настройки",
-  'menu': "Меню",
+  'tasks': "Задачи",
   'search': "Поиск",
 
   'today': "Сегодня",
@@ -81,9 +81,6 @@ const Map<String, Object> ru = {
 
   'pageGeneral': "Общие",
   'startScreen': "Экран при запуске",
-  'switchScreens': "Переход между экранами",
-  'tabBar': "Панель внизу",
-  'sideMenu': "Меню слева вверху",
   'timesWritten': "Формат времени",
   'language': "Язык",
   'followPhone': "Как на телефоне ({language})",
@@ -137,9 +134,9 @@ const Map<String, Object> ru = {
   'remindOn': "Уведомление для каждой задачи с датой",
   'remindOff': "Уведомлений нет",
   'pageScreens': "Экраны",
-  'sectionInMenu': "В МЕНЮ",
-  'inMenuHint':
-      "Выключенный экран пропадает из меню. Настройки остаются в нём всегда.",
+  'sectionShown': "ПОКАЗАНЫ",
+  'shownHint':
+      "Выключенный экран пропадает из приложения. Настройки остаются всегда.",
   'theme': "Тема",
   'accent': "Цвет акцента",
   'holidayCountry': "Страна",

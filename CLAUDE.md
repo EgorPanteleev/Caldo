@@ -55,7 +55,8 @@ Linux: `linux/` is Flutter's GTK runner plus the window
 Icon: SVG in `assets/icon/src`, rendered by `tool/make_icon.sh`
 (`rsvg-convert`); PNGs checked in.
 
-Six destinations: **Schedule, Calendar, Board, Done, Vault, Settings**. Any
+Six destinations: **Schedule, Calendar, Board, Done, Vault, Settings**, in
+four tabs: **Tasks** (Schedule, Board, Done), Calendar, Vault, Settings. Any
 of the first five can be hidden; Settings can't.
 
 **Lists are "groups"; there are no list screens.** Groups surface through a
@@ -109,7 +110,7 @@ them will be noticed.
   (`Alignment(0, 0.2)`, `height: 1`).
 - **All day numbers semibold**, tightened (`letterSpacing`,
   `proportionalFigures`). **Only Sundays are red**; holidays don't recolour.
-- **Header**: controls row on top (menu, Search, Today), month name alone
+- **Header**: controls row on top (Search, Today), month name alone
   below, `Sep` centred, year only if not current. No chevrons on the phone.
   Today's button shows today's date on a page.
 - **Grid black, day panel grey** (`calendar` vs `panel`); the day bar takes the
@@ -269,18 +270,21 @@ them will be noticed.
   `TextFieldTapRegion`), only while the keyboard is up (`_WhileKeyboardUp`),
   reset to default each opening.
 
-### Shell, navigation, menu
+### Shell, navigation
 
 - **Start screen is a setting** (`AppScreen`), read in `main` before the first
   frame, never waiting for `SettingsProvider.load` (it may show a permission
   dialog). The shell takes it once.
-- **Hidden screens** (`hiddenScreens`): never all four; start falls back to the
-  first visible but the choice is kept (`startScreen`). Overdue dot moves to
-  Calendar if Schedule is hidden. Hidden screens still build.
-- **Tab bar or menu, chosen in Settings** (`screensInBar`,
-  `storedScreensInBar`, read before first frame). Every page keeps both
-  wrappers (`BarRoom`, padding) so switching keeps state. `MenuScope` hands
-  the menu button to headers.
+- **Hidden screens** (`hiddenScreens`): never all five; start falls back to the
+  first visible but the choice is kept (`startScreen`). Overdue dot is on
+  Tasks, or Calendar if Schedule is hidden. Hidden screens still build.
+- **Four tabs, no menu.** Six read as "overwhelmed"; four was asked for.
+  Schedule, Board and Done are views under one **Tasks** tab (`taskViews`,
+  `TaskViews`, `_tasksTab`), which reopens the view last shown (`_lastView`).
+  Their headers write all three names, the current one lit, the others
+  dimmed and tappable (`ViewTitles`, `ScreenHeader.view`) — no extra row.
+  One view left: a plain title. The side menu (hamburger, blurred screen)
+  and the Settings switch for it were removed; their history is in git.
 - **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light rim,
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
@@ -290,14 +294,7 @@ them will be noticed.
   `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`), only on Schedule and
   Calendar. Tap opens the field (which lives in the bar's room while the
   keyboard is up, the bar hidden); hold opens the full form. Undo and
-  selection take the bar's place; `withdrawUndo` on screen change. With the
-  menu, the field stays at the foot.
-- **The menu** (hamburger top-left with an overdue dot) slides the screen
-  `_menuWidth` right and the menu in over it, lapping by `_menuOverlap`, menu
-  rounded and shadowed, screen square. Not a Material `Drawer`; tests read the
-  screen's offset. Screen beneath is blurred (`_OutOfFocus`, 4) by a
-  half-resolution snapshot at four strengths cross-faded — not `ImageFiltered`
-  live.
+  selection take the bar's place; `withdrawUndo` on screen change.
 - **Settings is six pages** (`_Page`; Screens, General, Appearance, Calendar,
   Tasks, Reminders, plus Sync and Backup; About on the list), each a panel of
   rows like the phone's settings (`_Group`, `_Row`, `_SwitchRow`, `choose`):
@@ -646,7 +643,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 - Screens are pumped at phone sizes so overflows fail — intentional.
 - The test font draws em squares: assert layout invariants, not glyph widths.
 - Exported keys: `monthTitleKey`, `calendarHandleKey`, `daySheetKey`,
-  `menuButtonKey`, `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`,
+  `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`,
   `deskSidebarKey`, `deskFormKey`, `deskNewTaskKey`.
 - "A Timer is still pending" after a test usually means the `dispose`
   animation fault above.

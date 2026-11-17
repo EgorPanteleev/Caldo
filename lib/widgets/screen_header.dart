@@ -3,19 +3,23 @@ import 'package:flutter/material.dart';
 import '../l10n/strings.dart';
 import '../theme/app_theme.dart';
 import 'desk.dart';
-import 'menu_button.dart';
+import '../providers/settings_provider.dart';
+import 'task_views.dart';
 
 /// Identifies a screen header's title text.
 const screenTitleKey = Key('screen-title');
 
-/// The header every screen opens with: a back arrow on a pushed screen or
-/// the menu button while the screens are in a menu, a title, an optional
-/// count pill, and trailing actions.
+/// The header every screen opens with: a back arrow on a pushed screen, a
+/// title — on the three task views, the names of all three, this one lit
+/// ([ViewTitles]) — an optional count pill, and trailing actions.
 class ScreenHeader extends StatelessWidget {
   final String title;
   final int? count;
   final bool showBack;
   final List<Widget> actions;
+
+  /// Which of the task views this is, if it is one.
+  final AppScreen? view;
 
   const ScreenHeader({
     super.key,
@@ -23,19 +27,15 @@ class ScreenHeader extends StatelessWidget {
     this.count,
     this.showBack = false,
     this.actions = const [],
+    this.view,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final onMenu = showBack ? null : MenuScope.of(context);
+    final views = view == null || showBack ? null : TaskViews.of(context);
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        showBack || onMenu != null ? 4 : 20,
-        12,
-        12,
-        8,
-      ),
+      padding: EdgeInsets.fromLTRB(showBack ? 4 : 20, 12, 12, 8),
       // In a desktop's wide window every screen's title stands at one
       // height, whether or not there is a button beside it to make the row
       // that tall: the sidebar swaps one for the next where it stands, and
@@ -48,9 +48,7 @@ class ScreenHeader extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.arrow_back, color: p.muted),
                 onPressed: () => Navigator.of(context).maybePop(),
-              )
-            else if (onMenu != null)
-              MenuButton(onTap: onMenu),
+              ),
             // The title and its count pill take every pixel the actions leave;
             // a Spacer here would instead split that width with the title and
             // clip long names.
@@ -58,15 +56,21 @@ class ScreenHeader extends StatelessWidget {
               child: Row(
                 children: [
                   Flexible(
-                    child: Text(
-                      title,
-                      key: screenTitleKey,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    child: views != null && views.shown.length > 1
+                        ? ViewTitles(
+                            view: view!,
+                            shown: views.shown,
+                            onSelected: views.onSelected,
+                            titleKey: screenTitleKey,
+                          )
+                        : Text(
+                            title,
+                            key: screenTitleKey,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
                   ),
                   if (count != null) ...[
                     const SizedBox(width: 8),

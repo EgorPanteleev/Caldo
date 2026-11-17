@@ -10,7 +10,7 @@ const Map<String, Object> kk = {
   'notStarted': "Басталмаған",
   'inProgress': "Орындалуда",
   'settings': "Баптаулар",
-  'menu': "Мәзір",
+  'tasks': "Тапсырмалар",
   'search': "Іздеу",
 
   'today': "Бүгін",
@@ -78,9 +78,6 @@ const Map<String, Object> kk = {
 
   'pageGeneral': "Жалпы",
   'startScreen': "Іске қосылғандағы экран",
-  'switchScreens': "Экрандар арасында ауысу",
-  'tabBar': "Төмендегі панель",
-  'sideMenu': "Сол жақ жоғарғы мәзір",
   'timesWritten': "Уақыт пішімі",
   'language': "Тіл",
   'followPhone': "Телефондағыдай ({language})",
@@ -134,9 +131,8 @@ const Map<String, Object> kk = {
   'remindOn': "Күні бар әр тапсырмаға хабарландыру",
   'remindOff': "Хабарландыру жоқ",
   'pageScreens': "Экрандар",
-  'sectionInMenu': "МӘЗІРДЕ",
-  'inMenuHint':
-      "Өшірілген экран мәзірден шығады. Баптаулар онда әрқашан қалады.",
+  'sectionShown': "КӨРІНЕТІНДЕР",
+  'shownHint': "Өшірілген экран қолданбадан шығады. Баптаулар әрқашан қалады.",
   'theme': "Тақырып",
   'accent': "Акцент түсі",
   'holidayCountry': "Ел",

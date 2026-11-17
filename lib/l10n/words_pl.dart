@@ -10,7 +10,7 @@ const Map<String, Object> pl = {
   'notStarted': "Nierozpoczęte",
   'inProgress': "W toku",
   'settings': "Ustawienia",
-  'menu': "Menu",
+  'tasks': "Zadania",
   'search': "Szukaj",
 
   'today': "Dziś",
@@ -82,9 +82,6 @@ const Map<String, Object> pl = {
 
   'pageGeneral': "Ogólne",
   'startScreen': "Ekran po uruchomieniu",
-  'switchScreens': "Przełączanie ekranów",
-  'tabBar': "Pasek na dole",
-  'sideMenu': "Menu w lewym górnym rogu",
   'timesWritten': "Format godziny",
   'language': "Język",
   'followPhone': "Jak w telefonie ({language})",
@@ -138,9 +135,8 @@ const Map<String, Object> pl = {
   'remindOn': "Powiadomienie dla każdego zadania z datą",
   'remindOff': "Brak powiadomień",
   'pageScreens': "Ekrany",
-  'sectionInMenu': "W MENU",
-  'inMenuHint':
-      "Wyłączony ekran znika z menu. Ustawienia zostają w nim zawsze.",
+  'sectionShown': "WIDOCZNE",
+  'shownHint': "Wyłączony ekran znika z aplikacji. Ustawienia zostają zawsze.",
   'theme': "Motyw",
   'accent': "Kolor akcentu",
   'holidayCountry': "Kraj",

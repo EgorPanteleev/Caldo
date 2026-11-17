@@ -12,7 +12,7 @@ import '../utils/dates.dart';
 import '../widgets/desk.dart';
 import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom;
-import 'home_screen.dart' show menuItems;
+import 'home_screen.dart' show screenItems;
 import 'task_edit_screen.dart';
 
 /// Identifies the wide layout's sidebar, and the panel a form opens in.
@@ -105,9 +105,9 @@ class DeskSidebar extends StatelessWidget {
             if (!hidden.contains(screen))
               SideItem(
                 icon: index == screen.index
-                    ? menuItems[screen.index].activeIcon
-                    : menuItems[screen.index].icon,
-                label: menuItems[screen.index].label(s),
+                    ? screenItems[screen.index].activeIcon
+                    : screenItems[screen.index].icon,
+                label: screenItems[screen.index].label(s),
                 selected: index == screen.index,
                 badge: screen.index == late && overdue > 0 ? overdue : null,
                 onTap: () => onSelected(screen.index),
@@ -132,8 +132,8 @@ class DeskSidebar extends StatelessWidget {
           const SizedBox(height: 6),
           SideItem(
             icon: index == _settings
-                ? menuItems[_settings].activeIcon
-                : menuItems[_settings].icon,
+                ? screenItems[_settings].activeIcon
+                : screenItems[_settings].icon,
             label: s.settings,
             selected: index == _settings,
             onTap: () => onSelected(_settings),

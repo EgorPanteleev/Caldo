@@ -25,7 +25,7 @@ import '../widgets/sign_in_sheet.dart';
 import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/theme_switcher.dart';
 import '../widgets/update_banner.dart' show showUpdateSheet;
-import 'home_screen.dart' show menuItems;
+import 'home_screen.dart' show screenItems;
 
 /// Appearance, calendar and task preferences. Everything here applies
 /// immediately — there is nothing to save.
@@ -84,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: (s) => s.pageScreens,
       value: [
         for (final screen in settings.shownScreens)
-          menuItems[screen.index].label(s),
+          screenItems[screen.index].label(s),
       ].join(', '),
       rows: _screens,
     ),
@@ -288,9 +288,9 @@ Map<ThemeMode, String> _themeNames(S s) => {
   ThemeMode.system: s.themeSystem,
 };
 
-String _screenName(S s, AppScreen screen) => menuItems[screen.index].label(s);
+String _screenName(S s, AppScreen screen) => screenItems[screen.index].label(s);
 
-/// Which screen the app opens on, and which are in the menu.
+/// Which screen the app opens on, and which are in the app at all.
 List<Widget> _screens(BuildContext context, SettingsProvider settings, S s) {
   final shown = settings.shownScreens;
   return [
@@ -310,49 +310,26 @@ List<Widget> _screens(BuildContext context, SettingsProvider settings, S s) {
                   Option(
                     screen,
                     _screenName(s, screen),
-                    icon: menuItems[screen.index].icon,
+                    icon: screenItems[screen.index].icon,
                   ),
               ],
             );
             if (screen != null) settings.update(startScreen: screen);
           },
         ),
-        // The tab bar replaced the menu, and some like the menu: more of the
-        // screen, the calendar's day panel above all. Neither is there in a
-        // desktop's wide window, which has its sidebar.
-        if (!Desk.wideOf(context))
-          _Row(
-            icon: settings.screensInBar
-                ? Icons.call_to_action_outlined
-                : Icons.menu_rounded,
-            title: s.switchScreens,
-            value: settings.screensInBar ? s.tabBar : s.sideMenu,
-            onTap: () async {
-              final inBar = await choose(
-                context,
-                title: s.switchScreens,
-                selected: settings.screensInBar,
-                options: [
-                  Option(true, s.tabBar, icon: Icons.call_to_action_outlined),
-                  Option(false, s.sideMenu, icon: Icons.menu_rounded),
-                ],
-              );
-              if (inBar != null) settings.update(screensInBar: inBar);
-            },
-          ),
       ],
     ),
     _Group(
-      label: s.sectionInMenu,
-      footnote: s.inMenuHint,
+      label: s.sectionShown,
+      footnote: s.shownHint,
       children: [
         for (final screen in AppScreen.values)
           _SwitchRow(
-            icon: menuItems[screen.index].icon,
+            icon: screenItems[screen.index].icon,
             title: _screenName(s, screen),
             value: shown.contains(screen),
-            // The last screen left in the menu stays there: a menu of
-            // Settings alone would be an app with nothing in it.
+            // The last screen left stays: a bar of Settings alone would be
+            // an app with nothing in it.
             enabled: !(shown.length == 1 && shown.contains(screen)),
             onChanged: (on) {
               final hidden = {...settings.hiddenScreens};

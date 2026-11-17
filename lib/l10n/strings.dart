@@ -159,7 +159,7 @@ class S {
   String get notStarted => _word('notStarted');
   String get inProgress => _word('inProgress');
   String get settings => _word('settings');
-  String get menu => _word('menu');
+  String get tasks => _word('tasks');
   String get search => _word('search');
 
   // ---- Days ----------------------------------------------------------------
@@ -304,13 +304,10 @@ class S {
 
   // ---- Settings ------------------------------------------------------------
   String get pageScreens => _word('pageScreens');
-  String get sectionInMenu => _word('sectionInMenu');
-  String get inMenuHint => _word('inMenuHint');
+  String get sectionShown => _word('sectionShown');
+  String get shownHint => _word('shownHint');
   String get pageGeneral => _word('pageGeneral');
   String get startScreen => _word('startScreen');
-  String get switchScreens => _word('switchScreens');
-  String get tabBar => _word('tabBar');
-  String get sideMenu => _word('sideMenu');
   String get timesWritten => _word('timesWritten');
   String get language => _word('language');
   String followPhone(String language) =>

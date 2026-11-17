@@ -10,7 +10,7 @@ const Map<String, Object> en = {
   'notStarted': "Not started",
   'inProgress': "In progress",
   'settings': "Settings",
-  'menu': "Menu",
+  'tasks': "Tasks",
   'search': "Search",
 
   'today': "Today",
@@ -80,9 +80,6 @@ const Map<String, Object> en = {
 
   'pageGeneral': "General",
   'startScreen': "Screen the app opens on",
-  'switchScreens': "Switch screens with",
-  'tabBar': "Bar along the bottom",
-  'sideMenu': "Menu at the top left",
   'timesWritten': "Times are written",
   'language': "Language",
   'followPhone': "As the phone ({language})",
@@ -124,9 +121,9 @@ const Map<String, Object> en = {
   'remindOn': "A notification for each task with a date",
   'remindOff': "Nothing is announced",
   'pageScreens': "Screens",
-  'sectionInMenu': "IN THE MENU",
-  'inMenuHint':
-      "Switched off, a screen leaves the menu. Settings is always there.",
+  'sectionShown': "SHOWN",
+  'shownHint':
+      "Switched off, a screen is taken out of the app. Settings is always there.",
   'theme': "Theme",
   'accent': "Accent colour",
   'holidayCountry': "Country",

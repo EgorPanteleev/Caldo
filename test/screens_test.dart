@@ -18,7 +18,6 @@ import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:caldo/widgets/reorderable_task_list.dart';
 import 'package:caldo/widgets/task_card.dart';
 import 'package:caldo/widgets/tick_off.dart';
-import 'package:caldo/widgets/menu_button.dart';
 import 'package:caldo/widgets/month_grid.dart';
 import 'package:caldo/widgets/screen_header.dart';
 import 'package:flutter/gestures.dart';
@@ -1692,43 +1691,51 @@ void main() {
     await drainDatabase(tester);
   });
 
-  testWidgets('with the menu chosen, it moves the screen aside', (
+  testWidgets('Schedule, the board and Done share the Tasks tab', (
     tester,
   ) async {
     await pumpScreen(tester, const HomeScreen());
+    String title() => tester.widget<Text>(find.byKey(screenTitleKey)).data!;
+    // The board reads its tasks as it comes on show, for real.
+    Future<void> settle() async {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    // Four tabs; the board and Done are named beside Schedule's title, not
+    // in the bar.
+    for (final tab in ['Tasks', 'Calendar', 'Vault', 'Settings']) {
+      expect(find.text(tab), findsOneWidget, reason: tab);
+    }
+    expect(title(), 'Schedule');
+
+    await tester.tap(find.text('Board'));
+    await settle();
+    expect(title(), 'Board');
+
+    // Away and back by the tab: the view last on show, not Schedule.
+    await tester.tap(find.text('Calendar'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(monthTitleKey), findsOneWidget);
+    await tester.tap(find.text('Tasks'));
+    await settle();
+    expect(title(), 'Board');
+
+    // One view left and its header is a plain title again.
     final settings = Provider.of<SettingsProvider>(
       tester.element(find.byType(HomeScreen)),
       listen: false,
     );
-    expect(find.byKey(menuButtonKey), findsNothing, reason: 'the bar first');
-    await tester.runAsync(() => settings.update(screensInBar: false));
-    await tester.pumpAndSettle();
-    // The menu is always in the tree, off the edge, so its Board is there;
-    // the bar's is not.
-    expect(find.text('Board'), findsOneWidget, reason: 'the bar has gone');
-    expect(find.byKey(menuButtonKey), findsOneWidget);
-
-    // How far over the screen sits, read off something that belongs to it.
-    double screenLeft() => tester.getTopLeft(find.byKey(menuButtonKey)).dx;
-    expect(screenLeft(), lessThan(40), reason: 'closed, it fills the width');
-
-    await tester.tap(find.byKey(menuButtonKey));
-    await tester.pumpAndSettle();
-    // The menu is always in the tree — it is behind the screen rather than
-    // laid over it — so what says it is open is where the screen has got to.
-    expect(screenLeft(), greaterThan(200), reason: 'open, it has moved over');
-
-    // Back closes it rather than leaving the app.
-    expect(await tester.binding.handlePopRoute(), isTrue);
-    await tester.pumpAndSettle();
-    expect(screenLeft(), lessThan(40));
-
-    await tester.tap(find.byKey(menuButtonKey));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Calendar'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(monthTitleKey), findsOneWidget);
-    expect(screenLeft(), lessThan(40), reason: 'and it is back in place');
+    await tester.runAsync(
+      () =>
+          settings.update(hiddenScreens: {AppScreen.schedule, AppScreen.done}),
+    );
+    await tester.pump();
+    expect(title(), 'Board');
+    expect(find.text('Schedule'), findsNothing);
+    expect(find.text('Done'), findsNothing);
     await drainDatabase(tester);
   });
 

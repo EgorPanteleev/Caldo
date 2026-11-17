@@ -9,7 +9,7 @@ const Map<String, Object> es = {
   'notStarted': "Sin empezar",
   'inProgress': "En curso",
   'settings': "Ajustes",
-  'menu': "Menú",
+  'tasks': "Tareas",
   'search': "Buscar",
 
   'today': "Hoy",
@@ -80,9 +80,6 @@ const Map<String, Object> es = {
 
   'pageGeneral': "General",
   'startScreen': "Pantalla al abrir",
-  'switchScreens': "Cambiar de pantalla con",
-  'tabBar': "Barra inferior",
-  'sideMenu': "Menú arriba a la izquierda",
   'timesWritten': "Formato de hora",
   'language': "Idioma",
   'followPhone': "Como el teléfono ({language})",
@@ -139,9 +136,9 @@ const Map<String, Object> es = {
   'remindOn': "Una notificación por cada tarea con fecha",
   'remindOff': "Sin avisos",
   'pageScreens': "Pantallas",
-  'sectionInMenu': "EN EL MENÚ",
-  'inMenuHint':
-      "Desactivada, una pantalla sale del menú. Ajustes siempre está en él.",
+  'sectionShown': "VISIBLES",
+  'shownHint':
+      "Desactivada, una pantalla sale de la app. Ajustes siempre está.",
   'theme': "Tema",
   'accent': "Color de acento",
   'holidayCountry': "País",

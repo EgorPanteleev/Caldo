@@ -9,7 +9,7 @@ const Map<String, Object> nl = {
   'notStarted': "Niet begonnen",
   'inProgress': "Bezig",
   'settings': "Instellingen",
-  'menu': "Menu",
+  'tasks': "Taken",
   'search': "Zoeken",
 
   'today': "Vandaag",
@@ -80,9 +80,6 @@ const Map<String, Object> nl = {
 
   'pageGeneral': "Algemeen",
   'startScreen': "Scherm bij openen",
-  'switchScreens': "Wisselen van scherm met",
-  'tabBar': "Balk onderaan",
-  'sideMenu': "Menu linksboven",
   'timesWritten': "Tijdnotatie",
   'language': "Taal",
   'followPhone': "Zoals de telefoon ({language})",
@@ -139,9 +136,9 @@ const Map<String, Object> nl = {
   'remindOn': "Een melding voor elke taak met een datum",
   'remindOff': "Geen meldingen",
   'pageScreens': "Schermen",
-  'sectionInMenu': "IN HET MENU",
-  'inMenuHint':
-      "Uitgezet verdwijnt een scherm uit het menu. Instellingen staat er altijd in.",
+  'sectionShown': "ZICHTBAAR",
+  'shownHint':
+      "Uitgezet verdwijnt een scherm uit de app. Instellingen blijft er altijd.",
   'theme': "Thema",
   'accent': "Accentkleur",
   'holidayCountry': "Land",

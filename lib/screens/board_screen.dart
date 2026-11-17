@@ -8,6 +8,7 @@ import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
+import '../providers/settings_provider.dart' show AppScreen;
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -208,6 +209,7 @@ class _BoardScreenState extends State<BoardScreen> {
         children: [
           ScreenHeader(
             title: s.board,
+            view: AppScreen.board,
             actions: [
               IconButton(
                 icon: Icon(Icons.add, color: p.muted),

@@ -113,7 +113,12 @@ class _DoneScreenState extends State<DoneScreen> {
     return Scaffold(
       body: Column(
         children: [
-          DeskColumn(child: ScreenHeader(title: S.of(context).done)),
+          DeskColumn(
+            child: ScreenHeader(
+              title: S.of(context).done,
+              view: AppScreen.done,
+            ),
+          ),
           Expanded(
             child: _log.isEmpty
                 ? EmptyState(

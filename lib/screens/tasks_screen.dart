@@ -153,6 +153,7 @@ class _TasksScreenState extends State<TasksScreen> {
               DeskColumn(
                 child: ScreenHeader(
                   title: S.of(context).schedule,
+                  view: AppScreen.schedule,
                   actions: [
                     if (!wide)
                       IconButton(
