@@ -290,7 +290,7 @@ them will be noticed.
 - **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light rim,
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
-  the screens, a little frosted (blur 12, fill at 78%). On Schedule the run
+  the screens, a little frosted (blur 20, fill at 60%). On Schedule the run
   goes on under it; the field's ground and fade are drawn only while the
   keys are up (`KeyboardUp`). Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a

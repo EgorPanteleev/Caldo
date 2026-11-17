@@ -731,7 +731,7 @@ class _TabBar extends StatelessWidget {
     final pill = Container(
       padding: const EdgeInsets.all(inset),
       decoration: BoxDecoration(
-        color: p.panelHi.withValues(alpha: 0.78),
+        color: p.panelHi.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(_height / 2),
         border: Border.all(color: BarRoom.rim(p), width: BarRoom.rimWidth),
       ),
@@ -778,7 +778,7 @@ class _TabBar extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(_height / 2),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: pill,
       ),
     );
