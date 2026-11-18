@@ -96,8 +96,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _room(int i) => BarRoom(
     height: BarRoom.room,
     foot: i < _feet.length ? _feet[i] : null,
-    child: _pages[i],
+    child: _behind(i, _pages[i]),
   );
+
+  /// A screen not on show keeps its state but not its animations: an
+  /// `IndexedStack` leaves the screens behind the current one ticking, and
+  /// the Vault's spinner, waiting there to be first shown, had the whole
+  /// app drawing sixty frames a second from start.
+  Widget _behind(int i, Widget page) =>
+      TickerMode(enabled: i == _index, child: page);
 
   /// The plus above the bar brings up the screen's field on the keyboard;
   /// held, it is the full form. It is only there on the two screens with a
@@ -369,20 +376,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           foot: i < _feet.length
                                               ? _feet[i]
                                               : null,
-                                          child: i == AppScreen.calendar.index
-                                              ? _pages[i]
-                                              : AnimatedPadding(
-                                                  duration: const Duration(
-                                                    milliseconds: 220,
+                                          child: _behind(
+                                            i,
+                                            i == AppScreen.calendar.index
+                                                ? _pages[i]
+                                                : AnimatedPadding(
+                                                    duration: const Duration(
+                                                      milliseconds: 220,
+                                                    ),
+                                                    curve: Curves.easeOutCubic,
+                                                    padding: EdgeInsets.only(
+                                                      right: beside
+                                                          ? Desk.side
+                                                          : 0,
+                                                    ),
+                                                    child: _pages[i],
                                                   ),
-                                                  curve: Curves.easeOutCubic,
-                                                  padding: EdgeInsets.only(
-                                                    right: beside
-                                                        ? Desk.side
-                                                        : 0,
-                                                  ),
-                                                  child: _pages[i],
-                                                ),
+                                          ),
                                         ),
                                     ],
                                   ),

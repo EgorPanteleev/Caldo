@@ -317,7 +317,10 @@ them will be noticed.
   what the bar leaves; its day panel is taller by the room, opening, the
   month's black runs on under the bar and pushes the day off the screen
   (a grey band under the opened month, and a black cover fading over the
-  day's foot, were both asked off). Back goes to the start screen before leaving
+  day's foot, were both asked off). **Screens not on show are under
+  `TickerMode` off** (`_behind`): the `IndexedStack` kept them ticking,
+  and the unvisited Vault's spinner held the app at 60fps, 27% of a core,
+  from start. Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
   short checklist, a purple tick over a ring, each with a line — chosen
   from mock-ups. The tick is the bar's one colour, asked for, dimmer
@@ -424,6 +427,17 @@ them will be noticed.
   (prefs `debug_tweaks`, not in backups); signing out turns it off. Copy
   changes hands them over as JSON to be built in. Keyboard numbers have a
   switch there too. Native surfaces (widget, reminder cover) don't follow.
+- **Performance numbers** (`PerfHud`, `widgets/perf_hud.dart`, over
+  everything in `MaterialApp.builder`; switches on the Debug page, not
+  stored): fps against the display's rate, frames over budget, running
+  tickers, build/raster avg/max (engine timings, batched ~1s, so over the
+  last 2s), CPU of the process and of the UI and raster threads from
+  `/proc` (UI is the main thread where Flutter merged them), RSS, free
+  memory, GPU and temperature only where sysfs lets an app read them (not
+  the emulator). Draggable; starts above the bar, since Flutter's own
+  graphs (`showPerformanceOverlay`, the second switch) take the top. Idle
+  should read 1 fps and 0 tickers. On the emulator raster time includes
+  waiting on the swap (~16.6ms while drawing every frame, ~5 idle).
 
 ### Reminders
 
