@@ -81,7 +81,7 @@ void main() {
     KeyboardGap.instance.take(_rest(300));
     await tester.pumpWidget(_harness());
     expect(_opacityOver(tester), 1);
-    // Up on the keys it stands on a light strip of the ground — no solid
+    // Up on the keys it stands on a light strip of its grey — no solid
     // band with a fade over it, and no blur: both were asked off.
     final room = find.byType(FieldInBarRoom);
     expect(
@@ -99,22 +99,16 @@ void main() {
       ),
     );
     expect(strip, findsOneWidget);
-    // The field's grey, clear a strip's height above the field and three
-    // fifths of it from the field's top; part of what Android pictures, so it
+    // The field's grey across the field's room only, clear at its top and
+    // three fifths of it at the keys; part of what Android pictures, so it
     // rides the keys with it.
     final field = tester.getRect(find.byKey(_field));
-    final under = tester.getRect(strip);
-    expect(under.top, field.top - FieldInBarRoom.strip);
-    expect(under.bottom, field.bottom);
+    expect(tester.getRect(strip), field);
     final gradient =
         ((tester.widget<DecoratedBox>(strip).decoration as BoxDecoration)
                 .gradient!
             as LinearGradient);
     expect(gradient.colors.first.a, 0);
-    expect(
-      gradient.stops!.last * under.height,
-      closeTo(FieldInBarRoom.strip, 0.01),
-    );
     expect(gradient.colors.last.a, closeTo(0.6, 0.001));
     expect(
       find.descendant(of: find.byType(CarriedField), matching: strip),
@@ -188,16 +182,11 @@ void main() {
     final args = arm.arguments as Map;
     final width = args['width'] as int;
     final height = args['height'] as int;
-    // The field and the strip above it, which ride the keys together.
+    // The field and its strip, which ride the keys together.
     expect(width, 400 * 3);
-    expect(height, (60 + FieldInBarRoom.strip) * 3);
+    expect(height, 60 * 3);
     final picture = args['picture'] as Uint8List;
     expect(picture.length, width * height * 4);
-    // Clear at the strip's top (but for half a pixel's worth); three fifths
-    // of the field's grey just over the field.
-    int alphaAt(int row) => picture[(row * width + width ~/ 2) * 4 + 3];
-    expect(alphaAt(0), lessThan(3));
-    expect(alphaAt((FieldInBarRoom.strip * 3).round() - 1), greaterThan(140));
     // Where it rests with no keys, though pictured lifted on them: the
     // view's foot here, with nothing kept below it, and the strip it
     // never climbs sent along.

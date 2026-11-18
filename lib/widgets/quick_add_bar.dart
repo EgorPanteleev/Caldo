@@ -440,22 +440,18 @@ class _QuickAddBarState extends State<QuickAddBar> {
 /// A screen's add field resting in the tab bar's room, laid over the foot
 /// of a screen that runs on under the bar — Schedule's and the calendar's,
 /// one widget so the two cannot come to differ. Out on the keys it stands
-/// on a strip of its own grey, clear [strip] above it and three fifths of
-/// the grey from its top edge down. It stood on a solid band of the ground
-/// with a fade above, which was asked off; then on the tab bar's blur, which
-/// was asked to be this instead. The strip was the ground at first, and
-/// faded all the way to the keys, so what showed above the field was too
-/// faint to see; then it rose over 24pt, too short to read as a fade.
+/// on a strip of its own grey across its room, clear at the field's top
+/// edge and three fifths of the grey at the keys. It stood on a solid band
+/// of the ground with a fade above, which was asked off; then on the tab
+/// bar's blur, which was asked to be this instead. The strip reached up
+/// over the screen above the field at first; it was meant to lie only
+/// beside and under the field.
 class FieldInBarRoom extends StatelessWidget {
   final Widget child;
 
   const FieldInBarRoom({super.key, required this.child});
 
-  /// How far above the field the strip reaches: far enough that it reads
-  /// as a fade, not a band.
-  static const strip = 64.0;
-
-  /// How much of the field's grey the strip comes to at the field's top.
+  /// How much of the field's grey the strip comes to at the keys.
   static const _most = 0.6;
 
   @override
@@ -469,33 +465,22 @@ class FieldInBarRoom extends StatelessWidget {
         builder: (context, carried, child) =>
             Opacity(opacity: carried ? 0 : 1, child: child),
         child: CarriedField(
-          above: strip,
           child: Stack(
-            clipBehavior: Clip.none,
             children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: -strip,
-                bottom: 0,
+              Positioned.fill(
                 child: IgnorePointer(
                   child: ListenableBuilder(
                     listenable: KeyboardGap.instance.changes,
                     builder: (context, _) => KeyboardGap.up(context)
-                        ? LayoutBuilder(
-                            builder: (context, box) => DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    p.field.withValues(alpha: 0),
-                                    p.field.withValues(alpha: _most),
-                                  ],
-                                  // Full by the field's top edge: the rest
-                                  // is behind the field and never seen.
-                                  stops: [0, strip / box.maxHeight],
-                                ),
+                        ? DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  p.field.withValues(alpha: 0),
+                                  p.field.withValues(alpha: _most),
+                                ],
                               ),
                             ),
                           )
