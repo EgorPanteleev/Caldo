@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/strings.dart';
 import '../utils/platform.dart';
@@ -22,7 +23,8 @@ class Update {
   final List<ReleaseNotes> notes;
 
   /// Whether any of those releases is marked as one not to put off
-  /// ([Updates.urgentMark]): it is offered without Later.
+  /// ([Updates.urgentMark]): it stands in front of the whole app until it
+  /// is installed (`UpdateWall`).
   final bool urgent;
 
   const Update(
@@ -85,6 +87,10 @@ class Updates {
     caseSensitive: false,
   );
 
+  /// The last urgent release found, kept so that the app is barred from
+  /// the first frame of every start until it is installed — offline too.
+  static const _urgentKey = 'updateUrgent';
+
   /// The least time between two looks. Every return to the app looks, and
   /// some returns come close together — from the file picker, the
   /// fingerprint prompt — while GitHub answers sixty an hour without a token.
@@ -99,8 +105,8 @@ class Updates {
 
   bool _enabled = false;
 
-  /// Whether Later was pressed since the app started. Nothing is looked for
-  /// again until it starts afresh.
+  /// Whether Later was pressed since the app started. Nothing but an urgent
+  /// release is offered again until it starts afresh.
   bool _putOff = false;
 
   /// When the last look set out, and whether it is still out.
@@ -114,7 +120,8 @@ class Updates {
   /// been put off — Settings offers it either way.
   final ValueNotifier<Update?> available = ValueNotifier(null);
 
-  /// The release the banner offers: [available] unless it was put off.
+  /// The release the banner offers: [available] unless it was put off. An
+  /// urgent one is offered by a page in front of the app instead.
   final ValueNotifier<Update?> offered = ValueNotifier(null);
 
   /// Why the last install did not get as far as Android's installer, until
@@ -147,28 +154,82 @@ class Updates {
 
   /// Checks for a newer release and offers it — on starting and on every
   /// return to the app, so one released while it sat in the background is
-  /// offered the next time it is opened. Not once Later has been pressed,
-  /// nor while a download is under way, which a fresh offer would only
-  /// disturb.
+  /// offered the next time it is opened. Once Later has been pressed only
+  /// an urgent one is; and nothing is while a download is under way, which
+  /// a fresh offer would only disturb.
   Future<void> look() async {
+    if (!_enabled || _looking || progress.value != null) return;
     final now = DateTime.now();
-    if (_putOff || _looking || progress.value != null) return;
     if (_looked case final last? when now.difference(last) < _lookGap) return;
     _looking = true;
     _looked = now;
     try {
-      final update = await check();
-      // Later may have been pressed on an earlier offer meanwhile.
-      if (update == null || _putOff) return;
+      final prefs = await SharedPreferences.getInstance();
+      final installed = await this.installed();
+      if (installed == null || installed.isEmpty) return;
+      // The urgent release found before bars the app before GitHub has
+      // answered, and whether or not it can.
+      if (offered.value == null) {
+        final kept = _unkeep(prefs.getString(_urgentKey));
+        if (kept != null && isNewer(kept.version, than: installed)) {
+          available.value = offered.value = kept;
+        }
+      }
+
+      final Update? update;
+      try {
+        update = await _fetch();
+      } catch (_) {
+        return;
+      }
+      if (update == null) {
+        // Nothing newer after all — installed, or the release taken down,
+        // which must not leave the app barred behind a file that is gone.
+        await prefs.remove(_urgentKey);
+        available.value = offered.value = null;
+        return;
+      }
+      if (update.urgent) {
+        await prefs.setString(_urgentKey, _keep(update));
+      } else {
+        await prefs.remove(_urgentKey);
+      }
       available.value = update;
-      offered.value = update;
+      // Later may have been pressed on an earlier offer meanwhile.
+      offered.value = _putOff && !update.urgent ? null : update;
     } finally {
       _looking = false;
     }
   }
 
-  /// Keeps the banner away, and stops looking, until the app starts again.
-  /// An urgent release can't be put off.
+  static String _keep(Update update) => jsonEncode({
+    'version': update.version,
+    'file': '${update.file}',
+    'notes': [
+      for (final n in update.notes) [n.version, n.text],
+    ],
+  });
+
+  static Update? _unkeep(String? kept) {
+    if (kept == null) return null;
+    try {
+      final map = jsonDecode(kept) as Map<String, dynamic>;
+      return Update(
+        map['version'] as String,
+        Uri.parse(map['file'] as String),
+        notes: [
+          for (final n in map['notes'] as List<dynamic>)
+            ReleaseNotes(n[0] as String, n[1] as String),
+        ],
+        urgent: true,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Keeps the banner away until the app starts again. An urgent release
+  /// can't be put off.
   void later(Update update) {
     if (update.urgent) return;
     _putOff = true;
@@ -182,27 +243,33 @@ class Updates {
   Future<Update?> check() async {
     if (!_enabled) return null;
     try {
-      final info = await _info();
-      if (info == null) return null;
-      final installed = info['version'] as String? ?? '';
-      // A build that cannot say what it is has nothing to be newer than.
-      if (installed.isEmpty) return null;
-      final abi = info['abi'] as String? ?? '';
-
-      // No falling back on a desktop: the APK for every phone is still
-      // not a program for this one, and nor is one built for another
-      // processor.
-      final names = onDesktop
-          ? [if (Abi.current() == Abi.linuxX64) linuxFile]
-          : [apkFor(abi), 'Caldo-universal.apk'];
-      return pick(
-        await _getJson(_releases) as List<dynamic>,
-        installed: installed,
-        names: names,
-      );
+      return await _fetch();
     } catch (_) {
       return null;
     }
+  }
+
+  /// The newer release, or null when there is none; throws when that can't
+  /// be found out.
+  Future<Update?> _fetch() async {
+    final info = await _info();
+    if (info == null) return null;
+    final installed = info['version'] as String? ?? '';
+    // A build that cannot say what it is has nothing to be newer than.
+    if (installed.isEmpty) return null;
+    final abi = info['abi'] as String? ?? '';
+
+    // No falling back on a desktop: the APK for every phone is still
+    // not a program for this one, and nor is one built for another
+    // processor.
+    final names = onDesktop
+        ? [if (Abi.current() == Abi.linuxX64) linuxFile]
+        : [apkFor(abi), 'Caldo-universal.apk'];
+    return pick(
+      await _getJson(_releases) as List<dynamic>,
+      installed: installed,
+      names: names,
+    );
   }
 
   /// The newest of [releases] (GitHub's list) newer than [installed], with

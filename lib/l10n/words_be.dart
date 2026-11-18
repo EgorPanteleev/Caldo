@@ -32,6 +32,7 @@ const Map<String, Object> be = {
   'downloading': "Загрузка… {percent}%",
   'updateReady': "Новая версія гатовая",
   'updateImportantLine': "Важнае абнаўленне — усталюйце яго",
+  'updateRequired': "Caldo можна будзе карыстацца толькі пасля гэтага абнаўлення",
   'updateImportant': "Важна",
   'whatsNew': "Што новага",
   'later': "Пазней",

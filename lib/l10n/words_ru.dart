@@ -32,6 +32,7 @@ const Map<String, Object> ru = {
   'downloading': "Загрузка… {percent}%",
   'updateReady': "Новая версия готова",
   'updateImportantLine': "Важное обновление — установите его",
+  'updateRequired': "Caldo можно будет использовать только после этого обновления",
   'updateImportant': "Важно",
   'whatsNew': "Что нового",
   'later': "Позже",

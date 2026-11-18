@@ -133,9 +133,29 @@ void main() {
       expect(find.byType(UpdateBanner), findsNothing);
     });
 
-    testWidgets('an urgent one has no Later', (tester) async {
-      await pump(tester, Update('2.9.7', file, urgent: true));
+    testWidgets('an urgent one bars the app, with no Later', (tester) async {
+      tester.view.physicalSize = const Size(411, 731);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: UpdateWall(
+            update: Update(
+              '2.9.7',
+              file,
+              notes: const [ReleaseNotes('2.9.7', '- A fix that matters')],
+              urgent: true,
+            ),
+          ),
+        ),
+      );
       expect(find.text('Important'), findsOneWidget);
+      expect(
+        find.text("Caldo can't be used until this update is installed"),
+        findsOneWidget,
+      );
+      expect(find.text('A fix that matters'), findsOneWidget);
       expect(find.text('Update'), findsOneWidget);
       expect(find.text('Later'), findsNothing);
     });

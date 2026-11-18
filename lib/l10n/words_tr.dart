@@ -33,6 +33,7 @@ const Map<String, Object> tr = {
   'downloading': "İndiriliyor… %{percent}",
   'updateReady': "Yeni sürüm hazır",
   'updateImportantLine': "Önemli güncelleme — lütfen yükleyin",
+  'updateRequired': "Bu güncelleme yüklenene kadar Caldo kullanılamaz",
   'updateImportant': "Önemli",
   'whatsNew': "Yenilikler",
   'later': "Sonra",

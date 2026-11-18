@@ -33,6 +33,7 @@ const Map<String, Object> kk = {
   'downloading': "Жүктелуде… {percent}%",
   'updateReady': "Жаңа нұсқа дайын",
   'updateImportantLine': "Маңызды жаңарту — орнатыңыз",
+  'updateRequired': "Бұл жаңарту орнатылмайынша Caldo-ны қолдану мүмкін емес",
   'updateImportant': "Маңызды",
   'whatsNew': "Не жаңа",
   'later': "Кейінірек",

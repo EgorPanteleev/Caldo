@@ -32,6 +32,7 @@ const Map<String, Object> it = {
   'downloading': "Download… {percent}%",
   'updateReady': "È pronta una nuova versione",
   'updateImportantLine': "Aggiornamento importante: installalo",
+  'updateRequired': "Caldo non si può usare finché non installi questo aggiornamento",
   'updateImportant': "Importante",
   'whatsNew': "Novità",
   'later': "Più tardi",

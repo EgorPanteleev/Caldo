@@ -10,7 +10,7 @@ import 'date_time_pickers.dart' show SheetAction, showAppSheet;
 ///
 /// Later keeps it away until the app next starts, no longer: an update put
 /// off is not an update refused, and Settings offers it meanwhile. A release
-/// marked urgent has no Later and stays until it is installed.
+/// marked urgent is not offered here at all but by [UpdateWall].
 class UpdateBanner extends StatelessWidget {
   final Update update;
 
@@ -93,6 +93,115 @@ class UpdateBanner extends StatelessWidget {
                           ),
                         ],
                       ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// An urgent update, standing in place of the whole app until it is
+/// installed: what is new in it, and Update. Put in for the app's navigator
+/// (`main`), so nothing under it is reachable — Back has no route to pop and
+/// sends the app away, as on its first screen.
+class UpdateWall extends StatelessWidget {
+  final Update update;
+
+  const UpdateWall({super.key, required this.update});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final accent = AppTheme.accentOf(context).color;
+    final s = S.of(context);
+    final updates = Updates.instance;
+    final several = update.notes.length > 1;
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: ListenableBuilder(
+              listenable: Listenable.merge([updates.progress, updates.hitch]),
+              builder: (context, _) {
+                final progress = updates.progress.value;
+                final hitch = updates.hitch.value;
+                final line = switch ((progress, hitch)) {
+                  (final double done, _) => s.downloading((done * 100).round()),
+                  (_, InstallHitch.allow) => s.allowInstall,
+                  (_, InstallHitch.failed) => s.downloadFailed,
+                  _ => s.updateRequired,
+                };
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 28, 20, 18),
+                      child: Row(
+                        children: [
+                          _Badge(accent: accent, size: 52),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _Heading(
+                              update: update,
+                              line: line,
+                              warn: hitch != null && progress == null,
+                              big: true,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        children: [
+                          for (final notes in update.notes) ...[
+                            if (several)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  notes.version,
+                                  style: TextStyle(
+                                    color: p.muted,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                            _Notes(text: notes.text),
+                            const SizedBox(height: 14),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                      child: SizedBox(
+                        height: 48,
+                        child: progress != null
+                            ? Center(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(3),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    minHeight: 6,
+                                    color: accent,
+                                    backgroundColor: p.field,
+                                  ),
+                                ),
+                              )
+                            : _UpdateButton(
+                                accent: accent,
+                                onTap: () => updates.start(update),
+                              ),
+                      ),
+                    ),
                   ],
                 );
               },

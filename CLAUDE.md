@@ -453,8 +453,12 @@ them will be noticed.
   `New:`/`- ` lines). Looked for on start and on every resume, at most
   once a minute (`Updates.look`). **Later** hides it and stops looking
   until the app restarts; Settings › About keeps an "is out" row meanwhile.
-  **A release whose notes hold `<!-- priority: high -->` is urgent**: no
-  Later, an Important tag. Banner downloads the ABI's APK and installs through Caldo's own
+  **A release whose notes hold `<!-- priority: high -->` is urgent**: it
+  takes the navigator's place in `MaterialApp.builder` (`UpdateWall`: notes,
+  Update, no Later; Back leaves the app) until installed, even after Later
+  on another. Kept in prefs (`updateUrgent`) so it bars from the next start
+  offline too; dropped when GitHub answers with nothing newer.
+  Banner downloads the ABI's APK and installs through Caldo's own
   `PackageInstaller` session (keeps full-screen permission, no prompt on
   12+); ends on the home screen with an `UpdateDone` notification since
   Android won't relaunch it. The repo is public so no token is needed. No

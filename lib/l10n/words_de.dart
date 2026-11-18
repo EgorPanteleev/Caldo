@@ -32,6 +32,7 @@ const Map<String, Object> de = {
   'downloading': "Wird geladen… {percent} %",
   'updateReady': "Eine neue Version ist da",
   'updateImportantLine': "Ein wichtiges Update – bitte installieren",
+  'updateRequired': "Caldo kann erst nach diesem Update wieder genutzt werden",
   'updateImportant': "Wichtig",
   'whatsNew': "Neuigkeiten",
   'later': "Später",

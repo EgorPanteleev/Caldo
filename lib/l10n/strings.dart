@@ -187,6 +187,7 @@ class S {
   String downloading(int percent) => _fill('downloading', {'percent': percent});
   String get updateReady => _word('updateReady');
   String get updateImportantLine => _word('updateImportantLine');
+  String get updateRequired => _word('updateRequired');
   String get updateImportant => _word('updateImportant');
   String get whatsNew => _word('whatsNew');
   String get later => _word('later');
