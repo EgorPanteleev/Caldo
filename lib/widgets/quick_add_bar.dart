@@ -441,7 +441,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
 /// of a screen that runs on under the bar — Schedule's and the calendar's,
 /// one widget so the two cannot come to differ. Out on the keys it stands
 /// on a strip of its own grey across its room, clear at the field's top
-/// edge and three fifths of the grey at the keys. It stood on a solid band
+/// edge and three quarters of the grey at the keys. It stood on a solid band
 /// of the ground with a fade above, which was asked off; then on the tab
 /// bar's blur, which was asked to be this instead. The strip reached up
 /// over the screen above the field at first; it was meant to lie only
@@ -452,7 +452,7 @@ class FieldInBarRoom extends StatelessWidget {
   const FieldInBarRoom({super.key, required this.child});
 
   /// How much of the field's grey the strip comes to at the keys.
-  static const _most = 0.6;
+  static const _most = 0.75;
 
   @override
   Widget build(BuildContext context) {

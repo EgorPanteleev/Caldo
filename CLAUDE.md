@@ -423,7 +423,8 @@ them will be noticed.
   then asked blurred 0→1.5 (the bar's `FadingBlur`), then asked not blurry
   but "transparent from 100 to 80", then "to 40", in the field's grey
   (`p.field`, asked for; it was `p.bg`), across the field's own room
-  only: clear at the field's top edge, 60% at the keys, showing beside
+  only: clear at the field's top edge, 75% at the keys (60% let the dates
+  under it read clearly), showing beside
   and under the field. It reached up over the screen above the field
   (24pt, then 64pt) until a marked screenshot showed that was never
   meant. A plain tint, so it is in the
