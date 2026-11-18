@@ -12,17 +12,19 @@ import 'package:flutter/widgets.dart';
 import '../utils/platform.dart';
 import '../widgets/perf_hud.dart';
 
-/// Settings › Debug's screen recording: a video of the screen
-/// (`ScreenRecord.kt`) and, beside it, a log of what the app was doing
-/// meanwhile, the two to be sent on together for a look at what went
-/// wrong. Android only; a desktop has its own recorders.
+/// Settings › Debug's recording: a video of Caldo alone — copied out of
+/// Flutter's own surface (`ScreenRecord.kt`), so no other app, the status
+/// bar or the keyboard is ever in it — and, beside it, a log of what the
+/// app was doing meanwhile, the two to be sent on together for a look at
+/// what went wrong. Android only; a desktop has its own recorders.
 ///
 /// The log is JSON, a line to an event, each with `t`, milliseconds from
 /// the video's first frame, and `k`, what it is: `start` (the phone, the
 /// build, the screen), `touch` (every pointer down, move and up, in
 /// logical points), `frame` (each frame's build and raster times, at its
 /// vsync), `perf` (the HUD's numbers, once a second), `route`, `life`,
-/// `insets` (the keyboard among them), `error`, `print`, `mark` (the
+/// `insets` (the keyboard's height among them, since the keyboard itself
+/// is not in the video), `error`, `print`, `mark` (the
 /// badge's flag) and `stop`. Touches, the HUD's numbers and the time
 /// shown in the badge are all in the video too, so the two can be lined
 /// up by eye as well as by the clock. Frame times arrive in batches about
@@ -76,8 +78,7 @@ class Recording {
     }
   }
 
-  /// Asks Android to let the screen be recorded, and starts once it does.
-  /// Null when going or backed out of; otherwise why it could not start.
+  /// Starts recording. Null when going; otherwise why it could not start.
   Future<String?> start() async {
     if (!available || on.value) return null;
     try {
@@ -157,6 +158,7 @@ class Recording {
     });
     on.value = true;
 
+    _tellOfFrames();
     SchedulerBinding.instance.addTimingsCallback(_frames);
     _perf.start();
     _second = Timer.periodic(const Duration(seconds: 1), (_) async {
@@ -182,6 +184,21 @@ class Recording {
     };
   }
 
+  /// Tells Android each frame Dart draws while recording, which is when
+  /// it copies the surface: nothing is copied while nothing changes. A
+  /// persistent callback asks for no frame of its own, but can't be taken
+  /// off again, so there is one for the app's life.
+  static bool _telling = false;
+
+  static void _tellOfFrames() {
+    if (_telling) return;
+    _telling = true;
+    SchedulerBinding.instance.addPersistentFrameCallback((_) {
+      if (!instance.on.value) return;
+      _channel.invokeMethod<void>('drew').catchError((_) {});
+    });
+  }
+
   Future<void> _close(String? video) async {
     if (!on.value) return;
     _stopUs = Timeline.now;
@@ -201,8 +218,8 @@ class Recording {
     await sink?.flush();
     await sink?.close();
     await look();
-    // Straight on to the share sheet, unless the notification stopped it
-    // from over another app.
+    // Straight on to the share sheet, unless it ran out of time while
+    // Caldo was away.
     if (video != null &&
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
       await share();

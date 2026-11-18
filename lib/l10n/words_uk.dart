@@ -32,7 +32,8 @@ const Map<String, Object> uk = {
   'downloading': "Завантаження… {percent}%",
   'updateReady': "Нова версія готова",
   'updateImportantLine': "Важливе оновлення — встановіть його",
-  'updateRequired': "Caldo можна буде використовувати лише після цього оновлення",
+  'updateRequired':
+      "Caldo можна буде використовувати лише після цього оновлення",
   'updateImportant': "Важливо",
   'whatsNew': "Що нового",
   'later': "Пізніше",

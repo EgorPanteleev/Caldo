@@ -440,20 +440,25 @@ them will be noticed.
   (`PerfHud.graphsDrawn`). Idle
   should read 1 fps and 0 tickers. On the emulator raster time includes
   waiting on the swap (~16.6ms while drawing every frame, ~5 idle).
-- **Screen recording to send on** (Debug › Recording; `Recording`,
-  `RecordingOverlay`, `ScreenRecord.kt` + `RecordService`, a
-  `mediaProjection` foreground service; Android only, greyed with Debug
-  mode off): Android's consent each time, H.264 ≤1920 long side, ≤60fps,
-  no sound, at most 5 min, one kept in `cache/recordings`. Beside it a
-  `.log.jsonl` on the video's clock (`t` ms; `System.nanoTime` at start =
-  Dart's `Timeline.now` = pointer and frame timestamps): touches, every
-  frame's build/raster, the HUD's numbers each second, insets, routes,
-  lifecycle, errors, `debugPrint`, marks. While recording: a ring under
-  each finger and a draggable badge (time, flag = mark, stop). Stop opens
-  the share sheet (`FileProvider` serves `recordings/` too). Read one with
-  `tool/recording.py <log> [--frames s…] [--slow N] [--between a b]`;
-  checked on the emulator: a tap's first video frame came 23ms after its
-  logged time.
+- **Recording to send on, of Caldo only** (Debug › Recording;
+  `Recording`, `RecordingOverlay`, `ScreenRecord.kt`; Android only, greyed
+  with Debug mode off). Asked to record this app and nothing else, so not
+  MediaProjection (the first build, whole screen, consent, a foreground
+  service): `PixelCopy` of Flutter's `SurfaceView` onto a MediaCodec
+  input surface, muxed to MP4, ≤1280 long side, ≤30fps, no sound, at most
+  5 min, one kept in `cache/recordings`. No status bar, keyboard, shade
+  or other apps; the vault is black. A copy only after Dart pings `drew`
+  (a persistent frame callback), and for 80ms after, so idle costs
+  nothing. Beside it a `.log.jsonl` on the video's clock (`t` ms;
+  `System.nanoTime` at start = Dart's `Timeline.now` = pointer and frame
+  timestamps; pts rebased to the start): touches, every frame's
+  build/raster, the HUD's numbers each second, insets (the keyboard's
+  height), routes, lifecycle, errors, `debugPrint`, marks. While
+  recording: a ring under each finger and a draggable badge (time, flag =
+  mark, stop). Stop opens the share sheet (`FileProvider` serves
+  `recordings/` too). Read one with `tool/recording.py <log> [--frames
+  s…] [--slow N] [--between a b]`; on the emulator a tap's first video
+  frame came 10ms after its logged time, ~20–25 copies a second.
 
 ### Reminders
 

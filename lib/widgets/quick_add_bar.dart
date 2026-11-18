@@ -554,15 +554,19 @@ class _AttachButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final s = S.of(context);
-    _MenuItem item(IconData icon, String label, AttachFrom from, VoidCallback close) =>
-        _MenuItem(
-          leading: Icon(icon, size: 19, color: p.muted),
-          label: label,
-          onTap: () {
-            close();
-            onPick(from);
-          },
-        );
+    _MenuItem item(
+      IconData icon,
+      String label,
+      AttachFrom from,
+      VoidCallback close,
+    ) => _MenuItem(
+      leading: Icon(icon, size: 19, color: p.muted),
+      label: label,
+      onTap: () {
+        close();
+        onPick(from);
+      },
+    );
     return _Popup(
       anchor: (toggle) => _ConfirmButton(
         icon: Icons.add,

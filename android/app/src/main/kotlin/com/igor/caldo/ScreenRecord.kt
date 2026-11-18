@@ -1,25 +1,25 @@
 package com.igor.caldo
 
 import android.app.Activity
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Intent
-import android.content.pm.ServiceInfo
-import android.graphics.drawable.Icon
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
-import android.media.MediaRecorder
-import android.media.projection.MediaProjection
-import android.media.projection.MediaProjectionManager
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import android.os.Build
 import android.os.Handler
-import android.os.IBinder
+import android.os.HandlerThread
 import android.os.Looper
+import android.view.Choreographer
+import android.view.PixelCopy
+import android.view.Surface
+import android.view.SurfaceView
+import android.view.View
+import android.view.ViewGroup
 import androidx.core.content.FileProvider
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -27,30 +27,25 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Settings › Debug's screen recording (`services/recording.dart`): a video
- * of the screen, for the user to send on with the log Dart writes beside
- * it. Android's own consent first, every time; then [RecordService], a
- * foreground service, since Android 14 hands a screen over only to one.
+ * Settings › Debug's recording (`services/recording.dart`): a video of
+ * Caldo and nothing else, for the user to send on with the log Dart
+ * writes beside it.
  *
- * The video is at most 1920 on its long side and the display's rate up to
- * 60, without sound. Like `screenrecord`, it shows what moved and where,
- * not how smoothly: frame times are in the log. One recording is kept, in
- * the cache; the next one clears it.
+ * Not the screen: what Flutter draws is copied out of its own surface
+ * ([PixelCopy]) as it draws it and encoded here, so other apps, the
+ * status bar, the system's sheets and the keyboard never reach the video
+ * — and Android has nothing to ask, as it would to lend the screen. A
+ * frame is copied only after Dart says one was drawn (`drew`), at most
+ * [FPS] a second, so an idle app costs nothing. At most 1280 on its long
+ * side, without sound; one recording is kept, in the cache, and the next
+ * clears it.
  */
 class ScreenRecord(private val activity: Activity, private val channel: MethodChannel) {
-    /** The start waiting on the consent and the service. */
-    private var answer: MethodChannel.Result? = null
-
-    init {
-        // Stopped by the notification, the system's own chip, or the
-        // length running out as much as by Dart: it hears of each.
-        RecordService.stopped = { path ->
-            activity.runOnUiThread { channel.invokeMethod("stopped", path) }
-        }
-    }
+    private var session: Session? = null
 
     private val dir: File
         get() = File(activity.cacheDir, DIR).apply { mkdirs() }
@@ -58,15 +53,15 @@ class ScreenRecord(private val activity: Activity, private val channel: MethodCh
     fun call(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "start" -> start(result)
-            "stop" -> {
-                if (RecordService.running) {
-                    activity.startService(
-                        Intent(activity, RecordService::class.java).setAction(RecordService.STOP),
-                    )
-                }
+            "drew" -> {
+                session?.drew()
                 result.success(null)
             }
-            "recording" -> result.success(RecordService.running)
+            "stop" -> {
+                session?.finish()
+                result.success(null)
+            }
+            "recording" -> result.success(session != null)
             "files" -> result.success(
                 dir.listFiles()?.filter { it.isFile }?.map { it.absolutePath } ?: emptyList<String>(),
             )
@@ -76,83 +71,67 @@ class ScreenRecord(private val activity: Activity, private val channel: MethodCh
         }
     }
 
+    /** The activity is going: what is recorded so far is kept. */
+    fun release() {
+        session?.finish()
+    }
+
     private fun start(result: MethodChannel.Result) {
-        if (RecordService.running) {
+        if (session != null) {
             result.error("running", "Already recording", null)
             return
         }
-        answer?.success(null)
-        answer = result
-        val projections = activity.getSystemService(MediaProjectionManager::class.java)
-        try {
-            activity.startActivityForResult(projections.createScreenCaptureIntent(), ASK)
-        } catch (_: ActivityNotFoundException) {
-            answer = null
-            result.error("unavailable", "No screen capture on this device", null)
-        }
-    }
-
-    /** The consent's answer; false if the result was another's. */
-    fun answered(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode != ASK) return false
-        val result = answer ?: return true
-        answer = null
-        if (resultCode != Activity.RESULT_OK || data == null) {
-            result.success(null)
-            return true
+        val view = flutterSurface(activity.window.decorView)
+        if (view == null || view.width == 0 || view.height == 0) {
+            result.error("unavailable", "Nothing drawn to record", null)
+            return
         }
         dir.listFiles()?.forEach { it.delete() }
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val file = File(dir, "caldo-$stamp.mp4")
-        val (width, height) = videoSize()
-        RecordService.started = { started, problem ->
-            activity.runOnUiThread {
-                if (started != null) result.success(started) else result.error("failed", problem, null)
+        val (width, height) = videoSize(view.width, view.height)
+        try {
+            val started = Session(view, file, width, height) { kept ->
+                session = null
+                channel.invokeMethod("stopped", kept)
             }
+            session = started
+            result.success(
+                mapOf(
+                    "path" to file.absolutePath,
+                    "startedUs" to started.startUs,
+                    "width" to width,
+                    "height" to height,
+                    "fps" to FPS,
+                ),
+            )
+        } catch (e: Exception) {
+            file.delete()
+            result.error("failed", e.message ?: e.javaClass.simpleName, null)
         }
-        val intent = Intent(activity, RecordService::class.java)
-            .putExtra(RecordService.CODE, resultCode)
-            .putExtra(RecordService.DATA, data)
-            .putExtra(RecordService.PATH, file.absolutePath)
-            .putExtra(RecordService.WIDTH, width)
-            .putExtra(RecordService.HEIGHT, height)
-            .putExtra(RecordService.DPI, activity.resources.displayMetrics.densityDpi)
-            .putExtra(RecordService.FPS, min(60, refreshRate().toInt()))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            activity.startForegroundService(intent)
-        } else {
-            activity.startService(intent)
+    }
+
+    /** Flutter's surface: the largest [SurfaceView] in the window. */
+    private fun flutterSurface(view: View): SurfaceView? {
+        if (view is SurfaceView) return view
+        if (view !is ViewGroup) return null
+        var best: SurfaceView? = null
+        for (i in 0 until view.childCount) {
+            val found = flutterSurface(view.getChildAt(i)) ?: continue
+            if (best == null || found.width * found.height > best.width * best.height) best = found
         }
-        return true
+        return best
     }
 
     /**
-     * The display's size brought within 1920×1080 either way up, which
-     * every phone's encoder takes, and to a multiple of 16, which some
-     * insist on. The few points lost to the rounding are a thin edge.
+     * The surface brought within 1280 on its long side and to multiples of
+     * 16, which some encoders insist on. The few points the rounding
+     * loses are a thin stretch, not a crop.
      */
-    private fun videoSize(): Pair<Int, Int> {
-        val (w, h) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val bounds = activity.windowManager.currentWindowMetrics.bounds
-            bounds.width() to bounds.height()
-        } else {
-            val metrics = android.util.DisplayMetrics()
-            @Suppress("DEPRECATION")
-            activity.windowManager.defaultDisplay.getRealMetrics(metrics)
-            metrics.widthPixels to metrics.heightPixels
-        }
-        val long = maxOf(w, h).toDouble()
-        val short = minOf(w, h).toDouble()
-        val scale = min(1.0, min(LONG / long, SHORT / short))
-        fun even(v: Int) = (v * scale).toInt() / 16 * 16
+    private fun videoSize(w: Int, h: Int): Pair<Int, Int> {
+        val scale = min(1.0, LONG / max(w, h))
+        fun even(v: Int) = max(16, (v * scale).toInt() / 16 * 16)
         return even(w) to even(h)
-    }
-
-    private fun refreshRate(): Float = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        activity.display?.refreshRate ?: 60f
-    } else {
-        @Suppress("DEPRECATION")
-        activity.windowManager.defaultDisplay.refreshRate
     }
 
     /** The recording and its log, handed to whatever the user sends them with. */
@@ -192,214 +171,188 @@ class ScreenRecord(private val activity: Activity, private val channel: MethodCh
 
     companion object {
         const val DIR = "recordings"
-        private const val ASK = 13
-        private const val LONG = 1920.0
-        private const val SHORT = 1080.0
+        private const val LONG = 1280.0
+        const val FPS = 30
     }
 }
 
 /**
- * Holds the screen while it is recorded. Started with the consent's answer;
- * ends on [STOP] — from Dart or the notification's Stop — when the system
- * takes the screen back, or after [MOST_MS].
+ * One recording: copies of Flutter's surface drawn onto an H.264
+ * encoder's own surface, muxed into an MP4 on a thread of its own. Ends
+ * on [finish], or after [MOST_MS].
  */
-class RecordService : Service() {
-    private var projection: MediaProjection? = null
-    private var recorder: MediaRecorder? = null
-    private var display: VirtualDisplay? = null
-    private var path: String? = null
+private class Session(
+    private val view: SurfaceView,
+    private val file: File,
+    width: Int,
+    height: Int,
+    private val done: (String?) -> Unit,
+) : Choreographer.FrameCallback {
+    private val main = Handler(Looper.getMainLooper())
+    private val thread = HandlerThread("Caldo recording").apply { start() }
+    private val worker = Handler(thread.looper)
+    private val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+    private val muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+    private val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    private val input: Surface
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    /**
+     * When it began, on the monotonic clock in microseconds: the video's
+     * nought. Dart's Timeline, pointer events and frame timings read the
+     * same clock, so the log lines up with the video.
+     */
+    val startUs: Long
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == STOP) {
-            finish()
-            return START_NOT_STICKY
-        }
-        if (intent == null || running) return START_NOT_STICKY
-        try {
-            // Before the projection is asked for: Android 14 hands it only
-            // to a service already in the foreground for it.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-            } else {
-                startForeground(ID, notification())
-            }
-            begin(intent)
-        } catch (e: Exception) {
-            release()
-            path?.let { File(it).delete() }
-            stopSelf()
-            started?.invoke(null, e.message ?: e.javaClass.simpleName)
-            started = null
-        }
-        return START_NOT_STICKY
-    }
+    // The main thread's.
+    private var copying = false
+    private var lastCopyNs = 0L
+    private var wantedUntilNs = 0L
+    private var posted = false
+    private var finishing = false
 
-    private fun begin(intent: Intent) {
-        val file = intent.getStringExtra(PATH)!!
-        path = file
-        val width = intent.getIntExtra(WIDTH, 0)
-        val height = intent.getIntExtra(HEIGHT, 0)
-        val fps = intent.getIntExtra(FPS, 60)
-        val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(DATA, Intent::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(DATA)
+    // The worker's.
+    private var track = -1
+    private var samples = 0
+    private var closed = false
+    @Volatile private var ending = false
+
+    private val tooLong = Runnable { finish() }
+
+    init {
+        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
+            setInteger(
+                MediaFormat.KEY_COLOR_FORMAT,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface,
+            )
+            setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
+            setInteger(MediaFormat.KEY_FRAME_RATE, ScreenRecord.FPS)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
         }
-        val projections = getSystemService(MediaProjectionManager::class.java)
-        val projection = projections.getMediaProjection(intent.getIntExtra(CODE, 0), data!!)
-            ?: error("The screen was not handed over")
-        this.projection = projection
-        // Before the display is made, as Android 14 insists: the system's
-        // own "stop sharing" ends the recording as Stop does.
-        projection.registerCallback(
-            object : MediaProjection.Callback() {
-                override fun onStop() = finish()
+        codec.setCallback(
+            object : MediaCodec.Callback() {
+                override fun onInputBufferAvailable(codec: MediaCodec, index: Int) = Unit
+
+                override fun onOutputFormatChanged(codec: MediaCodec, format: MediaFormat) {
+                    track = muxer.addTrack(format)
+                    muxer.start()
+                }
+
+                override fun onOutputBufferAvailable(
+                    codec: MediaCodec,
+                    index: Int,
+                    info: MediaCodec.BufferInfo,
+                ) = written(index, info)
+
+                override fun onError(codec: MediaCodec, e: MediaCodec.CodecException) = close()
             },
-            Handler(Looper.getMainLooper()),
+            worker,
         )
-        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaRecorder(this)
-        } else {
-            @Suppress("DEPRECATION")
-            MediaRecorder()
-        }
-        this.recorder = recorder
-        recorder.apply {
-            setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            setVideoSize(width, height)
-            setVideoFrameRate(fps)
-            setVideoEncodingBitRate(BITRATE)
-            setMaxDuration(MOST_MS)
-            setOnInfoListener { _, what, _ ->
-                if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) finish()
-            }
-            setOutputFile(file)
-            prepare()
-        }
-        display = projection.createVirtualDisplay(
-            "Caldo recording",
-            width,
-            height,
-            intent.getIntExtra(DPI, 420),
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            recorder.surface,
-            null,
-            null,
-        )
-        recorder.start()
-        // On the monotonic clock Dart's Timeline, pointer events and frame
-        // timings all read, so the log lines up with the video.
-        val at = System.nanoTime() / 1000
-        running = true
-        started?.invoke(
-            mapOf(
-                "path" to file,
-                "startedUs" to at,
-                "width" to width,
-                "height" to height,
-                "fps" to fps,
-            ),
-            null,
-        )
-        started = null
+        codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        input = codec.createInputSurface()
+        codec.start()
+        startUs = System.nanoTime() / 1000
+        main.postDelayed(tooLong, MOST_MS)
+        // The app as it stands, before anything moves.
+        drew()
     }
 
-    private fun finish() {
-        if (!running) return
-        running = false
-        var kept = path
+    /**
+     * Dart has drawn a frame. Copies follow for a little while after, as
+     * the frame is rastered after Dart has said so.
+     */
+    fun drew() {
+        if (finishing) return
+        wantedUntilNs = System.nanoTime() + FOLLOW_NS
+        if (!posted) {
+            posted = true
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
+
+    override fun doFrame(frameTimeNanos: Long) {
+        posted = false
+        if (finishing) return
+        val now = System.nanoTime()
+        if (now > wantedUntilNs) return
+        if (!copying && now - lastCopyNs >= 1_000_000_000L / ScreenRecord.FPS) copy(now)
+        posted = true
+        Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    private fun copy(now: Long) {
+        // Gone while Caldo is in the background: the video has a gap.
+        if (!view.holder.surface.isValid) return
+        copying = true
+        lastCopyNs = now
         try {
-            recorder?.stop()
-        } catch (_: RuntimeException) {
-            // Stopped before a frame came in: there is no video to keep.
-            kept?.let { File(it).delete() }
+            PixelCopy.request(view, bitmap, { result ->
+                if (!ending) {
+                    // A surface it may not read — the open vault's — is
+                    // black, as it is in a screenshot.
+                    if (result != PixelCopy.SUCCESS) bitmap.eraseColor(Color.BLACK)
+                    val canvas = input.lockHardwareCanvas()
+                    canvas.drawBitmap(bitmap, 0f, 0f, null)
+                    input.unlockCanvasAndPost(canvas)
+                }
+                main.post { copying = false }
+            }, worker)
+        } catch (_: IllegalArgumentException) {
+            copying = false
+        }
+    }
+
+    /** One piece of the encoded video, moved onto the video's clock. */
+    private fun written(index: Int, info: MediaCodec.BufferInfo) {
+        if (closed) return
+        val config = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
+        if (!config && info.size > 0 && track >= 0) {
+            val buffer = codec.getOutputBuffer(index)!!
+            info.presentationTimeUs = max(0, info.presentationTimeUs - startUs)
+            muxer.writeSampleData(track, buffer, info)
+            samples++
+        }
+        codec.releaseOutputBuffer(index, false)
+        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) close()
+    }
+
+    fun finish() {
+        if (finishing) return
+        finishing = true
+        main.removeCallbacks(tooLong)
+        worker.post {
+            ending = true
+            try {
+                codec.signalEndOfInputStream()
+            } catch (_: IllegalStateException) {
+                close()
+            }
+        }
+        // Should the end of the stream never come out.
+        worker.postDelayed({ close() }, 3000)
+    }
+
+    private fun close() {
+        if (closed) return
+        closed = true
+        ending = true
+        var kept: String? = file.absolutePath
+        try {
+            muxer.stop()
+        } catch (_: IllegalStateException) {
             kept = null
         }
-        release()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-        } else {
-            @Suppress("DEPRECATION")
-            stopForeground(true)
-        }
-        stopSelf()
-        stopped?.invoke(kept)
-    }
-
-    private fun release() {
-        recorder?.release()
-        recorder = null
-        display?.release()
-        display = null
-        projection?.stop()
-        projection = null
-    }
-
-    private fun notification(): Notification {
-        val notifications = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            notifications.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Screen recording", NotificationManager.IMPORTANCE_LOW),
-            )
-        }
-        val stop = PendingIntent.getService(
-            this,
-            0,
-            Intent(this, RecordService::class.java).setAction(STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val open = packageManager.getLaunchIntentForPackage(packageName)?.let {
-            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
-        }
-        @Suppress("DEPRECATION")
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            Notification.Builder(this)
-        }
-        return builder
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Recording the screen")
-            .setContentText("Stop to send it on with its log")
-            .setOngoing(true)
-            .setContentIntent(open)
-            .addAction(
-                Notification.Action.Builder(
-                    Icon.createWithResource(this, R.drawable.ic_notification),
-                    "Stop",
-                    stop,
-                ).build(),
-            )
-            .build()
+        if (samples == 0) kept = null
+        muxer.release()
+        codec.release()
+        input.release()
+        if (kept == null) file.delete()
+        thread.quitSafely()
+        main.post { done(kept) }
     }
 
     companion object {
-        const val STOP = "com.igor.caldo.STOP_RECORDING"
-        const val CODE = "code"
-        const val DATA = "data"
-        const val PATH = "path"
-        const val WIDTH = "width"
-        const val HEIGHT = "height"
-        const val DPI = "dpi"
-        const val FPS = "fps"
-        private const val ID = 7301
-        private const val CHANNEL_ID = "recording"
-        private const val BITRATE = 6_000_000
-        private const val MOST_MS = 5 * 60 * 1000
-
-        /** Whether the screen is being recorded now. */
-        @Volatile
-        var running = false
-
-        /** Told once the recording is going, or why it couldn't start. */
-        var started: ((Map<String, Any>?, String?) -> Unit)? = null
-
-        /** Told when it ends, with the video, or null if there is none. */
-        var stopped: ((String?) -> Unit)? = null
+        private const val BITRATE = 4_000_000
+        private const val MOST_MS = 5 * 60 * 1000L
+        private const val FOLLOW_NS = 80_000_000L
     }
 }

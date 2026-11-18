@@ -32,12 +32,6 @@
     <!-- The vault opens with a fingerprint (Vault.kt). Granted with the
          install; nothing is asked. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
-    <!-- Settings › Debug records the screen to send on (ScreenRecord):
-         Android 14 lends a screen only to a foreground service of this
-         type. Granted with the install; Android still asks before every
-         recording. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
 
     <!-- The app's own icon is the free page, not the filled one: Samsung's
          launcher draws an app with the application's icon rather than the
@@ -156,12 +150,6 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/today_widget_info"/>
         </receiver>
-
-        <!-- Holds the screen while Settings › Debug records it. -->
-        <service
-            android:name=".RecordService"
-            android:foregroundServiceType="mediaProjection"
-            android:exported="false"/>
 
         <!-- Hands a task's attachments to the app that opens them, and the
              camera app a file to write a photo into (Attachments). It

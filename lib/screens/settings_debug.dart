@@ -259,13 +259,13 @@ class _RecordRowsState extends State<_RecordRows> {
         return _Group(
           label: 'Recording',
           footnote:
-              'A video of the screen, at most five minutes, with a log '
-              'beside it on the same clock: every touch, each frame\'s '
-              'build and raster time, the numbers above once a second, '
-              'the keyboard, routes and errors. Android asks first, each '
-              'time; choose the entire screen to keep the keyboard in. '
-              'Stop with the badge or the notification and both files go '
-              'to the share sheet. The flag marks a moment in the log.',
+              'A video of Caldo alone, never of other apps, the status bar '
+              'or the keyboard, at most five minutes, with a log beside '
+              'it on the same clock: every touch, each frame\'s build and '
+              'raster time, the numbers above once a second, the '
+              'keyboard\'s height, routes and errors. Stop with the badge '
+              'and both files go to the share sheet. The flag marks a '
+              'moment in the log.',
           children: [
             Opacity(
               opacity: widget.enabled || on ? 1 : 0.4,
@@ -273,7 +273,7 @@ class _RecordRowsState extends State<_RecordRows> {
                 icon: on
                     ? Icons.stop_circle_outlined
                     : Icons.fiber_manual_record_outlined,
-                title: on ? 'Stop recording' : 'Record the screen',
+                title: on ? 'Stop recording' : 'Record the app',
                 value: on
                     ? 'Recording'
                     : 'Video with touches, frame times, CPU',

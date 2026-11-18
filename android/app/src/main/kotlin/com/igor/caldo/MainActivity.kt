@@ -162,6 +162,12 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onDestroy() {
+        // A recording going keeps what it has.
+        recording?.release()
+        super.onDestroy()
+    }
+
     override fun onStop() {
         super.onStop()
         overLock(false)
@@ -384,7 +390,6 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (attachments.answered(requestCode, resultCode, data)) return
-        if (recording?.answered(requestCode, resultCode, data) == true) return
         if (requestCode != SAVE_BACKUP && requestCode != OPEN_BACKUP &&
             requestCode != PICK_FOLDER
         ) {
