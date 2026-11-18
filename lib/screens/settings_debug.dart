@@ -263,14 +263,16 @@ class _RecordRowsState extends State<_RecordRows> {
         return _Group(
           label: 'Recording',
           footnote:
-              'A video of Caldo alone, never of other apps, the status bar '
-              'or the keyboard, at most five minutes, with a log beside '
-              'it on the same clock: every touch, each frame\'s build and '
-              'raster time, the numbers above once a second, the '
-              'keyboard\'s height, routes and errors. Stop with the badge '
-              'and both files go to the share sheet. The flag marks a '
-              'moment in the log. The button and the badge can be dragged '
-              'aside.',
+              'A video of Caldo and its keyboard, never of other apps, '
+              'the status bar or notifications, at most five minutes, with '
+              'a log beside it on the same clock: every touch, each '
+              'frame\'s build and raster time, the numbers above once a '
+              'second, routes and errors. Android asks first each time, '
+              'since only a capture of the screen sees the keyboard; just '
+              'its strip is kept, while Caldo is in front. Stop with the '
+              'badge and both files go to the share sheet. The flag marks '
+              'a moment in the log. The button and the badge can be '
+              'dragged aside.',
           children: [
             Opacity(
               opacity: widget.enabled || on ? 1 : 0.4,

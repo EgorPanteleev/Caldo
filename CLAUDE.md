@@ -440,29 +440,40 @@ them will be noticed.
   (`PerfHud.graphsDrawn`). Idle
   should read 1 fps and 0 tickers. On the emulator raster time includes
   waiting on the swap (~16.6ms while drawing every frame, ~5 idle).
-- **Recording to send on, of Caldo only** (Debug › Recording;
-  `Recording`, `RecordingOverlay`, `ScreenRecord.kt`; Android only, greyed
-  with Debug mode off). Asked to record this app and nothing else, so not
-  MediaProjection (the first build, whole screen, consent, a foreground
-  service): `PixelCopy` of Flutter's `SurfaceView` onto a MediaCodec
-  input surface, muxed to MP4, ≤1280 long side, ≤30fps, no sound, at most
-  5 min, one kept in `cache/recordings`. No status bar, keyboard, shade
-  or other apps; the vault is black. A copy only after Dart pings `drew`
-  (a persistent frame callback), and for 80ms after, so idle costs
-  nothing. Beside it a `.log.jsonl` on the video's clock (`t` ms;
+- **Recording to send on, of Caldo and its keyboard only** (Debug ›
+  Recording; `Recording`, `RecordingOverlay`, `ScreenRecord.kt` +
+  `RecordService`; Android only, greyed with Debug mode off). Asked to
+  record this app and nothing else, then for the keyboard in it. The app
+  is `PixelCopy` of Flutter's `SurfaceView`; the keyboard, a system
+  window, comes only from MediaProjection (whole display:
+  `createConfigForDefaultDisplay`; consent each time; a
+  `mediaProjection` foreground service with a Stop notification), mirrored
+  at video size into an `ImageReader`, and only the IME inset's strip of
+  it is laid over the app's copy, only while Caldo has window focus — so
+  status bar, notifications, the shade and other apps never reach the
+  video. Composed on a `lockHardwareCanvas` of a MediaCodec input
+  surface, muxed to MP4, ≤1280 long side, ≤30fps, no sound, at most 5
+  min, one kept in `cache/recordings`. Frames only after Dart pings
+  `drew` (a persistent frame callback), or a screen change with the
+  keys up, and for 80ms after, so idle costs nothing. Whole-screen
+  capture (the first build) and app-only without keys (the second) were
+  both asked off. Back out of the app ends the recording and keeps it.
+  Beside it a `.log.jsonl` on the video's clock (`t` ms;
   `System.nanoTime` at start = Dart's `Timeline.now` = pointer and frame
-  timestamps; pts rebased to the start): touches, every frame's
-  build/raster, the HUD's numbers each second, insets (the keyboard's
-  height), routes, lifecycle, errors, `debugPrint`, marks. While
-  recording: a ring under each finger and a draggable badge (time, flag =
-  mark, stop). **Button on every screen** (a Debug switch, prefs
-  `record_button`, not in backups; shown only with Debug mode on): the
-  badge stays as a red dot while idle and starts a recording from
-  anywhere; right edge at 42% height, grows leftwards, dragged place kept
-  for the run; no timer while idle. Stop opens the share sheet (`FileProvider` serves
-  `recordings/` too). Read one with `tool/recording.py <log> [--frames
-  s…] [--slow N] [--between a b]`; on the emulator a tap's first video
-  frame came 10ms after its logged time, ~20–25 copies a second.
+  timestamps; pts rebased to the start), buffered and written each
+  second and on leaving view: touches, every frame's build/raster, the
+  HUD's numbers each second, insets, routes, lifecycle, errors,
+  `debugPrint`, marks. While recording: a ring under each finger and a
+  draggable badge (time, flag = mark, stop). **Button on every screen**
+  (a Debug switch, prefs `record_button`, not in backups; shown only with
+  Debug mode on): the badge stays as a red dot while idle and starts a
+  recording from anywhere; right edge at 42% height, grows leftwards,
+  dragged place kept for the run; no timer while idle. Stop opens the
+  share sheet (`FileProvider` serves `recordings/` too). Read one with
+  `tool/recording.py <log> [--frames s…] [--slow N] [--between a b]`; on
+  the emulator a tap's first video frame came 10ms after its logged
+  time, ~20–25 copies a second; the keys' strip can run a frame ahead of
+  the field while they slide.
 
 ### Reminders
 

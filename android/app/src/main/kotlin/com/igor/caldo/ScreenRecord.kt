@@ -1,18 +1,34 @@
 package com.igor.caldo
 
 import android.app.Activity
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.drawable.Icon
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.ImageReader
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionConfig
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.IBinder
 import android.os.Looper
 import android.view.Choreographer
 import android.view.PixelCopy
@@ -20,39 +36,53 @@ import android.view.Surface
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import androidx.core.content.FileProvider
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Settings › Debug's recording (`services/recording.dart`): a video of
- * Caldo and nothing else, for the user to send on with the log Dart
- * writes beside it.
+ * Caldo and its keyboard and nothing else, for the user to send on with
+ * the log Dart writes beside it.
  *
- * Not the screen: what Flutter draws is copied out of its own surface
- * ([PixelCopy]) as it draws it and encoded here, so other apps, the
- * status bar, the system's sheets and the keyboard never reach the video
- * — and Android has nothing to ask, as it would to lend the screen. A
- * frame is copied only after Dart says one was drawn (`drew`), at most
- * [FPS] a second, so an idle app costs nothing. At most 1280 on its long
- * side, without sound; one recording is kept, in the cache, and the next
- * clears it.
+ * The app is copied out of Flutter's own surface ([PixelCopy]) as it
+ * draws, so the status bar, notifications, the shade and other apps never
+ * reach the video. The keyboard is the system's own window, which only a
+ * capture of the screen sees: Android lends the screen (its consent, every
+ * time, and [RecordService] holding it in the foreground) and the strip
+ * the keyboard takes up — its inset, no more — is laid from that over the
+ * app's copy, while Caldo has the focus. A frame is made only after Dart
+ * says one was drawn (`drew`) or the screen changed with the keyboard up,
+ * at most [FPS] a second, so an idle app costs nothing. At most 1280 on
+ * its long side, without sound; one recording is kept, in the cache, and
+ * the next clears it.
  */
 class ScreenRecord(private val activity: Activity, private val channel: MethodChannel) {
     private var session: Session? = null
+
+    /** The start waiting on the consent and the service. */
+    private var answer: MethodChannel.Result? = null
+
+    init {
+        // The notification's Stop.
+        RecordService.stop = { session?.finish() }
+    }
 
     private val dir: File
         get() = File(activity.cacheDir, DIR).apply { mkdirs() }
 
     fun call(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "start" -> start(result)
+            "start" -> ask(result)
             "drew" -> {
                 session?.drew()
                 result.success(null)
@@ -76,13 +106,63 @@ class ScreenRecord(private val activity: Activity, private val channel: MethodCh
         session?.finish()
     }
 
-    private fun start(result: MethodChannel.Result) {
-        if (session != null) {
+    private fun ask(result: MethodChannel.Result) {
+        if (session != null || answer != null) {
             result.error("running", "Already recording", null)
+            return
+        }
+        answer = result
+        val projections = activity.getSystemService(MediaProjectionManager::class.java)
+        // The whole display, never one app's: the keyboard is not the app's.
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            projections.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+        } else {
+            projections.createScreenCaptureIntent()
+        }
+        try {
+            activity.startActivityForResult(intent, ASK)
+        } catch (_: ActivityNotFoundException) {
+            answer = null
+            result.error("unavailable", "No screen capture on this device", null)
+        }
+    }
+
+    /** The consent's answer; false if the result was another's. */
+    fun answered(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != ASK) return false
+        val result = answer ?: return true
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            answer = null
+            result.success(null)
+            return true
+        }
+        RecordService.ready = { projection, problem ->
+            activity.runOnUiThread { begin(projection, problem) }
+        }
+        val service = Intent(activity, RecordService::class.java)
+            .putExtra(RecordService.CODE, resultCode)
+            .putExtra(RecordService.DATA, data)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            activity.startForegroundService(service)
+        } else {
+            activity.startService(service)
+        }
+        return true
+    }
+
+    private fun begin(projection: MediaProjection?, problem: String?) {
+        val result = answer
+        answer = null
+        if (result == null || projection == null) {
+            projection?.stop()
+            RecordService.end(activity)
+            result?.error("failed", problem ?: "The screen was not handed over", null)
             return
         }
         val view = flutterSurface(activity.window.decorView)
         if (view == null || view.width == 0 || view.height == 0) {
+            projection.stop()
+            RecordService.end(activity)
             result.error("unavailable", "Nothing drawn to record", null)
             return
         }
@@ -91,8 +171,9 @@ class ScreenRecord(private val activity: Activity, private val channel: MethodCh
         val file = File(dir, "caldo-$stamp.mp4")
         val (width, height) = videoSize(view.width, view.height)
         try {
-            val started = Session(view, file, width, height) { kept ->
+            val started = Session(activity, view, projection, file, width, height) { kept ->
                 session = null
+                RecordService.end(activity)
                 channel.invokeMethod("stopped", kept)
             }
             session = started
@@ -106,6 +187,8 @@ class ScreenRecord(private val activity: Activity, private val channel: MethodCh
                 ),
             )
         } catch (e: Exception) {
+            projection.stop()
+            RecordService.end(activity)
             file.delete()
             result.error("failed", e.message ?: e.javaClass.simpleName, null)
         }
@@ -171,21 +254,25 @@ class ScreenRecord(private val activity: Activity, private val channel: MethodCh
 
     companion object {
         const val DIR = "recordings"
+        private const val ASK = 13
         private const val LONG = 1280.0
         const val FPS = 30
     }
 }
 
 /**
- * One recording: copies of Flutter's surface drawn onto an H.264
- * encoder's own surface, muxed into an MP4 on a thread of its own. Ends
- * on [finish], or after [MOST_MS].
+ * One recording: copies of Flutter's surface, with the keyboard's strip
+ * of the screen over them while it is up, drawn onto an H.264 encoder's
+ * own surface and muxed into an MP4 on a thread of its own. Ends on
+ * [finish], when the system takes the screen back, or after [MOST_MS].
  */
 private class Session(
+    private val activity: Activity,
     private val view: SurfaceView,
+    private val projection: MediaProjection,
     private val file: File,
-    width: Int,
-    height: Int,
+    private val width: Int,
+    private val height: Int,
     private val done: (String?) -> Unit,
 ) : Choreographer.FrameCallback {
     private val main = Handler(Looper.getMainLooper())
@@ -193,8 +280,15 @@ private class Session(
     private val worker = Handler(thread.looper)
     private val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
     private val muxer = MediaMuxer(file.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-    private val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    private val app = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     private val input: Surface
+
+    /** The screen as Android lends it, scaled to the video's size. */
+    private val screen = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+    private val display: VirtualDisplay
+
+    /** Flutter's surface's height, which the keyboard's inset is out of. */
+    private val surfaceHeight = view.height
 
     /**
      * When it began, on the monotonic clock in microseconds: the video's
@@ -210,7 +304,13 @@ private class Session(
     private var posted = false
     private var finishing = false
 
+    // Read on the main thread, used on the worker.
+    @Volatile private var keyboard = 0
+    @Volatile private var focused = true
+
     // The worker's.
+    private var shown: Bitmap? = null
+    private var padded: ByteBuffer? = null
     private var track = -1
     private var samples = 0
     private var closed = false
@@ -249,6 +349,25 @@ private class Session(
         )
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
         input = codec.createInputSurface()
+        // Before the display is made, as Android 14 insists: the system's
+        // own "stop sharing" ends the recording as Stop does.
+        projection.registerCallback(
+            object : MediaProjection.Callback() {
+                override fun onStop() = finish()
+            },
+            main,
+        )
+        screen.setOnImageAvailableListener({ took(it) }, worker)
+        display = projection.createVirtualDisplay(
+            "Caldo recording",
+            width,
+            height,
+            activity.resources.displayMetrics.densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            screen.surface,
+            null,
+            null,
+        ) ?: error("No display to mirror the screen into")
         codec.start()
         startUs = System.nanoTime() / 1000
         main.postDelayed(tooLong, MOST_MS)
@@ -257,8 +376,8 @@ private class Session(
     }
 
     /**
-     * Dart has drawn a frame. Copies follow for a little while after, as
-     * the frame is rastered after Dart has said so.
+     * Something was drawn. Copies follow for a little while after, as a
+     * frame is rastered after Dart has said so.
      */
     fun drew() {
         if (finishing) return
@@ -279,26 +398,95 @@ private class Session(
         Choreographer.getInstance().postFrameCallback(this)
     }
 
+    /**
+     * How much of the bottom the keyboard takes, and whether Caldo has the
+     * focus: with the shade or another app's window over it, no strip of
+     * the screen is let in.
+     */
+    private fun look() {
+        focused = activity.hasWindowFocus()
+        keyboard = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            activity.window.decorView.rootWindowInsets
+                ?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
+        } else {
+            0
+        }
+    }
+
     private fun copy(now: Long) {
         // Gone while Caldo is in the background: the video has a gap.
         if (!view.holder.surface.isValid) return
+        look()
         copying = true
         lastCopyNs = now
         try {
-            PixelCopy.request(view, bitmap, { result ->
+            PixelCopy.request(view, app, { result ->
                 if (!ending) {
                     // A surface it may not read — the open vault's — is
                     // black, as it is in a screenshot.
-                    if (result != PixelCopy.SUCCESS) bitmap.eraseColor(Color.BLACK)
-                    val canvas = input.lockHardwareCanvas()
-                    canvas.drawBitmap(bitmap, 0f, 0f, null)
-                    input.unlockCanvasAndPost(canvas)
+                    if (result != PixelCopy.SUCCESS) app.eraseColor(Color.BLACK)
+                    compose()
                 }
                 main.post { copying = false }
             }, worker)
         } catch (_: IllegalArgumentException) {
             copying = false
         }
+    }
+
+    /** The app, and the keyboard's strip of the screen over it. */
+    private fun compose() {
+        val canvas = input.lockHardwareCanvas()
+        canvas.drawBitmap(app, 0f, 0f, null)
+        val keys = shown
+        val inset = keyboard
+        if (keys != null && inset > 0 && focused) {
+            val strip = (inset.toFloat() / surfaceHeight * height).roundToInt().coerceIn(0, height)
+            val bottom = min(keys.height, height)
+            canvas.drawBitmap(
+                keys,
+                Rect(0, bottom - strip, width, bottom),
+                Rect(0, height - strip, width, height),
+                null,
+            )
+        }
+        input.unlockCanvasAndPost(canvas)
+    }
+
+    /** A new picture of the screen, kept for the keyboard's strip. */
+    private fun took(reader: ImageReader) {
+        val image = try {
+            reader.acquireLatestImage()
+        } catch (_: IllegalStateException) {
+            null
+        } ?: return
+        try {
+            val plane = image.planes[0]
+            // Rows may be padded: the bitmap is as wide as a row is long,
+            // and only its first [width] columns are drawn.
+            val across = plane.rowStride / plane.pixelStride
+            val keys = shown?.takeIf { it.width == across && it.height == image.height }
+                ?: Bitmap.createBitmap(across, image.height, Bitmap.Config.ARGB_8888)
+                    .also { shown = it }
+            val needed = plane.rowStride * image.height
+            val source = plane.buffer
+            val buffer = if (source.remaining() >= needed) {
+                source
+            } else {
+                // The last row may come without its padding.
+                val room = padded?.takeIf { it.capacity() >= needed } ?: ByteBuffer.allocate(needed)
+                padded = room
+                room.clear()
+                room.put(source)
+                room.rewind()
+                room
+            }
+            keys.copyPixelsFromBuffer(buffer)
+        } finally {
+            image.close()
+        }
+        // The keyboard can change with nothing drawn by Flutter.
+        if (keyboard > 0) main.post { drew() }
     }
 
     /** One piece of the encoded video, moved onto the video's clock. */
@@ -345,14 +533,115 @@ private class Session(
         muxer.release()
         codec.release()
         input.release()
+        display.release()
+        screen.close()
         if (kept == null) file.delete()
         thread.quitSafely()
-        main.post { done(kept) }
+        main.post {
+            projection.stop()
+            done(kept)
+        }
     }
 
     companion object {
         private const val BITRATE = 4_000_000
         private const val MOST_MS = 5 * 60 * 1000L
         private const val FOLLOW_NS = 80_000_000L
+    }
+}
+
+/**
+ * Holds the screen while a recording lets the keyboard in: Android 14
+ * hands it only to a service in the foreground for it. Started with the
+ * consent's answer; its notification's Stop ends the recording.
+ */
+class RecordService : Service() {
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == STOP) {
+            stop?.invoke()
+            return START_NOT_STICKY
+        }
+        val ready = ready ?: return START_NOT_STICKY
+        RecordService.ready = null
+        try {
+            // Before the projection is asked for.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+            } else {
+                startForeground(ID, notification())
+            }
+            val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent!!.getParcelableExtra(DATA, Intent::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent!!.getParcelableExtra(DATA)
+            }
+            val projection = getSystemService(MediaProjectionManager::class.java)
+                .getMediaProjection(intent.getIntExtra(CODE, 0), data!!)
+                ?: error("The screen was not handed over")
+            ready(projection, null)
+        } catch (e: Exception) {
+            ready(null, e.message ?: e.javaClass.simpleName)
+            stopSelf()
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun notification(): Notification {
+        val notifications = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notifications.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "Recording", NotificationManager.IMPORTANCE_LOW),
+            )
+        }
+        val stop = PendingIntent.getService(
+            this,
+            0,
+            Intent(this, RecordService::class.java).setAction(STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val open = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE)
+        }
+        @Suppress("DEPRECATION")
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+        } else {
+            Notification.Builder(this)
+        }
+        return builder
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Recording Caldo")
+            .setContentText("Only Caldo and its keyboard are kept")
+            .setOngoing(true)
+            .setContentIntent(open)
+            .addAction(
+                Notification.Action.Builder(
+                    Icon.createWithResource(this, R.drawable.ic_notification),
+                    "Stop",
+                    stop,
+                ).build(),
+            )
+            .build()
+    }
+
+    companion object {
+        const val CODE = "code"
+        const val DATA = "data"
+        private const val STOP = "com.igor.caldo.STOP_RECORDING"
+        private const val ID = 7301
+        private const val CHANNEL_ID = "recording"
+
+        /** Told once the screen is lent, or why it was not. */
+        var ready: ((MediaProjection?, String?) -> Unit)? = null
+
+        /** The notification's Stop. */
+        var stop: (() -> Unit)? = null
+
+        fun end(activity: Activity) {
+            activity.stopService(Intent(activity, RecordService::class.java))
+        }
     }
 }

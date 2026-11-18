@@ -15,19 +15,21 @@ import '../theme/tweaks.dart';
 import '../utils/platform.dart';
 import '../widgets/perf_hud.dart';
 
-/// Settings › Debug's recording: a video of Caldo alone — copied out of
-/// Flutter's own surface (`ScreenRecord.kt`), so no other app, the status
-/// bar or the keyboard is ever in it — and, beside it, a log of what the
-/// app was doing meanwhile, the two to be sent on together for a look at
-/// what went wrong. Android only; a desktop has its own recorders.
+/// Settings › Debug's recording: a video of Caldo and its keyboard alone —
+/// the app copied out of Flutter's own surface, the keyboard's strip from
+/// a capture of the screen Android lends (`ScreenRecord.kt`), so no other
+/// app, the status bar or a notification is ever in it — and, beside it,
+/// a log of what the app was doing meanwhile, the two to be sent on
+/// together for a look at what went wrong. Android only; a desktop has
+/// its own recorders.
 ///
 /// The log is JSON, a line to an event, each with `t`, milliseconds from
 /// the video's first frame, and `k`, what it is: `start` (the phone, the
 /// build, the screen), `touch` (every pointer down, move and up, in
 /// logical points), `frame` (each frame's build and raster times, at its
 /// vsync), `perf` (the HUD's numbers, once a second), `route`, `life`,
-/// `insets` (the keyboard's height among them, since the keyboard itself
-/// is not in the video), `error`, `print`, `mark` (the
+/// `insets` (the keyboard's height among them), `error`, `print`, `mark`
+/// (the
 /// badge's flag) and `stop`. Touches, the HUD's numbers and the time
 /// shown in the badge are all in the video too, so the two can be lined
 /// up by eye as well as by the clock. Frame times arrive in batches about
@@ -80,7 +82,13 @@ class Recording {
   /// When the video began, on the monotonic clock, in microseconds.
   int _startUs = 0;
   int? _stopUs;
-  IOSink? _sink;
+
+  /// The log, and its lines not yet written to it. Written once a second
+  /// and whenever the app goes from view, so an app closed mid-recording
+  /// — Back on the start screen ends the activity, and Dart with it —
+  /// loses a second at most.
+  RandomAccessFile? _file;
+  final _pending = StringBuffer();
   final _perf = PerfReadings();
   Timer? _second;
   AppLifecycleListener? _life;
@@ -103,7 +111,8 @@ class Recording {
     }
   }
 
-  /// Starts recording. Null when going; otherwise why it could not start.
+  /// Asks Android to lend the screen, for the keyboard, and starts once it
+  /// does. Null when going or backed out of; otherwise why it could not.
   Future<String?> start() async {
     if (!available || on.value) return null;
     try {
@@ -147,9 +156,10 @@ class Recording {
     _startUs = (started['startedUs']! as num).toInt();
     _stopUs = null;
     final video = started['path']! as String;
-    _sink = File(
+    _pending.clear();
+    _file = File(
       video.replaceFirst(RegExp(r'\.mp4$'), '.log.jsonl'),
-    ).openWrite();
+    ).openSync(mode: FileMode.write);
     Map<String, Object?> device = const {};
     try {
       device = await _channel.invokeMapMethod<String, Object?>('device') ?? {};
@@ -187,11 +197,15 @@ class Recording {
     SchedulerBinding.instance.addTimingsCallback(_frames);
     _perf.start();
     _second = Timer.periodic(const Duration(seconds: 1), (_) async {
+      _flush();
       final reading = await _perf.read();
       _write('perf', reading);
     });
     _life = AppLifecycleListener(
-      onStateChange: (state) => _write('life', {'state': state.name}),
+      onStateChange: (state) {
+        _write('life', {'state': state.name});
+        if (state != AppLifecycleState.resumed) _flush();
+      },
     );
     _insets = _Insets(this)..attach();
     _errorsBefore = FlutterError.onError;
@@ -238,13 +252,12 @@ class Recording {
     // The last second's frame times are still to come.
     await Future<void>.delayed(const Duration(milliseconds: 1500));
     SchedulerBinding.instance.removeTimingsCallback(_frames);
-    final sink = _sink;
-    _sink = null;
-    await sink?.flush();
-    await sink?.close();
+    _flush();
+    _file?.closeSync();
+    _file = null;
     await look();
-    // Straight on to the share sheet, unless it ran out of time while
-    // Caldo was away.
+    // Straight on to the share sheet, unless the notification stopped it
+    // from over another app.
     if (video != null &&
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
       await share();
@@ -264,9 +277,20 @@ class Recording {
     }
   }
 
+  void _flush() {
+    final file = _file;
+    if (file == null || _pending.isEmpty) return;
+    try {
+      file.writeStringSync(_pending.toString());
+    } on FileSystemException {
+      // Out of room: the video goes on without the log.
+    }
+    _pending.clear();
+  }
+
   /// One pointer event, from the overlay over the whole app.
   void pointer(PointerEvent e) {
-    if (_sink == null) return;
+    if (_file == null) return;
     final kind = switch (e) {
       PointerDownEvent() => 'down',
       PointerMoveEvent() => 'move',
@@ -284,15 +308,14 @@ class Recording {
   }
 
   void _write(String kind, [Map<String, Object?> data = const {}, int? atUs]) {
-    final sink = _sink;
-    if (sink == null) return;
+    if (_file == null) return;
     final now = Timeline.now;
     var at = atUs ?? now;
     // Pointer events and frame timings read the same monotonic clock as
     // the video's start on Android; one that is plainly not is not
     // believed, and the line goes at the time it was written.
     if ((at - now).abs() > 10 * Duration.microsecondsPerSecond) at = now;
-    sink.writeln(
+    _pending.writeln(
       jsonEncode({'t': _one((at - _startUs) / 1000), 'k': kind, ...data}),
     );
   }
