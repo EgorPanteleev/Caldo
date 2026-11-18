@@ -815,8 +815,34 @@ class MainActivity : FlutterActivity() {
             "below" to off / density,
             "sliding" to sliding,
         )
-        if (sliding) clockOf(keys, running)?.let { report.putAll(it) }
+        if (sliding) {
+            report["at"] = frameNow() / 1000
+            report["period"] = framePeriod() / 1000.0
+            clockOf(keys, running)?.let { report.putAll(it) }
+        }
         sink.success(report)
+    }
+
+    /**
+     * The vsync of the frame now being made, in `System.nanoTime`'s clock:
+     * [clock]'s reading when it has run this frame — it is posted from
+     * onPrepare, and so can miss a slide's first frame — else the
+     * animation clock, which Android holds at the frame's time to the
+     * millisecond.
+     */
+    private fun frameNow(): Long {
+        val frameMs = AnimationUtils.currentAnimationTimeMillis()
+        return if (vsync / 1_000_000 == frameMs) vsync else frameMs * 1_000_000 + 500_000
+    }
+
+    /** How long a frame of the display lasts, in nanoseconds. */
+    @Suppress("DEPRECATION")
+    private fun framePeriod(): Double {
+        val display =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display
+            else windowManager.defaultDisplay
+        val rate = display?.refreshRate ?: 60f
+        return 1e9 / (if (rate > 1f) rate else 60f)
     }
 
     /**
@@ -831,14 +857,14 @@ class MainActivity : FlutterActivity() {
      * (2.11.23–2.11.27) only moved the error from one side to the other,
      * and it rode on when each message happened to land. So Dart is given
      * the slide itself — where it was at which vsync, how long it runs and
-     * its curve — and places the field for the vsync of each frame it
-     * draws, which is the same clock (`currentSystemFrameTimeStamp`).
-     * Messages then only correct the clock; when one lands no longer
-     * matters.
+     * its curve — and places the field for the vsync each of its frames
+     * starts at, on the same clock. Messages then only correct the clock;
+     * when one lands no longer matters.
      *
      * Only when the curve read at the slide's fraction gives back what is
      * being reported; a slide driven by a finger (Android 16's swipe
-     * back) has no length or curve and goes as reported.
+     * back) has no length or curve, and Dart carries its last two reports
+     * on instead.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     private fun clockOf(keys: Int, running: List<WindowInsetsAnimation>): Map<String, Any>? {
@@ -850,18 +876,9 @@ class MainActivity : FlutterActivity() {
             val length = animation.durationMillis * scale
             if (length <= 0) continue
             if (Math.abs(slide.along(animation.fraction) - keys) > near) continue
-            // The vsync the slide's animator read this frame by. The
-            // clock's own reading when it has run this frame — it is
-            // posted from onPrepare, and so misses the slide's first
-            // frame — else the animation clock, which Android holds at
-            // the frame's time to the millisecond.
-            val frameMs = AnimationUtils.currentAnimationTimeMillis()
-            val at =
-                if (vsync / 1_000_000 == frameMs) vsync else frameMs * 1_000_000 + 500_000
             val density = resources.displayMetrics.density
             val clock = mutableMapOf<String, Any>(
                 "slide" to slide.id,
-                "at" to at / 1000,
                 "fraction" to animation.fraction.toDouble(),
                 "length" to length.toDouble(),
                 "from" to slide.from / density,

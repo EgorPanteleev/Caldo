@@ -365,20 +365,24 @@ them will be noticed.
   own report** (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the
   display bottom minus what lies below the window. Don't try to correct
   `viewInsets` arithmetically — its meaning changes mid-slide.
-- **In a slide the field is read off the slide's own clock at each
-  frame's vsync** (`MainActivity.clockOf`, `_Slide`, `KeyboardGap.take`):
-  Android sends where the slide was at which vsync, its length and its
-  curve (once); Dart places the field for `currentSystemFrameTimeStamp`
-  every frame, same clock. Reports only correct it. A report lands
-  0.2–1.1ms after Flutter's frame for its vsync has begun (2.11.23 log), so
-  following reports as they land (2.11.28 and before 2.11.23) put the field
-  a frame behind; a fixed 16ms read-ahead (2.11.23–27) moved the error to
-  the other side. A slide with no length or curve (swipe back) goes as
-  reported. Lead per direction, 0 as shipped, in Settings › Debug ›
-  Keyboard (`Tweaks.keysLeadOpen/Close`). The in-app recording composes
-  keys and app from two captures, so it can't settle a frame either way;
-  `screenrecord` on the emulator can. Judge it on a day with tasks: an
-  empty day's ground hides the gap.
+- **In a slide the field is read off the slide's own clock at the vsync
+  each frame starts at** (`MainActivity.clockOf`, `_Slide`,
+  `KeyboardGap.take`): Android sends where the slide was at which vsync,
+  the frame period, its length and its curve (once); Dart reads it at
+  `currentSystemFrameTimeStamp` less a period — that stamp is the vsync
+  the frame is *shown* at, and read there (2.11.29) the field went up a
+  frame ahead, a card showing under it. Reports only correct the clock: a
+  report lands 0.2–1.1ms after Flutter's frame for its vsync has begun, so
+  following reports as they land (2.11.28 and before 2.11.23) put the
+  field a frame behind. A slide is held until its fraction is above 0
+  (Android reports 0 a frame before it moves). A slide with no curve (the
+  swipe back) is carried on from its last two reports (`_Trail`), at most
+  1.5 frames. Lead per direction, 0 as shipped, in Settings › Debug ›
+  Keyboard (`Tweaks.keysLeadOpen/Close`). On the emulator the field trails
+  by about a frame (its pipeline is deeper); judge on the phone. Line a
+  recording's `reach` up against `insets` (`viewInsets` + the 15pt strip,
+  which is Android's report for the frame it is logged in) rather than
+  measuring the video; judge by eye on a day with tasks.
 - **Edge-to-edge is read from the content view's insets, never its height**
   (`MainActivity.contentNav`).
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):

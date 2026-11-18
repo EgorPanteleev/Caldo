@@ -872,9 +872,13 @@ class KeyboardGap {
   /// the two held the field over them on every closing.
   bool sliding = false;
 
-  /// The slide [covered] is read off at each frame, while one runs and
-  /// Android could describe it.
-  _Slide? _slide;
+  /// Where the keys are at any moment of the slide now running: its own
+  /// clock when Android could describe it, else its last two reports
+  /// carried on. Read at each frame while there is one.
+  _Keys? _keys;
+
+  /// The last report of the slide now running.
+  ({int at, double reach})? _last;
 
   /// The curves of slides lately told, by their number: each is sent once,
   /// with its slide's first report.
@@ -884,7 +888,8 @@ class KeyboardGap {
   bool _booked = false;
 
   /// How [covered] came by its number, for the recordings: 'clock' off a
-  /// slide's own clock, 'reported' as a message last said.
+  /// slide's own clock, 'carried' on from its last two reports, 'reported'
+  /// as a message last said.
   String how = 'reported';
 
   StreamSubscription<dynamic>? _sub;
@@ -903,7 +908,8 @@ class KeyboardGap {
   @visibleForTesting
   void take(Object? value) {
     if (value is num) {
-      _slide = null;
+      _keys = null;
+      _last = null;
       sliding = false;
       how = 'reported';
       covered.value = value.toDouble();
@@ -914,18 +920,25 @@ class KeyboardGap {
           'below ${(value['below'] as num).toStringAsFixed(1)}';
       // Before the number, so whoever it wakes reads the two together.
       sliding = value['sliding'] == true;
-      final slide = sliding ? _Slide.read(value, _curves) : null;
-      _slide = slide;
-      if (slide == null) {
+      final reach = (value['reach'] as num).toDouble();
+      final at = value['at'];
+      if (!sliding || at is! num) {
+        _keys = null;
+        _last = null;
         how = 'reported';
-        covered.value = (value['reach'] as num).toDouble();
-      } else {
-        // The frame this report belongs to has already begun, most
-        // likely, and was placed off the clock as it then stood; from
-        // the next on, it is read as this report sets it.
-        how = 'clock';
-        _book();
+        covered.value = reach;
+        return;
       }
+      final period = (value['period'] as num?)?.toDouble() ?? 16667;
+      final sample = (at: at.toInt(), reach: reach);
+      final slide = _Slide.read(value, _curves, period);
+      _keys = slide ?? _Trail(_last, sample, period);
+      _last = sample;
+      how = slide != null ? 'clock' : 'carried';
+      // The frame this report belongs to has already begun, most likely,
+      // and was placed as things then stood; from the next on, it is
+      // placed as this report says.
+      _book();
     }
   }
 
@@ -934,15 +947,17 @@ class KeyboardGap {
     _booked = true;
     SchedulerBinding.instance.scheduleFrameCallback((_) {
       _booked = false;
-      final slide = _slide;
-      if (slide == null) return;
-      // The vsync this frame is being made for, on the clock Android
-      // stamped the slide with — not the timestamp handed to frame
-      // callbacks, which starts from the first frame and can be dilated.
+      final keys = _keys;
+      if (keys == null) return;
+      // The vsync this frame starts at, on the clock Android stamps its
+      // reports with. Flutter's own timestamp is the vsync the frame is
+      // to be shown at, a period on: read there (2.11.29), the field went
+      // up a frame ahead of the keys, a card showing through under it,
+      // where Android's frame for the same vsync moves them.
       final now = SchedulerBinding.instance.currentSystemFrameTimeStamp;
-      final lead = slide.opening ? Tweaks.keysLeadOpen : Tweaks.keysLeadClose;
-      final (reach, done) = slide.at(
-        now.inMicroseconds + (lead * 1000).round(),
+      final lead = keys.opening ? Tweaks.keysLeadOpen : Tweaks.keysLeadClose;
+      final (reach, done) = keys.at(
+        now.inMicroseconds - keys.period.round() + (lead * 1000).round(),
       );
       covered.value = reach;
       // Past its end it holds there until the slide's own end is
@@ -1019,7 +1034,8 @@ class KeyboardGap {
   /// for the next.
   @visibleForTesting
   void forget() {
-    _slide = null;
+    _keys = null;
+    _last = null;
     _curves.clear();
     how = 'reported';
     sliding = false;
@@ -1039,8 +1055,23 @@ class KeyboardGap {
 /// it is a frame behind the keys — the whole of what 2.11.28 showed — or,
 /// read ahead by a fixed time (2.11.23–2.11.27), off by however late each
 /// message happened to land.
-class _Slide {
+abstract class _Keys {
+  /// How long a frame of the display lasts, in microseconds.
+  double get period;
+
+  /// Whether the keys are coming up, for which lead to read them with.
+  bool get opening;
+
+  /// How far the keys reach into the window at [micros], and whether
+  /// nothing more will change without another report.
+  (double, bool) at(int micros);
+}
+
+class _Slide implements _Keys {
   final int id;
+
+  @override
+  final double period;
 
   /// The vsync the report was made at, in microseconds of the monotonic
   /// clock both sides keep.
@@ -1059,6 +1090,7 @@ class _Slide {
 
   _Slide._(
     this.id,
+    this.period,
     this.stamp,
     this.fraction,
     this.length,
@@ -1068,12 +1100,14 @@ class _Slide {
     this.curve,
   );
 
+  @override
   bool get opening => to > from;
 
   /// The slide [report] describes, or null if it describes none.
   static _Slide? read(
     Map<dynamic, dynamic> report,
     Map<int, List<double>> curves,
+    double period,
   ) {
     final id = report['slide'];
     if (id is! int) return null;
@@ -1087,6 +1121,7 @@ class _Slide {
     if (curve == null || curve.length < 2) return null;
     return _Slide._(
       id,
+      period,
       (report['at'] as num).toInt(),
       (report['fraction'] as num).toDouble(),
       (report['length'] as num).toDouble() * 1000,
@@ -1097,15 +1132,53 @@ class _Slide {
     );
   }
 
-  /// How far the keys reach into the window at [micros], and whether the
-  /// slide is over by then.
+  @override
   (double, bool) at(int micros) {
+    // Android reports a slide at no distance a frame before its animator
+    // moves it: taken as its start, the 2.11.29 recording had the field
+    // 57pt up while the keys were not yet 20. Where it starts from is only
+    // known once it has moved.
+    if (fraction <= 0) return (math.max(0.0, from - below), false);
     final f = (fraction + (micros - stamp) / length).clamp(0.0, 1.0);
     final x = f * (curve.length - 1);
     final i = math.min(x.floor(), curve.length - 2);
     final y = curve[i] + (curve[i + 1] - curve[i]) * (x - i);
     final ime = from + (to - from) * y;
     return (math.max(0.0, ime - below), f >= 1);
+  }
+}
+
+/// The keys in a slide that has no clock — Android 16's swipe back, driven
+/// by a finger — carried on from its last two reports at the speed between
+/// them. Followed as reported, the field was a frame behind the keys there
+/// (2.11.28, 2.11.29), for the same reason as anywhere: a report lands after
+/// Flutter's frame for its vsync has begun. Carried no further than a frame
+/// and a half, so a finger that stops costs at most that.
+class _Trail implements _Keys {
+  final ({int at, double reach})? before;
+  final ({int at, double reach}) last;
+
+  @override
+  final double period;
+
+  _Trail(this.before, this.last, this.period);
+
+  double get _speed {
+    final b = before;
+    if (b == null || last.at <= b.at) return 0;
+    return (last.reach - b.reach) / (last.at - b.at);
+  }
+
+  @override
+  bool get opening => _speed > 0;
+
+  @override
+  (double, bool) at(int micros) {
+    final ahead = (micros - last.at).clamp(0, 1.5 * period);
+    return (
+      math.max(0.0, last.reach + _speed * ahead),
+      micros - last.at > 3 * period,
+    );
   }
 }
 

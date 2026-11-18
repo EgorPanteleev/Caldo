@@ -111,8 +111,13 @@ void main() {
   ) async {
     await tester.pumpWidget(_harness(0));
     _rest = tester.getBottomLeft(find.byKey(_bar)).dy;
-    final start =
+    // Flutter stamps a frame with the vsync it is to be shown at, one
+    // period after the vsync it starts at, which is what Android stamps
+    // its reports with. Here the period is a pump's 16ms: a report made
+    // at `start` belongs to the frame the next pump makes.
+    int now() =>
         SchedulerBinding.instance.currentSystemFrameTimeStamp.inMicroseconds;
+    final start = now();
     Map<String, Object> report(int ms, double fraction, {bool curve = false}) =>
         {
           'reach': 300 * fraction,
@@ -122,6 +127,7 @@ void main() {
           'sliding': true,
           'slide': 1,
           'at': start + ms * 1000,
+          'period': 16000.0,
           'fraction': fraction,
           'length': 160.0,
           'from': 0.0,
@@ -130,23 +136,30 @@ void main() {
           if (curve) 'curve': [0.0, 2 / 3, 1.0],
         };
 
-    // Made at the vsync of the frame now on screen: the frame after is
-    // placed where the keys are at its own vsync, with nothing more sent.
+    // Not yet moved: where it starts from is not known, and it is held.
     KeyboardGap.instance.take(report(0, 0, curve: true));
     await tester.pump(_frame);
-    expect(_bottomGap(tester), closeTo(40, 0.01));
+    expect(_bottomGap(tester), 0);
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 0);
+
+    // Moved: each frame after is placed where the keys are at the vsync it
+    // starts at, with nothing more sent.
+    KeyboardGap.instance.take(report(16, 0.1));
     await tester.pump(_frame);
     expect(_bottomGap(tester), closeTo(80, 0.01));
-
-    // A report that lands late, or two at once, says the same of the
-    // slide and moves nothing.
-    KeyboardGap.instance.take(report(16, 0.1));
-    KeyboardGap.instance.take(report(32, 0.2));
     await tester.pump(_frame);
     expect(_bottomGap(tester), closeTo(120, 0.01));
 
+    // A report that lands late, or two at once, says the same of the
+    // slide and moves nothing.
+    KeyboardGap.instance.take(report(32, 0.2));
+    KeyboardGap.instance.take(report(48, 0.3));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), closeTo(160, 0.01));
+
     // Its second half, slower.
-    await tester.pump(const Duration(milliseconds: 64));
+    await tester.pump(const Duration(milliseconds: 48));
     expect(_bottomGap(tester), closeTo(240, 0.01));
 
     // Past its end it holds, and asks for no more frames.
@@ -155,10 +168,27 @@ void main() {
     await tester.pump(_frame);
     expect(tester.binding.hasScheduledFrame, isFalse);
 
-    // A slide with no clock (a swipe back) goes as reported.
-    KeyboardGap.instance.take({...report(200, 0.5), 'slide': null});
+    // A slide with no clock (a swipe back) is carried on at the speed of
+    // its last two reports, to the vsync each frame starts at, and no more
+    // than a frame and a half past the last.
+    Map<String, Object> swiped(int at, double reach) => {
+      ...report(0, 0),
+      'slide': 'none',
+      'reach': reach,
+      'at': at,
+      'period': 8000.0,
+    };
+    tester.binding.scheduleFrame();
+    await tester.pump();
+    final t = now();
+    KeyboardGap.instance.take(swiped(t - 8000, 160));
+    KeyboardGap.instance.take(swiped(t, 150));
     await tester.pump(_frame);
-    expect(_bottomGap(tester), 150);
+    expect(_bottomGap(tester), closeTo(140, 0.01));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), closeTo(135, 0.01));
+    await tester.pump(_frame);
+    expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
   testWidgets('the bar sits on the keyboard at every step of a slide', (
