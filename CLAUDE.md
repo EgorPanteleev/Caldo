@@ -274,9 +274,10 @@ them will be noticed.
   tasks go into it; not stored. Alarms, widget and overdue dot use full lists
   (`allOverdue`, `allUpcomingByDay`). **A group's colour is its tasks' colour**
   (`_taskColourToGroup` migrated the old setting).
-- **With All shown, the open add field offers groups** (`_GroupPick`, a
-  `TextFieldTapRegion`), only while the keyboard is up (`_WhileKeyboardUp`),
-  reset to default each opening.
+- **With All shown, the open add field offers groups**: one chip on its
+  second row opening a list above it (`_GroupButton`, `_Popup` — an
+  `OverlayPortal`, not a route, inside a `TextFieldTapRegion`, so the
+  keyboard stays), reset to default each opening.
 
 ### Shell, navigation
 
@@ -366,7 +367,7 @@ them will be noticed.
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):
   keyboard goes, focus stays, so the next opening doesn't start the IME
   connection from scratch (that opening was the one that misplaced the bar).
-- **Only `KeyboardLift`, `KeyboardRoom`, `_WhileKeyboardUp` and `FieldInBarRoom` read the inset.**
+- **Only `KeyboardLift`, `KeyboardRoom`, `QuickAddBar`'s frame and `FieldInBarRoom` read the inset.**
 - **Long-press the Settings title for keyboard numbers**
   (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
 - **The field's ground and fade follow what is actually under it**
@@ -377,6 +378,12 @@ them will be noticed.
 - **Field and its button are filled `AppPalette.field` with the bar's rim**
   (`BarRoom.rim`); focus shows only the caret. **Quick-add button: plus →
   tick when open**, plain, not gradient. Plus opens the full form.
+- **Open with the keys up, the field is two rows** (asked for): title on
+  top; under it a plus that attaches (Photo/Camera/File, `_AttachButton`,
+  a paperclip once something is), the group chip, and the tick at the right
+  end in place of the button beside it. Keys down (Back), it folds back to
+  one row with its button. After a picker the keyboard is asked back once
+  Caldo is resumed (`_whenInFront`); asked at once, Android drops it.
 
 ### Forms and pickers
 

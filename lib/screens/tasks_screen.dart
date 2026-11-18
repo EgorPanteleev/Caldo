@@ -56,7 +56,7 @@ class _TasksScreenState extends State<TasksScreen> {
       openTaskForm(context, task: task, initialDate: date);
 
   /// Files an all-day task on today straight from the field at the foot.
-  Future<void> _addQuickTask(int? group) async {
+  Future<void> _addQuickTask(int? group, List<Attachment> attached) async {
     final title = _quickAdd.text;
     _quickAdd.clear();
     await quickAddTask(
@@ -64,6 +64,7 @@ class _TasksScreenState extends State<TasksScreen> {
       day: dayOf(DateTime.now()),
       title: title,
       group: group,
+      attachments: attached,
     );
   }
 

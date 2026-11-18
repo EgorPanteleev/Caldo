@@ -221,7 +221,7 @@ void main() {
                   child: QuickAddBar(
                     date: DateTime.now(),
                     controller: controller,
-                    onSubmit: filed.add,
+                    onSubmit: (group, _) => filed.add(group),
                     onFullForm: () {},
                   ),
                 ),
@@ -243,15 +243,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(quickAddGroupsKey), findsOneWidget);
 
+    // The plus under the title offers what can be attached, laid over the
+    // screen rather than pushed, so the field keeps the keyboard.
+    await tester.tap(find.byKey(quickAddAttachKey));
+    await tester.pumpAndSettle();
+    expect(find.text('Photo'), findsOneWidget);
+    await tester.tap(find.byKey(quickAddAttachKey));
+    await tester.pumpAndSettle();
+    expect(find.text('Photo'), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+      isTrue,
+    );
+
     // Back puts the keyboard away and leaves the field open; the groups go
     // with the keys, and come back with them.
     keyboard(false);
     await tester.pumpAndSettle();
     expect(find.byKey(quickAddGroupsKey), findsNothing);
+    expect(find.byKey(quickAddAttachKey), findsNothing);
     keyboard(true);
+    await tester.pumpAndSettle();
+    // The chip under the title opens the groups; picking one closes them.
+    await tester.tap(find.byKey(quickAddGroupsKey));
     await tester.pumpAndSettle();
     await tester.tap(find.text('University'));
     await tester.pumpAndSettle();
+    expect(find.text('University'), findsOneWidget);
     // Picking a group keeps the field, and the keyboard, open.
     expect(find.byKey(quickAddGroupsKey), findsOneWidget);
     expect(find.byKey(quickAddButtonKey), findsOneWidget);

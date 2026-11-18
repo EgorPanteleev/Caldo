@@ -69,10 +69,16 @@ class _DaySheetState extends State<_DaySheet> {
   }
 
   /// Adds an all-day task on this day straight from the field.
-  Future<void> _addQuickTask(int? group) async {
+  Future<void> _addQuickTask(int? group, List<Attachment> attached) async {
     final title = _quickAdd.text;
     _quickAdd.clear();
-    await quickAddTask(context, day: widget.day, title: title, group: group);
+    await quickAddTask(
+      context,
+      day: widget.day,
+      title: title,
+      group: group,
+      attachments: attached,
+    );
   }
 
   Future<void> _openEditor([Task? task]) =>

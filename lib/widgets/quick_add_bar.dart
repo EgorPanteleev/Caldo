@@ -10,9 +10,11 @@ import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart';
+import '../services/attachments.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
+import 'attachments_field.dart';
 import 'groups.dart';
 import 'selection.dart';
 import 'tick_off.dart';
@@ -20,19 +22,27 @@ import 'tick_off.dart';
 /// Identifies the button beside the quick-add field.
 const quickAddButtonKey = Key('quick-add-button');
 
-/// Identifies the row of groups above the open field.
+/// Identifies the group the open field files into, under the title.
 const quickAddGroupsKey = Key('quick-add-groups');
+
+/// Identifies the plus that attaches a photo or a file to the task typed.
+const quickAddAttachKey = Key('quick-add-attach');
 
 /// The field under a day's tasks: type a title, confirm, and it lands on the
 /// day in view without opening the full form. Used by the calendar and by the
 /// day card that opens over it.
+///
+/// Opened, it is two rows: the title on top, and under it a plus that
+/// attaches photos and files, the group the task goes into, and the tick
+/// that files it.
 class QuickAddBar extends StatefulWidget {
   final DateTime date;
   final TextEditingController controller;
 
-  /// Files what has been typed, into the group picked above the field — or,
-  /// with null, the one a task made on this screen goes into anyway.
-  final ValueChanged<int?> onSubmit;
+  /// Files what has been typed, into the group picked under the field — or,
+  /// with null, the one a task made on this screen goes into anyway — with
+  /// whatever was attached to it.
+  final void Function(int? group, List<Attachment> attached) onSubmit;
 
   /// Opens the full form. The button is a plus until the field is opened, and
   /// a plus has to lead somewhere — pressing it on an empty field used to do
@@ -61,15 +71,23 @@ class _QuickAddBarState extends State<QuickAddBar> {
 
   bool _open = false;
 
-  /// The group picked above the field for the task being typed; null for
+  /// The group picked under the field for the task being typed; null for
   /// the default. Back to the default each time the field opens, so a pick
   /// made for one task does not quietly file the next.
   int? _group;
 
+  /// What has been attached to the task being typed; let go of on the same
+  /// terms as [_group]. A copy dropped here is swept up on a later start
+  /// (`Attachments.sweep`), as the form's are.
+  final List<Attachment> _attached = [];
+
   void _focused() {
     if (!mounted) return;
     setState(() {
-      if (_focus.hasFocus && !_open) _group = null;
+      if (_focus.hasFocus && !_open) {
+        _group = null;
+        _attached.clear();
+      }
       _open = _focus.hasFocus;
     });
     if (onDesktop) KeyboardGap.instance.write(this, _focus.hasFocus);
@@ -134,7 +152,12 @@ class _QuickAddBarState extends State<QuickAddBar> {
     final filing = widget.controller.text.trim().isNotEmpty;
     // A group deleted while the field was open is no place to file into.
     final lists = context.read<TaskProvider>().lists;
-    widget.onSubmit(lists.any((l) => l.id == _group) ? _group : null);
+    widget.onSubmit(
+      lists.any((l) => l.id == _group) ? _group : null,
+      List.of(_attached),
+    );
+    // Kept with nothing typed: nothing was filed to take them.
+    if (filing) setState(_attached.clear);
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     if (filing || onDesktop) _focus.unfocus();
   }
@@ -142,71 +165,188 @@ class _QuickAddBarState extends State<QuickAddBar> {
   /// A plus opens the form; a tick files what has been typed.
   void _press() => _focus.hasFocus ? _submit() : widget.onFullForm();
 
+  /// Has the user pick what to attach, and keeps whatever comes back for the
+  /// task being typed.
+  Future<void> _attach(AttachFrom from) async {
+    final picked = await Attachments.instance.pick(from);
+    if (!mounted) return;
+    if (picked.attached.isNotEmpty) {
+      setState(() => _attached.addAll(picked.attached));
+    }
+    if (picked.tooBig.isNotEmpty) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(S.of(context).tooBigToAttach(picked.tooBig.join(', '))),
+        ),
+      );
+    }
+    // The pickers are other apps' screens, and the keyboard goes while one
+    // is up; back on a field still being written in, it is wanted again.
+    if (onDesktop) return;
+    await _whenInFront();
+    if (mounted && _focus.hasFocus) _openField();
+  }
+
+  /// Waits for Caldo to be in front again. What a picker picked arrives
+  /// before the activity is resumed, and the window gets its focus a little
+  /// after that; Android drops a call for the keyboard made before then —
+  /// asked for at once, it never came.
+  Future<void> _whenInFront() async {
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      final back = Completer<void>();
+      final listener = AppLifecycleListener(onResume: back.complete);
+      await back.future;
+      listener.dispose();
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final s = S.of(context);
     // Opening the field is the moment the button's job changes: from here on
     // it finishes the task being typed, so it says so. Waiting for the first
     // character left it a plus over an active field.
     final writing = _focus.hasFocus;
-    // A filled grey with the tab bar's rim. Outlined on true black and
-    // left unfilled, the pill read as a hole cut in the screen; filled and
-    // unrimmed, it was a grey smudge beside the bar's crisp edge.
-    final border = OutlineInputBorder(
-      borderRadius: const BorderRadius.all(Radius.circular(26)),
-      borderSide: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
-    );
 
     // With every group on show there is no telling which one a new task
-    // belongs in, so the groups are offered above the open field; one group
+    // belongs in, so the group is offered under the open field; one group
     // on show is where it goes, and a single group is no choice at all.
     final picking = context.select<TaskProvider, bool>(
       (t) => writing && t.group == null && t.lists.length > 1,
     );
 
-    final row = Row(
-      children: [
-        Expanded(
-          // Escape closes the field, as Back does on a phone.
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.escape): _focus.unfocus,
-            },
-            child: TextField(
-              controller: widget.controller,
-              focusNode: _focus,
-              textCapitalization: TextCapitalization.sentences,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submit(),
-              style: TextStyle(color: p.text, fontSize: 14.5),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: p.field,
-                hintText: S.of(context).addTaskOn(Dates.shortDay(widget.date)),
-                hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
-                ),
-                // Nothing marks the focus but the cursor. An accent ring
-                // around half the screen was the loudest thing on it, and a
-                // neutral one on a grey field is a line nobody reads.
-                border: border,
-                enabledBorder: border,
-                focusedBorder: border,
+    // Escape closes the field, as Back does on a phone.
+    final field = CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): _focus.unfocus,
+      },
+      child: TextField(
+        controller: widget.controller,
+        focusNode: _focus,
+        textCapitalization: TextCapitalization.sentences,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+        style: TextStyle(color: p.text, fontSize: 14.5),
+        // Nothing marks the focus but the cursor. An accent ring around half
+        // the screen was the loudest thing on it, and a neutral one on a grey
+        // field is a line nobody reads. The fill and the rim are the panel's
+        // round it, which grows a second row under the title.
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: s.addTaskOn(Dates.shortDay(widget.date)),
+          hintStyle: TextStyle(color: p.muted, fontSize: 14.5),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 14,
+          ),
+          // The theme's own outline and fill, off: the panel is both.
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+        ),
+      ),
+    );
+
+    // Part of the field as far as a tap is concerned, so nothing on the row
+    // lets go of the keyboard.
+    final tools = TextFieldTapRegion(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+        child: Row(
+          children: [
+            _AttachButton(key: quickAddAttachKey, onPick: _attach),
+            if (_attached.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: AttachmentMark(count: _attached.length, color: p.muted),
+              ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: picking
+                    ? _GroupButton(
+                        key: quickAddGroupsKey,
+                        picked: _group,
+                        onPick: (id) => setState(() => _group = id),
+                      )
+                    : null,
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            _ConfirmButton(
+              key: quickAddButtonKey,
+              icon: Icons.check_rounded,
+              tooltip: s.addTask,
+              onTap: _submit,
+              size: 38,
+              fill: BarRoom.rim(p),
+              rimmed: false,
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        _ConfirmButton(
-          key: quickAddButtonKey,
-          icon: writing ? Icons.check_rounded : Icons.add,
-          tooltip: writing ? S.of(context).addTask : S.of(context).newTask,
-          onTap: _press,
-        ),
-      ],
+      ),
+    );
+
+    final button = _ConfirmButton(
+      key: quickAddButtonKey,
+      icon: writing ? Icons.check_rounded : Icons.add,
+      tooltip: writing ? s.addTask : s.newTask,
+      onTap: _press,
+    );
+
+    // The second row is there only while the keyboard is up. Open is not
+    // the same as focused: Back puts the keyboard away and the field keeps
+    // hold of it (see [_submit]), and a row of tools left standing over it
+    // read as part of the screen — the field folds back to one row, its
+    // button beside it. Rebuilt on every frame of a slide; the field and the
+    // rows are made outside, so only the frame round them is.
+    final row = ListenableBuilder(
+      listenable: KeyboardGap.instance.changes,
+      builder: (context, _) {
+        final opened = writing && KeyboardGap.up(context);
+        return Row(
+          children: [
+            Expanded(
+              // A filled grey with the tab bar's rim. Outlined on true black
+              // and left unfilled, the pill read as a hole cut in the
+              // screen; filled and unrimmed, it was a grey smudge beside the
+              // bar's crisp edge.
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: p.field,
+                  borderRadius: BorderRadius.circular(opened ? 22 : 26),
+                  border: Border.all(
+                    color: BarRoom.rim(p),
+                    width: BarRoom.rimWidth,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    field,
+                    // Grown into rather than popped in, as the keyboard
+                    // comes up under it; the title keeps its place.
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      alignment: Alignment.topCenter,
+                      child: opened
+                          ? tools
+                          : const SizedBox(width: double.infinity),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (!opened) ...[const SizedBox(width: 10), button],
+          ],
+        );
+      },
     );
 
     // In the tab bar's room the field is only there while it is being
@@ -215,7 +355,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
     // is the wide layout's: it wants to know what the plus opens, for the
     // sidebar's button, and has no bar for the field to rest in.
     final inBar = _foot != null && BarRoom.of(context) > 0;
-    final bar = inBar
+    return inBar
         ? Padding(
             padding: const EdgeInsets.fromLTRB(
               BarRoom.side,
@@ -223,9 +363,14 @@ class _QuickAddBarState extends State<QuickAddBar> {
               BarRoom.side,
               BarRoom.below,
             ),
-            child: SizedBox(
-              height: BarRoom.pill,
-              child: _WhileWriting(open: _open, child: row),
+            // The bar's height at the least, the field in its middle; opened,
+            // it grows up from the bar's foot.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: BarRoom.pill),
+              child: Align(
+                heightFactor: 1,
+                child: _WhileWriting(open: _open, child: row),
+              ),
             ),
           )
         : Padding(
@@ -236,55 +381,6 @@ class _QuickAddBarState extends State<QuickAddBar> {
               child: UndoSlot(onField: _openField, child: row),
             ),
           );
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (picking)
-          _WhileKeyboardUp(
-            child: _GroupPick(
-              picked: _group,
-              padding: EdgeInsets.only(
-                left: inBar ? BarRoom.side : widget.padding.left,
-                right: inBar ? BarRoom.side : widget.padding.right,
-                top: 6,
-              ),
-              onPick: (id) => setState(() => _group = id),
-            ),
-          ),
-        bar,
-      ],
-    );
-  }
-}
-
-/// Draws [child] only while the keyboard is up. Open is not the same as
-/// focused: Back puts the keyboard away and the field keeps hold of it (see
-/// [_QuickAddBarState._submit]), and the groups left standing over a closed
-/// field read as part of the screen, offered before anything was being
-/// added. Reads the lift, so it is rebuilt on every frame of a slide — it
-/// is the smallest widget that can, and what it holds is a row of chips.
-class _WhileKeyboardUp extends StatelessWidget {
-  final Widget child;
-
-  const _WhileKeyboardUp({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: KeyboardGap.instance.changes,
-      // Grown into rather than popped in, as the keyboard comes up under
-      // it; the field below keeps its place on the keys either way.
-      builder: (context, child) => AnimatedSize(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        alignment: Alignment.bottomCenter,
-        child: KeyboardGap.up(context)
-            ? child
-            : const SizedBox(width: double.infinity),
-      ),
-      child: child,
-    );
   }
 }
 
@@ -297,7 +393,7 @@ class _WhileKeyboardUp extends StatelessWidget {
 ///
 /// [ground] is what the field stands on at a lift, and [fade] how much of
 /// the fade to draw there; [also] is anything else they follow. Rebuilt on
-/// every frame of a slide, like [_WhileKeyboardUp], so it is kept small.
+/// every frame of a slide, so it is kept small.
 class FieldInBarRoom extends StatelessWidget {
   final Color Function(double lift) ground;
   final double Function(double lift)? fade;
@@ -372,55 +468,268 @@ class _WhileWriting extends StatelessWidget {
   }
 }
 
-/// The groups as chips across the top of the open field, the one the task
-/// will go into lit: the default until another is tapped. The header's row
-/// picks what a screen shows; this one picks where a task goes, and it is
-/// one tap with the keyboard still up — the form's Group row was the only
-/// way before, and that meant leaving the field for the whole form.
-class _GroupPick extends StatelessWidget {
+/// The group a task typed with every group on show will go into, as a chip
+/// under the title: its colour and its name, the default until another is
+/// picked from the list it opens. The header's row picks what a screen
+/// shows; this picks where a task goes, with the keyboard still up — the
+/// form's Group row was the only way before, and that meant leaving the
+/// field for the whole form. One chip rather than all of them in a row
+/// leaves the row room for the plus and the tick.
+class _GroupButton extends StatelessWidget {
   final int? picked;
-  final EdgeInsets padding;
   final ValueChanged<int?> onPick;
 
-  const _GroupPick({
-    required this.picked,
-    required this.padding,
-    required this.onPick,
+  const _GroupButton({super.key, required this.picked, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final lists = context.select<TaskProvider, List<TaskList>>((t) => t.lists);
+    final fallback = context.read<TaskProvider>().defaultGroup;
+    final chosen = lists.any((l) => l.id == picked) ? picked! : fallback;
+    final list = lists.firstWhere(
+      (l) => l.id == chosen,
+      orElse: () => lists.first,
+    );
+    return _Popup(
+      anchor: (toggle) => Material(
+        type: MaterialType.transparency,
+        shape: StadiumBorder(
+          side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            toggle();
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(11, 8, 8, 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _Dot(color: list.style.color),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    groupLabel(context, list),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: p.text, fontSize: 13.5),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(Icons.expand_less_rounded, size: 18, color: p.muted),
+              ],
+            ),
+          ),
+        ),
+      ),
+      menu: (close) => _Menu(
+        children: [
+          for (final l in lists)
+            _MenuItem(
+              leading: _Dot(color: l.style.color),
+              label: groupLabel(context, l),
+              chosen: l.id == chosen,
+              onTap: () {
+                close();
+                onPick(l.id == fallback ? null : l.id);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The plus under the title, which attaches a photo or a file to the task
+/// as the form's Attachments do.
+class _AttachButton extends StatelessWidget {
+  final ValueChanged<AttachFrom> onPick;
+
+  const _AttachButton({super.key, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    _MenuItem item(IconData icon, String label, AttachFrom from, VoidCallback close) =>
+        _MenuItem(
+          leading: Icon(icon, size: 19, color: p.muted),
+          label: label,
+          onTap: () {
+            close();
+            onPick(from);
+          },
+        );
+    return _Popup(
+      anchor: (toggle) => _ConfirmButton(
+        icon: Icons.add,
+        tooltip: s.sectionAttachments,
+        onTap: toggle,
+        size: 38,
+        fill: Colors.transparent,
+      ),
+      menu: (close) => _Menu(
+        children: [
+          item(Icons.photo_outlined, s.attachPhoto, AttachFrom.photos, close),
+          // A desktop has no camera app to hand a file to.
+          if (!onDesktop)
+            item(
+              Icons.photo_camera_outlined,
+              s.attachCamera,
+              AttachFrom.camera,
+              close,
+            ),
+          item(Icons.attach_file, s.attachFile, AttachFrom.files, close),
+        ],
+      ),
+    );
+  }
+}
+
+/// A group's colour, as a dot.
+class _Dot extends StatelessWidget {
+  final Color color;
+
+  const _Dot({required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 10,
+    height: 10,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+}
+
+/// A small list opened above [anchor], over whatever is above the field.
+///
+/// Laid in the overlay rather than pushed as a route: a route takes the
+/// focus, the field lets go of the keyboard, and the field, the row and the
+/// list all go with it. The list counts as part of the field for taps, so
+/// picking from it keeps the keyboard up; a tap anywhere else closes it.
+class _Popup extends StatefulWidget {
+  final Widget Function(VoidCallback toggle) anchor;
+  final Widget Function(VoidCallback close) menu;
+
+  const _Popup({required this.anchor, required this.menu});
+
+  @override
+  State<_Popup> createState() => _PopupState();
+}
+
+class _PopupState extends State<_Popup> {
+  final _portal = OverlayPortalController();
+  final _link = LayerLink();
+
+  void _toggle() => setState(_portal.isShowing ? _portal.hide : _portal.show);
+
+  void _close() {
+    if (_portal.isShowing) setState(_portal.hide);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TapRegion(
+      groupId: this,
+      onTapOutside: (_) => _close(),
+      child: CompositedTransformTarget(
+        link: _link,
+        child: OverlayPortal(
+          controller: _portal,
+          overlayChildBuilder: (context) => Positioned(
+            left: 0,
+            top: 0,
+            child: CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.topLeft,
+              followerAnchor: Alignment.bottomLeft,
+              offset: const Offset(0, -10),
+              child: TapRegion(
+                groupId: this,
+                child: TextFieldTapRegion(child: widget.menu(_close)),
+              ),
+            ),
+          ),
+          child: widget.anchor(_toggle),
+        ),
+      ),
+    );
+  }
+}
+
+/// The surface of a [_Popup]: the field's grey and rim, raised off what it
+/// stands over.
+class _Menu extends StatelessWidget {
+  final List<Widget> children;
+
+  const _Menu({required this.children});
+
+  static const width = 220.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Material(
+      color: p.field,
+      elevation: 8,
+      shadowColor: Colors.black,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 300),
+        child: SizedBox(
+          width: width,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(mainAxisSize: MainAxisSize.min, children: children),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuItem extends StatelessWidget {
+  final Widget leading;
+  final String label;
+  final bool chosen;
+  final VoidCallback onTap;
+
+  const _MenuItem({
+    required this.leading,
+    required this.label,
+    this.chosen = false,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final lists = context.select<TaskProvider, List<TaskList>>((t) => t.lists);
-    final fallback = context.read<TaskProvider>().defaultGroup;
-    final chosen = lists.any((l) => l.id == picked) ? picked! : fallback;
-    final height = math.max(
-      32.0,
-      MediaQuery.textScalerOf(context).scale(14) * 1.3 + 12,
-    );
-    // Part of the field as far as a tap is concerned, so picking a group
-    // never lets go of the keyboard.
-    return TextFieldTapRegion(
-      child: Padding(
-        padding: EdgeInsets.only(top: padding.top),
-        child: SizedBox(
-          key: quickAddGroupsKey,
-          height: height,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.only(left: padding.left, right: padding.right),
+    final p = AppTheme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: 42,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(
             children: [
-              for (final list in lists)
-                Padding(
-                  padding: EdgeInsets.only(left: list == lists.first ? 0 : 8),
-                  child: Center(
-                    child: GroupChip(
-                      label: groupLabel(context, list),
-                      color: list.style.color,
-                      selected: list.id == chosen,
-                      onTap: () => onPick(list.id == fallback ? null : list.id),
-                    ),
-                  ),
+              SizedBox(width: 20, child: Center(child: leading)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: p.text, fontSize: 14),
                 ),
+              ),
+              if (chosen) Icon(Icons.check_rounded, size: 18, color: p.text),
             ],
           ),
         ),
@@ -429,19 +738,28 @@ class _GroupPick extends StatelessWidget {
   }
 }
 
-/// The round button beside the field. Plain rather than the accent gradient
-/// the screen headers wear: it sits next to the field the eye is already on,
-/// and a bright disc there pulled attention off what was being typed.
+/// The round button beside the field, and the ones on its second row. Plain
+/// rather than the accent gradient the screen headers wear: it sits next to
+/// the field the eye is already on, and a bright disc there pulled attention
+/// off what was being typed.
 class _ConfirmButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final double size;
+
+  /// The field's grey unless said otherwise.
+  final Color? fill;
+  final bool rimmed;
 
   const _ConfirmButton({
     super.key,
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.size = 48,
+    this.fill,
+    this.rimmed = true,
   });
 
   @override
@@ -450,18 +768,20 @@ class _ConfirmButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: p.field,
+        color: fill ?? p.field,
         shape: CircleBorder(
-          side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+          side: rimmed
+              ? BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth)
+              : BorderSide.none,
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           customBorder: const CircleBorder(),
           child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(icon, color: p.text, size: 26),
+            width: size,
+            height: size,
+            child: Icon(icon, color: p.text, size: size * 0.54),
           ),
         ),
       ),
@@ -470,14 +790,15 @@ class _ConfirmButton extends StatelessWidget {
 }
 
 /// Files an all-day task on [day] from a one-line title, into [group] if
-/// one was picked above the field, and otherwise into the group on show —
+/// one was picked under the field, and otherwise into the group on show —
 /// added to a screen showing one group, a task anywhere else would vanish as
-/// it was filed — in that group's colour.
+/// it was filed — in that group's colour, with whatever was [attachments].
 Future<void> quickAddTask(
   BuildContext context, {
   required DateTime day,
   required String title,
   int? group,
+  List<Attachment> attachments = const [],
 }) async {
   final trimmed = title.trim();
   if (trimmed.isEmpty) return;
@@ -488,6 +809,7 @@ Future<void> quickAddTask(
       title: trimmed,
       dueAt: dayOf(day).millisecondsSinceEpoch,
       createdAt: DateTime.now().millisecondsSinceEpoch,
+      attachments: attachments,
     ),
   );
 }
