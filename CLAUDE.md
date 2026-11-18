@@ -291,7 +291,7 @@ them will be noticed.
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
   the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`: a
-  strip blurred from nothing to 6 at the foot, darkening to 5% of the
+  strip blurred from nothing to 3 at the foot, darkening to 5% of the
   ground, with no edge where the blur starts. That takes a shader
   (`shaders/bar_ground.frag`, a pass across and one down — composed into
   one filter they drew nothing); it is given screen coordinates and on

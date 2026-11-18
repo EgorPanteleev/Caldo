@@ -806,7 +806,7 @@ class _BarGround extends StatefulWidget {
   static const _lead = 24.0;
 
   /// The blur at the foot.
-  static const most = 6.0;
+  static const most = 3.0;
 
   /// How dark it gets at the foot, of the ground.
   static const _shade = 0.05;
