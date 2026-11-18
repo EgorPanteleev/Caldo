@@ -365,6 +365,12 @@ them will be noticed.
   own report** (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the
   display bottom minus what lies below the window. Don't try to correct
   `viewInsets` arithmetically — its meaning changes mid-slide.
+- **In a slide, Android reports where the keys will be 16ms on**
+  (`MainActivity.ahead`, `LEAD_MS`: the slide's own curve read forward,
+  only when it reproduces the current report) and Dart follows that alone
+  (`KeyboardGap.sliding`, same message). A frame is seen 12–20ms after the
+  keys move: on a 120Hz Galaxy the field came up 64pt under the keys; two
+  frames' lead overshot on the 60Hz emulator.
 - **Edge-to-edge is read from the content view's insets, never its height**
   (`MainActivity.contentNav`).
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):

@@ -49,6 +49,8 @@ def describe(e):
         return "route " + " ".join(f"{a}={b}" for a, b in rest.items())
     if k == "insets":
         return f"insets keys={e.get('keys')} bottom={e.get('bottom')} {e.get('w')}x{e.get('h')}"
+    if k == "reach":
+        return f"reach keys={e.get('keys')}" + (" sliding" if e.get("sliding") else "")
     if k == "life":
         return f"app {e.get('state')}"
     if k == "error":
@@ -146,7 +148,7 @@ def main():
                 line += f"  [{len(slow)} slow frames, worst {max(max(f['build'], f['raster']) for f in slow):.1f}ms]"
             print(line)
             continue
-        if k == "insets":
+        if k in ("insets", "reach"):
             continue
         print(f"{clock(e['t'])}  {describe(e)}")
     # The keyboard, as its moves rather than every step.

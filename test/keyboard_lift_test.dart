@@ -84,6 +84,27 @@ void main() {
     expect(_bottomGap(tester), 0);
   });
 
+  testWidgets('in a slide the platform is followed alone', (tester) async {
+    await tester.pumpWidget(_harness(0));
+    _rest = tester.getBottomLeft(find.byKey(_bar)).dy;
+
+    // Closing: the platform says where the keys are about to be, already
+    // lower than where `viewInsets` says they were. The further of the two
+    // would hold the field above the keys for the whole slide.
+    KeyboardGap.instance.sliding = true;
+    KeyboardGap.instance.covered.value = 180;
+    await tester.pumpWidget(_harness(250));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 180, reason: 'the keys are going, not gone');
+
+    // Settled: the further of the two again.
+    KeyboardGap.instance.sliding = false;
+    KeyboardGap.instance.covered.value = 0;
+    await tester.pumpWidget(_harness(0));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 0);
+  });
+
   testWidgets('the bar sits on the keyboard at every step of a slide', (
     tester,
   ) async {

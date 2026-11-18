@@ -59,6 +59,14 @@ class MainActivity : FlutterActivity() {
      */
     private var contentNav = -1
 
+    /**
+     * The keyboard's slides now running, each with the IME inset it runs
+     * from and to — null until it has started and said so. While any is
+     * here the window's own insets are the slide's end, not where the keys
+     * are, and [ahead] can tell where they are about to be.
+     */
+    private val slides = HashMap<Any, IntArray?>()
+
     /** Where the home-screen widget asks the app to go ([TodayWidget]). */
     private var launches: MethodChannel? = null
 
@@ -707,7 +715,11 @@ class MainActivity : FlutterActivity() {
      * Reporting where the keyboard is cannot race with itself.
      */
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun send(insets: WindowInsets) {
+    private fun send(
+        insets: WindowInsets,
+        keys: Int = insets.getInsets(WindowInsets.Type.ime()).bottom,
+        sliding: Boolean = false,
+    ) {
         val sink = imeSink ?: return
         val ime = insets.getInsets(WindowInsets.Type.ime()).bottom
         val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
@@ -738,19 +750,61 @@ class MainActivity : FlutterActivity() {
             else -> 0
         }
         val off = below
-        val reach = (ime - off).coerceAtLeast(0)
+        val reach = (keys - off).coerceAtLeast(0)
         val density = resources.displayMetrics.density
         // The raw figures travel with it, for the numbers a long press puts
         // on screen: a recording of a fault is worth a great deal more when
         // what each side of it believed is written across the top.
+        // `sliding` rides in the same message as the number it qualifies,
+        // so the two cannot arrive apart.
         sink.success(
             mapOf(
                 "reach" to reach / density,
                 "ime" to ime / density,
+                "ahead" to (keys - ime) / density,
                 "nav" to nav / density,
                 "below" to off / density,
+                "sliding" to sliding,
             ),
         )
+    }
+
+    /**
+     * Where the keys will be when a frame Flutter starts now reaches the
+     * screen, in the middle of a slide.
+     *
+     * Android moves the keyboard in the frame it reports the move; Flutter
+     * draws to that report and its picture is shown a frame or two later.
+     * Recorded on a 120Hz Galaxy (2.11.22), the field came up 64pt under
+     * the top of the keys on the first frame of an opening and 37 on
+     * another, then 15–20 through the middle — the keys' position from 12
+     * to 20ms earlier, every time, with Flutter's frames taking 5ms. That
+     * is the gap between the two pictures, and no promptness on our side
+     * closes it: the report has to say where the keys are going to be.
+     *
+     * The slide says that itself: its duration, how far through it is and
+     * its curve are all on [WindowInsetsAnimation]. This reads the curve
+     * forward by [LEAD_MS] — not a smoothing or
+     * a guess at the keys' speed, but the system's own animation evaluated
+     * a little later. And only when that reading of the curve gives back
+     * exactly what is being reported now: a slide reversed half way, or one
+     * a maker drives some other way, is passed on as it is reported.
+     */
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun ahead(insets: WindowInsets, running: List<WindowInsetsAnimation>): Int {
+        val now = insets.getInsets(WindowInsets.Type.ime()).bottom
+        val slide = running.firstOrNull { it.typeMask and WindowInsets.Type.ime() != 0 }
+            ?: return now
+        val ends = slides[slide] ?: return now
+        val length = slide.durationMillis
+        if (length <= 0) return now
+        val curve = slide.interpolator
+        fun at(fraction: Float): Float {
+            val f = fraction.coerceIn(0f, 1f)
+            return ends[0] + (ends[1] - ends[0]) * (curve?.getInterpolation(f) ?: f)
+        }
+        if (Math.abs(at(slide.fraction) - now) > 2 * resources.displayMetrics.density) return now
+        return Math.round(at(slide.fraction + LEAD_MS / length))
     }
 
     private fun reportIme() {
@@ -767,24 +821,60 @@ class MainActivity : FlutterActivity() {
         window.decorView.setWindowInsetsAnimationCallback(
             object :
                 WindowInsetsAnimation.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
+                override fun onPrepare(animation: WindowInsetsAnimation) {
+                    if (animation.typeMask and WindowInsets.Type.ime() != 0) {
+                        slides[animation] = null
+                        // One prepared and then dropped before it starts
+                        // gets no end, and must not hold the reports up.
+                        window.decorView.postDelayed({
+                            if (slides.containsKey(animation) && slides[animation] == null) {
+                                slides.remove(animation)
+                                if (slides.isEmpty()) reportIme()
+                            }
+                        }, 500)
+                    }
+                }
+
+                override fun onStart(
+                    animation: WindowInsetsAnimation,
+                    bounds: WindowInsetsAnimation.Bounds,
+                ): WindowInsetsAnimation.Bounds {
+                    if (animation.typeMask and WindowInsets.Type.ime() != 0) {
+                        // The window's insets are already the slide's end,
+                        // so they say which way it goes.
+                        val opening = window.decorView.rootWindowInsets
+                            ?.isVisible(WindowInsets.Type.ime()) ?: true
+                        val shut = bounds.lowerBound.bottom
+                        val open = bounds.upperBound.bottom
+                        slides[animation] =
+                            if (opening) intArrayOf(shut, open) else intArrayOf(open, shut)
+                    }
+                    return bounds
+                }
+
                 override fun onProgress(
                     insets: WindowInsets,
                     running: MutableList<WindowInsetsAnimation>,
                 ): WindowInsets {
-                    send(insets)
+                    send(insets, ahead(insets, running), sliding = slides.isNotEmpty())
                     return insets
                 }
 
                 override fun onEnd(animation: WindowInsetsAnimation) {
-                    reportIme()
+                    slides.remove(animation)
+                    // A slide overtaken by another is not the end of the
+                    // keys' moving: the window's insets are the new one's
+                    // end, and sending them would jump the field there.
+                    if (slides.isEmpty()) reportIme()
                 }
             },
         )
         // The animation callback covers the slide; this covers everything
         // else — a rotation, a split-screen resize, a keyboard that appears
-        // without animating at all.
+        // without animating at all. Not during a slide: the insets applied
+        // then are where it will end, handed over before it starts.
         window.decorView.setOnApplyWindowInsetsListener { view: View, insets: WindowInsets ->
-            send(insets)
+            if (slides.isEmpty()) send(insets)
             view.onApplyWindowInsets(insets)
         }
         // What the bars look like by the time they reach the content view,
@@ -823,6 +913,14 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val IME_CHANNEL = "caldo/ime"
+
+        /**
+         * How far ahead of a slide's report the keys are said to be. The
+         * field was 12 to 20ms behind them on a 120Hz phone, two frames
+         * there; two frames on the 60Hz emulator put it as far ahead, so
+         * the delay is time rather than frames.
+         */
+        const val LEAD_MS = 16f
         const val UPDATES_CHANNEL = "caldo/updates"
         const val WIDGET_CHANNEL = "caldo/widget"
         const val CALENDARS_CHANNEL = "caldo/calendars"

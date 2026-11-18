@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/tweaks.dart';
 import '../utils/platform.dart';
 import '../widgets/perf_hud.dart';
+import '../widgets/quick_add_bar.dart';
 
 /// Settings › Debug's recording: a video of Caldo and its keyboard alone —
 /// the app copied out of Flutter's own surface, the keyboard's strip from
@@ -334,10 +335,21 @@ class _Insets with WidgetsBindingObserver {
 
   void attach() {
     WidgetsBinding.instance.addObserver(this);
+    KeyboardGap.instance.covered.addListener(_reach);
     didChangeMetrics();
   }
 
-  void detach() => WidgetsBinding.instance.removeObserver(this);
+  void detach() {
+    WidgetsBinding.instance.removeObserver(this);
+    KeyboardGap.instance.covered.removeListener(_reach);
+  }
+
+  /// What Android said of the keys, which the field rides: `viewInsets`
+  /// alone leaves out what it was lifted by.
+  void _reach() => _to._write('reach', {
+    'keys': Recording._one(KeyboardGap.instance.covered.value),
+    'sliding': KeyboardGap.instance.sliding,
+  });
 
   @override
   void didChangeMetrics() {

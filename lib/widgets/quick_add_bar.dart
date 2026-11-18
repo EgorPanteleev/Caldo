@@ -842,6 +842,13 @@ Future<void> quickAddTask(
 /// message that arrives a frame late nor an inset that is a strip short can
 /// put the bar over the keyboard; the worst either can do is hold it where
 /// the keys were a frame ago.
+///
+/// Except in a slide, where a frame ago was the trouble: what is drawn to a
+/// report is seen a frame or two after the keys have moved on, and on a
+/// 120Hz phone that left the field up to 64pt under the keys as they came
+/// up, and above them as they went. There Android says where the keys are
+/// about to be, read off the slide's own curve, and that is followed alone
+/// ([sliding]).
 class KeyboardGap {
   KeyboardGap._();
 
@@ -861,6 +868,14 @@ class KeyboardGap {
   /// window to sit above.
   final ValueNotifier<String> raw = ValueNotifier<String>('');
 
+  /// Whether [covered] is from the middle of a slide, and so where the
+  /// keys are about to be rather than where they are: Android reads the
+  /// slide's own curve a couple of frames on, since that is how much later
+  /// a frame drawn to it is seen (`MainActivity.ahead`). Then it is
+  /// followed alone. `viewInsets` is where the keys were, and taking the
+  /// further of the two held the field over them on every closing.
+  bool sliding = false;
+
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -868,11 +883,15 @@ class KeyboardGap {
     _sub = _channel.receiveBroadcastStream().listen(
       (value) {
         if (value is num) {
+          sliding = false;
           covered.value = value.toDouble();
         } else if (value is Map) {
+          // Before the number, so whoever it wakes reads the two together.
+          sliding = value['sliding'] == true;
           covered.value = (value['reach'] as num).toDouble();
           raw.value =
               'ime ${(value['ime'] as num).toStringAsFixed(1)} '
+              'ahead ${((value['ahead'] as num?) ?? 0).toStringAsFixed(1)} '
               'nav ${(value['nav'] as num).toStringAsFixed(1)} '
               'below ${(value['below'] as num).toStringAsFixed(1)}';
         }
@@ -919,10 +938,11 @@ class KeyboardGap {
 
   /// How far to lift whatever is glued to the keyboard.
   static double of(BuildContext context) {
-    final covered = math.max(
-      MediaQuery.viewInsetsOf(context).bottom,
-      instance.covered.value,
-    );
+    // Subscribes either way, so the end of a slide is seen.
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final covered = instance.sliding
+        ? instance.covered.value
+        : math.max(inset, instance.covered.value);
     if (covered <= 0) return 0;
     // Less the strip at the foot of the window the layout never had: the
     // screens sit in a `SafeArea` that keeps the gesture bar reserved
@@ -950,6 +970,7 @@ class KeyboardGap {
   /// for the next.
   @visibleForTesting
   void forget() {
+    sliding = false;
     covered.value = 0;
     _writers.clear();
     writing.value = false;
