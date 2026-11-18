@@ -1,6 +1,7 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -131,30 +132,37 @@ class CaldoApp extends StatelessWidget {
           scrollBehavior: onDesktop ? const DesktopScrolling() : null,
           // The clock Settings names goes in where every widget can read it,
           // and where reading it has the widget redrawn when it changes.
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
-            child: ThemeSwitcher(
-              child: ValueListenableBuilder<Update?>(
-                valueListenable: Updates.instance.offered,
-                // An urgent update takes the navigator's place, and
-                // everything on it goes: the app is not to be used again
-                // until the update is in, and it starts afresh then.
-                builder: (context, update, _) => update != null && update.urgent
-                    ? UpdateWall(update: update)
-                    : onDesktop
-                    ? DeskScope(
-                        navigator: _navigator,
-                        builder: (context, wide) => DeskKeys(
+          builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+            // The system bars wear the app's ground: left to the window's
+            // theme the navigation bar stays pure black, and Flutter's own
+            // status-bar scrim darkens a band across the top.
+            value: _barsOn(Theme.of(context)),
+            child: MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
+              child: ThemeSwitcher(
+                child: ValueListenableBuilder<Update?>(
+                  valueListenable: Updates.instance.offered,
+                  // An urgent update takes the navigator's place, and
+                  // everything on it goes: the app is not to be used again
+                  // until the update is in, and it starts afresh then.
+                  builder: (context, update, _) =>
+                      update != null && update.urgent
+                      ? UpdateWall(update: update)
+                      : onDesktop
+                      ? DeskScope(
                           navigator: _navigator,
-                          wide: wide,
-                          // A window too narrow for the desktop's layout is
-                          // the phone's app, at a phone's width.
-                          child: PhoneWide(on: !wide, child: child!),
-                        ),
-                      )
-                    : child!,
+                          builder: (context, wide) => DeskKeys(
+                            navigator: _navigator,
+                            wide: wide,
+                            // A window too narrow for the desktop's layout is
+                            // the phone's app, at a phone's width.
+                            child: PhoneWide(on: !wide, child: child!),
+                          ),
+                        )
+                      : child!,
+                ),
               ),
             ),
           ),
@@ -165,6 +173,22 @@ class CaldoApp extends StatelessWidget {
       ),
     );
   }
+}
+
+SystemUiOverlayStyle _barsOn(ThemeData theme) {
+  final dark = theme.brightness == Brightness.dark;
+  final icons = dark ? Brightness.light : Brightness.dark;
+  return SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: icons,
+    statusBarBrightness: theme.brightness,
+    systemNavigationBarColor:
+        (theme.extension<AppPalette>() ??
+                (dark ? AppPalette.dark : AppPalette.light))
+            .bg,
+    systemNavigationBarIconBrightness: icons,
+    systemNavigationBarDividerColor: Colors.transparent,
+  );
 }
 
 /// Keeps the app to the width of a large phone, in the middle of a window
