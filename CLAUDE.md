@@ -260,11 +260,14 @@ them will be noticed.
   row (All, groups, plus) always shown; long press carries a chip to reorder
   (`lists.sort_order`, schema v9), released in place opens it to edit. A
   carried chip stands on `GroupChips.ground`. On Schedule the row is part
-  of the glass head (`FrostedGroupChips`, `GlassTop`); the chips' fill is
-  let through in part. A frosted strip behind the row alone was asked off;
-  the whole top on glass was asked for after. Chips are no longer blurs of
-  their own: over the glass it couldn't be seen, and their blurs cost more
-  than the whole head.
+  of the glass head (`GroupChipsOnGlass`, `GlassTop`) and stands on the
+  full blur, as the title does; the blur fades out below it, over the room
+  above the first day's heading (`GlassTop.below`/`fade`,
+  `DayHeader.above`). **The chips are solid**, the chosen one the field's
+  grey, the rest the ground with a hairline (`onGlass`): see-through
+  chips and chips each a blur of their own were both asked back. A
+  frosted strip behind the row alone was asked off; the whole top on
+  glass was asked for after.
 - **Default group is the oldest** (`TaskList.oldest`), never deletable;
   deleting another moves its tasks there.
 - With a group chosen: only its tasks, no phone events, holidays stay, new

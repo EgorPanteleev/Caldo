@@ -205,6 +205,9 @@ class DayHeader extends StatelessWidget {
   const DayHeader({super.key, this.word, this.label, this.color})
     : assert(word != null || label != null);
 
+  /// The room above the heading.
+  static const above = 24.0;
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
@@ -214,7 +217,7 @@ class DayHeader extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, above, 20, 10),
       child: Row(
         children: [
           if (word != null)

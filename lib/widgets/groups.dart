@@ -31,22 +31,21 @@ EventsProvider? eventsOnShow(BuildContext context) {
 const groupChipsKey = Key('group-chips');
 
 /// The row of groups in a head laid over the top of a list that scrolls up
-/// under it ([GlassTop]). Each chip is let through in part, so the glass
-/// shows in it. Each was a blur of its own once, before the head was glass:
-/// over the glass that blurred what was already blurred, and the chips'
-/// blurs between them cost more than the whole head's. At rest, over the
-/// bare ground, it looks as the row always did.
-class FrostedGroupChips extends StatelessWidget {
+/// under it ([GlassTop]), on the full blur as the title is. The chips are
+/// solid, as they were before there was glass: let through in part, or
+/// each a blur of its own, they were asked back to their grey and black.
+/// (Each a blur, they also cost more between them than the whole head.)
+class GroupChipsOnGlass extends StatelessWidget {
   /// The room under the chips before the list's first line.
   static const foot = 8.0;
 
-  const FrostedGroupChips({super.key});
+  const GroupChipsOnGlass({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.only(bottom: foot),
-      child: SizedBox(width: double.infinity, child: GroupChips(frosted: true)),
+      child: SizedBox(width: double.infinity, child: GroupChips(onGlass: true)),
     );
   }
 }
@@ -68,11 +67,11 @@ class GroupChips extends StatefulWidget {
   /// outline, and carried over its neighbours, their names showed through it.
   final Color? ground;
 
-  /// Whether the chips are frosted glass, for a row with a list passing
-  /// under it ([FrostedGroupChips]).
-  final bool frosted;
+  /// Whether the row stands on glass ([GroupChipsOnGlass]), where a chip
+  /// not chosen is filled with the ground rather than left clear.
+  final bool onGlass;
 
-  const GroupChips({super.key, this.ground, this.frosted = false});
+  const GroupChips({super.key, this.ground, this.onGlass = false});
 
   /// The row's height: the chips' own at the text size in force, so a
   /// larger font is not cut off. A list has to be told it, and a screen
@@ -187,7 +186,7 @@ class _GroupChipsState extends State<GroupChips> {
             child: GroupChip(
               label: S.of(context).allGroups,
               selected: shown == null,
-              frosted: widget.frosted,
+              onGlass: widget.onGlass,
               onTap: () => tasks.showGroup(null),
             ),
           ),
@@ -195,7 +194,7 @@ class _GroupChipsState extends State<GroupChips> {
             padding: const EdgeInsets.only(left: 8),
             child: Center(
               child: GroupChip.add(
-                frosted: widget.frosted,
+                onGlass: widget.onGlass,
                 onTap: () async {
                   final made = await showGroupSheet(context);
                   if (made != null) tasks.showGroup(made.id);
@@ -215,9 +214,10 @@ class _GroupChipsState extends State<GroupChips> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: Center(
-                    // The ground it stands on, while it is carried only: at
-                    // rest a chip not chosen is clear, so a row on frosted
-                    // glass shows the glass through every chip alike.
+                    // The ground it stands on, while it is carried: a chip
+                    // not chosen is only an outline off the glass, and
+                    // carried over its neighbours, their names showed
+                    // through it.
                     child: ValueListenableBuilder<int?>(
                       valueListenable: _carried,
                       builder: (context, carried, chip) => DecoratedBox(
@@ -231,7 +231,7 @@ class _GroupChipsState extends State<GroupChips> {
                         label: groupLabel(context, list),
                         color: list.style.color,
                         selected: shown == list.id,
-                        frosted: widget.frosted,
+                        onGlass: widget.onGlass,
                         onTap: () => tasks.showGroup(list.id),
                       ),
                     ),
@@ -255,9 +255,9 @@ class GroupChip extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  /// For a row on glass: the chip's fill is let through only in part, so
-  /// the glass shows in it.
-  final bool frosted;
+  /// For a row on glass: a chip not chosen is filled with the ground, so
+  /// it looks as it does on the bare ground.
+  final bool onGlass;
 
   const GroupChip({
     super.key,
@@ -266,11 +266,11 @@ class GroupChip extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.onLongPress,
-    this.frosted = false,
+    this.onGlass = false,
   });
 
   /// The chip that makes a new group: a plus and nothing else.
-  const GroupChip.add({super.key, required this.onTap, this.frosted = false})
+  const GroupChip.add({super.key, required this.onTap, this.onGlass = false})
     : label = null,
       color = null,
       selected = false,
@@ -279,14 +279,11 @@ class GroupChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final Color fill;
-    if (frosted) {
-      fill = selected
-          ? p.field.withValues(alpha: 0.8)
-          : p.bg.withValues(alpha: 0.45);
-    } else {
-      fill = selected ? p.field : Colors.transparent;
-    }
+    final fill = selected
+        ? p.field
+        : onGlass
+        ? p.bg
+        : Colors.transparent;
     return Material(
       color: fill,
       shape: StadiumBorder(

@@ -168,6 +168,10 @@ class _TasksScreenState extends State<TasksScreen> {
           // bottom of it is out of reach while the keyboard is up.
           resizeToAvoidBottomInset: false,
           body: GlassTop(
+            // The groups stand on the full blur, and it fades out below
+            // them, over the room above the first day's heading.
+            below: DayHeader.above,
+            fade: GroupChipsOnGlass.foot + DayHeader.above,
             head: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -188,7 +192,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   ),
                 ),
                 // The groups are in the sidebar in a wide window.
-                if (!wide) const FrostedGroupChips(),
+                if (!wide) const GroupChipsOnGlass(),
               ],
             ),
             // The run of days fades into the ground the add field sits on

@@ -203,7 +203,21 @@ class GlassTop extends StatelessWidget {
   final Widget head;
   final Widget body;
 
-  const GlassTop({super.key, required this.head, required this.body});
+  /// How far below the head the glass reaches, into room the body leaves
+  /// empty at rest; and how long the blur takes there to fade out, ending
+  /// at that foot. Without them it fades over the head's own foot
+  /// ([leadOf]). The groups under Schedule's title were asked to stand on
+  /// the full blur, as the title does, so there it fades below them.
+  final double below;
+  final double? fade;
+
+  const GlassTop({
+    super.key,
+    required this.head,
+    required this.body,
+    this.below = 0,
+    this.fade,
+  });
 
   /// The tab bar's frost, so the two ends of the screen are one glass.
   static const blur = 17.0;
@@ -233,7 +247,7 @@ class GlassTop extends StatelessWidget {
       context: context,
       removeTop: true,
       child: CustomMultiChildLayout(
-        delegate: _GlassLayout(),
+        delegate: _GlassLayout(below),
         children: [
           LayoutId(
             id: _Part.body,
@@ -242,7 +256,10 @@ class GlassTop extends StatelessWidget {
                   HeadRoom(height: (box as _UnderHead).head, child: body),
             ),
           ),
-          LayoutId(id: _Part.glass, child: const _Glass()),
+          LayoutId(
+            id: _Part.glass,
+            child: _Glass(fade: fade),
+          ),
           // Taps on the head stay there rather than reaching a card blurred
           // under it.
           LayoutId(
@@ -264,8 +281,12 @@ class GlassTop extends StatelessWidget {
 enum _Part { body, glass, head }
 
 /// The head at its own height, then the body the full height told how much
-/// of it the head covers, then the glass under the head.
+/// of it the head covers, then the glass under the head and [below] it.
 class _GlassLayout extends MultiChildLayoutDelegate {
+  final double below;
+
+  _GlassLayout(this.below);
+
   @override
   void performLayout(Size size) {
     final head = layoutChild(
@@ -277,14 +298,19 @@ class _GlassLayout extends MultiChildLayoutDelegate {
       ),
     ).height;
     layoutChild(_Part.body, _UnderHead(size, head));
-    layoutChild(_Part.glass, BoxConstraints.tight(Size(size.width, head)));
+    layoutChild(
+      _Part.glass,
+      BoxConstraints.tight(
+        Size(size.width, math.min(size.height, head + below)),
+      ),
+    );
     for (final part in _Part.values) {
       positionChild(part, Offset.zero);
     }
   }
 
   @override
-  bool shouldRelayout(_GlassLayout old) => false;
+  bool shouldRelayout(_GlassLayout old) => below != old.below;
 }
 
 /// The body's constraints, carrying the head's height to the body's
@@ -303,12 +329,14 @@ class _UnderHead extends BoxConstraints {
   int get hashCode => Object.hash(super.hashCode, head);
 }
 
-/// The glass itself: a full blur down to [GlassTop.leadOf] above the head's
-/// foot, then thinning to none at it — in a few bands while it is strong,
+/// The glass itself: a full blur down to [fade] above its foot (or
+/// [GlassTop.leadOf]), then thinning to none at it — in a few bands while it is strong,
 /// then smoothly ([FadingBlur]) while it is light enough for steps to show
 /// — with the ground laid over in step.
 class _Glass extends StatelessWidget {
-  const _Glass();
+  final double? fade;
+
+  const _Glass({this.fade});
 
   /// Where the bands hand over to the smooth part.
   static const _light = 2.0;
@@ -320,7 +348,7 @@ class _Glass extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final height = box.maxHeight;
-          final lead = math.min(height, GlassTop.leadOf(height));
+          final lead = math.min(height, fade ?? GlassTop.leadOf(height));
           final full = height - lead;
           return Stack(
             children: [
