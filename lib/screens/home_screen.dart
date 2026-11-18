@@ -932,6 +932,13 @@ class _AddButton extends StatelessWidget {
 /// anyway — but not for the first frames of a slide, when the field would
 /// be coming up through it. Reads the lift, so it is rebuilt on every frame
 /// of one; it is the smallest widget that can.
+///
+/// Hidden, it is still drawn, at the faintest alpha there is: not drawn at
+/// all, the bar's blurs gave up what they draw through, and the frame that
+/// brought them back took 23-30ms to draw on the 120Hz Galaxy, at the end of
+/// every closing in every recording (2.11.22-2.11.30) — three frames lost
+/// just as the keys went. Drawn, they cost what they cost with the keys
+/// down, behind the keys.
 class _WhileKeyboardDown extends StatelessWidget {
   final Widget child;
 
@@ -945,12 +952,15 @@ class _WhileKeyboardDown extends StatelessWidget {
         final down = !KeyboardGap.up(context);
         return IgnorePointer(
           ignoring: !down,
-          child: Opacity(opacity: down ? 1 : 0, child: child),
+          child: Opacity(opacity: down ? 1 : _faint, child: child),
         );
       },
       child: child,
     );
   }
+
+  /// One step of 255: drawn, and nothing anyone can see.
+  static const _faint = 1 / 255;
 }
 
 class _Tab extends StatelessWidget {

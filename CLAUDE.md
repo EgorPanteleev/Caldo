@@ -343,6 +343,10 @@ them will be noticed.
   screens; Board and the calendar take it back themselves (nothing scrolls
   under their heads); a banner takes the status bar's room in their place
   at once. The wide layout keeps the head above the body.
+- **While the keys are up the bar is drawn at alpha 1/255, not left out**
+  (`_WhileKeyboardDown._faint`): left out, the frame that brought its
+  blurs back took 23–30ms to draw on the Galaxy at the end of every
+  closing (2.11.22–2.11.30).
 - **With the bar, a 56pt round plus floats above its right end** (`_AddButton`,
   `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`), only on Schedule and
   Calendar. Tap opens the field (which lives in the bar's room while the
