@@ -302,7 +302,8 @@ them will be noticed.
   field over their foot with one widget (`FieldInBarRoom`), its ground and
   fade drawn only while the keys are up. The calendar sizes its grid to
   what the bar leaves; its day panel is taller by the room, that foot
-  covered in black as the month opens. Back goes to the start screen before leaving
+  covered in the panel's grey as the month opens (never black — the strip
+  behind the bar keeps its colour in every state). Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
   short checklist, a purple tick over a ring, each with a line — chosen
   from mock-ups. The tick is the bar's one colour, asked for, dimmer

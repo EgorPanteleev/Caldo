@@ -1338,11 +1338,12 @@ class _CalendarScreenState extends State<CalendarScreen>
                                       //
                                       // Taller by the bar's room, which it
                                       // runs on under. That much at its
-                                      // foot is covered in the month's
-                                      // black as the month opens: opened,
-                                      // the bar stands on the month's
-                                      // ground, with no grey band and none
-                                      // of the day showing through it.
+                                      // foot is covered in the panel's own
+                                      // grey as the month opens, so none of
+                                      // the day shows through under the bar
+                                      // — grey, not the month's black: the
+                                      // strip behind the bar was asked to
+                                      // keep its colour in every state.
                                       SizedBox(
                                         height: panelVisible + foot,
                                         child: ColoredBox(
@@ -1366,7 +1367,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                                   height: foot,
                                                   child: IgnorePointer(
                                                     child: ColoredBox(
-                                                      color: p.calendar
+                                                      color: p.panel
                                                           .withValues(
                                                             alpha: math.min(
                                                               1.0,
