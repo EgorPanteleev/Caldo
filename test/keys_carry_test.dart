@@ -1,4 +1,3 @@
-import 'package:caldo/widgets/glass.dart';
 import 'package:caldo/widgets/keys_carry.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:flutter/material.dart';
@@ -82,24 +81,39 @@ void main() {
     KeyboardGap.instance.take(_rest(300));
     await tester.pumpWidget(_harness());
     expect(_opacityOver(tester), 1);
-    // Up on the keys it stands on the bar's blurred strip, not on a band
-    // of ground with a fade over it: that was asked off.
+    // Up on the keys it stands on a light strip of the ground — no solid
+    // band with a fade over it, and no blur: both were asked off.
     final room = find.byType(FieldInBarRoom);
     expect(
       find.descendant(of: room, matching: find.byType(GroundFade)),
       findsNothing,
     );
-    final strip = find.descendant(of: room, matching: find.byType(BarGround));
+    expect(
+      find.descendant(of: room, matching: find.byType(BackdropFilter)),
+      findsNothing,
+    );
+    final strip = find.descendant(
+      of: room,
+      matching: find.byWidgetPredicate(
+        (w) => w is DecoratedBox && w.decoration is BoxDecoration,
+      ),
+    );
     expect(strip, findsOneWidget);
-    // From a lead above the field down to the keys, and not part of the
-    // field Android pictures: it is drawn by Flutter all through a slide.
+    // Clear a strip's height above the field, a fifth of the ground at the
+    // keys; part of what Android pictures, so it rides the keys with it.
     final field = tester.getRect(find.byKey(_field));
     final under = tester.getRect(strip);
-    expect(under.top, field.top - BarGround.lead);
+    expect(under.top, field.top - FieldInBarRoom.strip);
     expect(under.bottom, field.bottom);
+    final gradient =
+        ((tester.widget<DecoratedBox>(strip).decoration as BoxDecoration)
+                .gradient!
+            as LinearGradient);
+    expect(gradient.colors.first.a, 0);
+    expect(gradient.colors.last.a, closeTo(0.2, 0.001));
     expect(
       find.descendant(of: find.byType(CarriedField), matching: strip),
-      findsNothing,
+      findsOneWidget,
     );
 
     // Android puts its picture up and moves it with the keys: Flutter's
@@ -107,7 +121,6 @@ void main() {
     KeyboardGap.instance.take({'carry': true});
     await tester.pump();
     expect(_opacityOver(tester), 0);
-    expect(find.byType(BarGround), findsOneWidget, reason: 'still blurring');
 
     // At rest Flutter draws it again, and once that frame is made says so,
     // for the picture to be put away over a field that is already there.
@@ -170,10 +183,15 @@ void main() {
     final args = arm.arguments as Map;
     final width = args['width'] as int;
     final height = args['height'] as int;
-    // The field alone: it stands on nothing.
+    // The field and the strip above it, which ride the keys together.
     expect(width, 400 * 3);
-    expect(height, 60 * 3);
-    expect((args['picture'] as Uint8List).length, width * height * 4);
+    expect(height, (60 + FieldInBarRoom.strip) * 3);
+    final picture = args['picture'] as Uint8List;
+    expect(picture.length, width * height * 4);
+    // Clear at the strip's top; a little of the ground just over the field.
+    int alphaAt(int row) => picture[(row * width + width ~/ 2) * 4 + 3];
+    expect(alphaAt(0), 0);
+    expect(alphaAt((FieldInBarRoom.strip * 3).round() - 1), greaterThan(0));
     // Where it rests with no keys, though pictured lifted on them: the
     // view's foot here, with nothing kept below it, and the strip it
     // never climbs sent along.

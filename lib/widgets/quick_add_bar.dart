@@ -16,7 +16,6 @@ import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import 'attachments_field.dart';
-import 'glass.dart' show BarGround;
 import 'groups.dart';
 import 'keys_carry.dart';
 import 'selection.dart';
@@ -441,44 +440,65 @@ class _QuickAddBarState extends State<QuickAddBar> {
 /// A screen's add field resting in the tab bar's room, laid over the foot
 /// of a screen that runs on under the bar — Schedule's and the calendar's,
 /// one widget so the two cannot come to differ. Out on the keys it stands
-/// on what the bar stands on ([BarGround]): the screen blurred from none a
-/// little above it to 1.5 at the keys. It stood on a band of the ground
-/// under it with a fade above, and that strip was asked off, then asked to
-/// be the bar's blur.
+/// on a light strip of the ground, clear from [strip] above it and a fifth
+/// of the ground at the keys. It stood on a solid band of the ground with a
+/// fade above, which was asked off; then on the tab bar's blur, which was
+/// asked to be this instead.
 class FieldInBarRoom extends StatelessWidget {
   final Widget child;
 
   const FieldInBarRoom({super.key, required this.child});
 
+  /// How far above the field the strip reaches: as far as the tab bar's.
+  static const strip = 24.0;
+
+  /// How much of the ground the strip comes to at the keys.
+  static const _most = 0.2;
+
   @override
   Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
     return KeyboardLift(
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Not part of the picture Android carries, which cannot blur what
-          // Flutter draws under it: drawn by Flutter all through a slide.
-          Positioned(
-            left: 0,
-            right: 0,
-            top: -BarGround.lead,
-            bottom: 0,
-            child: ListenableBuilder(
-              listenable: KeyboardGap.instance.changes,
-              builder: (context, _) => KeyboardGap.up(context)
-                  ? BarGround(lift: KeyboardGap.of(context))
-                  : const SizedBox.shrink(),
-            ),
+      // While Android carries the field on the keys, its picture is all
+      // that is drawn of it, strip and all ([KeysCarry]).
+      child: ValueListenableBuilder<bool>(
+        valueListenable: KeyboardGap.instance.carried,
+        builder: (context, carried, child) =>
+            Opacity(opacity: carried ? 0 : 1, child: child),
+        child: CarriedField(
+          above: strip,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: -strip,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: ListenableBuilder(
+                    listenable: KeyboardGap.instance.changes,
+                    builder: (context, _) => KeyboardGap.up(context)
+                        ? DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  p.bg.withValues(alpha: 0),
+                                  p.bg.withValues(alpha: _most),
+                                ],
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+              child,
+            ],
           ),
-          // While Android carries the field on the keys, its picture is all
-          // that is drawn of it ([KeysCarry]).
-          ValueListenableBuilder<bool>(
-            valueListenable: KeyboardGap.instance.carried,
-            builder: (context, carried, child) =>
-                Opacity(opacity: carried ? 0 : 1, child: child),
-            child: CarriedField(child: child),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -77,11 +77,12 @@ abstract interface class FieldCarry {
 }
 
 /// The field in the tab bar's room, pictured for Android to carry on the
-/// keys ([KeysCarry]).
+/// keys ([KeysCarry]), with what it draws up to [above] over its top.
 class CarriedField extends StatefulWidget {
+  final double above;
   final Widget child;
 
-  const CarriedField({super.key, required this.child});
+  const CarriedField({super.key, this.above = 0, required this.child});
 
   /// The field's carrier, for the field inside it; null outside the bar's
   /// room.
@@ -250,7 +251,7 @@ class _CarriedFieldState extends State<CarriedField> implements FieldCarry {
       final where = _measure(render);
       final (bottom, size, dpr) = where;
       final width = (size.width * dpr).ceil();
-      final height = (size.height * dpr).ceil();
+      final height = ((size.height + widget.above) * dpr).ceil();
       // Taken from the field's foot up, so its foot falls on a whole pixel
       // as it does on screen and the picture lines up with Flutter's own.
       final image = render.picture(
