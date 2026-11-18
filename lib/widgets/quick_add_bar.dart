@@ -440,10 +440,10 @@ class _QuickAddBarState extends State<QuickAddBar> {
 /// A screen's add field resting in the tab bar's room, laid over the foot
 /// of a screen that runs on under the bar — Schedule's and the calendar's,
 /// one widget so the two cannot come to differ. Out on the keys it stands
-/// on a light strip of the ground, clear from [strip] above it and two
-/// fifths of the ground at the keys. It stood on a solid band of the ground
-/// with a fade above, which was asked off; then on the tab bar's blur, which
-/// was asked to be this instead, first at a fifth.
+/// on a strip of the ground, clear from [strip] above it and three fifths
+/// of the ground at the keys. It stood on a solid band of the ground with a
+/// fade above, which was asked off; then on the tab bar's blur, which was
+/// asked to be this instead, first at a fifth, then two (too faint to see).
 class FieldInBarRoom extends StatelessWidget {
   final Widget child;
 
@@ -453,7 +453,7 @@ class FieldInBarRoom extends StatelessWidget {
   static const strip = 24.0;
 
   /// How much of the ground the strip comes to at the keys.
-  static const _most = 0.4;
+  static const _most = 0.6;
 
   @override
   Widget build(BuildContext context) {
