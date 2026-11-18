@@ -142,6 +142,32 @@ class _DebugRows extends StatelessWidget {
                     _ColourRow(tweak: key, title: name, stock: stock),
                 ],
               ),
+              if (!onDesktop)
+                _Group(
+                  label: 'Keyboard',
+                  footnote:
+                      'How far ahead of each frame the add field reads the '
+                      'keyboard\'s slide. Raise it if the field trails the '
+                      'keys, lower it if a gap opens between them. Judge '
+                      'over a day with tasks: an empty day hides a gap.',
+                  children: [
+                    for (final (key, name) in const [
+                      ('keysLeadOpen', 'Lead, opening'),
+                      ('keysLeadClose', 'Lead, closing'),
+                    ])
+                      _InkRow(
+                        tweak: key,
+                        title: name,
+                        icon: Icons.keyboard_outlined,
+                        least: -16,
+                        most: 16,
+                        stock: 0,
+                        divisions: 32,
+                        reads: (v) =>
+                            '${v > 0 ? '+' : ''}${v.toStringAsFixed(0)} ms',
+                      ),
+                  ],
+                ),
               const _Group(
                 label: 'Ink',
                 footnote:
@@ -628,22 +654,36 @@ class _Channel extends StatelessWidget {
   }
 }
 
-/// How deep one kind of ink is, from none to two and a half times as
-/// shipped, shown on the app as the slider moves.
+/// One of the numbers `Tweaks` keeps, on a slider, shown on the app as it
+/// moves: by default how deep one kind of ink is, from none to two and a
+/// half times as shipped.
 class _InkRow extends StatelessWidget {
   final String tweak;
   final String title;
+  final IconData icon;
+  final double least, most, stock;
+  final int divisions;
+  final String Function(double) reads;
 
-  const _InkRow({required this.tweak, required this.title});
+  const _InkRow({
+    required this.tweak,
+    required this.title,
+    this.icon = Icons.opacity_rounded,
+    this.least = 0,
+    this.most = 2.5,
+    this.stock = 1,
+    this.divisions = 50,
+    this.reads = _times,
+  });
 
-  static const _most = 2.5;
+  static String _times(double v) => '×${v.toStringAsFixed(2)}';
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final tweaks = Tweaks.instance;
     final set = tweaks.storedNumber(tweak);
-    final value = set ?? 1;
+    final value = set ?? stock;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
       child: Column(
@@ -651,10 +691,7 @@ class _InkRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              SizedBox(
-                width: 24,
-                child: Icon(Icons.opacity_rounded, size: 21, color: p.muted),
-              ),
+              SizedBox(width: 24, child: Icon(icon, size: 21, color: p.muted)),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
@@ -667,7 +704,7 @@ class _InkRow extends StatelessWidget {
                 ),
               ),
               Text(
-                '×${value.toStringAsFixed(2)}',
+                reads(value),
                 style: TextStyle(
                   color: set == null ? p.muted : p.text,
                   fontSize: 13,
@@ -696,11 +733,13 @@ class _InkRow extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: _Row.textStart - 16 - 16),
             child: Slider(
-              value: value.clamp(0, _most),
-              max: _most,
-              divisions: 50,
+              value: value.clamp(least, most),
+              min: least,
+              max: most,
+              divisions: divisions,
               onChanged: (v) => tweaks.setNumber(tweak, v, keep: false),
-              onChangeEnd: (v) => tweaks.setNumber(tweak, v == 1 ? null : v),
+              onChangeEnd: (v) =>
+                  tweaks.setNumber(tweak, v == stock ? null : v),
             ),
           ),
         ],

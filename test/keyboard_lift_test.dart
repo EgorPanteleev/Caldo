@@ -1,5 +1,6 @@
 import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The bar whose position is being measured, and the room it leaves at the
@@ -103,6 +104,61 @@ void main() {
     await tester.pumpWidget(_harness(0));
     await tester.pump(_frame);
     expect(_bottomGap(tester), 0);
+  });
+
+  testWidgets('a slide is read at each frame, not as its reports land', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_harness(0));
+    _rest = tester.getBottomLeft(find.byKey(_bar)).dy;
+    final start =
+        SchedulerBinding.instance.currentSystemFrameTimeStamp.inMicroseconds;
+    Map<String, Object> report(int ms, double fraction, {bool curve = false}) =>
+        {
+          'reach': 300 * fraction,
+          'ime': 300 * fraction,
+          'nav': 0.0,
+          'below': 0.0,
+          'sliding': true,
+          'slide': 1,
+          'at': start + ms * 1000,
+          'fraction': fraction,
+          'length': 160.0,
+          'from': 0.0,
+          'to': 300.0,
+          // Twice as fast in its first half as its second.
+          if (curve) 'curve': [0.0, 2 / 3, 1.0],
+        };
+
+    // Made at the vsync of the frame now on screen: the frame after is
+    // placed where the keys are at its own vsync, with nothing more sent.
+    KeyboardGap.instance.take(report(0, 0, curve: true));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), closeTo(40, 0.01));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), closeTo(80, 0.01));
+
+    // A report that lands late, or two at once, says the same of the
+    // slide and moves nothing.
+    KeyboardGap.instance.take(report(16, 0.1));
+    KeyboardGap.instance.take(report(32, 0.2));
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), closeTo(120, 0.01));
+
+    // Its second half, slower.
+    await tester.pump(const Duration(milliseconds: 64));
+    expect(_bottomGap(tester), closeTo(240, 0.01));
+
+    // Past its end it holds, and asks for no more frames.
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(_bottomGap(tester), 300);
+    await tester.pump(_frame);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    // A slide with no clock (a swipe back) goes as reported.
+    KeyboardGap.instance.take({...report(200, 0.5), 'slide': null});
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), 150);
   });
 
   testWidgets('the bar sits on the keyboard at every step of a slide', (

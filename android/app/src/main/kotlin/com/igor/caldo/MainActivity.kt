@@ -14,7 +14,10 @@ import android.os.PowerManager
 import android.provider.CalendarContract
 import android.provider.DocumentsContract
 import android.provider.Settings
+import android.animation.ValueAnimator
+import android.view.Choreographer
 import android.view.View
+import android.view.animation.AnimationUtils
 import android.view.WindowInsets
 import android.view.WindowInsetsAnimation
 import android.view.WindowManager
@@ -60,11 +63,47 @@ class MainActivity : FlutterActivity() {
     private var contentNav = -1
 
     /**
-     * The keyboard's slides now running, each marked once it has started.
-     * While any is here the window's own insets are the slide's end, not
-     * where the keys are.
+     * The keyboard's slides now running, each null until it has started
+     * and then its [Slide]. While any is here the window's own insets are
+     * the slide's end, not where the keys are.
      */
-    private val slides = HashMap<Any, Boolean>()
+    private val slides = HashMap<Any, Slide?>()
+
+    /**
+     * One slide of the keyboard as Dart is told it: which it is, the IME
+     * inset it runs from and to, and its curve read at [CURVE_STEPS]
+     * even steps — sent once, with the slide's first report.
+     */
+    private class Slide(val id: Int, val from: Int, val to: Int, val curve: DoubleArray) {
+        var told = false
+
+        fun along(fraction: Float): Double {
+            val at = fraction.coerceIn(0f, 1f) * (curve.size - 1)
+            val i = at.toInt().coerceAtMost(curve.size - 2)
+            val y = curve[i] + (curve[i + 1] - curve[i]) * (at - i)
+            return from + (to - from) * y
+        }
+    }
+
+    private var slideIds = 0
+
+    /**
+     * The vsync of the frame now being made, in `System.nanoTime`'s clock,
+     * kept by [clock] while a slide runs. The slide's own animator reads
+     * the same frame time, and so does Flutter's.
+     */
+    private var vsync = 0L
+    private var clockRunning = false
+    private val clock = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            vsync = frameTimeNanos
+            if (slides.isEmpty()) {
+                clockRunning = false
+            } else {
+                Choreographer.getInstance().postFrameCallback(this)
+            }
+        }
+    }
 
     /** The keyboard's full height, from the last slide's bounds. */
     private var keysOpen = 0
@@ -727,7 +766,11 @@ class MainActivity : FlutterActivity() {
      * Reporting where the keyboard is cannot race with itself.
      */
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun send(insets: WindowInsets, sliding: Boolean = false) {
+    private fun send(
+        insets: WindowInsets,
+        sliding: Boolean = false,
+        running: List<WindowInsetsAnimation> = emptyList(),
+    ) {
         val sink = imeSink ?: return
         val keys = insets.getInsets(WindowInsets.Type.ime()).bottom
         val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
@@ -765,15 +808,72 @@ class MainActivity : FlutterActivity() {
         // what each side of it believed is written across the top.
         // `sliding` rides in the same message as the number it qualifies,
         // so the two cannot arrive apart.
-        sink.success(
-            mapOf(
-                "reach" to reach / density,
-                "ime" to keys / density,
-                "nav" to nav / density,
-                "below" to off / density,
-                "sliding" to sliding,
-            ),
+        val report = mutableMapOf<String, Any>(
+            "reach" to reach / density,
+            "ime" to keys / density,
+            "nav" to nav / density,
+            "below" to off / density,
+            "sliding" to sliding,
         )
+        if (sliding) clockOf(keys, running)?.let { report.putAll(it) }
+        sink.success(report)
+    }
+
+    /**
+     * The slide under way as a clock Dart can read for itself, or null
+     * when it cannot be read as one.
+     *
+     * A report made in Android's frame reaches Dart after Flutter has
+     * begun its own frame for that vsync: in a 2.11.23 recording from the
+     * 120Hz Galaxy every report of an opening came 0.2–1.1ms after the
+     * frame it belonged to had started, so the field was drawn a frame
+     * behind the keys, every frame. Reading a few milliseconds ahead
+     * (2.11.23–2.11.27) only moved the error from one side to the other,
+     * and it rode on when each message happened to land. So Dart is given
+     * the slide itself — where it was at which vsync, how long it runs and
+     * its curve — and places the field for the vsync of each frame it
+     * draws, which is the same clock (`currentSystemFrameTimeStamp`).
+     * Messages then only correct the clock; when one lands no longer
+     * matters.
+     *
+     * Only when the curve read at the slide's fraction gives back what is
+     * being reported; a slide driven by a finger (Android 16's swipe
+     * back) has no length or curve and goes as reported.
+     */
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun clockOf(keys: Int, running: List<WindowInsetsAnimation>): Map<String, Any>? {
+        val near = 2 * resources.displayMetrics.density
+        val scale = ValueAnimator.getDurationScale()
+        for (animation in running) {
+            if (animation.typeMask and WindowInsets.Type.ime() == 0) continue
+            val slide = slides[animation] ?: continue
+            val length = animation.durationMillis * scale
+            if (length <= 0) continue
+            if (Math.abs(slide.along(animation.fraction) - keys) > near) continue
+            // The vsync the slide's animator read this frame by. The
+            // clock's own reading when it has run this frame — it is
+            // posted from onPrepare, and so misses the slide's first
+            // frame — else the animation clock, which Android holds at
+            // the frame's time to the millisecond.
+            val frameMs = AnimationUtils.currentAnimationTimeMillis()
+            val at =
+                if (vsync / 1_000_000 == frameMs) vsync else frameMs * 1_000_000 + 500_000
+            val density = resources.displayMetrics.density
+            val clock = mutableMapOf<String, Any>(
+                "slide" to slide.id,
+                "at" to at / 1000,
+                "fraction" to animation.fraction.toDouble(),
+                "length" to length.toDouble(),
+                "from" to slide.from / density,
+                "to" to slide.to / density,
+            )
+            if (!slide.told) {
+                clock["curve"] = slide.curve.toList()
+                slide.told = true
+            }
+            return clock
+        }
+        return null
     }
 
     private fun reportIme() {
@@ -792,11 +892,15 @@ class MainActivity : FlutterActivity() {
                 WindowInsetsAnimation.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
                 override fun onPrepare(animation: WindowInsetsAnimation) {
                     if (animation.typeMask and WindowInsets.Type.ime() != 0) {
-                        slides[animation] = false
+                        slides[animation] = null
+                        if (!clockRunning) {
+                            clockRunning = true
+                            Choreographer.getInstance().postFrameCallback(clock)
+                        }
                         // One prepared and then dropped before it starts
                         // gets no end, and must not hold the reports up.
                         window.decorView.postDelayed({
-                            if (slides[animation] == false) {
+                            if (slides.containsKey(animation) && slides[animation] == null) {
                                 slides.remove(animation)
                                 if (slides.isEmpty()) reportIme()
                             }
@@ -809,9 +913,23 @@ class MainActivity : FlutterActivity() {
                     bounds: WindowInsetsAnimation.Bounds,
                 ): WindowInsetsAnimation.Bounds {
                     if (animation.typeMask and WindowInsets.Type.ime() != 0) {
+                        // The window's insets are already the slide's end,
+                        // so they say which way it goes.
+                        val opening = window.decorView.rootWindowInsets
+                            ?.isVisible(WindowInsets.Type.ime()) ?: true
+                        val shut = bounds.lowerBound.bottom
                         val open = bounds.upperBound.bottom
                         if (open > 0) keysOpen = open
-                        slides[animation] = true
+                        val curve = animation.interpolator
+                        slides[animation] = Slide(
+                            ++slideIds,
+                            if (opening) shut else open,
+                            if (opening) open else shut,
+                            DoubleArray(CURVE_STEPS + 1) { i ->
+                                val x = i.toFloat() / CURVE_STEPS
+                                (curve?.getInterpolation(x) ?: x).toDouble()
+                            },
+                        )
                     }
                     return bounds
                 }
@@ -820,16 +938,9 @@ class MainActivity : FlutterActivity() {
                     insets: WindowInsets,
                     running: MutableList<WindowInsetsAnimation>,
                 ): WindowInsets {
-                    // Where Android says the keys are, as it says it, both
-                    // ways. A frame drawn to this report reaches the screen
-                    // with the keys it describes: from 2.11.23 to 2.11.27
-                    // the opening was read 16ms ahead on the slide's curve,
-                    // and three recordings from a 120Hz Galaxy, a card
-                    // under the field showing through, had the field 12-18ms
-                    // ahead of the keys in every frame of every opening —
-                    // 42pt above them in the first fast frame. Closing,
-                    // read ahead, it went as far below them (2.11.26).
-                    send(insets, sliding = slides.isNotEmpty())
+                    // Where Android says the keys are, with the slide as a
+                    // clock for Dart to read at its own frames ([clockOf]).
+                    send(insets, sliding = slides.isNotEmpty(), running = running)
                     return insets
                 }
 
@@ -886,6 +997,13 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val IME_CHANNEL = "caldo/ime"
+
+        /**
+         * How finely a slide's curve is read for Dart: a straight line
+         * between readings this close is within half a point of the
+         * keyboard's own curve at its steepest.
+         */
+        const val CURVE_STEPS = 128
         const val UPDATES_CHANNEL = "caldo/updates"
         const val WIDGET_CHANNEL = "caldo/widget"
         const val CALENDARS_CHANNEL = "caldo/calendars"

@@ -365,13 +365,20 @@ them will be noticed.
   own report** (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the
   display bottom minus what lies below the window. Don't try to correct
   `viewInsets` arithmetically — its meaning changes mid-slide.
-- **In a slide the field follows Android's report as it stands, both
-  ways**, and Dart follows the report alone (`KeyboardGap.sliding`, same
-  message). Read 16ms ahead on the slide's curve (2.11.23–2.11.27), the
-  field ran 12–18ms ahead of the keys in every opening frame of three
-  Galaxy recordings (42pt above them in the first fast one, a card
-  showing through the gap); read ahead closing, 15–67pt below them.
-  Judge it on a day with tasks: an empty day's ground hides the gap.
+- **In a slide the field is read off the slide's own clock at each
+  frame's vsync** (`MainActivity.clockOf`, `_Slide`, `KeyboardGap.take`):
+  Android sends where the slide was at which vsync, its length and its
+  curve (once); Dart places the field for `currentSystemFrameTimeStamp`
+  every frame, same clock. Reports only correct it. A report lands
+  0.2–1.1ms after Flutter's frame for its vsync has begun (2.11.23 log), so
+  following reports as they land (2.11.28 and before 2.11.23) put the field
+  a frame behind; a fixed 16ms read-ahead (2.11.23–27) moved the error to
+  the other side. A slide with no length or curve (swipe back) goes as
+  reported. Lead per direction, 0 as shipped, in Settings › Debug ›
+  Keyboard (`Tweaks.keysLeadOpen/Close`). The in-app recording composes
+  keys and app from two captures, so it can't settle a frame either way;
+  `screenrecord` on the emulator can. Judge it on a day with tasks: an
+  empty day's ground hides the gap.
 - **Edge-to-edge is read from the content view's insets, never its height**
   (`MainActivity.contentNav`).
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):
@@ -765,7 +772,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 334 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 336 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

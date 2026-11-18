@@ -56,6 +56,14 @@ class Tweaks extends ChangeNotifier {
   /// How deep a day's chip over the opened month is, likewise.
   static double get chipInk => instance.number('chipInk', 1);
 
+  /// How far ahead of the frame's vsync the keyboard's slide is read for
+  /// the add field riding it, opening and closing, in milliseconds
+  /// (`KeyboardGap`). Nothing as shipped: the keys and Flutter's frame for
+  /// one vsync were judged to reach the screen together. Here to be
+  /// moved on a phone while looking at it, if they do not.
+  static double get keysLeadOpen => instance.number('keysLeadOpen', 0);
+  static double get keysLeadClose => instance.number('keysLeadClose', 0);
+
   /// The palette fields, as the page names them, in the order it lists them.
   static const palette = <(String, String)>[
     ('bg', 'Ground'),

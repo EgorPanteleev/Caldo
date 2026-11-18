@@ -12,6 +12,7 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../services/attachments.dart';
 import '../theme/app_theme.dart';
+import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import 'attachments_field.dart';
@@ -845,7 +846,8 @@ Future<void> quickAddTask(
 ///
 /// Except in a slide, where `viewInsets` is a frame behind and taking the
 /// further of the two held the field over the keys on every closing. There
-/// Android's report is followed alone ([sliding]).
+/// Android's report is followed alone ([sliding]) — and not as it lands,
+/// but read off the slide's own clock at each frame's vsync ([_Slide]).
 class KeyboardGap {
   KeyboardGap._();
 
@@ -870,29 +872,83 @@ class KeyboardGap {
   /// the two held the field over them on every closing.
   bool sliding = false;
 
+  /// The slide [covered] is read off at each frame, while one runs and
+  /// Android could describe it.
+  _Slide? _slide;
+
+  /// The curves of slides lately told, by their number: each is sent once,
+  /// with its slide's first report.
+  final _curves = <int, List<double>>{};
+
+  /// Whether a frame is booked to read [_slide].
+  bool _booked = false;
+
+  /// How [covered] came by its number, for the recordings: 'clock' off a
+  /// slide's own clock, 'reported' as a message last said.
+  String how = 'reported';
+
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
     if (_sub != null) return;
     _sub = _channel.receiveBroadcastStream().listen(
-      (value) {
-        if (value is num) {
-          sliding = false;
-          covered.value = value.toDouble();
-        } else if (value is Map) {
-          // Before the number, so whoever it wakes reads the two together.
-          sliding = value['sliding'] == true;
-          covered.value = (value['reach'] as num).toDouble();
-          raw.value =
-              'ime ${(value['ime'] as num).toStringAsFixed(1)} '
-              'nav ${(value['nav'] as num).toStringAsFixed(1)} '
-              'below ${(value['below'] as num).toStringAsFixed(1)}';
-        }
-      },
+      take,
       // Nothing to do but carry on with Flutter's number, which is what the
       // app ran on before and is right wherever this cannot be reported.
       onError: (_) => covered.value = 0,
     );
+  }
+
+  /// One report from Android.
+  @visibleForTesting
+  void take(Object? value) {
+    if (value is num) {
+      _slide = null;
+      sliding = false;
+      how = 'reported';
+      covered.value = value.toDouble();
+    } else if (value is Map) {
+      raw.value =
+          'ime ${(value['ime'] as num).toStringAsFixed(1)} '
+          'nav ${(value['nav'] as num).toStringAsFixed(1)} '
+          'below ${(value['below'] as num).toStringAsFixed(1)}';
+      // Before the number, so whoever it wakes reads the two together.
+      sliding = value['sliding'] == true;
+      final slide = sliding ? _Slide.read(value, _curves) : null;
+      _slide = slide;
+      if (slide == null) {
+        how = 'reported';
+        covered.value = (value['reach'] as num).toDouble();
+      } else {
+        // The frame this report belongs to has already begun, most
+        // likely, and was placed off the clock as it then stood; from
+        // the next on, it is read as this report sets it.
+        how = 'clock';
+        _book();
+      }
+    }
+  }
+
+  void _book() {
+    if (_booked) return;
+    _booked = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _booked = false;
+      final slide = _slide;
+      if (slide == null) return;
+      // The vsync this frame is being made for, on the clock Android
+      // stamped the slide with — not the timestamp handed to frame
+      // callbacks, which starts from the first frame and can be dilated.
+      final now = SchedulerBinding.instance.currentSystemFrameTimeStamp;
+      final lead = slide.opening ? Tweaks.keysLeadOpen : Tweaks.keysLeadClose;
+      final (reach, done) = slide.at(
+        now.inMicroseconds + (lead * 1000).round(),
+      );
+      covered.value = reach;
+      // Past its end it holds there until the slide's own end is
+      // reported, which puts the window's insets in its place.
+      if (!done) _book();
+    });
   }
 
   /// The add fields being written in, on a desktop, and whether any is.
@@ -963,10 +1019,93 @@ class KeyboardGap {
   /// for the next.
   @visibleForTesting
   void forget() {
+    _slide = null;
+    _curves.clear();
+    how = 'reported';
     sliding = false;
     covered.value = 0;
     _writers.clear();
     writing.value = false;
+  }
+}
+
+/// One slide of the keyboard as Android described it in a report: where it
+/// was at which vsync, how long it runs and its curve (`MainActivity
+/// .clockOf`). Read at the vsync of each frame Flutter draws, it says where
+/// the keys are in the frame of Android's that reaches the screen with it.
+///
+/// The report itself is no good for that: made in Android's frame, it lands
+/// after Flutter has begun its own for the same vsync, and a field drawn to
+/// it is a frame behind the keys — the whole of what 2.11.28 showed — or,
+/// read ahead by a fixed time (2.11.23–2.11.27), off by however late each
+/// message happened to land.
+class _Slide {
+  final int id;
+
+  /// The vsync the report was made at, in microseconds of the monotonic
+  /// clock both sides keep.
+  final int stamp;
+
+  /// How far through the slide that was, in time.
+  final double fraction;
+
+  /// How long the whole slide runs, in microseconds.
+  final double length;
+
+  /// The IME inset it runs from and to, and how much of that is below the
+  /// window, in logical pixels.
+  final double from, to, below;
+  final List<double> curve;
+
+  _Slide._(
+    this.id,
+    this.stamp,
+    this.fraction,
+    this.length,
+    this.from,
+    this.to,
+    this.below,
+    this.curve,
+  );
+
+  bool get opening => to > from;
+
+  /// The slide [report] describes, or null if it describes none.
+  static _Slide? read(
+    Map<dynamic, dynamic> report,
+    Map<int, List<double>> curves,
+  ) {
+    final id = report['slide'];
+    if (id is! int) return null;
+    final sent = report['curve'];
+    if (sent is List) {
+      curves[id] = [for (final y in sent) (y as num).toDouble()];
+      // A few kept, for a report that lands after the next slide's first.
+      curves.removeWhere((k, _) => k < id - 4);
+    }
+    final curve = curves[id];
+    if (curve == null || curve.length < 2) return null;
+    return _Slide._(
+      id,
+      (report['at'] as num).toInt(),
+      (report['fraction'] as num).toDouble(),
+      (report['length'] as num).toDouble() * 1000,
+      (report['from'] as num).toDouble(),
+      (report['to'] as num).toDouble(),
+      (report['below'] as num).toDouble(),
+      curve,
+    );
+  }
+
+  /// How far the keys reach into the window at [micros], and whether the
+  /// slide is over by then.
+  (double, bool) at(int micros) {
+    final f = (fraction + (micros - stamp) / length).clamp(0.0, 1.0);
+    final x = f * (curve.length - 1);
+    final i = math.min(x.floor(), curve.length - 2);
+    final y = curve[i] + (curve[i + 1] - curve[i]) * (x - i);
+    final ime = from + (to - from) * y;
+    return (math.max(0.0, ime - below), f >= 1);
   }
 }
 
@@ -1108,7 +1247,8 @@ class KeyboardNumbers extends StatelessWidget {
                 'android ${platform.toStringAsFixed(1)}  '
                 'strip ${reserved.toStringAsFixed(1)}  '
                 'lift ${KeyboardGap.of(context).toStringAsFixed(1)}\n'
-                '${KeyboardGap.instance.raw.value}';
+                '${KeyboardGap.instance.raw.value}  '
+                '${KeyboardGap.instance.how}';
             return IgnorePointer(
               child: Container(
                 width: double.infinity,
