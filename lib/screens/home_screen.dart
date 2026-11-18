@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:math' as math;
-import 'dart:ui' show FragmentProgram, ImageFilter;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +17,7 @@ import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
 import '../widgets/desk.dart';
+import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarFoot, BarRoom, KeyboardGap;
 import '../widgets/selection.dart';
 import '../widgets/task_views.dart';
@@ -425,19 +425,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         wantsFullScreen && _fullScreenAllowed == false && !_fullScreenPutOff;
     // Above whichever screen is open rather than inside one of them: they
     // are about the app, not about a day.
-    final banners = AnimatedSize(
+    Widget banners(Update? update) => AnimatedSize(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
       alignment: Alignment.topCenter,
       child: Column(
         children: [
           const SizedBox(width: double.infinity),
-          ValueListenableBuilder<Update?>(
-            valueListenable: Updates.instance.offered,
-            builder: (context, update, _) => update == null
-                ? const SizedBox(width: double.infinity)
-                : UpdateBanner(update: update),
-          ),
+          if (update != null) UpdateBanner(update: update),
           if (offerFullScreen)
             _FullScreenBanner(
               onAllow: Reminders.instance.requestFullScreen,
@@ -446,7 +441,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (Desk.wideOf(context)) return _wide(p, banners);
+    if (Desk.wideOf(context)) {
+      return _wide(
+        p,
+        ValueListenableBuilder<Update?>(
+          valueListenable: Updates.instance.offered,
+          builder: (context, update, _) => banners(update),
+        ),
+      );
+    }
+    final pages = TaskViews(
+      shown: [
+        for (final view in taskViews)
+          if (!hidden.contains(view)) view,
+      ],
+      onSelected: _selectView,
+      child: IndexedStack(
+        index: _index,
+        children: [for (var i = 0; i < _pages.length; i++) _room(i)],
+      ),
+    );
     final screen = SafeArea(
       // The strip at the foot of the screen stays reserved while the
       // keyboard is over it. Android stops counting the gesture bar as
@@ -456,27 +470,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // every time the add field was tapped. Nothing about the screen should
       // move when the keyboard does; only the field rides it up.
       maintainBottomViewPadding: true,
+      // The screens run up under the status bar, so what scrolls under a
+      // screen's head is blurred there too ([GlassTop]); each keeps clear
+      // of it itself. A banner takes the status bar's room in their place,
+      // at once rather than as it slides in, so the screen under it doesn't
+      // jump up first.
+      top: false,
       child: Stack(
         children: [
-          Column(
-            children: [
-              banners,
-              Expanded(
-                child: TaskViews(
-                  shown: [
-                    for (final view in taskViews)
-                      if (!hidden.contains(view)) view,
-                  ],
-                  onSelected: _selectView,
-                  child: IndexedStack(
-                    index: _index,
-                    children: [
-                      for (var i = 0; i < _pages.length; i++) _room(i),
-                    ],
+          ValueListenableBuilder<Update?>(
+            valueListenable: Updates.instance.offered,
+            builder: (context, update, pages) {
+              final any = update != null || offerFullScreen;
+              return Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: any ? MediaQuery.paddingOf(context).top : 0,
                   ),
-                ),
-              ),
-            ],
+                  banners(update),
+                  Expanded(
+                    child: MediaQuery.removePadding(
+                      context: context,
+                      removeTop: any,
+                      child: pages!,
+                    ),
+                  ),
+                ],
+              );
+            },
+            child: pages,
           ),
           // What the bar stands on: the foot of the screen blurred more and
           // more towards the bottom, so the bar isn't a pill pasted on top
@@ -794,91 +817,29 @@ class _TabBar extends StatelessWidget {
 }
 
 /// The strip under the tab bar: clear at its top, blurred more and more
-/// down to the screen's foot, and darkening a little into the ground.
-///
-/// A blur can't be faded in by a gradient. Laid in bands of fixed strength
-/// it showed a step at every band's edge, and the user didn't want any edge
-/// where the blur starts; so it is a shader that blurs each row by its own
-/// amount ([_program], `shaders/bar_ground.frag`), across and then down.
-/// The bands are kept for a renderer without shader filters (the desktop's).
-class _BarGround extends StatefulWidget {
+/// down to the screen's foot ([GradedBlur]), and darkening a little into
+/// the ground.
+class _BarGround extends StatelessWidget {
   const _BarGround();
 
   /// How far above the bar's room it reaches.
   static const _lead = 24.0;
 
   /// The blur at the foot.
-  static const most = 1.5;
+  static const _most = 1.5;
 
   /// How dark it gets at the foot, of the ground.
   static const _shade = 0.05;
 
-  static const _bands = 8;
-
-  static Future<FragmentProgram>? _loading;
-  static FragmentProgram? _program;
-
-  @override
-  State<_BarGround> createState() => _BarGroundState();
-}
-
-class _BarGroundState extends State<_BarGround> {
-  @override
-  void initState() {
-    super.initState();
-    if (_BarGround._program == null && ImageFilter.isShaderFilterSupported) {
-      (_BarGround._loading ??= FragmentProgram.fromAsset(
-        'shaders/bar_ground.frag',
-      )).then((program) {
-        _BarGround._program = program;
-        if (mounted) setState(() {});
-      }, onError: (_) {});
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    const height = BarRoom.room + _BarGround._lead;
-    final program = _BarGround._program;
-    if (program != null) {
-      WidgetsBinding.instance.addPostFrameCallback(_place);
-    }
     return IgnorePointer(
       child: SizedBox(
-        height: height,
+        height: BarRoom.room + _lead,
         child: Stack(
           children: [
-            if (program != null)
-              // Two filters rather than one composed of both: composed,
-              // shader filters drew nothing at all.
-              // Nothing until it is known where the strip is.
-              for (final across in [
-                if (_foot > _top) ...[true, false],
-              ])
-                Positioned.fill(
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: _pass(program, across),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                )
-            else
-              for (var i = 1; i <= _BarGround._bands; i++)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height:
-                      height * (_BarGround._bands - i + 1) / _BarGround._bands,
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: _band(i),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
+            const Positioned.fill(child: GradedBlur(most: _most)),
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -887,7 +848,7 @@ class _BarGroundState extends State<_BarGround> {
                     end: Alignment.bottomCenter,
                     colors: [
                       p.bg.withValues(alpha: 0),
-                      p.bg.withValues(alpha: _BarGround._shade),
+                      p.bg.withValues(alpha: _shade),
                     ],
                   ),
                 ),
@@ -896,49 +857,6 @@ class _BarGroundState extends State<_BarGround> {
           ],
         ),
       ),
-    );
-  }
-
-  /// Where the strip is on the screen, in pixels: the shader is handed the
-  /// screen's coordinates, not the strip's. Read after each layout.
-  double _top = 0, _foot = 0;
-
-  void _place(Duration _) {
-    if (!mounted) return;
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return;
-    final ratio = MediaQuery.devicePixelRatioOf(context);
-    final top = box.localToGlobal(Offset.zero).dy * ratio;
-    final foot = top + box.size.height * ratio;
-    if (top != _top || foot != _foot) {
-      setState(() {
-        _top = top;
-        _foot = foot;
-      });
-    }
-  }
-
-  /// One direction of the blur, growing from nothing at the strip's top.
-  ImageFilter _pass(FragmentProgram program, bool across) {
-    final shader = program.fragmentShader()
-      ..setFloat(2, across ? 1 : 0)
-      ..setFloat(3, across ? 0 : 1)
-      ..setFloat(4, _BarGround.most * MediaQuery.devicePixelRatioOf(context))
-      ..setFloat(5, _top)
-      ..setFloat(6, _foot);
-    return ImageFilter.shader(shader);
-  }
-
-  static ImageFilter _band(int i) {
-    // Eased in, so it starts too faintly for its first edge to show.
-    double total(int k) => _BarGround.most * math.pow(k / _BarGround._bands, 2);
-    final sigma = math.sqrt(math.pow(total(i), 2) - math.pow(total(i - 1), 2));
-    // Mirrored at a band's edge: left to the default, the blur drew in
-    // nothing from beyond it and darkened a line along each band's top.
-    return ImageFilter.blur(
-      sigmaX: sigma,
-      sigmaY: sigma,
-      tileMode: TileMode.mirror,
     );
   }
 }

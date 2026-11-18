@@ -1104,345 +1104,356 @@ class _CalendarScreenState extends State<CalendarScreen>
           // The month keeps the height it had when the keyboard arrives; the add
           // field lifts over it instead of the body being shortened underneath.
           resizeToAvoidBottomInset: false,
-          body: Column(
-            children: [
-              Container(
-                color: p.calendar,
-                child: Column(
-                  children: [
-                    _MonthBar(
-                      title: Dates.monthTitle(shownMonth),
-                      onToday: _jumpToToday,
-                      onSearch: () => openSearch(context),
-                    ),
-                    AnimatedBuilder(
-                      animation: _expansion,
-                      builder: (context, _) => WeekdayRow(
-                        mondayFirst: mondayFirst,
-                        expansion: math.max(0.0, _expansion.value),
+          body: SafeArea(
+            // Under the status bar only the screens whose head is glass
+            // ([GlassTop]); nothing scrolls under the month's.
+            left: false,
+            right: false,
+            bottom: false,
+            child: Column(
+              children: [
+                Container(
+                  color: p.calendar,
+                  child: Column(
+                    children: [
+                      _MonthBar(
+                        title: Dates.monthTitle(shownMonth),
+                        onToday: _jumpToToday,
+                        onSearch: () => openSearch(context),
                       ),
-                    ),
-                  ],
+                      AnimatedBuilder(
+                        animation: _expansion,
+                        builder: (context, _) => WeekdayRow(
+                          mondayFirst: mondayFirst,
+                          expansion: math.max(0.0, _expansion.value),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: Stack(
-                  children: [
-                    // A card picked up in the day's list can be carried up onto
-                    // the month and let go on another day. The calendar is its
-                    // box rather than the list, and the day it would land on is
-                    // outlined over everything, the card included.
-                    CarryArea<DateTime>(
-                      carry: _carry,
-                      onDrop: _onCarried,
-                      child: CarryMark<DateTime>(
+                Expanded(
+                  child: Stack(
+                    children: [
+                      // A card picked up in the day's list can be carried up onto
+                      // the month and let go on another day. The calendar is its
+                      // box rather than the list, and the day it would land on is
+                      // outlined over everything, the card included.
+                      CarryArea<DateTime>(
                         carry: _carry,
-                        mark: _cellOf,
-                        line: false,
-                        child: DragWithin(
-                          child: LayoutBuilder(
-                            builder: (context, box) {
-                              // Three heights: one week, the compact month, and the month
-                              // opened to the whole area. Whatever the grid leaves goes to the
-                              // selected day's tasks.
-                              // The day runs on under the tab bar; the grid
-                              // is sized to what the bar leaves.
-                              final available = box.maxHeight - foot;
-                              // Enough height that a day can show a couple of lines under its
-                              // number, without taking the list's half of the screen.
-                              final month = (available * 0.52).clamp(
-                                240.0,
-                                340.0,
-                              );
-                              final rows = _rowsOf(shownMonth, mondayFirst);
-                              final week = month / rows * MonthLayout.weekScale;
-                              final opened = available - _handleHeight;
-                              _rangeUp = (opened - month).clamp(
-                                1.0,
-                                double.infinity,
-                              );
-                              _rangeDown = (month - week).clamp(
-                                1.0,
-                                double.infinity,
-                              );
-                              final listHeight =
-                                  available - month - _handleHeight;
+                        onDrop: _onCarried,
+                        child: CarryMark<DateTime>(
+                          carry: _carry,
+                          mark: _cellOf,
+                          line: false,
+                          child: DragWithin(
+                            child: LayoutBuilder(
+                              builder: (context, box) {
+                                // Three heights: one week, the compact month, and the month
+                                // opened to the whole area. Whatever the grid leaves goes to the
+                                // selected day's tasks.
+                                // The day runs on under the tab bar; the grid
+                                // is sized to what the bar leaves.
+                                final available = box.maxHeight - foot;
+                                // Enough height that a day can show a couple of lines under its
+                                // number, without taking the list's half of the screen.
+                                final month = (available * 0.52).clamp(
+                                  240.0,
+                                  340.0,
+                                );
+                                final rows = _rowsOf(shownMonth, mondayFirst);
+                                final week =
+                                    month / rows * MonthLayout.weekScale;
+                                final opened = available - _handleHeight;
+                                _rangeUp = (opened - month).clamp(
+                                  1.0,
+                                  double.infinity,
+                                );
+                                _rangeDown = (month - week).clamp(
+                                  1.0,
+                                  double.infinity,
+                                );
+                                final listHeight =
+                                    available - month - _handleHeight;
 
-                              // Built here rather than in the builder below, so
-                              // the same widget is handed back on every frame and
-                              // the month is never rebuilt to follow the drag: it
-                              // follows `_expansion` itself (see MonthGrid).
-                              final monthPager = GestureDetector(
-                                // Vertical drags open the grid; the PageView keeps
-                                // the horizontal ones for changing month. Opaque,
-                                // so a drag that starts on the padding around a day
-                                // cell is caught too rather than falling through.
-                                behavior: HitTestBehavior.opaque,
-                                onVerticalDragStart: _onDragStart,
-                                onVerticalDragUpdate: _onDrag,
-                                onVerticalDragEnd: _onDragEnd,
-                                child: Listener(
-                                  onPointerSignal: _onWheel,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      PageView.builder(
-                                        controller: _controller,
-                                        onPageChanged: _onMonthPageChanged,
-                                        itemBuilder: (context, i) => MonthGrid(
-                                          month: _monthOfPage(i),
-                                          selected: _selected,
-                                          mondayFirst: mondayFirst,
-                                          tasksByDay: provider.tasksByDay,
-                                          holidaysByDay: Holidays.around(
-                                            country,
-                                            _monthOfPage(i),
-                                          ),
-                                          eventsByDay:
-                                              events?.byDay ?? const {},
-                                          lists: provider.lists,
-                                          animation: _expansion,
-                                          openHeight: opened,
-                                          compactHeight: month,
-                                          onSelect: _selectDay,
-                                        ),
-                                      ),
-                                      // Over the month while the grid rests on
-                                      // the week, so a swipe there turns a week.
-                                      // Kept in the tree when hidden, so it can be
-                                      // driven to the selected week at any time.
-                                      ValueListenableBuilder<bool>(
-                                        valueListenable: _weekShown,
-                                        builder: (context, shown, pager) =>
-                                            Offstage(
-                                              offstage: !shown,
-                                              child: pager,
-                                            ),
-                                        child: ColoredBox(
-                                          color: p.calendar,
-                                          child: PageView.builder(
-                                            controller: _weekController,
-                                            onPageChanged: _onWeekPageChanged,
-                                            itemBuilder: (context, i) {
-                                              final day = _dayOfWeekPage(
-                                                i,
-                                                mondayFirst,
-                                              );
-                                              final shown = DateTime(
-                                                day.year,
-                                                day.month,
-                                              );
-                                              return MonthGrid(
-                                                month: shown,
-                                                selected: day,
+                                // Built here rather than in the builder below, so
+                                // the same widget is handed back on every frame and
+                                // the month is never rebuilt to follow the drag: it
+                                // follows `_expansion` itself (see MonthGrid).
+                                final monthPager = GestureDetector(
+                                  // Vertical drags open the grid; the PageView keeps
+                                  // the horizontal ones for changing month. Opaque,
+                                  // so a drag that starts on the padding around a day
+                                  // cell is caught too rather than falling through.
+                                  behavior: HitTestBehavior.opaque,
+                                  onVerticalDragStart: _onDragStart,
+                                  onVerticalDragUpdate: _onDrag,
+                                  onVerticalDragEnd: _onDragEnd,
+                                  child: Listener(
+                                    onPointerSignal: _onWheel,
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        PageView.builder(
+                                          controller: _controller,
+                                          onPageChanged: _onMonthPageChanged,
+                                          itemBuilder: (context, i) =>
+                                              MonthGrid(
+                                                month: _monthOfPage(i),
+                                                selected: _selected,
                                                 mondayFirst: mondayFirst,
                                                 tasksByDay: provider.tasksByDay,
                                                 holidaysByDay: Holidays.around(
                                                   country,
-                                                  shown,
+                                                  _monthOfPage(i),
                                                 ),
                                                 eventsByDay:
                                                     events?.byDay ?? const {},
                                                 lists: provider.lists,
-                                                animation:
-                                                    const AlwaysStoppedAnimation(
-                                                      -1.0,
-                                                    ),
+                                                animation: _expansion,
                                                 openHeight: opened,
                                                 compactHeight: month,
                                                 onSelect: _selectDay,
-                                              );
-                                            },
+                                              ),
+                                        ),
+                                        // Over the month while the grid rests on
+                                        // the week, so a swipe there turns a week.
+                                        // Kept in the tree when hidden, so it can be
+                                        // driven to the selected week at any time.
+                                        ValueListenableBuilder<bool>(
+                                          valueListenable: _weekShown,
+                                          builder: (context, shown, pager) =>
+                                              Offstage(
+                                                offstage: !shown,
+                                                child: pager,
+                                              ),
+                                          child: ColoredBox(
+                                            color: p.calendar,
+                                            child: PageView.builder(
+                                              controller: _weekController,
+                                              onPageChanged: _onWeekPageChanged,
+                                              itemBuilder: (context, i) {
+                                                final day = _dayOfWeekPage(
+                                                  i,
+                                                  mondayFirst,
+                                                );
+                                                final shown = DateTime(
+                                                  day.year,
+                                                  day.month,
+                                                );
+                                                return MonthGrid(
+                                                  month: shown,
+                                                  selected: day,
+                                                  mondayFirst: mondayFirst,
+                                                  tasksByDay:
+                                                      provider.tasksByDay,
+                                                  holidaysByDay:
+                                                      Holidays.around(
+                                                        country,
+                                                        shown,
+                                                      ),
+                                                  eventsByDay:
+                                                      events?.byDay ?? const {},
+                                                  lists: provider.lists,
+                                                  animation:
+                                                      const AlwaysStoppedAnimation(
+                                                        -1.0,
+                                                      ),
+                                                  openHeight: opened,
+                                                  compactHeight: month,
+                                                  onSelect: _selectDay,
+                                                );
+                                              },
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
 
-                              return AnimatedBuilder(
-                                animation: _expansion,
-                                // Hoisted out of the rebuild: nothing inside the day
-                                // pager depends on how far the month is open, only the
-                                // box it is given. Left in the builder, every card of
-                                // every day was being rebuilt on every frame of the drag.
-                                child: PageView.builder(
-                                  controller: _dayController,
-                                  onPageChanged: _onDayPageChanged,
-                                  itemBuilder: (context, i) => _dayPanel(
-                                    _dayOfPage(i),
-                                    provider,
-                                    settings,
-                                    events,
+                                return AnimatedBuilder(
+                                  animation: _expansion,
+                                  // Hoisted out of the rebuild: nothing inside the day
+                                  // pager depends on how far the month is open, only the
+                                  // box it is given. Left in the builder, every card of
+                                  // every day was being rebuilt on every frame of the drag.
+                                  child: PageView.builder(
+                                    controller: _dayController,
+                                    onPageChanged: _onDayPageChanged,
+                                    itemBuilder: (context, i) => _dayPanel(
+                                      _dayOfPage(i),
+                                      provider,
+                                      settings,
+                                      events,
+                                    ),
                                   ),
-                                ),
-                                builder: (context, pager) {
-                                  final t = _expansion.value;
-                                  final gridHeight = t >= 0
-                                      ? month + _rangeUp * t
-                                      : week + _rangeDown * (1 + t);
-                                  final panelVisible =
-                                      (available - gridHeight - _handleHeight)
-                                          .clamp(0.0, available);
-                                  final panelLayout = math.max(
-                                    listHeight,
-                                    panelVisible,
-                                  );
-                                  _panelVisible = panelVisible;
-                                  return Column(
-                                    children: [
-                                      // The grid and its grip share the calendar's own
-                                      // ground; the day below sits on a grey of its own,
-                                      // so the month and the day it is showing read as
-                                      // two surfaces rather than one dark field.
-                                      ColoredBox(
-                                        color: p.calendar,
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Stack(
-                                              children: [
-                                                SizedBox(
-                                                  key: _grid,
-                                                  height: gridHeight,
-                                                  child: monthPager,
-                                                ),
-                                                // Where holding a carried task turns the month.
-                                                Positioned.fill(
-                                                  child: IgnorePointer(
-                                                    child: _EdgeHints(
-                                                      carry: _carry,
-                                                      edge: _edgeShown,
-                                                      hold: _hold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            _DragHandle(
-                                              key: calendarHandleKey,
-                                              height: _handleHeight,
-                                              expansion: t.abs(),
-                                              onDragStart: _onDragStart,
-                                              onDrag: _onDrag,
-                                              onDragEnd: _onDragEnd,
-                                              onTap: _toggleExpansion,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      // Opening, the month's black runs on
-                                      // down under the tab bar, and the day
-                                      // slides away beneath it until it is
-                                      // off the screen: the bar's strip
-                                      // stands on whatever is really there.
-                                      // A grey band left under an opened
-                                      // month, or the foot recoloured
-                                      // black over the day, were both
-                                      // asked off.
-                                      if (t > 0)
+                                  builder: (context, pager) {
+                                    final t = _expansion.value;
+                                    final gridHeight = t >= 0
+                                        ? month + _rangeUp * t
+                                        : week + _rangeDown * (1 + t);
+                                    final panelVisible =
+                                        (available - gridHeight - _handleHeight)
+                                            .clamp(0.0, available);
+                                    final panelLayout = math.max(
+                                      listHeight,
+                                      panelVisible,
+                                    );
+                                    _panelVisible = panelVisible;
+                                    return Column(
+                                      children: [
+                                        // The grid and its grip share the calendar's own
+                                        // ground; the day below sits on a grey of its own,
+                                        // so the month and the day it is showing read as
+                                        // two surfaces rather than one dark field.
                                         ColoredBox(
                                           color: p.calendar,
-                                          child: SizedBox(
-                                            height: foot * math.min(1.0, t),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Stack(
+                                                children: [
+                                                  SizedBox(
+                                                    key: _grid,
+                                                    height: gridHeight,
+                                                    child: monthPager,
+                                                  ),
+                                                  // Where holding a carried task turns the month.
+                                                  Positioned.fill(
+                                                    child: IgnorePointer(
+                                                      child: _EdgeHints(
+                                                        carry: _carry,
+                                                        edge: _edgeShown,
+                                                        hold: _hold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              _DragHandle(
+                                                key: calendarHandleKey,
+                                                height: _handleHeight,
+                                                expansion: t.abs(),
+                                                onDragStart: _onDragStart,
+                                                onDrag: _onDrag,
+                                                onDragEnd: _onDragEnd,
+                                                onTap: _toggleExpansion,
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                      // Laid out at the larger of its compact and visible
-                                      // sizes, so it fills the extra room a week view leaves
-                                      // and clips away instead of overflowing as it shrinks.
-                                      // Taller by the bar's room, which it
-                                      // runs on under.
-                                      SizedBox(
-                                        height:
-                                            panelVisible +
-                                            foot * (1 - t.clamp(0.0, 1.0)),
-                                        child: ColoredBox(
-                                          color: p.panel,
-                                          child: ClipRect(
-                                            child: OverflowBox(
-                                              alignment: Alignment.topCenter,
-                                              minHeight: panelLayout + foot,
-                                              maxHeight: panelLayout + foot,
-                                              child: pager,
+                                        // Opening, the month's black runs on
+                                        // down under the tab bar, and the day
+                                        // slides away beneath it until it is
+                                        // off the screen: the bar's strip
+                                        // stands on whatever is really there.
+                                        // A grey band left under an opened
+                                        // month, or the foot recoloured
+                                        // black over the day, were both
+                                        // asked off.
+                                        if (t > 0)
+                                          ColoredBox(
+                                            color: p.calendar,
+                                            child: SizedBox(
+                                              height: foot * math.min(1.0, t),
+                                            ),
+                                          ),
+                                        // Laid out at the larger of its compact and visible
+                                        // sizes, so it fills the extra room a week view leaves
+                                        // and clips away instead of overflowing as it shrinks.
+                                        // Taller by the bar's room, which it
+                                        // runs on under.
+                                        SizedBox(
+                                          height:
+                                              panelVisible +
+                                              foot * (1 - t.clamp(0.0, 1.0)),
+                                          child: ColoredBox(
+                                            color: p.panel,
+                                            child: ClipRect(
+                                              child: OverflowBox(
+                                                alignment: Alignment.topCenter,
+                                                minHeight: panelLayout + foot,
+                                                maxHeight: panelLayout + foot,
+                                                child: pager,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
+                                      ],
+                                    );
+                                  },
+                                );
+                              },
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    // With the tab bar, the field rests in the bar's room
-                    // over the foot of the day, which runs on under the bar
-                    // — the same as on Schedule. Its ground is whatever it
-                    // is over: see _groundUnderField.
-                    if (foot > 0)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: FieldInBarRoom(
-                          ground: (lift) => _groundUnderField(p, lift),
-                          fade: _fadeStrength,
-                          also: _expansion,
-                          child: field,
-                        ),
-                      )
-                    else
-                      // Whatever is above the field fades into it rather than
-                      // being sliced off square by it — the last card in a
-                      // full day used to end in a straight cut across the
-                      // middle of a word. The fade belongs to the field, so it
-                      // goes up with it: left at the foot of the screen it
-                      // would fade the day into a strip the keyboard is
-                      // sitting on, and the field, now halfway up the panel,
-                      // would be back to slicing cards in half.
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: KeyboardLift(
-                          child: AnimatedBuilder(
-                            animation: Listenable.merge([
-                              _expansion,
-                              KeyboardGap.instance.covered,
-                            ]),
-                            builder: (context, _) {
-                              final lift = KeyboardGap.of(context);
-                              return GroundFade(
-                                ground: _groundUnderField(p, lift),
-                                strength: _fadeStrength(lift),
-                              );
-                            },
+                      // With the tab bar, the field rests in the bar's room
+                      // over the foot of the day, which runs on under the bar
+                      // — the same as on Schedule. Its ground is whatever it
+                      // is over: see _groundUnderField.
+                      if (foot > 0)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: FieldInBarRoom(
+                            ground: (lift) => _groundUnderField(p, lift),
+                            fade: _fadeStrength,
+                            also: _expansion,
+                            child: field,
+                          ),
+                        )
+                      else
+                        // Whatever is above the field fades into it rather than
+                        // being sliced off square by it — the last card in a
+                        // full day used to end in a straight cut across the
+                        // middle of a word. The fade belongs to the field, so it
+                        // goes up with it: left at the foot of the screen it
+                        // would fade the day into a strip the keyboard is
+                        // sitting on, and the field, now halfway up the panel,
+                        // would be back to slicing cards in half.
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: KeyboardLift(
+                            child: AnimatedBuilder(
+                              animation: Listenable.merge([
+                                _expansion,
+                                KeyboardGap.instance.covered,
+                              ]),
+                              builder: (context, _) {
+                                final lift = KeyboardGap.of(context);
+                                return GroundFade(
+                                  ground: _groundUnderField(p, lift),
+                                  strength: _fadeStrength(lift),
+                                );
+                              },
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-              // The strip the field sits on belongs to whatever it is over: see
-              // _groundUnderField.
-              if (foot == 0)
-                KeyboardLift(
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge([
-                      _expansion,
-                      KeyboardGap.instance.covered,
-                    ]),
-                    builder: (context, child) => ColoredBox(
-                      color: _groundUnderField(p, KeyboardGap.of(context)),
-                      child: child,
-                    ),
-                    child: field,
+                    ],
                   ),
                 ),
-            ],
+                // The strip the field sits on belongs to whatever it is over: see
+                // _groundUnderField.
+                if (foot == 0)
+                  KeyboardLift(
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _expansion,
+                        KeyboardGap.instance.covered,
+                      ]),
+                      builder: (context, child) => ColoredBox(
+                        color: _groundUnderField(p, KeyboardGap.of(context)),
+                        child: child,
+                      ),
+                      child: field,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

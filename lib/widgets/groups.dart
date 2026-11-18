@@ -31,17 +31,13 @@ EventsProvider? eventsOnShow(BuildContext context) {
 /// Identifies the row of groups under a screen's header.
 const groupChipsKey = Key('group-chips');
 
-/// The row of groups laid over the top of a list that scrolls up under it.
-/// The row itself is clear, so the list shows plainly between the chips;
-/// each chip is frosted glass, blurring and dimming what passes beneath it.
-/// At rest, over the bare ground, it looks as the row always did.
+/// The row of groups in a head laid over the top of a list that scrolls up
+/// under it ([GlassTop]). Each chip is frosted glass of its own besides,
+/// blurring and dimming what passes beneath it. At rest, over the bare
+/// ground, it looks as the row always did.
 class FrostedGroupChips extends StatelessWidget {
   /// The room under the chips before the list's first line.
   static const foot = 8.0;
-
-  /// How much of the list the row covers.
-  static double heightOf(BuildContext context) =>
-      GroupChips.heightOf(context) + foot;
 
   const FrostedGroupChips({super.key});
 

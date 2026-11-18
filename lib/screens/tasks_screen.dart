@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/carry.dart';
 import '../widgets/desk.dart';
+import '../widgets/glass.dart';
 import '../widgets/groups.dart';
 import '../widgets/put_off.dart';
 import '../widgets/quick_add_bar.dart';
@@ -166,150 +167,150 @@ class _TasksScreenState extends State<TasksScreen> {
           // gets the keys' height as room at its foot instead, so nothing at the
           // bottom of it is out of reach while the keyboard is up.
           resizeToAvoidBottomInset: false,
-          body: Column(
-            children: [
-              DeskColumn(
-                child: ScreenHeader(
-                  title: S.of(context).schedule,
-                  view: AppScreen.schedule,
-                  actions: [
-                    if (!wide)
-                      IconButton(
-                        icon: Icon(Icons.search, color: p.muted),
-                        tooltip: S.of(context).search,
-                        onPressed: () => openSearch(context),
-                      ),
-                    TodayButton(onTap: _jumpToToday),
-                    const SizedBox(width: 6),
-                  ],
+          body: GlassTop(
+            head: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DeskColumn(
+                  child: ScreenHeader(
+                    title: S.of(context).schedule,
+                    view: AppScreen.schedule,
+                    actions: [
+                      if (!wide)
+                        IconButton(
+                          icon: Icon(Icons.search, color: p.muted),
+                          tooltip: S.of(context).search,
+                          onPressed: () => openSearch(context),
+                        ),
+                      TodayButton(onTap: _jumpToToday),
+                      const SizedBox(width: 6),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                // The run of days fades into the ground the add field sits on
-                // rather than being cut off square by it, the same way the day's
-                // tasks do under the calendar.
-                child: Stack(
-                  children: [
-                    DeskGutter(
-                      builder: (context, gutter) => _RunOfDays(
-                        controller: _scroll,
-                        gutter: gutter,
-                        // Room at the top for the groups laid over it.
-                        top: wide ? 0 : FrostedGroupChips.heightOf(context),
-                        bottom: barRoom,
-                        ground: p.bg,
-                        entry: entry,
-                        onReorder: provider.reorder,
-                        onMove: provider.moveAllToDay,
-                        head: hasAnything
-                            ? null
-                            : Padding(
-                                padding: const EdgeInsets.only(top: 40),
-                                child: EmptyState(
-                                  icon: Icons.beach_access_outlined,
-                                  title: S.of(context).nothingScheduled,
-                                  message: S.of(context).nothingScheduledHint,
-                                ),
-                              ),
-                        foot: days.isEmpty
-                            ? null
-                            : Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  18,
-                                  20,
-                                  0,
-                                ),
-                                child: Text(
-                                  S
-                                      .of(context)
-                                      .shownForNext(TaskProvider.agendaDays),
-                                  style: TextStyle(
-                                    color: p.faint,
-                                    fontSize: 12,
+                // The groups are in the sidebar in a wide window.
+                if (!wide) const FrostedGroupChips(),
+              ],
+            ),
+            // The run of days fades into the ground the add field sits on
+            // rather than being cut off square by it, the same way the day's
+            // tasks do under the calendar.
+            body: Column(
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      DeskGutter(
+                        builder: (context, gutter) => _RunOfDays(
+                          controller: _scroll,
+                          gutter: gutter,
+                          // Room at the top for the head laid over it.
+                          top: HeadRoom.of(context),
+                          bottom: barRoom,
+                          ground: p.bg,
+                          entry: entry,
+                          onReorder: provider.reorder,
+                          onMove: provider.moveAllToDay,
+                          head: hasAnything
+                              ? null
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 40),
+                                  child: EmptyState(
+                                    icon: Icons.beach_access_outlined,
+                                    title: S.of(context).nothingScheduled,
+                                    message: S.of(context).nothingScheduledHint,
                                   ),
                                 ),
+                          foot: days.isEmpty
+                              ? null
+                              : Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    18,
+                                    20,
+                                    0,
+                                  ),
+                                  child: Text(
+                                    S
+                                        .of(context)
+                                        .shownForNext(TaskProvider.agendaDays),
+                                    style: TextStyle(
+                                      color: p.faint,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                          runs: [
+                            // The backlog is a run like any other. It wants to be
+                            // ordered by how late each thing is until somebody says
+                            // otherwise, and dragging is them saying otherwise — on
+                            // a screen where most of what there is to drag is often
+                            // in here.
+                            if (overdue.isNotEmpty)
+                              _Run(
+                                id: 'overdue',
+                                heading: () => DayHeader(
+                                  word: S.of(context).overdue,
+                                  color: AppColors.overdue,
+                                ),
+                                tasks: overdue,
+                                takesDrops: false,
                               ),
-                        runs: [
-                          // The backlog is a run like any other. It wants to be
-                          // ordered by how late each thing is until somebody says
-                          // otherwise, and dragging is them saying otherwise — on
-                          // a screen where most of what there is to drag is often
-                          // in here.
-                          if (overdue.isNotEmpty)
-                            _Run(
-                              id: 'overdue',
-                              heading: () => DayHeader(
-                                word: S.of(context).overdue,
-                                color: AppColors.overdue,
+                            for (final day in days)
+                              _Run(
+                                id: '$day',
+                                heading: () => DayHeader(
+                                  word: Dates.dayWord(day),
+                                  label: Dates.dayDate(day),
+                                ),
+                                holidays: holidays[day] ?? const <Holiday>[],
+                                events: events?.on(day) ?? const [],
+                                tasks: byDay[day] ?? const [],
+                                day: day,
                               ),
-                              tasks: overdue,
-                              takesDrops: false,
-                            ),
-                          for (final day in days)
-                            _Run(
-                              id: '$day',
-                              heading: () => DayHeader(
-                                word: Dates.dayWord(day),
-                                label: Dates.dayDate(day),
+                            if (undated.isNotEmpty)
+                              _Run(
+                                id: 'undated',
+                                heading: () =>
+                                    DayHeader(word: S.of(context).noDate),
+                                tasks: undated,
                               ),
-                              holidays: holidays[day] ?? const <Holiday>[],
-                              events: events?.on(day) ?? const [],
-                              tasks: byDay[day] ?? const [],
-                              day: day,
-                            ),
-                          if (undated.isNotEmpty)
-                            _Run(
-                              id: 'undated',
-                              heading: () =>
-                                  DayHeader(word: S.of(context).noDate),
-                              tasks: undated,
-                            ),
-                        ],
-                      ),
-                    ),
-                    // The run passes up under the groups, blurred, rather
-                    // than being cut off square at their foot.
-                    if (!wide)
-                      const Positioned(
-                        left: 0,
-                        right: 0,
-                        top: 0,
-                        child: FrostedGroupChips(),
-                      ),
-                    // With the tab bar, the field rests in the bar's room
-                    // over the foot of the run, and the run goes on under
-                    // the bar.
-                    if (overBar)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: FieldInBarRoom(
-                          ground: (_) => p.bg,
-                          child: field,
+                          ],
                         ),
-                      )
-                    else
-                      // The fade goes up with the field it belongs to; left
-                      // at the foot of the screen it would be fading the run
-                      // into a strip behind the keyboard.
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: KeyboardLift(child: GroundFade(ground: p.bg)),
                       ),
-                  ],
+                      // With the tab bar, the field rests in the bar's room
+                      // over the foot of the run, and the run goes on under
+                      // the bar.
+                      if (overBar)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: FieldInBarRoom(
+                            ground: (_) => p.bg,
+                            child: field,
+                          ),
+                        )
+                      else
+                        // The fade goes up with the field it belongs to; left
+                        // at the foot of the screen it would be fading the run
+                        // into a strip behind the keyboard.
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: KeyboardLift(child: GroundFade(ground: p.bg)),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              // Opaque, now that it rides up over the run rather than sitting in
-              // a slot of its own below it.
-              if (!overBar)
-                KeyboardLift(
-                  child: ColoredBox(color: p.bg, child: field),
-                ),
-            ],
+                // Opaque, now that it rides up over the run rather than sitting in
+                // a slot of its own below it.
+                if (!overBar)
+                  KeyboardLift(
+                    child: ColoredBox(color: p.bg, child: field),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

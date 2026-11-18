@@ -190,8 +190,12 @@ void main() {
       ('Backup', 'Save a backup'),
     ]) {
       expect(find.text(row), findsNothing, reason: 'not on the list');
-      await tester.ensureVisible(find.text(page));
-      await tester.pumpAndSettle();
+      // Scrolled into reach, but not up under the title the rows pass
+      // under, where `ensureVisible` would put it.
+      while (find.text(page).hitTestable().evaluate().isEmpty) {
+        await tester.drag(find.byType(ListView), const Offset(0, -100));
+        await tester.pumpAndSettle();
+      }
       await tester.tap(find.text(page));
       await tester.pumpAndSettle();
       expect(find.text(row), findsOneWidget, reason: '$page has $row');

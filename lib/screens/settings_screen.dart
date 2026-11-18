@@ -20,6 +20,7 @@ import '../utils/platform.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
+import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/sign_in_sheet.dart';
@@ -182,51 +183,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onTap: () => wide ? setState(() => _page = i) : _open(entries[i]),
     );
 
-    final list = ListView(
-      // Room to scroll the last row clear of the tab bar it runs on under.
-      padding: EdgeInsets.only(bottom: 24 + BarRoom.of(context)),
-      children: [
-        // A long press on the title puts the keyboard's numbers on screen,
-        // above the add field. Four attempts at one keyboard bug went by
-        // on a phone that cannot be plugged into the machine the app is
-        // built on; this is how the next one gets measured rather than
-        // guessed at. Off by default and not stored.
-        GestureDetector(
-          onLongPress: () {
-            final on = !KeyboardGap.showNumbers.value;
-            KeyboardGap.showNumbers.value = on;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  on
-                      ? 'Keyboard numbers on — they show above the add field'
-                      : 'Keyboard numbers off',
+    // The title stays put and the rows pass up under it.
+    final list = GlassTop(
+      head: // A long press on the title puts the keyboard's numbers on screen,
+          // above the add field. Four attempts at one keyboard bug went by
+          // on a phone that cannot be plugged into the machine the app is
+          // built on; this is how the next one gets measured rather than
+          // guessed at. Off by default and not stored.
+          GestureDetector(
+            onLongPress: () {
+              final on = !KeyboardGap.showNumbers.value;
+              KeyboardGap.showNumbers.value = on;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    on
+                        ? 'Keyboard numbers on — they show above the add field'
+                        : 'Keyboard numbers off',
+                  ),
+                  duration: const Duration(seconds: 2),
                 ),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          },
-          child: ScreenHeader(title: s.settings),
-        ),
-        _Group(children: [for (var i = 0; i < 6; i++) row(i)]),
-        _Group(children: [row(6), row(7)]),
-        if (entries.length > 8) _Group(children: [row(8)]),
-        // The update row only when there is one, so no hairline is drawn
-        // under the version for nothing.
-        ValueListenableBuilder<Update?>(
-          valueListenable: Updates.instance.available,
-          builder: (context, update, _) => _Group(
-            label: s.sectionAbout,
-            footnote: Account.instance.email.value == null
-                ? s.about
-                : s.aboutSynced,
-            children: [
-              const _Version(),
-              if (update != null) _UpdateRow(update: update),
-            ],
+              );
+            },
+            child: ScreenHeader(title: s.settings),
           ),
+      body: Builder(
+        builder: (context) => ListView(
+          // Room to scroll the last row clear of the tab bar it runs on under.
+          padding: EdgeInsets.only(
+            top: HeadRoom.of(context),
+            bottom: 24 + BarRoom.of(context),
+          ),
+          children: [
+            _Group(children: [for (var i = 0; i < 6; i++) row(i)]),
+            _Group(children: [row(6), row(7)]),
+            if (entries.length > 8) _Group(children: [row(8)]),
+            // The update row only when there is one, so no hairline is drawn
+            // under the version for nothing.
+            ValueListenableBuilder<Update?>(
+              valueListenable: Updates.instance.available,
+              builder: (context, update, _) => _Group(
+                label: s.sectionAbout,
+                footnote: Account.instance.email.value == null
+                    ? s.about
+                    : s.aboutSynced,
+                children: [
+                  const _Version(),
+                  if (update != null) _UpdateRow(update: update),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
     if (!wide) return Scaffold(body: list);
 

@@ -206,74 +206,81 @@ class _BoardScreenState extends State<BoardScreen> {
     final wide = Desk.wideOf(context);
 
     return Scaffold(
-      body: Column(
-        children: [
-          ScreenHeader(
-            title: s.board,
-            view: AppScreen.board,
-            actions: [
-              IconButton(
-                icon: Icon(Icons.add, color: p.muted),
-                tooltip: s.newTask,
-                onPressed: _open,
-              ),
-              const SizedBox(width: 6),
-            ],
-          ),
-          // The same choice of group as Schedule and the calendar make.
-          if (!wide)
-            const SizedBox(width: double.infinity, child: GroupChips()),
-          SizedBox(height: wide ? 6 : 14),
-          // Wide enough lanes for a card to be a Jira card, so a page each,
-          // with the next lane at the side to say there is one and to be
-          // carried onto. Three at once left a column a third of a phone
-          // wide and a title a word a line.
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, box) {
-                final fraction = _fraction = wide
-                    ? _Board.wideFraction(box.maxWidth)
-                    : _Board.laneFraction;
-                return SingleChildScrollView(
-                  key: boardLanesKey,
-                  controller: _lanes,
-                  scrollDirection: Axis.horizontal,
-                  physics: _LaneSnap(fraction),
-                  // A row rather than a list, so every lane stays built:
-                  // a lane thrown away while a card carried out of it is
-                  // still in the air takes the drag's callbacks with it,
-                  // and the board could neither turn back nor hear the
-                  // card let go.
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final stage in Stage.values)
-                        Container(
-                          width: box.maxWidth * fraction,
-                          padding: EdgeInsets.fromLTRB(
-                            _Board.gap,
-                            0,
-                            stage == Stage.values.last ? _Board.gap : 0,
-                            _Board.gap,
-                          ),
-                          child: _Column(
-                            stage: stage,
-                            tasks: columns[stage]!,
-                            onTap: _open,
-                            onDrop: (task) => _move(task, stage),
-                            finger: _finger,
-                            onLift: _lift,
-                            onPutDown: _putDown,
-                            byMouse: wide,
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+      body: SafeArea(
+        // Under the status bar only the screens whose head is glass
+        // ([GlassTop]); the lanes scroll inside themselves, under nothing.
+        left: false,
+        right: false,
+        bottom: false,
+        child: Column(
+          children: [
+            ScreenHeader(
+              title: s.board,
+              view: AppScreen.board,
+              actions: [
+                IconButton(
+                  icon: Icon(Icons.add, color: p.muted),
+                  tooltip: s.newTask,
+                  onPressed: _open,
+                ),
+                const SizedBox(width: 6),
+              ],
             ),
-          ),
-        ],
+            // The same choice of group as Schedule and the calendar make.
+            if (!wide)
+              const SizedBox(width: double.infinity, child: GroupChips()),
+            SizedBox(height: wide ? 6 : 14),
+            // Wide enough lanes for a card to be a Jira card, so a page each,
+            // with the next lane at the side to say there is one and to be
+            // carried onto. Three at once left a column a third of a phone
+            // wide and a title a word a line.
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final fraction = _fraction = wide
+                      ? _Board.wideFraction(box.maxWidth)
+                      : _Board.laneFraction;
+                  return SingleChildScrollView(
+                    key: boardLanesKey,
+                    controller: _lanes,
+                    scrollDirection: Axis.horizontal,
+                    physics: _LaneSnap(fraction),
+                    // A row rather than a list, so every lane stays built:
+                    // a lane thrown away while a card carried out of it is
+                    // still in the air takes the drag's callbacks with it,
+                    // and the board could neither turn back nor hear the
+                    // card let go.
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final stage in Stage.values)
+                          Container(
+                            width: box.maxWidth * fraction,
+                            padding: EdgeInsets.fromLTRB(
+                              _Board.gap,
+                              0,
+                              stage == Stage.values.last ? _Board.gap : 0,
+                              _Board.gap,
+                            ),
+                            child: _Column(
+                              stage: stage,
+                              tasks: columns[stage]!,
+                              onTap: _open,
+                              onDrop: (task) => _move(task, stage),
+                              finger: _finger,
+                              onLift: _lift,
+                              onPutDown: _putDown,
+                              byMouse: wide,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../providers/vault_provider.dart';
 import '../services/vault_device.dart';
 import '../theme/app_theme.dart';
 import '../widgets/desk.dart';
+import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardRoom;
 import '../widgets/screen_header.dart';
 import '../widgets/vault_sheets.dart';
@@ -140,50 +141,44 @@ class _VaultState extends State<_Vault> with WidgetsBindingObserver {
       // Each screen decides what the keyboard does to it (the shell); this
       // one's fields are at the top, and the rest can be scrolled up to.
       resizeToAvoidBottomInset: false,
-      body: Column(
-        children: [
-          DeskColumn(
-            child: ScreenHeader(
-              title: s.vault,
-              count: open && vault.secrets.isNotEmpty
-                  ? vault.secrets.length
-                  : null,
-              actions: [
-                if (open) ...[
-                  IconButton(
-                    icon: Icon(Icons.add_rounded, color: p.muted),
-                    tooltip: s.vaultNew,
-                    onPressed: () => showSecretForm(context),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.tune_rounded, color: p.muted),
-                    tooltip: s.vaultSettings,
-                    onPressed: () => showVaultSettings(context),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.lock_outline_rounded, color: p.muted),
-                    tooltip: s.vaultLock,
-                    onPressed: vault.lock,
-                  ),
-                ],
+      body: GlassTop(
+        head: DeskColumn(
+          child: ScreenHeader(
+            title: s.vault,
+            count: open && vault.secrets.isNotEmpty
+                ? vault.secrets.length
+                : null,
+            actions: [
+              if (open) ...[
+                IconButton(
+                  icon: Icon(Icons.add_rounded, color: p.muted),
+                  tooltip: s.vaultNew,
+                  onPressed: () => showSecretForm(context),
+                ),
+                IconButton(
+                  icon: Icon(Icons.tune_rounded, color: p.muted),
+                  tooltip: s.vaultSettings,
+                  onPressed: () => showVaultSettings(context),
+                ),
+                IconButton(
+                  icon: Icon(Icons.lock_outline_rounded, color: p.muted),
+                  tooltip: s.vaultLock,
+                  onPressed: vault.lock,
+                ),
               ],
-            ),
+            ],
           ),
-          Expanded(
-            child: switch (vault.state) {
-              VaultState.loading => const _Waiting(),
-              VaultState.none when vault.looking => _Waiting(
-                words: s.vaultLooking,
-              ),
-              VaultState.none => const _SetUp(),
-              VaultState.locked => _Locked(
-                onFinger: vault.fingerOn ? _unlockByFinger : null,
-                fingerProblem: _fingerProblem,
-              ),
-              VaultState.open => const _Open(),
-            },
+        ),
+        body: switch (vault.state) {
+          VaultState.loading => const _Waiting(),
+          VaultState.none when vault.looking => _Waiting(words: s.vaultLooking),
+          VaultState.none => const _SetUp(),
+          VaultState.locked => _Locked(
+            onFinger: vault.fingerOn ? _unlockByFinger : null,
+            fingerProblem: _fingerProblem,
           ),
-        ],
+          VaultState.open => const _Open(),
+        },
       ),
     );
   }
@@ -197,26 +192,29 @@ class _Waiting extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox.square(
-            dimension: 24,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          if (words != null) ...[
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                words!,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: p.muted),
-              ),
+    return Padding(
+      padding: EdgeInsets.only(top: HeadRoom.of(context)),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
+            if (words != null) ...[
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  words!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: p.muted),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -232,7 +230,12 @@ class _Form extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + BarRoom.of(context)),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12 + HeadRoom.of(context),
+        20,
+        24 + BarRoom.of(context),
+      ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -526,10 +529,13 @@ class _OpenState extends State<_Open> {
     final vault = context.watch<VaultProvider>();
     final elsewhere = vault.sealedElsewhere;
     if (vault.secrets.isEmpty && elsewhere == 0) {
-      return EmptyState(
-        icon: Icons.key_outlined,
-        title: s.vaultEmpty,
-        message: s.vaultEmptyHint,
+      return Padding(
+        padding: EdgeInsets.only(top: HeadRoom.of(context)),
+        child: EmptyState(
+          icon: Icons.key_outlined,
+          title: s.vaultEmpty,
+          message: s.vaultEmptyHint,
+        ),
       );
     }
     final query = _query.text.trim();
@@ -541,7 +547,7 @@ class _OpenState extends State<_Open> {
       builder: (context, gutter) => ListView(
         padding: EdgeInsets.fromLTRB(
           16 + gutter,
-          0,
+          HeadRoom.of(context),
           16 + gutter,
           24 + BarRoom.of(context),
         ),

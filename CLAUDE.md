@@ -259,9 +259,10 @@ them will be noticed.
   (`GroupChips`, `TaskProvider.showGroup`). Tags were built and removed. Chip
   row (All, groups, plus) always shown; long press carries a chip to reorder
   (`lists.sort_order`, schema v9), released in place opens it to edit. A
-  carried chip stands on `GroupChips.ground`. **On Schedule the run scrolls
-  under the row** (`FrostedGroupChips`): the row is clear, each chip frosted
-  glass — a frosted strip behind the whole row was asked off.
+  carried chip stands on `GroupChips.ground`. On Schedule the row is part
+  of the glass head (`FrostedGroupChips`, `GlassTop`), each chip frosted
+  glass of its own besides. A frosted strip behind the row alone was asked
+  off; the whole top on glass was asked for after.
 - **Default group is the oldest** (`TaskList.oldest`), never deletable;
   deleting another moves its tasks there.
 - With a group chosen: only its tasks, no phone events, holidays stay, new
@@ -292,11 +293,13 @@ them will be noticed.
   pill slides to the current tab (240ms), names shrink not cut. Floats over
   the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`: a
   strip blurred from nothing to 1.5 at the foot, darkening to 5% of the
-  ground, with no edge where the blur starts. That takes a shader
-  (`shaders/bar_ground.frag`, a pass across and one down — composed into
-  one filter they drew nothing); it is given screen coordinates and on
-  GLES a flipped texture. Bands of fixed blur showed a step at each edge;
-  they are only the fallback where shader filters aren't (the desktop). **Every screen runs on
+  ground, with no edge where the blur starts (`GradedBlur`: sixteen thin
+  bands of plain blur, rising, reading one copy of the screen through a
+  `BackdropGroup`). A shader that blurred across then down came first: on
+  Impeller a second backdrop pass reads the screen as it was, not the
+  first pass's output (side by side, nested or composed), so only one
+  direction ever showed — streaks once the blur is large. Masking a blur
+  with a `ShaderMask` draws nothing. **Every screen runs on
   under it** (the shell no longer pads pages): scrolls end with
   `BarRoom.of(context)` of room; Schedule and the calendar rest their
   field over their foot with one widget (`FieldInBarRoom`), its ground and
@@ -312,6 +315,17 @@ them will be noticed.
   ticked). Two rows of boxes and dashes came first and looked cramped; a
   purple outline looked bad; a clipboard and a box with a breakout tick
   were redone.
+- **Every screen's top is glass over what scrolls under it** (`GlassTop`,
+  `HeadRoom`, `widgets/glass.dart`): Schedule, Done, Vault and Settings run
+  up under the status bar and their head (Settings' title is pinned now);
+  the head stands on blur 17 under the ground at 65%, the blur thinning to
+  none over the head's foot third (`GlassTop.leadOf`, 16–44pt — 24 showed
+  a line across the cards, 44 left Settings' title over sharp rows). Taps
+  on the head stay on it. Scrolls start with `HeadRoom.of(context)`, as
+  they end with `BarRoom`'s. The shell's `SafeArea` leaves the top to the
+  screens; Board and the calendar take it back themselves (nothing scrolls
+  under their heads); a banner takes the status bar's room in their place
+  at once. The wide layout keeps the head above the body.
 - **With the bar, a 56pt round plus floats above its right end** (`_AddButton`,
   `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`), only on Schedule and
   Calendar. Tap opens the field (which lives in the bar's room while the
@@ -326,7 +340,7 @@ them will be noticed.
 ### Keyboard and the add field (read before touching)
 
 - **Nothing moves when the keyboard does**: no `Scaffold` resizes;
-  `SafeArea(maintainBottomViewPadding)` in the shell; `KeyboardGap` subtracts
+  `SafeArea(maintainBottomViewPadding, top: false)` in the shell; `KeyboardGap` subtracts
   the kept strip.
 - **The quick-add bar is attached to the keyboard** (`KeyboardLift` translates
   it, same frame, nothing else). **Do not put a curve, spring or cap back.**
