@@ -371,9 +371,10 @@ them will be noticed.
   (`KeyboardGap.sliding`, same message). A frame is seen 12–20ms after the
   keys move: on a 120Hz Galaxy the field came up 64pt under the keys; two
   frames' lead overshot on the 60Hz emulator. A slide with no usable curve
-  (Android 16's swipe-back close: duration -1) is carried on by the share
-  of the way left it closed last frame (`MainActivity.decay`); recordings
-  log which was used (`reach` … `how`).
+  (Android 16's swipe-back close: duration -1) goes as reported — its keys
+  are where it says, frame for frame; carrying it on two frames (2.11.24)
+  ran the field 15–67pt behind the keys. Recordings log which was used
+  (`reach` … `how`).
 - **Edge-to-edge is read from the content view's insets, never its height**
   (`MainActivity.contentNav`).
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):

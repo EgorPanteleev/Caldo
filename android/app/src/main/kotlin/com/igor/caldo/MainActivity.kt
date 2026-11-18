@@ -18,7 +18,6 @@ import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsAnimation
 import android.view.WindowManager
-import android.view.animation.AnimationUtils
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import androidx.annotation.RequiresApi
@@ -67,10 +66,6 @@ class MainActivity : FlutterActivity() {
      * are, and [ahead] can tell where they are about to be.
      */
     private val slides = HashMap<Any, IntArray?>()
-
-    /** The IME inset last reported in a slide, and its frame's time. */
-    private var lastKeys = -1
-    private var lastAt = 0L
 
     /** The keyboard's full height, from the last slide's bounds. */
     private var keysOpen = 0
@@ -808,19 +803,21 @@ class MainActivity : FlutterActivity() {
      * through it is and its curve are all on [WindowInsetsAnimation], and
      * that curve is read forward by [LEAD_MS] — the system's own animation
      * evaluated a little later. Only when that reading gives back exactly
-     * what is being reported now: a slide reversed half way, or one a
-     * maker drives some other way, falls through to [decay]. That put
-     * 2.11.23's openings within 6pt of the keys.
+     * what is being reported now. That put 2.11.23's openings within 6pt
+     * of the keys.
+     *
+     * Anything else is passed on as reported, and that is not a gap left
+     * open. Android 16's swipe-back close is driven by the system's own
+     * animator, with no duration or curve, and a recording that showed
+     * the real keys (2.11.25) had them exactly where it reports, frame for
+     * frame — so a declared slide's keys run ahead of their reports and
+     * that one's do not. 2.11.24 carried it on two frames by the share of
+     * the way left each frame closed, and the field ran 15–67pt down
+     * behind the keys.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     private fun ahead(insets: WindowInsets, running: List<WindowInsetsAnimation>): Int {
         val now = insets.getInsets(WindowInsets.Type.ime()).bottom
-        // The frame's own time, not the moment this runs.
-        val at = AnimationUtils.currentAnimationTimeMillis()
-        val before = lastKeys
-        val beforeAt = lastAt
-        lastKeys = now
-        lastAt = at
         val near = 2 * resources.displayMetrics.density
         for (slide in running) {
             if (slide.typeMask and WindowInsets.Type.ime() == 0) continue
@@ -836,39 +833,8 @@ class MainActivity : FlutterActivity() {
             how = "curve"
             return Math.round(along(slide.fraction + LEAD_MS / length))
         }
-        return decay(now, before, (at - beforeAt).toFloat())
-    }
-
-    /**
-     * The keys' next place when the slide does not say how it goes — on
-     * Android 16, closing with a swipe back hands the keyboard to the
-     * system's own animator, which declares no duration and no curve, and
-     * on 2.11.23 the field trailed the keys by up to 100pt there.
-     *
-     * Every slide recorded so far closes on where it is going by about
-     * the same share of what is left each frame, so that share, measured
-     * from the last two reports, is carried [LEAD_MS] on. Tried against
-     * the Galaxy's logs: within 7pt of where the keys were two frames
-     * later, closing and opening, from the second fast frame on. It can't
-     * see a start coming — the first two frames of a swipe's drop stay a
-     * frame or two late — and it never says the keys have passed where
-     * they are going, or turned back: a share of what is left can only
-     * move towards the end.
-     */
-    @RequiresApi(Build.VERSION_CODES.R)
-    private fun decay(now: Int, before: Int, ms: Float): Int {
         how = "as reported"
-        if (before < 0 || ms <= 0f || ms > 50f) return now
-        val open = window.decorView.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) ?: return now
-        if (open && keysOpen <= 0) return now
-        val end = if (open) keysOpen else 0
-        val left = (now - end).toFloat()
-        val leftBefore = (before - end).toFloat()
-        if (left == 0f || leftBefore == 0f || (left > 0) != (leftBefore > 0)) return now
-        val share = left / leftBefore
-        if (share >= 1f) return now
-        how = "decay"
-        return Math.round(end + left * Math.pow(share.toDouble(), (LEAD_MS / ms).toDouble()).toFloat())
+        return now
     }
 
     private fun reportIme() {
@@ -893,7 +859,6 @@ class MainActivity : FlutterActivity() {
                         window.decorView.postDelayed({
                             if (slides.containsKey(animation) && slides[animation] == null) {
                                 slides.remove(animation)
-                    if (slides.isEmpty()) lastKeys = -1
                                 if (slides.isEmpty()) reportIme()
                             }
                         }, 500)

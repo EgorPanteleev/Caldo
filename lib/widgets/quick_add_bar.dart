@@ -876,9 +876,8 @@ class KeyboardGap {
   /// further of the two held the field over them on every closing.
   bool sliding = false;
 
-  /// How Android came by [covered] in a slide — its curve, the share of
-  /// the way left closing each frame, or the report as it stands — for
-  /// the recordings.
+  /// How Android came by [covered] in a slide — read ahead on its curve,
+  /// or the report as it stands — for the recordings.
   String how = '';
 
   StreamSubscription<dynamic>? _sub;
