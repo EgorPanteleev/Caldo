@@ -1332,52 +1332,40 @@ class _CalendarScreenState extends State<CalendarScreen>
                                           ],
                                         ),
                                       ),
+                                      // Opening, the month's black runs on
+                                      // down under the tab bar, and the day
+                                      // slides away beneath it until it is
+                                      // off the screen: the bar's strip
+                                      // stands on whatever is really there.
+                                      // A grey band left under an opened
+                                      // month, or the foot recoloured
+                                      // black over the day, were both
+                                      // asked off.
+                                      if (t > 0)
+                                        ColoredBox(
+                                          color: p.calendar,
+                                          child: SizedBox(
+                                            height: foot * math.min(1.0, t),
+                                          ),
+                                        ),
                                       // Laid out at the larger of its compact and visible
                                       // sizes, so it fills the extra room a week view leaves
                                       // and clips away instead of overflowing as it shrinks.
-                                      //
                                       // Taller by the bar's room, which it
-                                      // runs on under. That much at its
-                                      // foot is covered in the panel's own
-                                      // grey as the month opens, so none of
-                                      // the day shows through under the bar
-                                      // — grey, not the month's black: the
-                                      // strip behind the bar was asked to
-                                      // keep its colour in every state.
+                                      // runs on under.
                                       SizedBox(
-                                        height: panelVisible + foot,
+                                        height:
+                                            panelVisible +
+                                            foot * (1 - t.clamp(0.0, 1.0)),
                                         child: ColoredBox(
                                           color: p.panel,
-                                          child: Stack(
-                                            children: [
-                                              ClipRect(
-                                                child: OverflowBox(
-                                                  alignment:
-                                                      Alignment.topCenter,
-                                                  minHeight: panelLayout + foot,
-                                                  maxHeight: panelLayout + foot,
-                                                  child: pager,
-                                                ),
-                                              ),
-                                              if (t > 0)
-                                                Positioned(
-                                                  left: 0,
-                                                  right: 0,
-                                                  bottom: 0,
-                                                  height: foot,
-                                                  child: IgnorePointer(
-                                                    child: ColoredBox(
-                                                      color: p.panel
-                                                          .withValues(
-                                                            alpha: math.min(
-                                                              1.0,
-                                                              t,
-                                                            ),
-                                                          ),
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
+                                          child: ClipRect(
+                                            child: OverflowBox(
+                                              alignment: Alignment.topCenter,
+                                              minHeight: panelLayout + foot,
+                                              maxHeight: panelLayout + foot,
+                                              child: pager,
+                                            ),
                                           ),
                                         ),
                                       ),

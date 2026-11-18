@@ -301,9 +301,10 @@ them will be noticed.
   `BarRoom.of(context)` of room; Schedule and the calendar rest their
   field over their foot with one widget (`FieldInBarRoom`), its ground and
   fade drawn only while the keys are up. The calendar sizes its grid to
-  what the bar leaves; its day panel is taller by the room, that foot
-  covered in the panel's grey as the month opens (never black — the strip
-  behind the bar keeps its colour in every state). Back goes to the start screen before leaving
+  what the bar leaves; its day panel is taller by the room, opening, the
+  month's black runs on under the bar and pushes the day off the screen
+  (a grey band under the opened month, and a black cover fading over the
+  day's foot, were both asked off). Back goes to the start screen before leaving
   (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
   short checklist, a purple tick over a ring, each with a line — chosen
   from mock-ups. The tick is the bar's one colour, asked for, dimmer
