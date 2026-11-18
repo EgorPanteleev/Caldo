@@ -9,6 +9,9 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../theme/tweaks.dart';
 import '../utils/platform.dart';
 import '../widgets/perf_hud.dart';
 
@@ -46,6 +49,28 @@ class Recording {
   /// Whether a recording is going: the badge and the touches show while
   /// it is.
   final on = ValueNotifier<bool>(false);
+
+  /// Whether Debug's "Button on every screen" is on: a red dot over the
+  /// app that starts a recording. Kept on this device, like Debug mode.
+  final button = ValueNotifier<bool>(false);
+
+  /// Whether the dot is drawn: switched on, here, and Debug mode on.
+  bool get buttonShown => available && button.value && Tweaks.instance.on;
+
+  static const _buttonKey = 'record_button';
+
+  /// Reads whether the button is on; from `main`, after `Tweaks`.
+  Future<void> load() async {
+    if (!available) return;
+    final prefs = await SharedPreferences.getInstance();
+    button.value = prefs.getBool(_buttonKey) ?? false;
+  }
+
+  Future<void> setButton(bool on) async {
+    button.value = on;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_buttonKey, on);
+  }
 
   /// The last recording's files, its video and its log, while kept.
   final kept = ValueNotifier<List<String>>(const []);

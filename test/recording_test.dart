@@ -3,9 +3,12 @@ import 'dart:developer' show Timeline;
 import 'dart:io';
 
 import 'package:caldo/services/recording.dart';
+import 'package:caldo/theme/tweaks.dart';
+import 'package:caldo/widgets/recording_overlay.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -83,5 +86,39 @@ void main() {
     expect(touch['x'], 100.0);
     expect(touch['e'], 'down');
     expect(shared, hasLength(1));
+  });
+
+  testWidgets('the record button is over the app only with Debug mode on', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final asked = <String>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      asked.add(call.method);
+      return null; // Nothing started: the button stays a button.
+    });
+    addTearDown(() async {
+      messenger.setMockMethodCallHandler(channel, null);
+      Recording.instance.button.value = false;
+      Tweaks.instance.clear();
+    });
+
+    await tester.pumpWidget(
+      const MaterialApp(home: RecordingOverlay(child: SizedBox.expand())),
+    );
+    Recording.instance.button.value = true;
+    await tester.pump();
+    expect(find.byKey(recordBadgeKey), findsNothing);
+
+    await tester.runAsync(() => Tweaks.instance.setOn(true));
+    await tester.pump();
+    final dot = find.byKey(recordBadgeKey);
+    expect(dot, findsOneWidget);
+
+    await tester.tap(dot);
+    await tester.pump();
+    expect(asked, contains('start'));
+    expect(Recording.instance.on.value, isFalse);
+    expect(dot, findsOneWidget);
   });
 }

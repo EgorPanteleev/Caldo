@@ -4,12 +4,18 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../services/recording.dart';
+import '../theme/tweaks.dart';
 
-/// What a screen recording shows over the app (`Recording`): a dot under
-/// each finger, so the video says where it was touched, and a badge that
-/// says it is recording, for how long, and holds a flag to mark a moment
-/// and the stop. Hears every pointer event for the log, recording or not,
-/// so turning it on never remounts the app beneath.
+/// The badge, or the button it is while nothing records, for tests.
+const recordBadgeKey = ValueKey('recordBadge');
+
+/// What a recording shows over the app (`Recording`): a dot under each
+/// finger, so the video says where it was touched, and a badge that says
+/// it is recording, for how long, and holds a flag to mark a moment and
+/// the stop. With Debug's "Button on every screen" on, the badge is there
+/// while nothing records too, as a red dot that starts a recording from
+/// wherever the trouble is. Hears every pointer event for the log,
+/// recording or not, so turning it on never remounts the app beneath.
 class RecordingOverlay extends StatefulWidget {
   final Widget child;
 
@@ -37,8 +43,13 @@ class _RecordingOverlayState extends State<RecordingOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: Recording.instance.on,
+    final recording = Recording.instance;
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        recording.on,
+        recording.button,
+        Tweaks.instance,
+      ]),
       child: Listener(
         behavior: HitTestBehavior.translucent,
         onPointerDown: _heard,
@@ -47,20 +58,22 @@ class _RecordingOverlayState extends State<RecordingOverlay> {
         onPointerCancel: _heard,
         child: widget.child,
       ),
-      builder: (context, on, app) => Stack(
-        fit: StackFit.expand,
-        children: [
-          app!,
-          if (on) ...[
-            IgnorePointer(
-              child: RepaintBoundary(
-                child: CustomPaint(painter: _TouchPainter(_touches)),
+      builder: (context, app) {
+        final on = recording.on.value;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            app!,
+            if (on)
+              IgnorePointer(
+                child: RepaintBoundary(
+                  child: CustomPaint(painter: _TouchPainter(_touches)),
+                ),
               ),
-            ),
-            const _Badge(),
+            if (on || recording.buttonShown) const _Badge(),
           ],
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -135,8 +148,11 @@ class _TouchPainter extends CustomPainter {
 }
 
 /// "● 0:12 ⚑ ■": recording for so long, a flag to mark a moment, and the
-/// stop. Redrawn once a second, like the performance numbers. Can be
-/// dragged out of the way.
+/// stop; while nothing records, the dot alone, which starts one. Stands
+/// at the right edge, a little above the middle, clear of the titles and
+/// the plus, and grows leftwards; dragged elsewhere it stays there until
+/// the app is closed. Redrawn once a second while recording, like the
+/// performance numbers, and not at all while idle.
 class _Badge extends StatefulWidget {
   const _Badge();
 
@@ -145,30 +161,52 @@ class _Badge extends StatefulWidget {
 }
 
 class _BadgeState extends State<_Badge> {
-  late final Timer _timer;
+  /// Where it stands: from the right edge, and from the top as a share of
+  /// the height until dragged. Kept across the badge's comings and goings.
+  static double _right = 8;
+  static double? _top;
+
+  Timer? _timer;
   int _marks = 0;
-  Offset? _at;
+  bool _starting = false;
   final _box = GlobalKey();
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+    Recording.instance.on.addListener(_onChanged);
+    _onChanged();
   }
 
   @override
   void dispose() {
-    _timer.cancel();
+    Recording.instance.on.removeListener(_onChanged);
+    _timer?.cancel();
     super.dispose();
+  }
+
+  void _onChanged() {
+    final on = Recording.instance.on.value;
+    _timer?.cancel();
+    _timer = on
+        ? Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}))
+        : null;
+    if (on) _marks = 0;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _start() async {
+    if (_starting) return;
+    setState(() => _starting = true);
+    final problem = await Recording.instance.start();
+    if (problem != null) debugPrint('Could not record: $problem');
+    if (mounted) setState(() => _starting = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final at = _at;
-    final seconds = Recording.instance.elapsed.inSeconds;
-    final time =
-        '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    final on = Recording.instance.on.value;
     const text = TextStyle(
       color: Colors.white,
       fontSize: 12,
@@ -184,25 +222,25 @@ class _BadgeState extends State<_Badge> {
         child: Icon(icon, size: 17, color: Colors.white),
       ),
     );
-    final badge = DecoratedBox(
-      key: _box,
+    final dot = Container(
+      width: on ? 8 : 12,
+      height: on ? 8 : 12,
       decoration: BoxDecoration(
-        color: const Color(0xD9000000),
-        borderRadius: BorderRadius.circular(16),
+        color: Color(_starting ? 0x99FF4545 : 0xFFFF4545),
+        shape: BoxShape.circle,
       ),
-      child: Padding(
+    );
+    final Widget content;
+    if (on) {
+      final seconds = Recording.instance.elapsed.inSeconds;
+      final time =
+          '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+      content = Padding(
         padding: const EdgeInsets.only(left: 10, right: 3),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFF4545),
-                shape: BoxShape.circle,
-              ),
-            ),
+            dot,
             const SizedBox(width: 6),
             Text(time, style: text),
             const SizedBox(width: 4),
@@ -214,33 +252,44 @@ class _BadgeState extends State<_Badge> {
             button(Icons.stop_rounded, Recording.instance.stop),
           ],
         ),
-      ),
-    );
-    final draggable = GestureDetector(
-      onPanUpdate: (d) => setState(() {
-        final box = _box.currentContext?.findRenderObject() as RenderBox?;
-        if (box == null) return;
-        final next = (at ?? box.localToGlobal(Offset.zero)) + d.delta;
-        _at = Offset(
-          next.dx.clamp(0, math.max(0, size.width - box.size.width)),
-          next.dy.clamp(0, math.max(0, size.height - box.size.height)),
-        );
-      }),
-      child: badge,
-    );
-    // Centred under the status bar until dragged.
-    if (at == null) {
-      return Positioned(
-        left: 0,
-        right: 0,
-        top: MediaQuery.paddingOf(context).top + 6,
-        child: Align(
-          alignment: Alignment.topCenter,
-          heightFactor: 1,
-          child: draggable,
-        ),
+      );
+    } else {
+      // The same height as the badge it becomes, and round.
+      content = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _start,
+        child: SizedBox(width: 27, height: 27, child: Center(child: dot)),
       );
     }
-    return Positioned(left: at.dx, top: at.dy, child: draggable);
+    final badge = DecoratedBox(
+      key: _box,
+      decoration: BoxDecoration(
+        color: const Color(0xD9000000),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x33FFFFFF), width: 0.8),
+      ),
+      child: content,
+    );
+    final top = _top ?? size.height * 0.42;
+    return Positioned(
+      right: _right,
+      top: top,
+      child: GestureDetector(
+        key: recordBadgeKey,
+        onPanUpdate: (d) => setState(() {
+          final box = _box.currentContext?.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          _right = (_right - d.delta.dx).clamp(
+            0,
+            math.max(0, size.width - box.size.width),
+          );
+          _top = (top + d.delta.dy).clamp(
+            0,
+            math.max(0, size.height - box.size.height),
+          );
+        }),
+        child: badge,
+      ),
+    );
   }
 }

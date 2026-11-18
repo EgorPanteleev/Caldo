@@ -250,7 +250,11 @@ class _RecordRowsState extends State<_RecordRows> {
   Widget build(BuildContext context) {
     final recording = Recording.instance;
     return ListenableBuilder(
-      listenable: Listenable.merge([recording.on, recording.kept]),
+      listenable: Listenable.merge([
+        recording.on,
+        recording.kept,
+        recording.button,
+      ]),
       builder: (context, _) {
         final on = recording.on.value;
         final kept = recording.kept.value;
@@ -265,7 +269,8 @@ class _RecordRowsState extends State<_RecordRows> {
               'raster time, the numbers above once a second, the '
               'keyboard\'s height, routes and errors. Stop with the badge '
               'and both files go to the share sheet. The flag marks a '
-              'moment in the log.',
+              'moment in the log. The button and the badge can be dragged '
+              'aside.',
           children: [
             Opacity(
               opacity: widget.enabled || on ? 1 : 0.4,
@@ -283,6 +288,17 @@ class _RecordRowsState extends State<_RecordRows> {
                     : widget.enabled
                     ? _start
                     : null,
+              ),
+            ),
+            Opacity(
+              opacity: widget.enabled ? 1 : 0.4,
+              child: _SwitchRow(
+                icon: Icons.radio_button_checked_rounded,
+                title: 'Button on every screen',
+                hint: 'A red dot to record from anywhere',
+                value: recording.button.value,
+                enabled: widget.enabled,
+                onChanged: recording.setButton,
               ),
             ),
             if (!on && video != null)

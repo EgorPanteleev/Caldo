@@ -455,7 +455,11 @@ them will be noticed.
   build/raster, the HUD's numbers each second, insets (the keyboard's
   height), routes, lifecycle, errors, `debugPrint`, marks. While
   recording: a ring under each finger and a draggable badge (time, flag =
-  mark, stop). Stop opens the share sheet (`FileProvider` serves
+  mark, stop). **Button on every screen** (a Debug switch, prefs
+  `record_button`, not in backups; shown only with Debug mode on): the
+  badge stays as a red dot while idle and starts a recording from
+  anywhere; right edge at 42% height, grows leftwards, dragged place kept
+  for the run; no timer while idle. Stop opens the share sheet (`FileProvider` serves
   `recordings/` too). Read one with `tool/recording.py <log> [--frames
   s…] [--slow N] [--between a b]`; on the emulator a tap's first video
   frame came 10ms after its logged time, ~20–25 copies a second.
@@ -740,7 +744,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 333 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 334 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

@@ -76,6 +76,8 @@ void main() async {
   // An admin's colours, for the same reason: the first frame in them, not
   // in stock ones a moment before.
   await Tweaks.instance.load();
+  // Whether Debug's record button is over every screen.
+  await Recording.instance.load();
   runApp(CaldoApp(start: start));
 }
 
