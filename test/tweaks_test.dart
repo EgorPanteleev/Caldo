@@ -1,5 +1,6 @@
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/theme/tweaks.dart';
+import 'package:caldo/widgets/perf_hud.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -60,5 +61,24 @@ void main() {
     expect(t.on, isTrue);
     expect(t.storedNumber('chipInk'), 0.5);
     expect(await t.paste('not json'), isFalse);
+  });
+
+  testWidgets('debug mode off takes the performance numbers with it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: PerfHud(child: SizedBox()),
+      ),
+    );
+    await tester.runAsync(() => Tweaks.instance.setOn(true));
+    // Not pumped with them on: the box itself would start reading /proc.
+    PerfHud.shown.value = true;
+    PerfHud.graphs.value = true;
+
+    await tester.runAsync(() => Tweaks.instance.setOn(false));
+    expect(PerfHud.shown.value, isFalse);
+    expect(PerfHud.graphs.value, isFalse);
   });
 }

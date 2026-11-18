@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../theme/tweaks.dart';
+
 /// Settings › Debug's numbers on how hard the app is working: frames a
 /// second against the display's rate, how long frames take to build and to
 /// raster, the CPU the process and its two busiest threads use, memory, and
@@ -14,8 +16,10 @@ import 'package:flutter/scheduler.dart';
 /// draws at half rate here and its numbers say nothing. Read once a second
 /// and drawn once a second, so with nothing else moving the HUD's own frame
 /// is the one frame a second it shows. Not stored, like the keyboard's
-/// numbers: on until the app is closed.
-class PerfHud extends StatelessWidget {
+/// numbers: on until the app is closed, or until Debug mode goes off —
+/// they are part of it, and a switch that puts the app back as shipped
+/// should leave nothing of it on screen.
+class PerfHud extends StatefulWidget {
   /// Whether the numbers are on screen.
   static final shown = ValueNotifier<bool>(false);
 
@@ -27,13 +31,40 @@ class PerfHud extends StatelessWidget {
   const PerfHud({super.key, required this.child});
 
   @override
+  State<PerfHud> createState() => _PerfHudState();
+}
+
+class _PerfHudState extends State<PerfHud> {
+  @override
+  void initState() {
+    super.initState();
+    Tweaks.instance.addListener(_followDebug);
+  }
+
+  @override
+  void dispose() {
+    Tweaks.instance.removeListener(_followDebug);
+    super.dispose();
+  }
+
+  /// Debug mode off, by its switch, Reset or signing out, takes the numbers
+  /// and the graphs with it.
+  void _followDebug() {
+    if (Tweaks.instance.on) return;
+    PerfHud.shown.value = false;
+    PerfHud.graphs.value = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Always the same Stack, so switching the numbers on or off never
     // remounts the app beneath them.
     return ValueListenableBuilder<bool>(
-      valueListenable: shown,
-      builder: (context, on, _) =>
-          Stack(fit: StackFit.expand, children: [child, if (on) const _Hud()]),
+      valueListenable: PerfHud.shown,
+      builder: (context, on, _) => Stack(
+        fit: StackFit.expand,
+        children: [widget.child, if (on) const _Hud()],
+      ),
     );
   }
 }
