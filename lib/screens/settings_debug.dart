@@ -123,6 +123,7 @@ class _DebugRows extends StatelessWidget {
                   _Row(
                     icon: Icons.copy_rounded,
                     title: 'Copy changes',
+                    trailing: const SizedBox.shrink(),
                     onTap: () async {
                       await Clipboard.setData(
                         ClipboardData(text: tweaks.asText),
@@ -134,6 +135,7 @@ class _DebugRows extends StatelessWidget {
                     icon: Icons.content_paste_rounded,
                     title: 'Paste changes',
                     value: 'Replaces what is set here',
+                    trailing: const SizedBox.shrink(),
                     onTap: () async {
                       final text = (await Clipboard.getData(
                         'text/plain',
@@ -508,12 +510,22 @@ class _InkRow extends StatelessWidget {
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.undo_rounded, size: 20, color: p.muted),
-                tooltip: 'As shipped',
-                onPressed: set == null
+              // Its room kept while there is nothing to undo, so the
+              // reading does not jump.
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: set == null
                     ? null
-                    : () => tweaks.setNumber(tweak, null),
+                    : IconButton(
+                        icon: Icon(
+                          Icons.undo_rounded,
+                          size: 20,
+                          color: p.muted,
+                        ),
+                        tooltip: 'As shipped',
+                        onPressed: () => tweaks.setNumber(tweak, null),
+                      ),
               ),
             ],
           ),
