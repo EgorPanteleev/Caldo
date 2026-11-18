@@ -298,8 +298,8 @@ them will be noticed.
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
   the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`:
-  the add field's strip (`p.field` from clear at the bar room's top to 80%
-  at the foot), run on under the gesture bar (`below`, the shell's Stack
+  the add field's strip in the bar's own grey (`p.panelHi`, asked for;
+  from clear at the bar room's top to 80% at the foot), run on under the gesture bar (`below`, the shell's Stack
   unclipped) so it doesn't stop on a line — on Android 14 the system's
   own bar is opaque below the app, so the emulator still shows one. It
   was a blur from nothing to 1.5 (asked off for the tint);

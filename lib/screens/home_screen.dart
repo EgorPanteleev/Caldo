@@ -832,8 +832,8 @@ class _TabBar extends StatelessWidget {
 }
 
 /// The strip under the tab bar, as the add field has on the keys
-/// ([FieldInBarRoom]): the field's grey across the bar's room, clear at its
-/// top and four fifths of the grey at the foot. It was a blur growing to
+/// ([FieldInBarRoom]) but in the bar's own grey: across the bar's room,
+/// clear at its top and four fifths of the grey at the foot. It was a blur growing to
 /// 1.5 down to the foot ([FadingBlur]), darkening into the ground; asked to
 /// be this instead.
 class _BarGround extends StatelessWidget {
@@ -842,7 +842,7 @@ class _BarGround extends StatelessWidget {
 
   const _BarGround({required this.below});
 
-  /// How much of the field's grey it comes to at the foot.
+  /// How much of the bar's grey it comes to at the foot.
   static const _most = 0.8;
 
   @override
@@ -857,8 +857,8 @@ class _BarGround extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                p.field.withValues(alpha: 0),
-                p.field.withValues(alpha: _most),
+                p.panelHi.withValues(alpha: 0),
+                p.panelHi.withValues(alpha: _most),
               ],
             ),
           ),
