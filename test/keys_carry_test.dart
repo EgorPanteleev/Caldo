@@ -99,7 +99,7 @@ void main() {
       ),
     );
     expect(strip, findsOneWidget);
-    // Clear a strip's height above the field, a fifth of the ground at the
+    // Clear a strip's height above the field, two fifths of the ground at the
     // keys; part of what Android pictures, so it rides the keys with it.
     final field = tester.getRect(find.byKey(_field));
     final under = tester.getRect(strip);
@@ -110,7 +110,7 @@ void main() {
                 .gradient!
             as LinearGradient);
     expect(gradient.colors.first.a, 0);
-    expect(gradient.colors.last.a, closeTo(0.2, 0.001));
+    expect(gradient.colors.last.a, closeTo(0.4, 0.001));
     expect(
       find.descendant(of: find.byType(CarriedField), matching: strip),
       findsOneWidget,
