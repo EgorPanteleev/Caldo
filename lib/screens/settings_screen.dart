@@ -21,6 +21,7 @@ import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
+import '../widgets/perf_hud.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/sign_in_sheet.dart';

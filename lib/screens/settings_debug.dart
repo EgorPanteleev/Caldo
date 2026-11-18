@@ -1,8 +1,8 @@
 part of 'settings_screen.dart';
 
 /// Settings › Debug, an admin's only: the app's colours tried on the device
-/// (`Tweaks`), and the keyboard's numbers, which were a long press on the
-/// title alone. English only, like the numbers.
+/// (`Tweaks`), the keyboard's numbers, which were a long press on the
+/// title alone, and how hard the app is working (`PerfHud`). English only, like the numbers.
 List<Widget> _debug(BuildContext context, SettingsProvider settings, S s) => [
   _DebugRows(accent: settings.accent),
 ];
@@ -24,7 +24,12 @@ class _DebugRows extends StatelessWidget {
   Widget build(BuildContext context) {
     final tweaks = Tweaks.instance;
     return ListenableBuilder(
-      listenable: Listenable.merge([tweaks, KeyboardGap.showNumbers]),
+      listenable: Listenable.merge([
+        tweaks,
+        KeyboardGap.showNumbers,
+        PerfHud.shown,
+        PerfHud.graphs,
+      ]),
       builder: (context, _) {
         // The theme on screen first: the other's colours are set blind.
         final dark = Theme.of(context).brightness == Brightness.dark;
@@ -63,6 +68,31 @@ class _DebugRows extends StatelessWidget {
                     value: KeyboardGap.showNumbers.value,
                     onChanged: (on) => KeyboardGap.showNumbers.value = on,
                   ),
+              ],
+            ),
+            _Group(
+              label: 'Performance',
+              footnote:
+                  'Judge them on a release build only. Frame times are of '
+                  'the last two seconds, average/longest; CPU is of one core '
+                  '(two busy cores are 200%). GPU shows where the system '
+                  'lets an app read it, which most phones do not; raster '
+                  'time stands for it then. The box can be dragged.',
+              children: [
+                _SwitchRow(
+                  icon: Icons.speed_rounded,
+                  title: 'Performance numbers',
+                  hint: 'FPS, frame times, CPU, memory, GPU',
+                  value: PerfHud.shown.value,
+                  onChanged: (on) => PerfHud.shown.value = on,
+                ),
+                _SwitchRow(
+                  icon: Icons.stacked_line_chart_rounded,
+                  title: 'Frame graphs',
+                  hint: "Flutter's own, UI and raster threads",
+                  value: PerfHud.graphs.value,
+                  onChanged: (on) => PerfHud.graphs.value = on,
+                ),
               ],
             ),
             if (tweaks.on) ...[

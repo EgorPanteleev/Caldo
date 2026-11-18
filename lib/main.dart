@@ -25,6 +25,7 @@ import 'theme/app_theme.dart';
 import 'theme/tweaks.dart';
 import 'utils/platform.dart';
 import 'widgets/desk.dart';
+import 'widgets/perf_hud.dart';
 import 'widgets/quick_add_bar.dart';
 import 'widgets/theme_switcher.dart';
 import 'widgets/update_banner.dart';
@@ -116,11 +117,12 @@ class CaldoApp extends StatelessWidget {
         ),
       ],
       child: ListenableBuilder(
-        listenable: Tweaks.instance,
+        listenable: Listenable.merge([Tweaks.instance, PerfHud.graphs]),
         builder: (context, _) => Consumer<SettingsProvider>(
           builder: (context, settings, _) => MaterialApp(
             title: 'Caldo',
             debugShowCheckedModeBanner: false,
+            showPerformanceOverlay: PerfHud.graphs.value,
             theme: AppTheme.light(settings.accent),
             darkTheme: AppTheme.dark(settings.accent),
             themeMode: settings.themeMode,
@@ -143,31 +145,35 @@ class CaldoApp extends StatelessWidget {
               // theme the navigation bar stays pure black, and Flutter's own
               // status-bar scrim darkens a band across the top.
               value: _barsOn(Theme.of(context)),
-              child: MediaQuery(
-                data: MediaQuery.of(
-                  context,
-                ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
-                child: ThemeSwitcher(
-                  child: ValueListenableBuilder<Update?>(
-                    valueListenable: Updates.instance.offered,
-                    // An urgent update takes the navigator's place, and
-                    // everything on it goes: the app is not to be used again
-                    // until the update is in, and it starts afresh then.
-                    builder: (context, update, _) =>
-                        update != null && update.urgent
-                        ? UpdateWall(update: update)
-                        : onDesktop
-                        ? DeskScope(
-                            navigator: _navigator,
-                            builder: (context, wide) => DeskKeys(
+              // Settings › Debug's numbers, over everything, the urgent
+              // update's wall included.
+              child: PerfHud(
+                child: MediaQuery(
+                  data: MediaQuery.of(
+                    context,
+                  ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
+                  child: ThemeSwitcher(
+                    child: ValueListenableBuilder<Update?>(
+                      valueListenable: Updates.instance.offered,
+                      // An urgent update takes the navigator's place, and
+                      // everything on it goes: the app is not to be used again
+                      // until the update is in, and it starts afresh then.
+                      builder: (context, update, _) =>
+                          update != null && update.urgent
+                          ? UpdateWall(update: update)
+                          : onDesktop
+                          ? DeskScope(
                               navigator: _navigator,
-                              wide: wide,
-                              // A window too narrow for the desktop's layout is
-                              // the phone's app, at a phone's width.
-                              child: PhoneWide(on: !wide, child: child!),
-                            ),
-                          )
-                        : child!,
+                              builder: (context, wide) => DeskKeys(
+                                navigator: _navigator,
+                                wide: wide,
+                                // A window too narrow for the desktop's layout is
+                                // the phone's app, at a phone's width.
+                                child: PhoneWide(on: !wide, child: child!),
+                              ),
+                            )
+                          : child!,
+                    ),
                   ),
                 ),
               ),
