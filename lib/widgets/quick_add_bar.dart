@@ -876,6 +876,11 @@ class KeyboardGap {
   /// further of the two held the field over them on every closing.
   bool sliding = false;
 
+  /// How Android came by [covered] in a slide — its curve, the share of
+  /// the way left closing each frame, or the report as it stands — for
+  /// the recordings.
+  String how = '';
+
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -884,10 +889,12 @@ class KeyboardGap {
       (value) {
         if (value is num) {
           sliding = false;
+          how = '';
           covered.value = value.toDouble();
         } else if (value is Map) {
           // Before the number, so whoever it wakes reads the two together.
           sliding = value['sliding'] == true;
+          how = (value['how'] as String?) ?? '';
           covered.value = (value['reach'] as num).toDouble();
           raw.value =
               'ime ${(value['ime'] as num).toStringAsFixed(1)} '
