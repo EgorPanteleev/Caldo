@@ -33,7 +33,7 @@ lib/
   services/                reminders, background (isolates), today_widget,
                            device_calendars, updates, backup, sync, account,
                            attachments, file_sync, desktop, sealing,
-                           vault_device
+                           vault_device, recording
   screens/                 home (shell), tasks (Schedule), calendar, board,
                            done, search, task_edit, settings, desk_shell,
                            vault
@@ -48,7 +48,7 @@ Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
 launches, calendars, backups), `PhoneEvents.kt`, `Attachments.kt`,
 `TodayWidget.kt` + `TodayWidgetRuns.kt`, `CaldoApplication.kt`,
 `LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`, `DailySync.kt`,
-`Vault.kt`.
+`Vault.kt`, `ScreenRecord.kt`.
 Linux: `linux/` is Flutter's GTK runner plus the window
 (`runner/my_application.cc`), `sqlite_shim.cc`, icon + desktop entry,
 `install.sh`. No channels on Linux.
@@ -440,6 +440,20 @@ them will be noticed.
   (`PerfHud.graphsDrawn`). Idle
   should read 1 fps and 0 tickers. On the emulator raster time includes
   waiting on the swap (~16.6ms while drawing every frame, ~5 idle).
+- **Screen recording to send on** (Debug › Recording; `Recording`,
+  `RecordingOverlay`, `ScreenRecord.kt` + `RecordService`, a
+  `mediaProjection` foreground service; Android only, greyed with Debug
+  mode off): Android's consent each time, H.264 ≤1920 long side, ≤60fps,
+  no sound, at most 5 min, one kept in `cache/recordings`. Beside it a
+  `.log.jsonl` on the video's clock (`t` ms; `System.nanoTime` at start =
+  Dart's `Timeline.now` = pointer and frame timestamps): touches, every
+  frame's build/raster, the HUD's numbers each second, insets, routes,
+  lifecycle, errors, `debugPrint`, marks. While recording: a ring under
+  each finger and a draggable badge (time, flag = mark, stop). Stop opens
+  the share sheet (`FileProvider` serves `recordings/` too). Read one with
+  `tool/recording.py <log> [--frames s…] [--slow N] [--between a b]`;
+  checked on the emulator: a tap's first video frame came 23ms after its
+  logged time.
 
 ### Reminders
 
@@ -721,7 +735,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 331 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 333 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

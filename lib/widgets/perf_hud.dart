@@ -46,6 +46,18 @@ class PerfHud extends StatelessWidget {
   }
 }
 
+/// The HUD's numbers without the HUD, for a recording's log
+/// (`services/recording.dart`): read once a second as the HUD reads them.
+class PerfReadings {
+  final _probe = _Probe();
+
+  void start() => _probe.start();
+
+  void stop() => _probe.stop();
+
+  Future<Map<String, Object?>> read() async => (await _probe.read()).toJson();
+}
+
 class _Hud extends StatefulWidget {
   const _Hud();
 
@@ -308,6 +320,29 @@ class _Reading {
     required this.threads,
     required this.temp,
   });
+
+  /// Rounded to what is worth reading; frame by frame times are logged
+  /// apart, so the bars are left out.
+  Map<String, Object?> toJson() {
+    double? one(double? v) => v == null ? null : (v * 10).round() / 10;
+    return {
+      'fps': fps,
+      'tickers': tickers,
+      'slow': frames.janky,
+      'buildAvg': one(frames.buildAvg),
+      'buildMax': one(frames.buildMax),
+      'rasterAvg': one(frames.rasterAvg),
+      'rasterMax': one(frames.rasterMax),
+      'cpu': one(cpu),
+      'ui': one(ui),
+      'raster': one(raster),
+      'gpu': one(gpu),
+      'rssMb': rss == null ? null : rss! >> 20,
+      'freeMb': available == null ? null : available! >> 20,
+      'threads': threads,
+      'temp': one(temp),
+    };
+  }
 }
 
 class _FrameStats {

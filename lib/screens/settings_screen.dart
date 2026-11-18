@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +12,7 @@ import '../providers/vault_provider.dart';
 import '../services/account.dart';
 import '../services/backup.dart';
 import '../services/device_calendars.dart';
+import '../services/recording.dart';
 import '../services/reminders.dart';
 import '../services/sync.dart';
 import '../services/updates.dart';

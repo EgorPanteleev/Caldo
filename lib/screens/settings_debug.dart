@@ -102,6 +102,7 @@ class _DebugRows extends StatelessWidget {
                   Opacity(opacity: tweaks.on ? 1 : 0.4, child: row),
               ],
             ),
+            if (Recording.instance.available) _RecordRows(enabled: tweaks.on),
             if (tweaks.on) ...[
               if (dark) ...[
                 side('dark', AppPalette.dark),
@@ -192,6 +193,114 @@ class _DebugRows extends StatelessWidget {
                 ],
               ),
             ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The screen recorded with a log beside it (`Recording`), and the last
+/// one sent on again. Greyed while Debug mode is off, as the numbers are;
+/// a recording already going can still be stopped.
+class _RecordRows extends StatefulWidget {
+  final bool enabled;
+
+  const _RecordRows({required this.enabled});
+
+  @override
+  State<_RecordRows> createState() => _RecordRowsState();
+}
+
+class _RecordRowsState extends State<_RecordRows> {
+  /// The size of what was kept, read along with it.
+  int? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    Recording.instance.kept.addListener(_weigh);
+    Recording.instance.look();
+  }
+
+  @override
+  void dispose() {
+    Recording.instance.kept.removeListener(_weigh);
+    super.dispose();
+  }
+
+  Future<void> _weigh() async {
+    var bytes = 0;
+    for (final path in Recording.instance.kept.value) {
+      try {
+        bytes += await File(path).length();
+      } on FileSystemException {
+        continue;
+      }
+    }
+    if (mounted) setState(() => _bytes = bytes);
+  }
+
+  Future<void> _start() async {
+    final problem = await Recording.instance.start();
+    if (problem != null && mounted) _say(context, 'Could not record: $problem');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recording = Recording.instance;
+    return ListenableBuilder(
+      listenable: Listenable.merge([recording.on, recording.kept]),
+      builder: (context, _) {
+        final on = recording.on.value;
+        final kept = recording.kept.value;
+        final video = kept.where((f) => f.endsWith('.mp4')).firstOrNull;
+        final bytes = _bytes;
+        return _Group(
+          label: 'Recording',
+          footnote:
+              'A video of the screen, at most five minutes, with a log '
+              'beside it on the same clock: every touch, each frame\'s '
+              'build and raster time, the numbers above once a second, '
+              'the keyboard, routes and errors. Android asks first, each '
+              'time; choose the entire screen to keep the keyboard in. '
+              'Stop with the badge or the notification and both files go '
+              'to the share sheet. The flag marks a moment in the log.',
+          children: [
+            Opacity(
+              opacity: widget.enabled || on ? 1 : 0.4,
+              child: _Row(
+                icon: on
+                    ? Icons.stop_circle_outlined
+                    : Icons.fiber_manual_record_outlined,
+                title: on ? 'Stop recording' : 'Record the screen',
+                value: on
+                    ? 'Recording'
+                    : 'Video with touches, frame times, CPU',
+                trailing: const SizedBox.shrink(),
+                onTap: on
+                    ? recording.stop
+                    : widget.enabled
+                    ? _start
+                    : null,
+              ),
+            ),
+            if (!on && video != null)
+              _Row(
+                icon: Icons.ios_share_rounded,
+                title: 'Send the last recording',
+                value: [
+                  video.split('/').last.replaceFirst('.mp4', ''),
+                  if (bytes != null)
+                    '${(bytes / (1 << 20)).toStringAsFixed(1)} MB',
+                ].join('  ·  '),
+                trailing: const SizedBox.shrink(),
+                onTap: () async {
+                  if (!await recording.share() && context.mounted) {
+                    _say(context, 'Nothing to send');
+                  }
+                },
+              ),
           ],
         );
       },

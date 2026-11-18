@@ -75,6 +75,9 @@ class MainActivity : FlutterActivity() {
     /** The vault's fingerprint, screen and clipboard. */
     private val vault by lazy { Vault(this) }
 
+    /** Settings › Debug's screen recording, once Dart has its channel. */
+    private var recording: ScreenRecord? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         useFastestRefreshRate()
@@ -302,6 +305,11 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result -> attachments.call(call, result) }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, VAULT_CHANNEL)
             .setMethodCallHandler { call, result -> vault.call(call, result) }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RECORD_CHANNEL).let { channel ->
+            val recording = ScreenRecord(this, channel)
+            this.recording = recording
+            channel.setMethodCallHandler { call, result -> recording.call(call, result) }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -376,6 +384,7 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (attachments.answered(requestCode, resultCode, data)) return
+        if (recording?.answered(requestCode, resultCode, data) == true) return
         if (requestCode != SAVE_BACKUP && requestCode != OPEN_BACKUP &&
             requestCode != PICK_FOLDER
         ) {
@@ -816,6 +825,7 @@ class MainActivity : FlutterActivity() {
         const val ATTACHMENTS_CHANNEL = "caldo/attachments"
         const val SYNC_CHANNEL = "caldo/sync"
         const val VAULT_CHANNEL = "caldo/vault"
+        const val RECORD_CHANNEL = "caldo/record"
 
         /** What the notification plugin calls the intent on a reminder. */
         const val REMINDER_ACTION = "SELECT_NOTIFICATION"

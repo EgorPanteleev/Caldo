@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What the FileProvider may hand out: the copies attached to tasks. -->
+<!-- What the FileProvider may hand out: the copies attached to tasks, and
+     Settings › Debug's last screen recording with its log (ScreenRecord). -->
 <paths>
     <files-path name="attachments" path="attachments/"/>
+    <cache-path name="recordings" path="recordings/"/>
 </paths>
