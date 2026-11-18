@@ -951,7 +951,8 @@ const barAddKey = Key('bar-add');
 
 /// The plus, a disc in the bar's own grey and edge, so the two read as a
 /// pair at the foot. Plain, as the plus beside the field was: it is pressed
-/// often and looked at rarely. Shadowed, since it floats over the cards.
+/// often and looked at rarely. Frosted as the bar is, and like it without a
+/// shadow, which would show dark through the fill.
 class _AddButton extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
@@ -966,28 +967,31 @@ class _AddButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: S.of(context).newTask,
-      child: Material(
-        key: barAddKey,
-        color: p.panelHi,
-        shape: CircleBorder(
-          side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
-        ),
-        elevation: 6,
-        shadowColor: Colors.black,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap();
-          },
-          onLongPress: () {
-            HapticFeedback.mediumImpact();
-            onLongPress();
-          },
-          customBorder: const CircleBorder(),
-          child: SizedBox.square(
-            dimension: 56,
-            child: Icon(Icons.add_rounded, color: p.text, size: 28),
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
+          child: Material(
+            key: barAddKey,
+            color: p.panelHi.withValues(alpha: 0.6),
+            shape: CircleBorder(
+              side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onTap();
+              },
+              onLongPress: () {
+                HapticFeedback.mediumImpact();
+                onLongPress();
+              },
+              customBorder: const CircleBorder(),
+              child: SizedBox.square(
+                dimension: 56,
+                child: Icon(Icons.add_rounded, color: p.text, size: 28),
+              ),
+            ),
           ),
         ),
       ),
