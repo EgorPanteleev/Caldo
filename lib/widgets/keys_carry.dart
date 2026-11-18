@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer' show Timeline;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
@@ -26,8 +25,8 @@ import 'quick_add_bar.dart';
 ///
 /// So the field is kept here as a picture, taken whenever it changes while
 /// it is up on the keys, and once more before the keys are asked for. For a
-/// slide Android draws that picture, with the ground under it and the fade
-/// above, at the top of the keys, and Flutter leaves its own copy undrawn
+/// slide Android draws that picture at the top of the keys, and Flutter
+/// leaves its own copy undrawn
 /// ([KeyboardGap.carried]); at rest Flutter draws the field again, and the
 /// picture is put away a few frames after — the two in the same place, so
 /// the overlap cannot be seen, where a gap between them would be.
@@ -42,7 +41,7 @@ abstract final class KeysCarry {
   /// for the recordings.
   static final took = ValueNotifier<double>(0);
 
-  /// Hands the picture over, with what it takes to draw it at any lift.
+  /// Hands the picture over, with where the field rests with no keys.
   static void arm(Map<String, Object> picture) {
     _channel.invokeMethod<void>('arm', picture).catchError((_) {});
   }
@@ -78,30 +77,16 @@ abstract interface class FieldCarry {
 }
 
 /// The field in the tab bar's room, pictured for Android to carry on the
-/// keys ([KeysCarry]). [ground] and [fade] are what [FieldInBarRoom] draws
-/// round it at a lift, sent along as a table; [also] is anything else they
-/// follow.
+/// keys ([KeysCarry]).
 class CarriedField extends StatefulWidget {
-  final Color Function(double lift) ground;
-  final double Function(double lift) fade;
-  final Listenable? also;
   final Widget child;
 
-  const CarriedField({
-    super.key,
-    required this.ground,
-    required this.fade,
-    this.also,
-    required this.child,
-  });
+  const CarriedField({super.key, required this.child});
 
   /// The field's carrier, for the field inside it; null outside the bar's
   /// room.
   static FieldCarry? of(BuildContext context) =>
       context.getInheritedWidgetOfExactType<_CarryScope>()?.carry;
-
-  /// How finely the ground and the fade are sampled, in points of lift.
-  static const step = 2.0;
 
   @override
   State<CarriedField> createState() => _CarriedFieldState();
@@ -123,7 +108,7 @@ class _CarriedFieldState extends State<CarriedField> implements FieldCarry {
   bool _armed = false;
 
   /// Whether the field has changed since it was last pictured: painted
-  /// again, moved, or its ground changed.
+  /// again, or moved.
   bool _stale = true;
 
   /// Where the field was last pictured, and its size and scale.
@@ -177,32 +162,19 @@ class _CarriedFieldState extends State<CarriedField> implements FieldCarry {
     super.initState();
     KeyboardGap.instance.changes.addListener(_look);
     KeyboardGap.instance.carried.addListener(_look);
-    widget.also?.addListener(_moved);
-  }
-
-  @override
-  void didUpdateWidget(CarriedField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.also != widget.also) {
-      oldWidget.also?.removeListener(_moved);
-      widget.also?.addListener(_moved);
-    }
   }
 
   @override
   void dispose() {
     KeyboardGap.instance.changes.removeListener(_look);
     KeyboardGap.instance.carried.removeListener(_look);
-    widget.also?.removeListener(_moved);
     _soon?.cancel();
     _release();
     if (_armed) KeysCarry.disarm();
     super.dispose();
   }
 
-  void _painted() => _moved();
-
-  void _moved() {
+  void _painted() {
     _stale = true;
     _look();
   }
@@ -289,15 +261,6 @@ class _CarriedFieldState extends State<CarriedField> implements FieldCarry {
       image.dispose();
       if (bytes == null || !mounted || !_wanted) return;
       final view = MediaQueryData.fromView(View.of(context));
-      final most = view.size.height;
-      final lifts = (most / CarriedField.step).ceil() + 1;
-      final grounds = Int32List(lifts);
-      final fades = Float64List(lifts);
-      for (var i = 0; i < lifts; i++) {
-        final lift = i * CarriedField.step;
-        grounds[i] = widget.ground(lift).toARGB32();
-        fades[i] = widget.fade(lift).clamp(0.0, 1.0);
-      }
       final left = render.localToGlobal(Offset.zero).dx * dpr;
       KeysCarry.arm({
         'picture': bytes.buffer.asUint8List(
@@ -308,14 +271,7 @@ class _CarriedFieldState extends State<CarriedField> implements FieldCarry {
         'height': height,
         'left': left,
         'bottom': bottom,
-        'room': size.height * dpr,
         'reserved': view.viewPadding.bottom * dpr,
-        'fade': GroundFade.height * dpr,
-        'stops': Float64List.fromList(GroundFade.stops),
-        'alphas': Float64List.fromList(GroundFade.alphas),
-        'step': CarriedField.step * dpr,
-        'grounds': grounds,
-        'fades': fades,
       });
       _armed = true;
       _where = where;

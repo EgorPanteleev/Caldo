@@ -439,66 +439,25 @@ class _QuickAddBarState extends State<QuickAddBar> {
 
 /// A screen's add field resting in the tab bar's room, laid over the foot
 /// of a screen that runs on under the bar — Schedule's and the calendar's,
-/// one widget so the two cannot come to differ. Its ground, and the fade
-/// into it of whatever is above, are only there while the field is out on
-/// the keys: left in place they made a slab of the bar's room, and there
-/// was nothing under the bar for its frosting to show.
-///
-/// [ground] is what the field stands on at a lift, and [fade] how much of
-/// the fade to draw there; [also] is anything else they follow. Rebuilt on
-/// every frame of a slide, so it is kept small.
+/// one widget so the two cannot come to differ. It stands on nothing: out
+/// on the keys it stood on a band of the ground under it with a fade above,
+/// and that strip round it was asked off; what the screen has there shows
+/// round the field's own edge.
 class FieldInBarRoom extends StatelessWidget {
-  final Color Function(double lift) ground;
-  final double Function(double lift)? fade;
-  final Listenable? also;
   final Widget child;
 
-  const FieldInBarRoom({
-    super.key,
-    required this.ground,
-    this.fade,
-    this.also,
-    required this.child,
-  });
+  const FieldInBarRoom({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return KeyboardLift(
       // While Android carries the field on the keys, its picture is all
-      // that is drawn of it, and of its ground and fade ([KeysCarry]).
+      // that is drawn of it ([KeysCarry]).
       child: ValueListenableBuilder<bool>(
         valueListenable: KeyboardGap.instance.carried,
         builder: (context, carried, child) =>
             Opacity(opacity: carried ? 0 : 1, child: child),
-        child: ListenableBuilder(
-          listenable: Listenable.merge([KeyboardGap.instance.changes, ?also]),
-          builder: (context, child) {
-            final up = KeyboardGap.up(context);
-            final lift = KeyboardGap.of(context);
-            final under = ground(lift);
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GroundFade(
-                  ground: under,
-                  strength: up ? (fade?.call(lift) ?? 1) : 0,
-                ),
-                // Not a ColoredBox: that takes taps meant for what is
-                // beside the bar.
-                DecoratedBox(
-                  decoration: BoxDecoration(color: up ? under : null),
-                  child: child,
-                ),
-              ],
-            );
-          },
-          child: CarriedField(
-            ground: ground,
-            fade: fade ?? (_) => 1,
-            also: also,
-            child: child,
-          ),
-        ),
+        child: CarriedField(child: child),
       ),
     );
   }
@@ -1546,8 +1505,8 @@ class GroundFade extends StatelessWidget {
   /// each end — the point where it starts and the point where it finishes
   /// both read as lines. These follow a smoothstep instead, so it eases in
   /// and out of the two grounds and no edge is anywhere to be found.
-  static const stops = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0];
-  static const alphas = [0.0, 0.104, 0.352, 0.5, 0.648, 0.896, 1.0];
+  static const _stops = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0];
+  static const _alphas = [0.0, 0.104, 0.352, 0.5, 0.648, 0.896, 1.0];
 
   @override
   Widget build(BuildContext context) {
@@ -1559,9 +1518,9 @@ class GroundFade extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              stops: stops,
+              stops: _stops,
               colors: [
-                for (final a in alphas)
+                for (final a in _alphas)
                   ground.withValues(alpha: a * strength.clamp(0.0, 1.0)),
               ],
             ),

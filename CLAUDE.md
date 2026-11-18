@@ -312,8 +312,8 @@ them will be noticed.
   `showPerformanceOverlay` on a profile build before adding one. **Every screen runs on
   under it** (the shell no longer pads pages): scrolls end with
   `BarRoom.of(context)` of room; Schedule and the calendar rest their
-  field over their foot with one widget (`FieldInBarRoom`), its ground and
-  fade drawn only while the keys are up. The calendar sizes its grid to
+  field over their foot with one widget (`FieldInBarRoom`), standing on
+  nothing. The calendar sizes its grid to
   what the bar leaves; its day panel is taller by the room, opening, the
   month's black runs on under the bar and pushes the day off the screen
   (a grey band under the opened month, and a black cover fading over the
@@ -371,8 +371,8 @@ them will be noticed.
   often as together, so no timing in Dart glued it (2.11.22–2.11.31, the
   clock below, had the numbers within 2pt and the field still visibly off).
   Dart sends a picture of the field (`toImageSync` of a repaint boundary,
-  raw RGBA) whenever it changes while up on the keys, plus a table of its
-  ground and fade by lift; a view over Flutter's draws it at the top of the
+  raw RGBA) whenever it changes while up on the keys, with where it rests;
+  a view over Flutter's draws it at the top of the
   keys from `onProgress`, which Android applies with the keys' own move.
   `onPrepare` puts it up and tells Dart (`carry`); Dart leaves its copy
   undrawn (`KeyboardGap.carried`), draws it again at rest and says `drawn`,
@@ -417,11 +417,13 @@ them will be noticed.
 - **Only `KeyboardLift`, `KeyboardRoom`, `QuickAddBar`'s frame and `FieldInBarRoom` read the inset** (and `CarriedField`, after the frame, for where the field rests).
 - **Long-press the Settings title for keyboard numbers**
   (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
-- **The field's ground and fade follow what is actually under it**
-  (`_groundUnderField`, `_fadeStrength`, `_overGrid`). `GroundFade` (48pt,
-  smoothstep) on Schedule and Calendar; it goes as the month opens while the
-  keyboard is down (`GroundFade.strength`). Schedule pads its end with
-  `KeyboardRoom`.
+- **In the bar's room the field stands on nothing**: up on the keys it had
+  a band of the ground under it (4pt above, 12pt at the sides, 8pt below)
+  and a 48pt fade above, and that strip was asked off (2026-11-18); the screen
+  shows round the field's edge. Without the bar (`foot == 0`, Schedule's
+  `!overBar`) the field still has its ground and fade, following what is
+  under it (`_groundUnderField`, `_fadeStrength`, `_overGrid`; `GroundFade`,
+  48pt, smoothstep). Schedule pads its end with `KeyboardRoom`.
 - **Field and its button are filled `AppPalette.field` with the bar's rim**
   (`BarRoom.rim`); focus shows only the caret. **Quick-add button: plus →
   tick when open**, plain, not gradient. Plus opens the full form.

@@ -3,9 +3,6 @@ package com.igor.caldo
 import android.app.Activity
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Shader
 import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.View
@@ -14,7 +11,6 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.nio.ByteBuffer
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -33,58 +29,23 @@ import kotlin.math.roundToInt
  * So Dart hands over a picture of the field whenever it changes while it is
  * up on the keys, and once more before it asks for them. When a slide is
  * prepared the picture goes up over Flutter's view where the field stands,
- * with the ground it stands on and the fade above it, and from then on is
- * drawn at the top of the keys in each frame; Dart leaves its own field
+ * and from then on is drawn at the top of the keys in each frame; Dart
+ * leaves its own field
  * undrawn. At rest Dart draws its field again and says so ([drawn]), and a
  * few frames later the picture is put away: the two are in the same place,
  * so the overlap cannot be seen, where a gap between them would be.
  */
 class KeysCarry(private val activity: Activity) {
-    /** A picture of the field, and what it takes to draw it at any lift. */
+    /** A picture of the field, and where it rests. */
     private class Arm(
         val picture: Bitmap,
         /** Where the picture's left edge is in Flutter's view, px. */
         val left: Float,
         /** Where the field's room ends at rest, px from the view's top. */
         val bottom: Int,
-        /** How tall the room is, px: the ground is drawn that high. */
-        val room: Float,
         /** The strip at the foot of the window the field never climbs, px. */
         val reserved: Int,
-        /** How far the fade reaches above the room, px, and its shape. */
-        val fade: Float,
-        val stops: FloatArray,
-        val alphas: FloatArray,
-        /** The ground and the fade's strength at every [step] px of lift. */
-        val step: Float,
-        val grounds: IntArray,
-        val fades: FloatArray,
-    ) {
-        fun ground(lift: Int): Int {
-            val (i, t) = at(lift, grounds.size)
-            val a = grounds[i]
-            val b = grounds[min(i + 1, grounds.size - 1)]
-            fun mix(shift: Int): Int {
-                val x = (a ushr shift) and 0xff
-                val y = (b ushr shift) and 0xff
-                return (x + (y - x) * t).roundToInt() shl shift
-            }
-            return mix(24) or mix(16) or mix(8) or mix(0)
-        }
-
-        fun fade(lift: Int): Float {
-            val (i, t) = at(lift, fades.size)
-            val a = fades[i]
-            val b = fades[min(i + 1, fades.size - 1)]
-            return a + (b - a) * t
-        }
-
-        private fun at(lift: Int, size: Int): Pair<Int, Float> {
-            val x = (lift / step).coerceIn(0f, (size - 1).toFloat())
-            val i = x.toInt()
-            return i to (x - i)
-        }
-    }
+    )
 
     /** The picture Dart last handed over, for the next slide. */
     private var armed: Arm? = null
@@ -115,13 +76,12 @@ class KeysCarry(private val activity: Activity) {
     /** Counts parkings, so one called off by the keys coming back is let go. */
     private var parkTurn = 0
 
-    private val groundPaint = Paint()
-    private val fadePaint = Paint()
-
     private val view = object : View(activity) {
         override fun onDraw(canvas: Canvas) {
             val arm = shown ?: return
-            draw(canvas, arm, width.toFloat())
+            // The field alone, its foot on the keys: it stands on nothing.
+            val foot = (arm.bottom - lift).toFloat()
+            canvas.drawBitmap(arm.picture, arm.left, foot - arm.picture.height, null)
         }
 
         // Never in the way of a finger: what is under it is Flutter's.
@@ -168,8 +128,6 @@ class KeysCarry(private val activity: Activity) {
         val height = call.argument<Int>("height") ?: return null
         if (width <= 0 || height <= 0 || bytes.size != width * height * 4) return null
         fun number(key: String) = call.argument<Number>(key)?.toFloat() ?: 0f
-        fun floats(key: String) =
-            call.argument<DoubleArray>(key)?.let { d -> FloatArray(d.size) { d[it].toFloat() } }
         // Dart's raw RGBA is premultiplied, as a bitmap's own pixels are,
         // and in the same order of bytes.
         val picture = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -180,14 +138,7 @@ class KeysCarry(private val activity: Activity) {
             picture = picture,
             left = number("left"),
             bottom = number("bottom").roundToInt(),
-            room = number("room"),
             reserved = number("reserved").roundToInt(),
-            fade = number("fade"),
-            stops = floats("stops") ?: return null,
-            alphas = floats("alphas") ?: return null,
-            step = number("step").coerceAtLeast(0.01f),
-            grounds = call.argument<IntArray>("grounds") ?: return null,
-            fades = floats("fades") ?: return null,
         )
     }
 
@@ -329,35 +280,8 @@ class KeysCarry(private val activity: Activity) {
      */
     fun covers(keys: Int): Int {
         val arm = shown?.takeIf { !parked } ?: return 0
-        val top = arm.bottom - max(highest, liftOf(arm, keys)) - arm.room - arm.fade
-        return (view.height - top).roundToInt().coerceAtLeast(0)
-    }
-
-    /** The fade, the ground and the field, as Dart's [FieldInBarRoom]. */
-    private fun draw(canvas: Canvas, arm: Arm, width: Float) {
-        val foot = (arm.bottom - lift).toFloat()
-        val top = foot - arm.room
-        val ground = arm.ground(lift)
-        val strength = arm.fade(lift).coerceIn(0f, 1f)
-        if (strength > 0f && arm.fade > 0f) {
-            val rgb = ground and 0xffffff
-            val colors = IntArray(arm.alphas.size) { i ->
-                ((arm.alphas[i] * strength * 255).roundToInt().coerceIn(0, 255) shl 24) or rgb
-            }
-            fadePaint.shader = LinearGradient(
-                0f,
-                top - arm.fade,
-                0f,
-                top,
-                colors,
-                arm.stops,
-                Shader.TileMode.CLAMP,
-            )
-            canvas.drawRect(0f, top - arm.fade, width, top, fadePaint)
-        }
-        groundPaint.color = ground
-        canvas.drawRect(0f, top, width, foot, groundPaint)
-        canvas.drawBitmap(arm.picture, arm.left, foot - arm.picture.height, null)
+        val top = arm.bottom - max(highest, liftOf(arm, keys)) - arm.picture.height
+        return (view.height - top).coerceAtLeast(0)
     }
 
     private companion object {

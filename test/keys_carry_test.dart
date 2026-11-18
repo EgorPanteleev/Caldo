@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import 'package:caldo/widgets/keys_carry.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
@@ -22,7 +21,6 @@ Widget _harness({void Function(BuildContext)? onField}) => MediaQuery(
     child: Align(
       alignment: Alignment.bottomCenter,
       child: FieldInBarRoom(
-        ground: (lift) => lift > 100 ? Colors.black : Colors.grey,
         child: Builder(
           builder: (context) {
             onField?.call(context);
@@ -84,6 +82,17 @@ void main() {
     KeyboardGap.instance.take(_rest(300));
     await tester.pumpWidget(_harness());
     expect(_opacityOver(tester), 1);
+    // Up on the keys it stands on no band of ground, and has no fade over
+    // it: that strip round the field was asked off.
+    final room = find.byType(FieldInBarRoom);
+    expect(
+      find.descendant(of: room, matching: find.byType(GroundFade)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: room, matching: find.byType(DecoratedBox)),
+      findsNothing,
+    );
 
     // Android puts its picture up and moves it with the keys: Flutter's
     // own copy would be a frame off it, so it is not drawn.
@@ -152,8 +161,7 @@ void main() {
     final args = arm.arguments as Map;
     final width = args['width'] as int;
     final height = args['height'] as int;
-    // Room round the field as FieldInBarRoom lays it out: the picture is of
-    // the field alone, the ground and fade sent as a table to draw it on.
+    // The field alone: it stands on nothing.
     expect(width, 400 * 3);
     expect(height, 60 * 3);
     expect((args['picture'] as Uint8List).length, width * height * 4);
@@ -162,10 +170,6 @@ void main() {
     // never climbs sent along.
     expect(args['bottom'], closeTo(800 * 3, 0.01));
     expect(args['reserved'], 15 * 3);
-    final grounds = args['grounds'] as Int32List;
-    expect(grounds.first, Colors.grey.toARGB32().toSigned(32));
-    expect(grounds.last, Colors.black.toARGB32().toSigned(32));
-
     // Keys gone, the picture is taken back: nothing else's keys carry it.
     _calls.clear();
     KeyboardGap.instance.take(_rest(0));

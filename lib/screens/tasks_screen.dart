@@ -290,10 +290,7 @@ class _TasksScreenState extends State<TasksScreen> {
                           left: 0,
                           right: 0,
                           bottom: 0,
-                          child: FieldInBarRoom(
-                            ground: (_) => p.bg,
-                            child: field,
-                          ),
+                          child: FieldInBarRoom(child: field),
                         )
                       else
                         // The fade goes up with the field it belongs to; left

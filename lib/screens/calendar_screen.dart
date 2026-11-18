@@ -1396,19 +1396,13 @@ class _CalendarScreenState extends State<CalendarScreen>
                       ),
                       // With the tab bar, the field rests in the bar's room
                       // over the foot of the day, which runs on under the bar
-                      // — the same as on Schedule. Its ground is whatever it
-                      // is over: see _groundUnderField.
+                      // — the same as on Schedule — and stands on nothing.
                       if (foot > 0)
                         Positioned(
                           left: 0,
                           right: 0,
                           bottom: 0,
-                          child: FieldInBarRoom(
-                            ground: (lift) => _groundUnderField(p, lift),
-                            fade: _fadeStrength,
-                            also: _expansion,
-                            child: field,
-                          ),
+                          child: FieldInBarRoom(child: field),
                         )
                       else
                         // Whatever is above the field fades into it rather than
