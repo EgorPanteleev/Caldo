@@ -291,7 +291,7 @@ class _Problem extends StatelessWidget {
       child: Text(
         text!,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: AppColors.overdue),
+        style: TextStyle(color: AppColors.overdue),
       ),
     );
   }

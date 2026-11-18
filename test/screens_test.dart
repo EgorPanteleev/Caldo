@@ -9,7 +9,9 @@ import 'package:caldo/screens/home_screen.dart';
 import 'package:caldo/screens/search_screen.dart';
 import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
+import 'package:caldo/services/account.dart';
 import 'package:caldo/theme/app_theme.dart';
+import 'package:caldo/theme/tweaks.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
 import 'package:caldo/widgets/day_hours.dart';
@@ -199,6 +201,32 @@ void main() {
     await tester.scrollUntilVisible(find.text('ABOUT'), 100);
     expect(find.text('ABOUT'), findsOneWidget);
     expect(find.text('Never saved'), findsOneWidget);
+  });
+
+  testWidgets('Debug is on the list for an admin only, and opens', (
+    tester,
+  ) async {
+    addTearDown(() {
+      Account.instance.admin.value = false;
+      Tweaks.instance.clear();
+    });
+    await pumpScreen(tester, const SettingsScreen(), size: narrow);
+    expect(find.text('Debug'), findsNothing);
+
+    Account.instance.admin.value = true;
+    await tester.pump();
+    await tester.scrollUntilVisible(find.text('Debug'), 100);
+    await tester.tap(find.text('Debug'));
+    await tester.pumpAndSettle();
+
+    // Off, the colours are out of the way; on, every one of them is there,
+    // on a small phone so an overflow fails.
+    expect(find.text('Ground'), findsNothing);
+    await tester.runAsync(() => Tweaks.instance.setOn(true));
+    await tester.pumpAndSettle();
+    expect(find.text('Ground'), findsNWidgets(2));
+    await tester.scrollUntilVisible(find.text('Reset everything'), 200);
+    expect(find.text('Day chips, opened month'), findsOneWidget);
   });
 
   testWidgets('a screen switched off in settings leaves the tab bar', (

@@ -381,6 +381,15 @@ them will be noticed.
   (`_barsOn`); neutral greys (no blue tint); raised greys lifted with it.
 - **Controls are neutral; accent is rare**: switches, Undo, update banner, a
   touched clock wheel, colour pickers. Tasks wear their own colour.
+- **Settings › Debug, an admin's only** (`Tweaks`, `theme/tweaks.dart`,
+  `settings_debug.dart`, a `part` of the settings screen; English only):
+  every `AppPalette` colour per theme, the accent's three, the four signals
+  (`AppColors.danger/overdue/weekend/holiday` are getters for it) and card,
+  done-card and day-chip ink as multipliers. Shown live while a colour is
+  picked, kept on Save; in force only while its switch is on; device-only
+  (prefs `debug_tweaks`, not in backups); signing out turns it off. Copy
+  changes hands them over as JSON to be built in. Keyboard numbers have a
+  switch there too. Native surfaces (widget, reminder cover) don't follow.
 
 ### Reminders
 
@@ -662,7 +671,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 327 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 331 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

@@ -476,10 +476,7 @@ class _GroupSheetState extends State<_GroupSheet> {
                 ),
                 if (deletable)
                   IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.danger,
-                    ),
+                    icon: Icon(Icons.delete_outline, color: AppColors.danger),
                     tooltip: s.delete,
                     onPressed: _delete,
                   ),

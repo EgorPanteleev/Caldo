@@ -285,7 +285,7 @@ class SideItem extends StatelessWidget {
                     ),
                     child: Text(
                       '$badge',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.overdue,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,

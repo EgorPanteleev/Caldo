@@ -6,6 +6,7 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart' show dayOf;
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
+import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import 'quick_add_bar.dart' show BarRoom;
 import 'task_card.dart';
@@ -313,7 +314,7 @@ class _DayHoursState extends State<DayHours> {
                               Container(
                                 width: 8,
                                 height: 8,
-                                decoration: const BoxDecoration(
+                                decoration: BoxDecoration(
                                   color: AppColors.overdue,
                                   shape: BoxShape.circle,
                                 ),
@@ -387,7 +388,9 @@ class _BlockView extends StatelessWidget {
         : '${Dates.time(from, h24: h24)} – ${Dates.time(to, h24: h24)}';
     final tall = (block.end - block.start) >= 45;
     return Material(
-      color: colour.withValues(alpha: done ? 0.05 : 0.25),
+      color: colour.withValues(
+        alpha: done ? 0.05 * Tweaks.doneInk : 0.25 * Tweaks.cardInk,
+      ),
       borderRadius: BorderRadius.circular(6),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

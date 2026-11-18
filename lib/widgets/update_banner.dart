@@ -447,7 +447,7 @@ class _Important extends StatelessWidget {
       ),
       child: Text(
         S.of(context).updateImportant,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.overdue,
           fontSize: 11,
           fontWeight: FontWeight.w700,

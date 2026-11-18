@@ -10,6 +10,7 @@ import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart' show dayOf;
 import '../theme/app_theme.dart';
+import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import 'desk.dart';
 
@@ -1145,7 +1146,12 @@ typedef DayEntry = ({String label, Color color, bool done, Task? task});
 /// Out here rather than buried in the widget so a test can say "this chip is
 /// wearing the task's own colour" without also pinning how deep the ink is.
 Color dayChipColour(Color colour, Color ground, {bool done = false}) =>
-    Color.alphaBlend(colour.withValues(alpha: done ? 0.14 : 0.42), ground);
+    Color.alphaBlend(
+      colour.withValues(
+        alpha: ((done ? 0.14 : 0.42) * Tweaks.chipInk).clamp(0.0, 1.0),
+      ),
+      ground,
+    );
 
 /// A day's entries written out, as many as the opened cell has room for.
 class _DayTitles extends StatelessWidget {

@@ -476,7 +476,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         actions: [
           if (isEdit)
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+              icon: Icon(Icons.delete_outline, color: AppColors.danger),
               tooltip: s.delete,
               onPressed: _delete,
             ),

@@ -11,6 +11,7 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
+import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import 'attachments_field.dart' show AttachmentMark;
@@ -180,7 +181,9 @@ class TaskCard extends StatelessWidget {
               // A done task sinks most of the way back into the ground rather
               // than keeping its place in the run.
               color: color.withValues(
-                alpha: faded ? 0.07 : (picked ? 0.34 : 0.24),
+                alpha: faded
+                    ? 0.07 * Tweaks.doneInk
+                    : (picked ? 0.34 : 0.24) * Tweaks.cardInk,
               ),
               borderRadius: BorderRadius.circular(TaskCard.radius),
               // A picked-out card is lit in its own colour: a soft glow

@@ -261,7 +261,7 @@ class _Body extends StatelessWidget {
             field,
             if (problem != null) ...[
               const SizedBox(height: 8),
-              Text(problem!, style: const TextStyle(color: AppColors.overdue)),
+              Text(problem!, style: TextStyle(color: AppColors.overdue)),
             ],
             const SizedBox(height: 14),
             Row(

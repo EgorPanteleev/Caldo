@@ -14,6 +14,7 @@ import '../services/reminders.dart';
 import '../services/sync.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
+import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import '../widgets/choice_sheet.dart';
@@ -26,6 +27,8 @@ import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/theme_switcher.dart';
 import '../widgets/update_banner.dart' show showUpdateSheet;
 import 'home_screen.dart' show screenItems;
+
+part 'settings_debug.dart';
 
 /// Appearance, calendar and task preferences. Everything here applies
 /// immediately — there is nothing to save.
@@ -65,11 +68,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     Account.instance.email.addListener(_changed);
+    Account.instance.admin.addListener(_changed);
+    Tweaks.instance.addListener(_changed);
   }
 
   @override
   void dispose() {
     Account.instance.email.removeListener(_changed);
+    Account.instance.admin.removeListener(_changed);
+    Tweaks.instance.removeListener(_changed);
     super.dispose();
   }
 
@@ -138,6 +145,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
       rows: _backup,
     ),
+    // An admin's only, last; English only, as debugging is.
+    if (Account.instance.admin.value)
+      (
+        icon: Icons.bug_report_outlined,
+        title: (_) => 'Debug',
+        value: _debugValue(),
+        rows: _debug,
+      ),
   ];
 
   void _open(_Entry entry) {
@@ -195,6 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         _Group(children: [for (var i = 0; i < 6; i++) row(i)]),
         _Group(children: [row(6), row(7)]),
+        if (entries.length > 8) _Group(children: [row(8)]),
         // The update row only when there is one, so no hairline is drawn
         // under the version for nothing.
         ValueListenableBuilder<Update?>(
@@ -214,7 +230,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (!wide) return Scaffold(body: list);
 
-    final page = entries[_page];
+    // The page beside the list may have gone with the admin's rights.
+    final page = entries[_page < entries.length ? _page : 0];
     return Scaffold(
       body: Row(
         children: [

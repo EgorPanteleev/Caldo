@@ -197,7 +197,7 @@ class _Foot extends StatelessWidget {
                   onPressed: onLeft,
                   child: Text(
                     left,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.overdue,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -627,7 +627,7 @@ class _SecretFormState extends State<_SecretForm> {
             ),
             if (_problem != null) ...[
               const SizedBox(height: 8),
-              Text(_problem!, style: const TextStyle(color: AppColors.overdue)),
+              Text(_problem!, style: TextStyle(color: AppColors.overdue)),
             ],
             const SizedBox(height: 14),
             _busy
@@ -961,7 +961,7 @@ class _ChangePasswordState extends State<_ChangePassword> {
             ),
             if (_problem != null) ...[
               const SizedBox(height: 8),
-              Text(_problem!, style: const TextStyle(color: AppColors.overdue)),
+              Text(_problem!, style: TextStyle(color: AppColors.overdue)),
             ],
             const SizedBox(height: 14),
             _busy
@@ -1050,7 +1050,7 @@ class _OtherPasswordState extends State<_OtherPassword> {
             ),
             if (_problem != null) ...[
               const SizedBox(height: 8),
-              Text(_problem!, style: const TextStyle(color: AppColors.overdue)),
+              Text(_problem!, style: TextStyle(color: AppColors.overdue)),
             ],
             const SizedBox(height: 14),
             _busy

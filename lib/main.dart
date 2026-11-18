@@ -22,6 +22,7 @@ import 'services/sync.dart';
 import 'services/today_widget.dart';
 import 'services/updates.dart';
 import 'theme/app_theme.dart';
+import 'theme/tweaks.dart';
 import 'utils/platform.dart';
 import 'widgets/desk.dart';
 import 'widgets/quick_add_bar.dart';
@@ -69,6 +70,9 @@ void main() async {
   // not open on Schedule and swap a frame later. It is one small read, and
   // the provider reads the rest for itself once it is up.
   final start = await SettingsProvider.storedStartScreen();
+  // An admin's colours, for the same reason: the first frame in them, not
+  // in stock ones a moment before.
+  await Tweaks.instance.load();
   runApp(CaldoApp(start: start));
 }
 
@@ -111,64 +115,67 @@ class CaldoApp extends StatelessWidget {
             ),
         ),
       ],
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, _) => MaterialApp(
-          title: 'Caldo',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light(settings.accent),
-          darkTheme: AppTheme.dark(settings.accent),
-          themeMode: settings.themeMode,
-          locale: settings.locale,
-          supportedLocales: S.supported,
-          localizationsDelegates: const [
-            S.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          // Theme changes apply instantly; ThemeSwitcher animates the switch
-          // as a cross-fade for a perfectly smooth transition.
-          themeAnimationDuration: Duration.zero,
-          scrollBehavior: onDesktop ? const DesktopScrolling() : null,
-          // The clock Settings names goes in where every widget can read it,
-          // and where reading it has the widget redrawn when it changes.
-          builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-            // The system bars wear the app's ground: left to the window's
-            // theme the navigation bar stays pure black, and Flutter's own
-            // status-bar scrim darkens a band across the top.
-            value: _barsOn(Theme.of(context)),
-            child: MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
-              child: ThemeSwitcher(
-                child: ValueListenableBuilder<Update?>(
-                  valueListenable: Updates.instance.offered,
-                  // An urgent update takes the navigator's place, and
-                  // everything on it goes: the app is not to be used again
-                  // until the update is in, and it starts afresh then.
-                  builder: (context, update, _) =>
-                      update != null && update.urgent
-                      ? UpdateWall(update: update)
-                      : onDesktop
-                      ? DeskScope(
-                          navigator: _navigator,
-                          builder: (context, wide) => DeskKeys(
+      child: ListenableBuilder(
+        listenable: Tweaks.instance,
+        builder: (context, _) => Consumer<SettingsProvider>(
+          builder: (context, settings, _) => MaterialApp(
+            title: 'Caldo',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light(settings.accent),
+            darkTheme: AppTheme.dark(settings.accent),
+            themeMode: settings.themeMode,
+            locale: settings.locale,
+            supportedLocales: S.supported,
+            localizationsDelegates: const [
+              S.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            // Theme changes apply instantly; ThemeSwitcher animates the switch
+            // as a cross-fade for a perfectly smooth transition.
+            themeAnimationDuration: Duration.zero,
+            scrollBehavior: onDesktop ? const DesktopScrolling() : null,
+            // The clock Settings names goes in where every widget can read it,
+            // and where reading it has the widget redrawn when it changes.
+            builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+              // The system bars wear the app's ground: left to the window's
+              // theme the navigation bar stays pure black, and Flutter's own
+              // status-bar scrim darkens a band across the top.
+              value: _barsOn(Theme.of(context)),
+              child: MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
+                child: ThemeSwitcher(
+                  child: ValueListenableBuilder<Update?>(
+                    valueListenable: Updates.instance.offered,
+                    // An urgent update takes the navigator's place, and
+                    // everything on it goes: the app is not to be used again
+                    // until the update is in, and it starts afresh then.
+                    builder: (context, update, _) =>
+                        update != null && update.urgent
+                        ? UpdateWall(update: update)
+                        : onDesktop
+                        ? DeskScope(
                             navigator: _navigator,
-                            wide: wide,
-                            // A window too narrow for the desktop's layout is
-                            // the phone's app, at a phone's width.
-                            child: PhoneWide(on: !wide, child: child!),
-                          ),
-                        )
-                      : child!,
+                            builder: (context, wide) => DeskKeys(
+                              navigator: _navigator,
+                              wide: wide,
+                              // A window too narrow for the desktop's layout is
+                              // the phone's app, at a phone's width.
+                              child: PhoneWide(on: !wide, child: child!),
+                            ),
+                          )
+                        : child!,
+                  ),
                 ),
               ),
             ),
+            navigatorObservers: [if (onDesktop) DeskScope.observer],
+            navigatorKey: _navigator,
+            home: HomeScreen(start: start),
           ),
-          navigatorObservers: [if (onDesktop) DeskScope.observer],
-          navigatorKey: _navigator,
-          home: HomeScreen(start: start),
         ),
       ),
     );

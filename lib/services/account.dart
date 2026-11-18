@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase/supabase.dart';
 
 import '../db/sync_store.dart';
+import '../theme/tweaks.dart';
 import '../utils/platform.dart';
 import 'file_sync.dart';
 import 'sync.dart';
@@ -215,6 +216,7 @@ class Account {
       await prefs.remove(_sessionKey);
       email.value = null;
       admin.value = false;
+      await Tweaks.instance.setOn(false);
       await _stopListening();
       await _book(false);
       return;
@@ -332,6 +334,8 @@ class Account {
     await prefs.remove(_sessionKey);
     email.value = null;
     admin.value = false;
+    // An admin's colours are an admin's: they go with the account.
+    await Tweaks.instance.setOn(false);
     await _stopListening();
     await _book(false);
   }

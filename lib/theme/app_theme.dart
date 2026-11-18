@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'tweaks.dart';
+
 /// Obsidian-inspired palette: refined charcoal surfaces, thin borders,
 /// muted text, and a violet→indigo accent.
 ///
@@ -15,7 +17,9 @@ class AppColors {
   // which was asked off as too stark. Everything above it is a raised grey,
   // lifted with it so the steps between them stay as they were.
   static const darkBg = Color(0xFF111112); // app background / content
-  static const darkSidebar = Color(0xFF17171A); // the menu, lifted off the ground
+  static const darkSidebar = Color(
+    0xFF17171A,
+  ); // the menu, lifted off the ground
   static const darkPanel = Color(0xFF1C1C1F); // cards / fields
   static const darkPanelHi = Color(0xFF26262A); // hovered / elevated
   static const darkField = Color(0xFF2C2C31); // the quick-add row, on black
@@ -36,13 +40,27 @@ class AppColors {
 
   static const lightText = Color(0xFF18181B);
 
-  /// Shared semantic colours that do not change with the accent.
-  static const danger = Color(0xFFE5686B);
-  static const overdue = Color(0xFFE05252);
+  /// Shared semantic colours that do not change with the accent. Getters
+  /// rather than constants so an admin can try others (`Tweaks`).
+  static Color get danger => Tweaks.instance.colour('danger') ?? _danger;
+  static Color get overdue => Tweaks.instance.colour('overdue') ?? _overdue;
 
   /// Saturdays, Sundays and public holidays in the calendar.
-  static const weekend = Color(0xFFE06C75);
-  static const holiday = Color(0xFF35A06A);
+  static Color get weekend => Tweaks.instance.colour('weekend') ?? _weekend;
+  static Color get holiday => Tweaks.instance.colour('holiday') ?? _holiday;
+
+  static const _danger = Color(0xFFE5686B);
+  static const _overdue = Color(0xFFE05252);
+  static const _weekend = Color(0xFFE06C75);
+  static const _holiday = Color(0xFF35A06A);
+
+  /// The four as shipped, for the page that sets them.
+  static const signals = <(String, String, Color)>[
+    ('danger', 'Danger', _danger),
+    ('overdue', 'Overdue', _overdue),
+    ('weekend', 'Sunday', _weekend),
+    ('holiday', 'Holiday', _holiday),
+  ];
 }
 
 /// Extra semantic colors resolved per-brightness, exposed via [AppTheme.of].
@@ -271,10 +289,16 @@ class AppTheme {
       Theme.of(context).extension<AccentColors>() ??
       AccentColors.from(AppAccent.presets.first);
 
-  static ThemeData dark(AppAccent accent) =>
-      _build(Brightness.dark, AppPalette.dark, accent);
-  static ThemeData light(AppAccent accent) =>
-      _build(Brightness.light, AppPalette.light, accent);
+  static ThemeData dark(AppAccent accent) => _build(
+    Brightness.dark,
+    Tweaks.instance.applyTo(AppPalette.dark, 'dark'),
+    Tweaks.instance.applyToAccent(accent),
+  );
+  static ThemeData light(AppAccent accent) => _build(
+    Brightness.light,
+    Tweaks.instance.applyTo(AppPalette.light, 'light'),
+    Tweaks.instance.applyToAccent(accent),
+  );
 
   static ThemeData _build(
     Brightness brightness,
