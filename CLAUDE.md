@@ -113,7 +113,7 @@ them will be noticed.
 - **Header**: controls row on top (Search, Today), month name alone
   below, `Sep` centred, year only if not current. No chevrons on the phone.
   Today's button shows today's date on a page.
-- **Grid black, day panel grey** (`calendar` vs `panel`); the day bar takes the
+- **Grid on the ground, day panel a raised grey** (`calendar` vs `panel`); the day bar takes the
   panel's grey.
 
 ### Calendar pagers and day panel
@@ -376,7 +376,9 @@ them will be noticed.
 ### Look
 
 - **Platform font**, not Inter/google_fonts.
-- **True black ground; neutral greys** (no blue tint); raised greys above.
+- **Near-black ground (`#111112`), not true black** (asked off as too stark),
+  shared by the calendar, widget, reminder cover and system bars
+  (`_barsOn`); neutral greys (no blue tint); raised greys lifted with it.
 - **Controls are neutral; accent is rare**: switches, Undo, update banner, a
   touched clock wheel, colour pickers. Tasks wear their own colour.
 
