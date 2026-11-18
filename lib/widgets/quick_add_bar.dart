@@ -445,14 +445,15 @@ class _QuickAddBarState extends State<QuickAddBar> {
 /// with a fade above, which was asked off; then on the tab bar's blur, which
 /// was asked to be this instead. The strip was the ground at first, and
 /// faded all the way to the keys, so what showed above the field was too
-/// faint to see.
+/// faint to see; then it rose over 24pt, too short to read as a fade.
 class FieldInBarRoom extends StatelessWidget {
   final Widget child;
 
   const FieldInBarRoom({super.key, required this.child});
 
-  /// How far above the field the strip reaches: as far as the tab bar's.
-  static const strip = 24.0;
+  /// How far above the field the strip reaches: far enough that it reads
+  /// as a fade, not a band.
+  static const strip = 64.0;
 
   /// How much of the field's grey the strip comes to at the field's top.
   static const _most = 0.6;

@@ -423,9 +423,9 @@ them will be noticed.
   then asked blurred 0→1.5 (the bar's `FadingBlur`), then asked not blurry
   but "transparent from 100 to 80", then "to 40", in the field's grey
   (`p.field`, asked for; it was `p.bg`): clear `FieldInBarRoom.strip`
-  (24pt) above the field, 60% by its top edge and held behind it — faded
+  (64pt) above the field, 60% by its top edge and held behind it — faded
   all the way to the keys, what showed above the field was ~10% and
-  couldn't be seen. A plain tint, so it is in the
+  couldn't be seen; over 24pt it read as a flat band. A plain tint, so it is in the
   picture Android carries (`CarriedField.above`) and rides the keys with
   the field. Without the bar (`foot == 0`, Schedule's `!overBar`) the field
   still has its ground and fade, following what is under it
