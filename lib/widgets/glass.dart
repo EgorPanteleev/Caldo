@@ -1,43 +1,54 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' show FragmentProgram, ImageFilter;
 
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import 'desk.dart';
 
-/// A strip blurred more and more across its height: not at all at one
-/// edge, [most] at the other, and held at [most] for the last [hold] of it.
+/// A strip blurred more and more across its height, from [least] at one
+/// edge to [most] at the other, and held at [most] for the last [hold] of
+/// it, in [steps] bands of plain blur side by side.
 ///
 /// A blur can't be faded in by a gradient (masked, a blur drew nothing at
-/// all here). So it is [_steps] thin bands of plain blur side by side, each
-/// a little stronger than the one before, too little to see where one
-/// meets the next. The bands read one copy of the screen between them
-/// ([BackdropGroup]), so each blurs what is really under it, for one read.
-///
-/// A shader blurring each row by its own amount came before, across and
-/// then down as two filters. On the phone the second read the screen as it
-/// was rather than what the first had made of it, so only one direction
-/// ever showed: unseen under the tab bar, streaks under a screen's head.
+/// all here); hence bands. They read one copy of the screen between them
+/// ([BackdropGroup]), so each blurs what is really under it. Each band is
+/// a blur of its own, and they are what this costs: sixteen of them under
+/// a head and sixteen under the tab bar dropped frames. Few bands show
+/// their edges where the blur is light and type can still be read, so a
+/// strip that starts from none starts with a [FadingBlur] below [least].
 class GradedBlur extends StatelessWidget {
   /// The blur's sigma at its strongest.
   final double most;
 
-  /// Whether it is clear at the top and strongest at the foot, or the other
-  /// way up.
+  /// The blur's sigma at its lightest; none if zero.
+  final double least;
+
+  /// Whether it is lightest at the top and strongest at the foot, or the
+  /// other way up.
   final bool downwards;
 
   /// How much of the strip, at its strong end, is at [most] throughout.
   final double hold;
 
+  /// How many bands the blur grows in.
+  final int steps;
+
   const GradedBlur({
     super.key,
     required this.most,
+    this.least = 0,
     this.downwards = true,
     this.hold = 0,
+    this.steps = 4,
   });
 
-  static const _steps = 16;
+  /// The blur of the [i]th band from the light end: from [least], each a
+  /// like part stronger than the last, which is how a change of blur is
+  /// seen; eased in from nothing, when that is where it starts.
+  double _sigma(int i) => least > 0
+      ? least * math.pow(most / least, (i + 1) / (steps + 1))
+      : most * math.pow((i + 0.5) / steps, 2);
 
   @override
   Widget build(BuildContext context) {
@@ -59,21 +70,104 @@ class GradedBlur extends StatelessWidget {
           builder: (context, box) {
             final whole = box.maxHeight;
             final held = math.min(hold, whole);
-            final step = (whole - held) / _steps;
+            final step = (whole - held) / steps;
             return Stack(
               children: [
                 if (held > 0) band(downwards ? whole - held : 0, held, most),
-                for (var i = 0; i < _steps; i++)
+                for (var i = 0; i < steps; i++)
                   band(
                     downwards ? i * step : whole - (i + 1) * step,
                     step,
-                    // Eased in, so the first bands are too faint to be
-                    // told from what is outside the strip.
-                    most * math.pow((i + 0.5) / _steps, 2),
+                    _sigma(i),
                   ),
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// A light blur growing from none at one edge of a strip to [most] at the
+/// other, in one pass of a shader (`shaders/fading_blur.frag`) that blurs
+/// each row by its own amount, so it has no steps at all. It blurs up and
+/// down only: a second pass across, after it, read the screen as it was
+/// rather than what this one made of it, and never showed. Too light to
+/// see that here; a strong one smeared type into streaks. A renderer
+/// without shader filters (the desktop's) gets [GradedBlur]'s bands.
+class FadingBlur extends StatefulWidget {
+  /// The blur's sigma at its strongest.
+  final double most;
+
+  /// Whether it is clear at the top and strongest at the foot, or the other
+  /// way up.
+  final bool downwards;
+
+  const FadingBlur({super.key, required this.most, this.downwards = true});
+
+  static Future<FragmentProgram>? _loading;
+  static FragmentProgram? _program;
+
+  @override
+  State<FadingBlur> createState() => _FadingBlurState();
+}
+
+class _FadingBlurState extends State<FadingBlur> {
+  @override
+  void initState() {
+    super.initState();
+    if (FadingBlur._program == null && ImageFilter.isShaderFilterSupported) {
+      (FadingBlur._loading ??= FragmentProgram.fromAsset(
+        'shaders/fading_blur.frag',
+      )).then((program) {
+        FadingBlur._program = program;
+        if (mounted) setState(() {});
+      }, onError: (_) {});
+    }
+  }
+
+  /// Where the strip is on the screen, in pixels: the shader is handed the
+  /// screen's coordinates, not the strip's. Read after each layout.
+  double _top = 0, _foot = 0;
+
+  void _place(Duration _) {
+    if (!mounted) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final top = box.localToGlobal(Offset.zero).dy * ratio;
+    final foot = top + box.size.height * ratio;
+    if (top != _top || foot != _foot) {
+      setState(() {
+        _top = top;
+        _foot = foot;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!ImageFilter.isShaderFilterSupported) {
+      return GradedBlur(
+        most: widget.most,
+        downwards: widget.downwards,
+        steps: 8,
+      );
+    }
+    final program = FadingBlur._program;
+    if (program != null) WidgetsBinding.instance.addPostFrameCallback(_place);
+    // Nothing until the shader is in and it is known where the strip is.
+    if (program == null || _foot <= _top) return const SizedBox.expand();
+    final shader = program.fragmentShader()
+      ..setFloat(2, widget.most * MediaQuery.devicePixelRatioOf(context))
+      ..setFloat(3, widget.downwards ? _top : _foot)
+      ..setFloat(4, widget.downwards ? _foot : _top);
+    return IgnorePointer(
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.shader(shader),
+          child: const SizedBox.expand(),
         ),
       ),
     );
@@ -210,9 +304,14 @@ class _UnderHead extends BoxConstraints {
 }
 
 /// The glass itself: a full blur down to [GlassTop.leadOf] above the head's
-/// foot, then thinning to none at it, with the ground laid over in step.
+/// foot, then thinning to none at it — in a few bands while it is strong,
+/// then smoothly ([FadingBlur]) while it is light enough for steps to show
+/// — with the ground laid over in step.
 class _Glass extends StatelessWidget {
   const _Glass();
+
+  /// Where the bands hand over to the smooth part.
+  static const _light = 2.0;
 
   @override
   Widget build(BuildContext context) {
@@ -221,15 +320,28 @@ class _Glass extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final height = box.maxHeight;
-          final full = math.max(0.0, height - GlassTop.leadOf(height));
+          final lead = math.min(height, GlassTop.leadOf(height));
+          final full = height - lead;
           return Stack(
             children: [
-              Positioned.fill(
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: full + lead / 2,
                 child: GradedBlur(
                   most: GlassTop.blur,
+                  least: _light,
                   downwards: false,
                   hold: full,
                 ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: full + lead / 2,
+                bottom: 0,
+                child: const FadingBlur(most: _light, downwards: false),
               ),
               Positioned.fill(
                 child: DecoratedBox(

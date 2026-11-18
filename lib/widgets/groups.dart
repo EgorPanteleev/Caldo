@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,9 +31,11 @@ EventsProvider? eventsOnShow(BuildContext context) {
 const groupChipsKey = Key('group-chips');
 
 /// The row of groups in a head laid over the top of a list that scrolls up
-/// under it ([GlassTop]). Each chip is frosted glass of its own besides,
-/// blurring and dimming what passes beneath it. At rest, over the bare
-/// ground, it looks as the row always did.
+/// under it ([GlassTop]). Each chip is let through in part, so the glass
+/// shows in it. Each was a blur of its own once, before the head was glass:
+/// over the glass that blurred what was already blurred, and the chips'
+/// blurs between them cost more than the whole head's. At rest, over the
+/// bare ground, it looks as the row always did.
 class FrostedGroupChips extends StatelessWidget {
   /// The room under the chips before the list's first line.
   static const foot = 8.0;
@@ -254,8 +255,8 @@ class GroupChip extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  /// Frosted glass rather than flat: what lies under the chip is blurred,
-  /// and its fill is let through only in part.
+  /// For a row on glass: the chip's fill is let through only in part, so
+  /// the glass shows in it.
   final bool frosted;
 
   const GroupChip({
@@ -278,18 +279,6 @@ class GroupChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final chip = _chip(context, p);
-    if (!frosted) return chip;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(100),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: chip,
-      ),
-    );
-  }
-
-  Widget _chip(BuildContext context, AppPalette p) {
     final Color fill;
     if (frosted) {
       fill = selected

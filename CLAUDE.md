@@ -260,9 +260,11 @@ them will be noticed.
   row (All, groups, plus) always shown; long press carries a chip to reorder
   (`lists.sort_order`, schema v9), released in place opens it to edit. A
   carried chip stands on `GroupChips.ground`. On Schedule the row is part
-  of the glass head (`FrostedGroupChips`, `GlassTop`), each chip frosted
-  glass of its own besides. A frosted strip behind the row alone was asked
-  off; the whole top on glass was asked for after.
+  of the glass head (`FrostedGroupChips`, `GlassTop`); the chips' fill is
+  let through in part. A frosted strip behind the row alone was asked off;
+  the whole top on glass was asked for after. Chips are no longer blurs of
+  their own: over the glass it couldn't be seen, and their blurs cost more
+  than the whole head.
 - **Default group is the oldest** (`TaskList.oldest`), never deletable;
   deleting another moves its tasks there.
 - With a group chosen: only its tasks, no phone events, holidays stay, new
@@ -293,13 +295,17 @@ them will be noticed.
   pill slides to the current tab (240ms), names shrink not cut. Floats over
   the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`: a
   strip blurred from nothing to 1.5 at the foot, darkening to 5% of the
-  ground, with no edge where the blur starts (`GradedBlur`: sixteen thin
-  bands of plain blur, rising, reading one copy of the screen through a
-  `BackdropGroup`). A shader that blurred across then down came first: on
-  Impeller a second backdrop pass reads the screen as it was, not the
-  first pass's output (side by side, nested or composed), so only one
-  direction ever showed — streaks once the blur is large. Masking a blur
-  with a `ShaderMask` draws nothing. **Every screen runs on
+  ground, with no edge where the blur starts (`FadingBlur`,
+  `shaders/fading_blur.frag`: one pass blurring each row by its own amount,
+  up and down only; given screen coordinates, and on GLES a flipped
+  texture). On Impeller a second backdrop pass reads the screen as it was,
+  not the first pass's output (side by side, nested or composed), so a
+  pass across never showed; at 1.5 one direction can't be told from two,
+  but large it smears type into streaks. Masking a blur with a
+  `ShaderMask` draws nothing. **Every backdrop filter costs a read of the
+  screen and passes of its own**: 2.11.14 (sixteen bands here, seventeen
+  in the head, a blur per chip) dropped frames; measure with
+  `showPerformanceOverlay` on a profile build before adding one. **Every screen runs on
   under it** (the shell no longer pads pages): scrolls end with
   `BarRoom.of(context)` of room; Schedule and the calendar rest their
   field over their foot with one widget (`FieldInBarRoom`), its ground and
@@ -320,7 +326,11 @@ them will be noticed.
   up under the status bar and their head (Settings' title is pinned now);
   the head stands on blur 17 under the ground at 65%, the blur thinning to
   none over the head's foot third (`GlassTop.leadOf`, 16–44pt — 24 showed
-  a line across the cards, 44 left Settings' title over sharp rows). Taps
+  a line across the cards, 44 left Settings' title over sharp rows): four
+  bands of plain blur from 2 to 17 (`GradedBlur`, one `BackdropGroup`),
+  then a `FadingBlur` from 2 to none, since bands show their edges where
+  type is still readable. Scrolling Schedule on the emulator, raster time
+  was 16.4ms a frame before the glass, 19.0 (max 30) in 2.11.14, 3.2 now. Taps
   on the head stay on it. Scrolls start with `HeadRoom.of(context)`, as
   they end with `BarRoom`'s. The shell's `SafeArea` leaves the top to the
   screens; Board and the calendar take it back themselves (nothing scrolls

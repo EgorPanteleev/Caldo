@@ -817,7 +817,7 @@ class _TabBar extends StatelessWidget {
 }
 
 /// The strip under the tab bar: clear at its top, blurred more and more
-/// down to the screen's foot ([GradedBlur]), and darkening a little into
+/// down to the screen's foot ([FadingBlur]), and darkening a little into
 /// the ground.
 class _BarGround extends StatelessWidget {
   const _BarGround();
@@ -839,7 +839,7 @@ class _BarGround extends StatelessWidget {
         height: BarRoom.room + _lead,
         child: Stack(
           children: [
-            const Positioned.fill(child: GradedBlur(most: _most)),
+            const Positioned.fill(child: FadingBlur(most: _most)),
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
