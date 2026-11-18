@@ -136,16 +136,19 @@ void main() {
           if (curve) 'curve': [0.0, 2 / 3, 1.0],
         };
 
-    // Not yet moved: where it starts from is not known, and it is held.
+    // Reported at no distance: Android does that a frame before the slide
+    // starts, so it is taken to start a frame after the report.
     KeyboardGap.instance.take(report(0, 0, curve: true));
     await tester.pump(_frame);
     expect(_bottomGap(tester), 0);
     await tester.pump(_frame);
     expect(_bottomGap(tester), 0);
+    await tester.pump(_frame);
+    expect(_bottomGap(tester), closeTo(40, 0.01));
 
     // Moved: each frame after is placed where the keys are at the vsync it
     // starts at, with nothing more sent.
-    KeyboardGap.instance.take(report(16, 0.1));
+    KeyboardGap.instance.take(report(32, 0.1));
     await tester.pump(_frame);
     expect(_bottomGap(tester), closeTo(80, 0.01));
     await tester.pump(_frame);
@@ -153,8 +156,8 @@ void main() {
 
     // A report that lands late, or two at once, says the same of the
     // slide and moves nothing.
-    KeyboardGap.instance.take(report(32, 0.2));
-    KeyboardGap.instance.take(report(48, 0.3));
+    KeyboardGap.instance.take(report(48, 0.2));
+    KeyboardGap.instance.take(report(64, 0.3));
     await tester.pump(_frame);
     expect(_bottomGap(tester), closeTo(160, 0.01));
 

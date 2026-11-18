@@ -374,8 +374,9 @@ them will be noticed.
   frame ahead, a card showing under it. Reports only correct the clock: a
   report lands 0.2–1.1ms after Flutter's frame for its vsync has begun, so
   following reports as they land (2.11.28 and before 2.11.23) put the
-  field a frame behind. A slide is held until its fraction is above 0
-  (Android reports 0 a frame before it moves). A slide with no curve (the
+  field a frame behind. A report at fraction 0 is taken to start a
+  frame later (2.11.29 took it as the start: 57pt up with the keys at 20;
+  2.11.30 held: 15–20pt under them for a frame). A slide with no curve (the
   swipe back) is carried on from its last two reports (`_Trail`), at most
   1.5 frames. Lead per direction, 0 as shipped, in Settings › Debug ›
   Keyboard (`Tweaks.keysLeadOpen/Close`). On the emulator the field trails

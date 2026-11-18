@@ -1135,11 +1135,13 @@ class _Slide implements _Keys {
   @override
   (double, bool) at(int micros) {
     // Android reports a slide at no distance a frame before its animator
-    // moves it: taken as its start, the 2.11.29 recording had the field
-    // 57pt up while the keys were not yet 20. Where it starts from is only
-    // known once it has moved.
-    if (fraction <= 0) return (math.max(0.0, from - below), false);
-    final f = (fraction + (micros - stamp) / length).clamp(0.0, 1.0);
+    // starts it: taken as its start, the 2.11.29 recording had the field
+    // 57pt up while the keys were not yet 20, and held there until it
+    // moved (2.11.30) the field was 15-20pt under them for a frame. Both
+    // recordings fit a start one frame after that report.
+    final f = fraction <= 0
+        ? ((micros - stamp - period) / length).clamp(0.0, 1.0)
+        : (fraction + (micros - stamp) / length).clamp(0.0, 1.0);
     final x = f * (curve.length - 1);
     final i = math.min(x.floor(), curve.length - 2);
     final y = curve[i] + (curve[i + 1] - curve[i]) * (x - i);
