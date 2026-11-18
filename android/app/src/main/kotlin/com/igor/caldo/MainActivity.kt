@@ -60,18 +60,14 @@ class MainActivity : FlutterActivity() {
     private var contentNav = -1
 
     /**
-     * The keyboard's slides now running, each with the IME inset it runs
-     * from and to — null until it has started and said so. While any is
-     * here the window's own insets are the slide's end, not where the keys
-     * are, and [ahead] can tell where they are about to be.
+     * The keyboard's slides now running, each marked once it has started.
+     * While any is here the window's own insets are the slide's end, not
+     * where the keys are.
      */
-    private val slides = HashMap<Any, IntArray?>()
+    private val slides = HashMap<Any, Boolean>()
 
     /** The keyboard's full height, from the last slide's bounds. */
     private var keysOpen = 0
-
-    /** How [ahead] came by its number, for the recordings. */
-    private var how = ""
 
     /**
      * The keyboard's full height while one of its slides runs, else 0: the
@@ -731,13 +727,9 @@ class MainActivity : FlutterActivity() {
      * Reporting where the keyboard is cannot race with itself.
      */
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun send(
-        insets: WindowInsets,
-        keys: Int = insets.getInsets(WindowInsets.Type.ime()).bottom,
-        sliding: Boolean = false,
-    ) {
+    private fun send(insets: WindowInsets, sliding: Boolean = false) {
         val sink = imeSink ?: return
-        val ime = insets.getInsets(WindowInsets.Type.ime()).bottom
+        val keys = insets.getInsets(WindowInsets.Type.ime()).bottom
         val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
         // Whether this window reaches past the system bars is read from
         // what the bars look like *to the content view*, not from how tall
@@ -776,69 +768,12 @@ class MainActivity : FlutterActivity() {
         sink.success(
             mapOf(
                 "reach" to reach / density,
-                "ime" to ime / density,
-                "ahead" to (keys - ime) / density,
+                "ime" to keys / density,
                 "nav" to nav / density,
                 "below" to off / density,
                 "sliding" to sliding,
-                "how" to if (sliding) how else "",
             ),
         )
-    }
-
-    /**
-     * Where the keys will be when a frame Flutter starts now reaches the
-     * screen, in the middle of a slide.
-     *
-     * Android moves the keyboard in the frame it reports the move; Flutter
-     * draws to that report and its picture is shown a frame or two later.
-     * Recorded on a 120Hz Galaxy (2.11.22), the field came up 64pt under
-     * the top of the keys on the first frame of an opening and 37 on
-     * another, then 15–20 through the middle — the keys' position from 12
-     * to 20ms earlier, every time, with Flutter's frames taking 5ms. That
-     * is the gap between the two pictures, and no promptness on our side
-     * closes it: the report has to say where the keys are going to be.
-     *
-     * A slide that declares itself says that: its duration, how far
-     * through it is and its curve are all on [WindowInsetsAnimation], and
-     * that curve is read forward by [LEAD_MS] — the system's own animation
-     * evaluated a little later. Only when that reading gives back exactly
-     * what is being reported now. That put 2.11.23's openings within 6pt
-     * of the keys.
-     *
-     * Closing is passed on as reported, and that is not a gap left open:
-     * recordings that showed the real keys (2.11.25 and 2.11.26) had them
-     * where Android reports them on the way down, frame for frame, whether
-     * closed by the tick or by Android 16's swipe back (driven by the
-     * system's own animator, with no duration or curve). It is only on
-     * the way up that the keys run ahead of their reports. Read ahead,
-     * closing sent the field 15–67pt down behind the keys.
-     */
-    @RequiresApi(Build.VERSION_CODES.R)
-    private fun ahead(insets: WindowInsets, running: List<WindowInsetsAnimation>): Int {
-        val now = insets.getInsets(WindowInsets.Type.ime()).bottom
-        val near = 2 * resources.displayMetrics.density
-        for (slide in running) {
-            if (slide.typeMask and WindowInsets.Type.ime() == 0) continue
-            val ends = slides[slide] ?: continue
-            val length = slide.durationMillis
-            if (length <= 0) continue
-            val curve = slide.interpolator
-            fun along(fraction: Float): Float {
-                val f = fraction.coerceIn(0f, 1f)
-                return ends[0] + (ends[1] - ends[0]) * (curve?.getInterpolation(f) ?: f)
-            }
-            if (Math.abs(along(slide.fraction) - now) > near) continue
-            // Only on the way up. Closing, by the tick or by a swipe, the
-            // keys are where Android reports them, if anything a frame
-            // behind: read ahead (2.11.26) the field went down 35–64pt in
-            // front of them.
-            if (ends[1] < ends[0]) break
-            how = "curve"
-            return Math.round(along(slide.fraction + LEAD_MS / length))
-        }
-        how = "as reported"
-        return now
     }
 
     private fun reportIme() {
@@ -857,11 +792,11 @@ class MainActivity : FlutterActivity() {
                 WindowInsetsAnimation.Callback(DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
                 override fun onPrepare(animation: WindowInsetsAnimation) {
                     if (animation.typeMask and WindowInsets.Type.ime() != 0) {
-                        slides[animation] = null
+                        slides[animation] = false
                         // One prepared and then dropped before it starts
                         // gets no end, and must not hold the reports up.
                         window.decorView.postDelayed({
-                            if (slides.containsKey(animation) && slides[animation] == null) {
+                            if (slides[animation] == false) {
                                 slides.remove(animation)
                                 if (slides.isEmpty()) reportIme()
                             }
@@ -874,15 +809,9 @@ class MainActivity : FlutterActivity() {
                     bounds: WindowInsetsAnimation.Bounds,
                 ): WindowInsetsAnimation.Bounds {
                     if (animation.typeMask and WindowInsets.Type.ime() != 0) {
-                        // The window's insets are already the slide's end,
-                        // so they say which way it goes.
-                        val opening = window.decorView.rootWindowInsets
-                            ?.isVisible(WindowInsets.Type.ime()) ?: true
-                        val shut = bounds.lowerBound.bottom
                         val open = bounds.upperBound.bottom
                         if (open > 0) keysOpen = open
-                        slides[animation] =
-                            if (opening) intArrayOf(shut, open) else intArrayOf(open, shut)
+                        slides[animation] = true
                     }
                     return bounds
                 }
@@ -891,7 +820,16 @@ class MainActivity : FlutterActivity() {
                     insets: WindowInsets,
                     running: MutableList<WindowInsetsAnimation>,
                 ): WindowInsets {
-                    send(insets, ahead(insets, running), sliding = slides.isNotEmpty())
+                    // Where Android says the keys are, as it says it, both
+                    // ways. A frame drawn to this report reaches the screen
+                    // with the keys it describes: from 2.11.23 to 2.11.27
+                    // the opening was read 16ms ahead on the slide's curve,
+                    // and three recordings from a 120Hz Galaxy, a card
+                    // under the field showing through, had the field 12-18ms
+                    // ahead of the keys in every frame of every opening —
+                    // 42pt above them in the first fast frame. Closing,
+                    // read ahead, it went as far below them (2.11.26).
+                    send(insets, sliding = slides.isNotEmpty())
                     return insets
                 }
 
@@ -948,14 +886,6 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val IME_CHANNEL = "caldo/ime"
-
-        /**
-         * How far ahead of a slide's report the keys are said to be. The
-         * field was 12 to 20ms behind them on a 120Hz phone, two frames
-         * there; two frames on the 60Hz emulator put it as far ahead, so
-         * the delay is time rather than frames.
-         */
-        const val LEAD_MS = 16f
         const val UPDATES_CHANNEL = "caldo/updates"
         const val WIDGET_CHANNEL = "caldo/widget"
         const val CALENDARS_CHANNEL = "caldo/calendars"

@@ -349,7 +349,6 @@ class _Insets with WidgetsBindingObserver {
   void _reach() => _to._write('reach', {
     'keys': Recording._one(KeyboardGap.instance.covered.value),
     'sliding': KeyboardGap.instance.sliding,
-    'how': KeyboardGap.instance.how,
   });
 
   @override

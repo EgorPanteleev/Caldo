@@ -365,15 +365,13 @@ them will be noticed.
   own report** (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the
   display bottom minus what lies below the window. Don't try to correct
   `viewInsets` arithmetically — its meaning changes mid-slide.
-- **While the keys open, Android reports where they will be 16ms on**
-  (`MainActivity.ahead`, `LEAD_MS`: the slide's own curve read forward,
-  only when it reproduces the current report) and Dart follows the report
-  alone in any slide (`KeyboardGap.sliding`, same message). Opening, the
-  real keys run 12–20ms ahead of the reports: on a 120Hz Galaxy the field
-  came up 64pt under them; two frames' lead overshot on the 60Hz emulator.
-  **Closing goes as reported**, tick or swipe back: the keys are where
-  Android says, and read ahead (2.11.24, 2.11.26) the field went 15–67pt
-  down behind them. Recordings log which was used (`reach` … `how`).
+- **In a slide the field follows Android's report as it stands, both
+  ways**, and Dart follows the report alone (`KeyboardGap.sliding`, same
+  message). Read 16ms ahead on the slide's curve (2.11.23–2.11.27), the
+  field ran 12–18ms ahead of the keys in every opening frame of three
+  Galaxy recordings (42pt above them in the first fast one, a card
+  showing through the gap); read ahead closing, 15–67pt below them.
+  Judge it on a day with tasks: an empty day's ground hides the gap.
 - **Edge-to-edge is read from the content view's insets, never its height**
   (`MainActivity.contentNav`).
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):

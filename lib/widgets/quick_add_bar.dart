@@ -843,12 +843,9 @@ Future<void> quickAddTask(
 /// put the bar over the keyboard; the worst either can do is hold it where
 /// the keys were a frame ago.
 ///
-/// Except in a slide, where a frame ago was the trouble: what is drawn to a
-/// report is seen a frame or two after the keys have moved on, and on a
-/// 120Hz phone that left the field up to 64pt under the keys as they came
-/// up, and above them as they went. There Android says where the keys are
-/// about to be, read off the slide's own curve, and that is followed alone
-/// ([sliding]).
+/// Except in a slide, where `viewInsets` is a frame behind and taking the
+/// further of the two held the field over the keys on every closing. There
+/// Android's report is followed alone ([sliding]).
 class KeyboardGap {
   KeyboardGap._();
 
@@ -868,17 +865,10 @@ class KeyboardGap {
   /// window to sit above.
   final ValueNotifier<String> raw = ValueNotifier<String>('');
 
-  /// Whether [covered] is from the middle of a slide, and so where the
-  /// keys are about to be rather than where they are: Android reads the
-  /// slide's own curve a couple of frames on, since that is how much later
-  /// a frame drawn to it is seen (`MainActivity.ahead`). Then it is
-  /// followed alone. `viewInsets` is where the keys were, and taking the
-  /// further of the two held the field over them on every closing.
+  /// Whether [covered] is from the middle of a slide. Then it is followed
+  /// alone: `viewInsets` is where the keys were, and taking the further of
+  /// the two held the field over them on every closing.
   bool sliding = false;
-
-  /// How Android came by [covered] in a slide — read ahead on its curve,
-  /// or the report as it stands — for the recordings.
-  String how = '';
 
   StreamSubscription<dynamic>? _sub;
 
@@ -888,16 +878,13 @@ class KeyboardGap {
       (value) {
         if (value is num) {
           sliding = false;
-          how = '';
           covered.value = value.toDouble();
         } else if (value is Map) {
           // Before the number, so whoever it wakes reads the two together.
           sliding = value['sliding'] == true;
-          how = (value['how'] as String?) ?? '';
           covered.value = (value['reach'] as num).toDouble();
           raw.value =
               'ime ${(value['ime'] as num).toStringAsFixed(1)} '
-              'ahead ${((value['ahead'] as num?) ?? 0).toStringAsFixed(1)} '
               'nav ${(value['nav'] as num).toStringAsFixed(1)} '
               'below ${(value['below'] as num).toStringAsFixed(1)}';
         }

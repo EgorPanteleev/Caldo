@@ -50,7 +50,7 @@ def describe(e):
     if k == "insets":
         return f"insets keys={e.get('keys')} bottom={e.get('bottom')} {e.get('w')}x{e.get('h')}"
     if k == "reach":
-        return f"reach keys={e.get('keys')}" + (f" sliding ({e.get('how')})" if e.get("sliding") else "")
+        return f"reach keys={e.get('keys')}" + (" sliding" + (f" ({e['how']})" if e.get("how") else "") if e.get("sliding") else "")
     if k == "life":
         return f"app {e.get('state')}"
     if k == "error":
