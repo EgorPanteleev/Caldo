@@ -16,54 +16,31 @@ import '../theme/tweaks.dart';
 /// draws at half rate here and its numbers say nothing. Read once a second
 /// and drawn once a second, so with nothing else moving the HUD's own frame
 /// is the one frame a second it shows. Not stored, like the keyboard's
-/// numbers: on until the app is closed, or until Debug mode goes off —
-/// they are part of it, and a switch that puts the app back as shipped
-/// should leave nothing of it on screen.
-class PerfHud extends StatefulWidget {
+/// numbers: on until the app is closed. Part of Debug mode: while it is
+/// off neither switch does anything, though each keeps where it was.
+class PerfHud extends StatelessWidget {
   /// Whether the numbers are on screen.
   static final shown = ValueNotifier<bool>(false);
 
   /// Whether Flutter's own frame graphs are (`showPerformanceOverlay`).
   static final graphs = ValueNotifier<bool>(false);
 
+  /// Whether the graphs are drawn: switched on, and Debug mode on.
+  static bool get graphsDrawn => graphs.value && Tweaks.instance.on;
+
   final Widget child;
 
   const PerfHud({super.key, required this.child});
 
   @override
-  State<PerfHud> createState() => _PerfHudState();
-}
-
-class _PerfHudState extends State<PerfHud> {
-  @override
-  void initState() {
-    super.initState();
-    Tweaks.instance.addListener(_followDebug);
-  }
-
-  @override
-  void dispose() {
-    Tweaks.instance.removeListener(_followDebug);
-    super.dispose();
-  }
-
-  /// Debug mode off, by its switch, Reset or signing out, takes the numbers
-  /// and the graphs with it.
-  void _followDebug() {
-    if (Tweaks.instance.on) return;
-    PerfHud.shown.value = false;
-    PerfHud.graphs.value = false;
-  }
-
-  @override
   Widget build(BuildContext context) {
     // Always the same Stack, so switching the numbers on or off never
     // remounts the app beneath them.
-    return ValueListenableBuilder<bool>(
-      valueListenable: PerfHud.shown,
-      builder: (context, on, _) => Stack(
+    return ListenableBuilder(
+      listenable: Listenable.merge([shown, Tweaks.instance]),
+      builder: (context, _) => Stack(
         fit: StackFit.expand,
-        children: [widget.child, if (on) const _Hud()],
+        children: [child, if (shown.value && Tweaks.instance.on) const _Hud()],
       ),
     );
   }

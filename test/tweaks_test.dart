@@ -63,22 +63,15 @@ void main() {
     expect(await t.paste('not json'), isFalse);
   });
 
-  testWidgets('debug mode off takes the performance numbers with it', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      const Directionality(
-        textDirection: TextDirection.ltr,
-        child: PerfHud(child: SizedBox()),
-      ),
-    );
-    await tester.runAsync(() => Tweaks.instance.setOn(true));
-    // Not pumped with them on: the box itself would start reading /proc.
-    PerfHud.shown.value = true;
+  test('the frame graphs are drawn only while debug mode is on', () async {
     PerfHud.graphs.value = true;
-
-    await tester.runAsync(() => Tweaks.instance.setOn(false));
-    expect(PerfHud.shown.value, isFalse);
-    expect(PerfHud.graphs.value, isFalse);
+    expect(PerfHud.graphsDrawn, isFalse);
+    await Tweaks.instance.setOn(true);
+    expect(PerfHud.graphsDrawn, isTrue);
+    // Off again, the switch keeps its place for next time.
+    await Tweaks.instance.setOn(false);
+    expect(PerfHud.graphsDrawn, isFalse);
+    expect(PerfHud.graphs.value, isTrue);
+    PerfHud.graphs.value = false;
   });
 }

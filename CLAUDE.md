@@ -435,8 +435,9 @@ them will be noticed.
   `/proc` (UI is the main thread where Flutter merged them), RSS, free
   memory, GPU and temperature only where sysfs lets an app read them (not
   the emulator). Draggable; starts above the bar, since Flutter's own
-  graphs (`showPerformanceOverlay`, the second switch) take the top. Debug
-  mode going off (switch, Reset, sign-out) turns both off (`_followDebug`). Idle
+  graphs (`showPerformanceOverlay`, the second switch) take the top. While
+  Debug mode is off both rows are greyed and do nothing, but keep their place
+  (`PerfHud.graphsDrawn`). Idle
   should read 1 fps and 0 tickers. On the emulator raster time includes
   waiting on the swap (~16.6ms while drawing every frame, ~5 idle).
 
@@ -720,7 +721,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 332 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 331 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

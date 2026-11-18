@@ -73,26 +73,33 @@ class _DebugRows extends StatelessWidget {
             _Group(
               label: 'Performance',
               footnote:
-                  'Judge them on a release build only. Frame times are of '
+                  'Only while Debug mode is on. Judge them on a release build only. Frame times are of '
                   'the last two seconds, average/longest; CPU is of one core '
                   '(two busy cores are 200%). GPU shows where the system '
                   'lets an app read it, which most phones do not; raster '
                   'time stands for it then. The box can be dragged.',
               children: [
-                _SwitchRow(
-                  icon: Icons.speed_rounded,
-                  title: 'Performance numbers',
-                  hint: 'FPS, frame times, CPU, memory, GPU',
-                  value: PerfHud.shown.value,
-                  onChanged: (on) => PerfHud.shown.value = on,
-                ),
-                _SwitchRow(
-                  icon: Icons.stacked_line_chart_rounded,
-                  title: 'Frame graphs',
-                  hint: "Flutter's own, UI and raster threads",
-                  value: PerfHud.graphs.value,
-                  onChanged: (on) => PerfHud.graphs.value = on,
-                ),
+                // Greyed, not switched off, while Debug mode is: each
+                // keeps its place for when it comes back on.
+                for (final row in [
+                  _SwitchRow(
+                    icon: Icons.speed_rounded,
+                    title: 'Performance numbers',
+                    hint: 'FPS, frame times, CPU, memory, GPU',
+                    value: PerfHud.shown.value,
+                    enabled: tweaks.on,
+                    onChanged: (on) => PerfHud.shown.value = on,
+                  ),
+                  _SwitchRow(
+                    icon: Icons.stacked_line_chart_rounded,
+                    title: 'Frame graphs',
+                    hint: "Flutter's own, UI and raster threads",
+                    value: PerfHud.graphs.value,
+                    enabled: tweaks.on,
+                    onChanged: (on) => PerfHud.graphs.value = on,
+                  ),
+                ])
+                  Opacity(opacity: tweaks.on ? 1 : 0.4, child: row),
               ],
             ),
             if (tweaks.on) ...[

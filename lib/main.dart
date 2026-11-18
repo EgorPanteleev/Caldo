@@ -122,7 +122,7 @@ class CaldoApp extends StatelessWidget {
           builder: (context, settings, _) => MaterialApp(
             title: 'Caldo',
             debugShowCheckedModeBanner: false,
-            showPerformanceOverlay: PerfHud.graphs.value,
+            showPerformanceOverlay: PerfHud.graphsDrawn,
             theme: AppTheme.light(settings.accent),
             darkTheme: AppTheme.dark(settings.accent),
             themeMode: settings.themeMode,
