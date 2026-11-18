@@ -806,14 +806,13 @@ class MainActivity : FlutterActivity() {
      * what is being reported now. That put 2.11.23's openings within 6pt
      * of the keys.
      *
-     * Anything else is passed on as reported, and that is not a gap left
-     * open. Android 16's swipe-back close is driven by the system's own
-     * animator, with no duration or curve, and a recording that showed
-     * the real keys (2.11.25) had them exactly where it reports, frame for
-     * frame — so a declared slide's keys run ahead of their reports and
-     * that one's do not. 2.11.24 carried it on two frames by the share of
-     * the way left each frame closed, and the field ran 15–67pt down
-     * behind the keys.
+     * Closing is passed on as reported, and that is not a gap left open:
+     * recordings that showed the real keys (2.11.25 and 2.11.26) had them
+     * where Android reports them on the way down, frame for frame, whether
+     * closed by the tick or by Android 16's swipe back (driven by the
+     * system's own animator, with no duration or curve). It is only on
+     * the way up that the keys run ahead of their reports. Read ahead,
+     * closing sent the field 15–67pt down behind the keys.
      */
     @RequiresApi(Build.VERSION_CODES.R)
     private fun ahead(insets: WindowInsets, running: List<WindowInsetsAnimation>): Int {
@@ -830,6 +829,11 @@ class MainActivity : FlutterActivity() {
                 return ends[0] + (ends[1] - ends[0]) * (curve?.getInterpolation(f) ?: f)
             }
             if (Math.abs(along(slide.fraction) - now) > near) continue
+            // Only on the way up. Closing, by the tick or by a swipe, the
+            // keys are where Android reports them, if anything a frame
+            // behind: read ahead (2.11.26) the field went down 35–64pt in
+            // front of them.
+            if (ends[1] < ends[0]) break
             how = "curve"
             return Math.round(along(slide.fraction + LEAD_MS / length))
         }
