@@ -458,7 +458,10 @@ them will be noticed.
   `createConfigForDefaultDisplay`; consent each time; a
   `mediaProjection` foreground service with a Stop notification), mirrored
   at video size into an `ImageReader`, and only the IME inset's strip of
-  it is laid over the app's copy, only while Caldo has window focus — so
+  it is laid over the app's copy (during a slide the keyboard's full
+  height, `MainActivity.keysSliding`: the insets are the slide's end, so a
+  closing's keys vanished from the video at once), only while Caldo has
+  window focus — so
   status bar, notifications, the shade and other apps never reach the
   video. Composed on a `lockHardwareCanvas` of a MediaCodec input
   surface, muxed to MP4, ≤1280 long side, ≤30fps, no sound, at most 5

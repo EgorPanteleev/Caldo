@@ -406,8 +406,11 @@ private class Session(
     private fun look() {
         focused = activity.hasWindowFocus()
         keyboard = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            activity.window.decorView.rootWindowInsets
+            val settled = activity.window.decorView.rootWindowInsets
                 ?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
+            // While the keys slide, all the room they can take: what is
+            // shown there is the screen itself, keys and field alike.
+            max(settled, (activity as? MainActivity)?.keysSliding ?: 0)
         } else {
             0
         }

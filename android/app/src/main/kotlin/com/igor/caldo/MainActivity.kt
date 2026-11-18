@@ -78,6 +78,16 @@ class MainActivity : FlutterActivity() {
     /** How [ahead] came by its number, for the recordings. */
     private var how = ""
 
+    /**
+     * The keyboard's full height while one of its slides runs, else 0: the
+     * strip of the screen [ScreenRecord] lays over the app then. The
+     * window's own insets are the slide's end — nothing at all from the
+     * first frame of a closing — so a recording never showed where the
+     * keys really were while they went, only the field following them.
+     */
+    val keysSliding: Int
+        get() = if (slides.isNotEmpty()) keysOpen else 0
+
     /** Where the home-screen widget asks the app to go ([TodayWidget]). */
     private var launches: MethodChannel? = null
 
