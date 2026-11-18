@@ -518,7 +518,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             left: 0,
             right: 0,
             bottom: 0,
-            child: _WhileKeyboardDown(child: _BarGround()),
+            child: _WhileKeyboardDown(
+              child: SizedBox(
+                height: BarRoom.room + BarGround.lead,
+                child: BarGround(),
+              ),
+            ),
           ),
           // Over the screen rather than under it, so the ground the screen
           // stands on runs on beneath the bar. It goes while the keyboard is
@@ -821,51 +826,6 @@ class _TabBar extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
         child: pill,
-      ),
-    );
-  }
-}
-
-/// The strip under the tab bar: clear at its top, blurred more and more
-/// down to the screen's foot ([FadingBlur]), and darkening a little into
-/// the ground.
-class _BarGround extends StatelessWidget {
-  const _BarGround();
-
-  /// How far above the bar's room it reaches.
-  static const _lead = 24.0;
-
-  /// The blur at the foot.
-  static const _most = 1.5;
-
-  /// How dark it gets at the foot, of the ground.
-  static const _shade = 0.05;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return IgnorePointer(
-      child: SizedBox(
-        height: BarRoom.room + _lead,
-        child: Stack(
-          children: [
-            const Positioned.fill(child: FadingBlur(most: _most)),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      p.bg.withValues(alpha: 0),
-                      p.bg.withValues(alpha: _shade),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -104,7 +104,17 @@ class FadingBlur extends StatefulWidget {
   /// way up.
   final bool downwards;
 
-  const FadingBlur({super.key, required this.most, this.downwards = true});
+  /// How far a transform above has lifted it since it was last measured,
+  /// in points: one riding the keys is told where it is in each frame of
+  /// their slide, which no measuring after the frame could keep up with.
+  final double lift;
+
+  const FadingBlur({
+    super.key,
+    required this.most,
+    this.downwards = true,
+    this.lift = 0,
+  });
 
   static Future<FragmentProgram>? _loading;
   static FragmentProgram? _program;
@@ -127,8 +137,9 @@ class _FadingBlurState extends State<FadingBlur> {
     }
   }
 
-  /// Where the strip is on the screen, in pixels: the shader is handed the
-  /// screen's coordinates, not the strip's. Read after each layout.
+  /// Where the strip is on the screen with no [FadingBlur.lift], in pixels:
+  /// the shader is handed the screen's coordinates, not the strip's. Read
+  /// after each layout.
   double _top = 0, _foot = 0;
 
   void _place(Duration _) {
@@ -136,7 +147,8 @@ class _FadingBlurState extends State<FadingBlur> {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     final ratio = MediaQuery.devicePixelRatioOf(context);
-    final top = box.localToGlobal(Offset.zero).dy * ratio;
+    // Drawn at the lift it was built with.
+    final top = (box.localToGlobal(Offset.zero).dy + widget.lift) * ratio;
     final foot = top + box.size.height * ratio;
     if (top != _top || foot != _foot) {
       setState(() {
@@ -159,16 +171,65 @@ class _FadingBlurState extends State<FadingBlur> {
     if (program != null) WidgetsBinding.instance.addPostFrameCallback(_place);
     // Nothing until the shader is in and it is known where the strip is.
     if (program == null || _foot <= _top) return const SizedBox.expand();
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final lifted = widget.lift * ratio;
     final shader = program.fragmentShader()
-      ..setFloat(2, widget.most * MediaQuery.devicePixelRatioOf(context))
-      ..setFloat(3, widget.downwards ? _top : _foot)
-      ..setFloat(4, widget.downwards ? _foot : _top);
+      ..setFloat(2, widget.most * ratio)
+      ..setFloat(3, (widget.downwards ? _top : _foot) - lifted)
+      ..setFloat(4, (widget.downwards ? _foot : _top) - lifted);
     return IgnorePointer(
       child: ClipRect(
         child: BackdropFilter(
           filter: ImageFilter.shader(shader),
           child: const SizedBox.expand(),
         ),
+      ),
+    );
+  }
+}
+
+/// What the tab bar stands on, and the add field while it rides the keys:
+/// a strip clear at its top, blurred more and more down to its foot
+/// ([FadingBlur]), and darkening a little into the ground. It fills what
+/// it is given; [lift] is passed on to the blur.
+class BarGround extends StatelessWidget {
+  final double lift;
+
+  const BarGround({super.key, this.lift = 0});
+
+  /// How far above what stands on it it reaches.
+  static const lead = 24.0;
+
+  /// The blur at the foot.
+  static const _most = 1.5;
+
+  /// How dark it gets at the foot, of the ground.
+  static const _shade = 0.05;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: FadingBlur(most: _most, lift: lift),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    p.bg.withValues(alpha: 0),
+                    p.bg.withValues(alpha: _shade),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

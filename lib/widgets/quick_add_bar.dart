@@ -16,6 +16,7 @@ import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import 'attachments_field.dart';
+import 'glass.dart' show BarGround;
 import 'groups.dart';
 import 'keys_carry.dart';
 import 'selection.dart';
@@ -439,10 +440,11 @@ class _QuickAddBarState extends State<QuickAddBar> {
 
 /// A screen's add field resting in the tab bar's room, laid over the foot
 /// of a screen that runs on under the bar — Schedule's and the calendar's,
-/// one widget so the two cannot come to differ. It stands on nothing: out
-/// on the keys it stood on a band of the ground under it with a fade above,
-/// and that strip round it was asked off; what the screen has there shows
-/// round the field's own edge.
+/// one widget so the two cannot come to differ. Out on the keys it stands
+/// on what the bar stands on ([BarGround]): the screen blurred from none a
+/// little above it to 1.5 at the keys. It stood on a band of the ground
+/// under it with a fade above, and that strip was asked off, then asked to
+/// be the bar's blur.
 class FieldInBarRoom extends StatelessWidget {
   final Widget child;
 
@@ -451,13 +453,32 @@ class FieldInBarRoom extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return KeyboardLift(
-      // While Android carries the field on the keys, its picture is all
-      // that is drawn of it ([KeysCarry]).
-      child: ValueListenableBuilder<bool>(
-        valueListenable: KeyboardGap.instance.carried,
-        builder: (context, carried, child) =>
-            Opacity(opacity: carried ? 0 : 1, child: child),
-        child: CarriedField(child: child),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Not part of the picture Android carries, which cannot blur what
+          // Flutter draws under it: drawn by Flutter all through a slide.
+          Positioned(
+            left: 0,
+            right: 0,
+            top: -BarGround.lead,
+            bottom: 0,
+            child: ListenableBuilder(
+              listenable: KeyboardGap.instance.changes,
+              builder: (context, _) => KeyboardGap.up(context)
+                  ? BarGround(lift: KeyboardGap.of(context))
+                  : const SizedBox.shrink(),
+            ),
+          ),
+          // While Android carries the field on the keys, its picture is all
+          // that is drawn of it ([KeysCarry]).
+          ValueListenableBuilder<bool>(
+            valueListenable: KeyboardGap.instance.carried,
+            builder: (context, carried, child) =>
+                Opacity(opacity: carried ? 0 : 1, child: child),
+            child: CarriedField(child: child),
+          ),
+        ],
       ),
     );
   }

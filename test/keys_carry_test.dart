@@ -1,4 +1,4 @@
-
+import 'package:caldo/widgets/glass.dart';
 import 'package:caldo/widgets/keys_carry.dart';
 import 'package:caldo/widgets/quick_add_bar.dart';
 import 'package:flutter/material.dart';
@@ -82,15 +82,23 @@ void main() {
     KeyboardGap.instance.take(_rest(300));
     await tester.pumpWidget(_harness());
     expect(_opacityOver(tester), 1);
-    // Up on the keys it stands on no band of ground, and has no fade over
-    // it: that strip round the field was asked off.
+    // Up on the keys it stands on the bar's blurred strip, not on a band
+    // of ground with a fade over it: that was asked off.
     final room = find.byType(FieldInBarRoom);
     expect(
       find.descendant(of: room, matching: find.byType(GroundFade)),
       findsNothing,
     );
+    final strip = find.descendant(of: room, matching: find.byType(BarGround));
+    expect(strip, findsOneWidget);
+    // From a lead above the field down to the keys, and not part of the
+    // field Android pictures: it is drawn by Flutter all through a slide.
+    final field = tester.getRect(find.byKey(_field));
+    final under = tester.getRect(strip);
+    expect(under.top, field.top - BarGround.lead);
+    expect(under.bottom, field.bottom);
     expect(
-      find.descendant(of: room, matching: find.byType(DecoratedBox)),
+      find.descendant(of: find.byType(CarriedField), matching: strip),
       findsNothing,
     );
 
@@ -99,6 +107,7 @@ void main() {
     KeyboardGap.instance.take({'carry': true});
     await tester.pump();
     expect(_opacityOver(tester), 0);
+    expect(find.byType(BarGround), findsOneWidget, reason: 'still blurring');
 
     // At rest Flutter draws it again, and once that frame is made says so,
     // for the picture to be put away over a field that is already there.

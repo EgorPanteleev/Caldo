@@ -313,7 +313,7 @@ them will be noticed.
   under it** (the shell no longer pads pages): scrolls end with
   `BarRoom.of(context)` of room; Schedule and the calendar rest their
   field over their foot with one widget (`FieldInBarRoom`), standing on
-  nothing. The calendar sizes its grid to
+  the bar's own strip (`BarGround`) while the keys are up. The calendar sizes its grid to
   what the bar leaves; its day panel is taller by the room, opening, the
   month's black runs on under the bar and pushes the day off the screen
   (a grey band under the opened month, and a black cover fading over the
@@ -417,10 +417,14 @@ them will be noticed.
 - **Only `KeyboardLift`, `KeyboardRoom`, `QuickAddBar`'s frame and `FieldInBarRoom` read the inset** (and `CarriedField`, after the frame, for where the field rests).
 - **Long-press the Settings title for keyboard numbers**
   (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
-- **In the bar's room the field stands on nothing**: up on the keys it had
-  a band of the ground under it (4pt above, 12pt at the sides, 8pt below)
-  and a 48pt fade above, and that strip was asked off (2026-11-18); the screen
-  shows round the field's edge. Without the bar (`foot == 0`, Schedule's
+- **In the bar's room the field stands on the bar's strip**: up on the
+  keys it had a band of the ground under it (4pt above, 12pt at the sides,
+  8pt below) and a 48pt fade above; that strip was asked off (2026-11-18),
+  then asked to be blurred from 0 to 1.5. It is the tab bar's own
+  `BarGround` (`FadingBlur` + 5% shade), from `BarGround.lead` above the
+  field down to the keys, drawn by Flutter outside the carried picture
+  (Android can't blur Flutter's surface), so in a slide it rides Flutter's
+  clock; `FadingBlur.lift` tells the shader where it is in each frame. Without the bar (`foot == 0`, Schedule's
   `!overBar`) the field still has its ground and fade, following what is
   under it (`_groundUnderField`, `_fadeStrength`, `_overGrid`; `GroundFade`,
   48pt, smoothstep). Schedule pads its end with `KeyboardRoom`.
