@@ -297,10 +297,13 @@ them will be noticed.
 - **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light rim,
   23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
   pill slides to the current tab (240ms), names shrink not cut. Floats over
-  the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`: a
-  strip blurred from nothing to 1.5 at the foot, darkening to 5% of the
-  ground, with no edge where the blur starts (`FadingBlur`,
-  `shaders/fading_blur.frag`: one pass blurring each row by its own amount,
+  the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`:
+  the add field's strip (`p.field` from clear at the bar room's top to 80%
+  at the foot), run on under the gesture bar (`below`, the shell's Stack
+  unclipped) so it doesn't stop on a line — on Android 14 the system's
+  own bar is opaque below the app, so the emulator still shows one. It
+  was a blur from nothing to 1.5 (asked off for the tint);
+  `FadingBlur` (`shaders/fading_blur.frag`, still under `GlassTop`: one pass blurring each row by its own amount,
   up and down only; given screen coordinates, and on GLES a flipped
   texture). On Impeller a second backdrop pass reads the screen as it was,
   not the first pass's output (side by side, nested or composed), so a

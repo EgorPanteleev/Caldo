@@ -471,6 +471,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [for (var i = 0; i < _pages.length; i++) _room(i)],
       ),
     );
+    // The gesture bar's height, which the shell keeps clear below it.
+    final below = MediaQuery.viewPaddingOf(context).bottom;
     final screen = SafeArea(
       // The strip at the foot of the screen stays reserved while the
       // keyboard is over it. Android stops counting the gesture bar as
@@ -487,6 +489,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // jump up first.
       top: false,
       child: Stack(
+        // The bar's ground runs on below, under the gesture bar.
+        clipBehavior: Clip.none,
         children: [
           ValueListenableBuilder<Update?>(
             valueListenable: Updates.instance.offered,
@@ -511,14 +515,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             },
             child: pages,
           ),
-          // What the bar stands on: the foot of the screen blurred more and
+          // What the bar stands on: the foot of the screen greyed more and
           // more towards the bottom, so the bar isn't a pill pasted on top
-          // of sharp cards. Goes with the bar.
-          const Positioned(
+          // of bright cards. Goes with the bar. It runs on under the
+          // gesture bar, or it would stop on a line where the screen does.
+          Positioned(
             left: 0,
             right: 0,
-            bottom: 0,
-            child: _WhileKeyboardDown(child: _BarGround()),
+            bottom: -below,
+            child: _WhileKeyboardDown(child: _BarGround(below: below)),
           ),
           // Over the screen rather than under it, so the ground the screen
           // stands on runs on beneath the bar. It goes while the keyboard is
@@ -826,45 +831,37 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-/// The strip under the tab bar: clear at its top, blurred more and more
-/// down to the screen's foot ([FadingBlur]), and darkening a little into
-/// the ground.
+/// The strip under the tab bar, as the add field has on the keys
+/// ([FieldInBarRoom]): the field's grey across the bar's room, clear at its
+/// top and four fifths of the grey at the foot. It was a blur growing to
+/// 1.5 down to the foot ([FadingBlur]), darkening into the ground; asked to
+/// be this instead.
 class _BarGround extends StatelessWidget {
-  const _BarGround();
+  /// How far it runs on below the shell, under the gesture bar.
+  final double below;
 
-  /// How far above the bar's room it reaches.
-  static const _lead = 24.0;
+  const _BarGround({required this.below});
 
-  /// The blur at the foot.
-  static const _most = 1.5;
-
-  /// How dark it gets at the foot, of the ground.
-  static const _shade = 0.05;
+  /// How much of the field's grey it comes to at the foot.
+  static const _most = 0.8;
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return IgnorePointer(
       child: SizedBox(
-        height: BarRoom.room + _lead,
-        child: Stack(
-          children: [
-            const Positioned.fill(child: FadingBlur(most: _most)),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      p.bg.withValues(alpha: 0),
-                      p.bg.withValues(alpha: _shade),
-                    ],
-                  ),
-                ),
-              ),
+        height: BarRoom.room + below,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                p.field.withValues(alpha: 0),
+                p.field.withValues(alpha: _most),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
