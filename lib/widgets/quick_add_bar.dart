@@ -17,6 +17,7 @@ import '../utils/dates.dart';
 import '../utils/platform.dart';
 import 'attachments_field.dart';
 import 'groups.dart';
+import 'keys_carry.dart';
 import 'selection.dart';
 import 'tick_off.dart';
 
@@ -72,6 +73,11 @@ class _QuickAddBarState extends State<QuickAddBar> {
 
   bool _open = false;
 
+  /// Set from the plus until the field has the focus, while the field is
+  /// drawn open in the bar's place for Android to picture before the keys
+  /// are asked for ([FieldCarry.raise]).
+  bool _raising = false;
+
   /// The group picked under the field for the task being typed; null for
   /// the default. Back to the default each time the field opens, so a pick
   /// made for one task does not quietly file the next.
@@ -85,13 +91,28 @@ class _QuickAddBarState extends State<QuickAddBar> {
   void _focused() {
     if (!mounted) return;
     setState(() {
-      if (_focus.hasFocus && !_open) {
+      if (_focus.hasFocus && !_open && !_raising) {
         _group = null;
         _attached.clear();
       }
       _open = _focus.hasFocus;
+      if (_open) _raising = false;
     });
+    CarriedField.of(context)?.open = _open || _raising;
     if (onDesktop) KeyboardGap.instance.write(this, _focus.hasFocus);
+  }
+
+  /// The keys never came for a raise: the field is not open after all.
+  void _raiseOver() {
+    if (!mounted || KeyboardGap.instance.raising.value || !_raising) return;
+    setState(() => _raising = false);
+    CarriedField.of(context)?.open = _open;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    KeyboardGap.instance.raising.addListener(_raiseOver);
   }
 
   /// The shell's tab bar this field sits in the room of, if it has one.
@@ -112,11 +133,31 @@ class _QuickAddBarState extends State<QuickAddBar> {
       );
   }
 
-  /// Brings the field up on the keyboard. A field that still has the focus
-  /// — the keyboard put away by Back, or by an empty tick — only needs the
-  /// keyboard back: asking for the focus it already has does nothing at all.
+  /// Brings the field up on the keyboard. In the tab bar's room on a phone
+  /// that can carry it, it is first drawn open where it rests and pictured
+  /// for Android to carry on the keys ([FieldCarry.raise]); then the keys
+  /// are asked for.
   void _openField() {
+    final carry = CarriedField.of(context);
+    if (carry == null || !KeysCarry.can) {
+      _askForKeys();
+      return;
+    }
+    if (!_open) {
+      _group = null;
+      _attached.clear();
+    }
+    setState(() => _raising = true);
+    carry.raise(_askForKeys);
+  }
+
+  /// A field that still has the focus — the keyboard put away by Back, or
+  /// by an empty tick — only needs the keyboard back: asking for the focus
+  /// it already has does nothing at all.
+  void _askForKeys() {
+    if (!mounted) return;
     if (_focus.hasFocus) {
+      if (_raising) setState(() => _raising = false);
       SystemChannels.textInput.invokeMethod<void>('TextInput.show');
     } else {
       _focus.requestFocus();
@@ -127,6 +168,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
   void dispose() {
     _foot?.detach(this);
     KeyboardGap.instance.write(this, false);
+    KeyboardGap.instance.raising.removeListener(_raiseOver);
     _focus.dispose();
     super.dispose();
   }
@@ -159,6 +201,9 @@ class _QuickAddBarState extends State<QuickAddBar> {
     );
     // Kept with nothing typed: nothing was filed to take them.
     if (filing) setState(_attached.clear);
+    // A field that has filed its task lets go of the focus, and goes from
+    // the screen at once; Android is not to carry it down on the keys.
+    if (filing) CarriedField.of(context)?.drop();
     SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     if (filing || onDesktop) _focus.unfocus();
   }
@@ -209,7 +254,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
     // Opening the field is the moment the button's job changes: from here on
     // it finishes the task being typed, so it says so. Waiting for the first
     // character left it a plus over an active field.
-    final writing = _focus.hasFocus;
+    final writing = _focus.hasFocus || _raising;
 
     // With every group on show there is no telling which one a new task
     // belongs in, so the group is offered under the open field; one group
@@ -299,6 +344,13 @@ class _QuickAddBarState extends State<QuickAddBar> {
       onTap: _press,
     );
 
+    // In the tab bar's room the field is only there while it is being
+    // written in, and Undo and the selection stand in the bar's place
+    // instead of the field's — the shell draws those. A foot with no room
+    // is the wide layout's: it wants to know what the plus opens, for the
+    // sidebar's button, and has no bar for the field to rest in.
+    final inBar = _foot != null && BarRoom.of(context) > 0;
+
     // The second row is there only while the keyboard is up. Open is not
     // the same as focused: Back puts the keyboard away and the field keeps
     // hold of it (see [_submit]), and a row of tools left standing over it
@@ -331,15 +383,21 @@ class _QuickAddBarState extends State<QuickAddBar> {
                   children: [
                     field,
                     // Grown into rather than popped in, as the keyboard
-                    // comes up under it; the title keeps its place.
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      alignment: Alignment.topCenter,
-                      child: opened
-                          ? tools
-                          : const SizedBox(width: double.infinity),
-                    ),
+                    // comes up under it; the title keeps its place. Not
+                    // in the bar's room, where the field is only drawn
+                    // open and is pictured for Android to carry the moment
+                    // it is: a picture taken there caught it half grown.
+                    if (inBar)
+                      opened ? tools : const SizedBox(width: double.infinity)
+                    else
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        alignment: Alignment.topCenter,
+                        child: opened
+                            ? tools
+                            : const SizedBox(width: double.infinity),
+                      ),
                   ],
                 ),
               ),
@@ -350,12 +408,6 @@ class _QuickAddBarState extends State<QuickAddBar> {
       },
     );
 
-    // In the tab bar's room the field is only there while it is being
-    // written in, and Undo and the selection stand in the bar's place
-    // instead of the field's — the shell draws those. A foot with no room
-    // is the wide layout's: it wants to know what the plus opens, for the
-    // sidebar's button, and has no bar for the field to rest in.
-    final inBar = _foot != null && BarRoom.of(context) > 0;
     return inBar
         ? Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -370,7 +422,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
               constraints: const BoxConstraints(minHeight: BarRoom.pill),
               child: Align(
                 heightFactor: 1,
-                child: _WhileWriting(open: _open, child: row),
+                child: _WhileWriting(open: _open || _raising, child: row),
               ),
             ),
           )
@@ -412,29 +464,41 @@ class FieldInBarRoom extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return KeyboardLift(
-      child: ListenableBuilder(
-        listenable: Listenable.merge([KeyboardGap.instance.changes, ?also]),
-        builder: (context, child) {
-          final up = KeyboardGap.up(context);
-          final lift = KeyboardGap.of(context);
-          final under = ground(lift);
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GroundFade(
-                ground: under,
-                strength: up ? (fade?.call(lift) ?? 1) : 0,
-              ),
-              // Not a ColoredBox: that takes taps meant for what is beside
-              // the bar.
-              DecoratedBox(
-                decoration: BoxDecoration(color: up ? under : null),
-                child: child,
-              ),
-            ],
-          );
-        },
-        child: child,
+      // While Android carries the field on the keys, its picture is all
+      // that is drawn of it, and of its ground and fade ([KeysCarry]).
+      child: ValueListenableBuilder<bool>(
+        valueListenable: KeyboardGap.instance.carried,
+        builder: (context, carried, child) =>
+            Opacity(opacity: carried ? 0 : 1, child: child),
+        child: ListenableBuilder(
+          listenable: Listenable.merge([KeyboardGap.instance.changes, ?also]),
+          builder: (context, child) {
+            final up = KeyboardGap.up(context);
+            final lift = KeyboardGap.of(context);
+            final under = ground(lift);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GroundFade(
+                  ground: under,
+                  strength: up ? (fade?.call(lift) ?? 1) : 0,
+                ),
+                // Not a ColoredBox: that takes taps meant for what is
+                // beside the bar.
+                DecoratedBox(
+                  decoration: BoxDecoration(color: up ? under : null),
+                  child: child,
+                ),
+              ],
+            );
+          },
+          child: CarriedField(
+            ground: ground,
+            fade: fade ?? (_) => 1,
+            also: also,
+            child: child,
+          ),
+        ),
       ),
     );
   }
@@ -892,6 +956,34 @@ class KeyboardGap {
   /// as a message last said.
   String how = 'reported';
 
+  /// Whether Android can carry the field in the bar's room on the keys
+  /// itself ([KeysCarry]), as it says in its reports.
+  bool carries = false;
+
+  /// Whether Android is carrying the field on the keys for a slide: from
+  /// the moment one is prepared until it is over. Flutter's own field is
+  /// left undrawn meanwhile, and drawn again where it comes to rest.
+  final ValueNotifier<bool> carried = ValueNotifier<bool>(false);
+
+  /// Whether a field is being brought up and the keys asked for, while
+  /// they have not come: the field is drawn open in the bar's place, the
+  /// bar put away, as if they were up ([FieldCarry.raise]).
+  final ValueNotifier<bool> raising = ValueNotifier<bool>(false);
+  Timer? _raised;
+
+  /// The keys are about to be asked for. If they have not come within a
+  /// second — a keyboard plugged in, say — the bar comes back.
+  void raise() {
+    raising.value = true;
+    _raised?.cancel();
+    _raised = Timer(const Duration(seconds: 1), _stopRaising);
+  }
+
+  void _stopRaising() {
+    _raised?.cancel();
+    raising.value = false;
+  }
+
   StreamSubscription<dynamic>? _sub;
 
   void listen() {
@@ -914,6 +1006,26 @@ class KeyboardGap {
       how = 'reported';
       covered.value = value.toDouble();
     } else if (value is Map) {
+      // Android is taking the field onto the keys for the slide that is
+      // about to start: Flutter's copy is left undrawn until it is over.
+      if (value.containsKey('carry')) {
+        carried.value = value['carry'] == true;
+        return;
+      }
+      if (value['carries'] == true) carries = true;
+      if (value['sliding'] != true) {
+        final reach = (value['reach'] as num).toDouble();
+        if (reach > 0 || carried.value) _stopRaising();
+        // At rest: the field is drawn where it now is, and once that is
+        // on its way to the screen Android puts its picture away.
+        if (carried.value) {
+          carried.value = false;
+          SchedulerBinding.instance.addPostFrameCallback(
+            (_) => KeysCarry.drawn(),
+          );
+          SchedulerBinding.instance.ensureVisualUpdate();
+        }
+      }
       raw.value =
           'ime ${(value['ime'] as num).toStringAsFixed(1)} '
           'nav ${(value['nav'] as num).toStringAsFixed(1)} '
@@ -993,12 +1105,12 @@ class KeyboardGap {
   }
 
   /// What changes when [up] does.
-  late final Listenable changes = Listenable.merge([covered, writing]);
+  late final Listenable changes = Listenable.merge([covered, writing, raising]);
 
   /// Whether the keyboard is up — or, with none to come up, whether an add
-  /// field is being written in.
+  /// field is being written in, or about to be with the keys asked for.
   static bool up(BuildContext context) =>
-      instance.writing.value || of(context) > 0;
+      instance.writing.value || instance.raising.value || of(context) > 0;
 
   /// How far to lift whatever is glued to the keyboard.
   static double of(BuildContext context) {
@@ -1042,6 +1154,9 @@ class KeyboardGap {
     covered.value = 0;
     _writers.clear();
     writing.value = false;
+    carries = false;
+    carried.value = false;
+    _stopRaising();
   }
 }
 
@@ -1431,8 +1546,8 @@ class GroundFade extends StatelessWidget {
   /// each end — the point where it starts and the point where it finishes
   /// both read as lines. These follow a smoothstep instead, so it eases in
   /// and out of the two grounds and no edge is anywhere to be found.
-  static const _stops = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0];
-  static const _alphas = [0.0, 0.104, 0.352, 0.5, 0.648, 0.896, 1.0];
+  static const stops = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0];
+  static const alphas = [0.0, 0.104, 0.352, 0.5, 0.648, 0.896, 1.0];
 
   @override
   Widget build(BuildContext context) {
@@ -1444,9 +1559,9 @@ class GroundFade extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              stops: _stops,
+              stops: stops,
               colors: [
-                for (final a in _alphas)
+                for (final a in alphas)
                   ground.withValues(alpha: a * strength.clamp(0.0, 1.0)),
               ],
             ),

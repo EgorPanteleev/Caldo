@@ -28,6 +28,7 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import kotlin.math.max
 
 /**
  * Two things Flutter's stock activity does not do for us.
@@ -116,7 +117,13 @@ class MainActivity : FlutterActivity() {
      * keys really were while they went, only the field following them.
      */
     val keysSliding: Int
-        get() = if (slides.isNotEmpty()) keysOpen else 0
+        get() = max(if (slides.isNotEmpty()) keysOpen else 0, carry.covers(keysOpen))
+
+    /** The add field as Android carries it on the keys ([KeysCarry]). */
+    private val carry by lazy { KeysCarry(this) }
+
+    /** How far the keys reach into the window, px, as [send] last found. */
+    private var lastReach = 0
 
     /** Where the home-screen widget asks the app to go ([TodayWidget]). */
     private var launches: MethodChannel? = null
@@ -139,6 +146,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        carry.attach()
         useFastestRefreshRate()
         wakeFor(intent)
         SelfUpdate.answer(this, intent)
@@ -269,6 +277,8 @@ class MainActivity : FlutterActivity() {
                 },
             )
         watchIme()
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CARRY_CHANNEL)
+            .setMethodCallHandler(carry::call)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATES_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -771,7 +781,6 @@ class MainActivity : FlutterActivity() {
         sliding: Boolean = false,
         running: List<WindowInsetsAnimation> = emptyList(),
     ) {
-        val sink = imeSink ?: return
         val keys = insets.getInsets(WindowInsets.Type.ime()).bottom
         val nav = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
         // Whether this window reaches past the system bars is read from
@@ -802,6 +811,8 @@ class MainActivity : FlutterActivity() {
         }
         val off = below
         val reach = (keys - off).coerceAtLeast(0)
+        lastReach = reach
+        val sink = imeSink ?: return
         val density = resources.displayMetrics.density
         // The raw figures travel with it, for the numbers a long press puts
         // on screen: a recording of a fault is worth a great deal more when
@@ -814,6 +825,8 @@ class MainActivity : FlutterActivity() {
             "nav" to nav / density,
             "below" to off / density,
             "sliding" to sliding,
+            // Android 11 and later carry the add field on the keys.
+            "carries" to true,
         )
         if (sliding) {
             report["at"] = frameNow() / 1000
@@ -899,6 +912,15 @@ class MainActivity : FlutterActivity() {
         send(insets)
     }
 
+    /**
+     * The keys' slides are over. Dart hears where they came to rest first,
+     * so it draws its field there, and then says so ([KeysCarry]).
+     */
+    private fun rested() {
+        reportIme()
+        carry.settle(lastReach)
+    }
+
     private fun watchIme() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         // Every frame of a slide. Attached to the decor view and passed on
@@ -919,9 +941,13 @@ class MainActivity : FlutterActivity() {
                         window.decorView.postDelayed({
                             if (slides.containsKey(animation) && slides[animation] == null) {
                                 slides.remove(animation)
-                                if (slides.isEmpty()) reportIme()
+                                if (slides.isEmpty()) rested()
                             }
                         }, 500)
+                        // The field goes up over Flutter's where it stands,
+                        // before anything moves, and Dart is told to leave
+                        // its own undrawn.
+                        if (carry.prepare(lastReach)) imeSink?.success(mapOf("carry" to true))
                     }
                 }
 
@@ -958,6 +984,9 @@ class MainActivity : FlutterActivity() {
                     // Where Android says the keys are, with the slide as a
                     // clock for Dart to read at its own frames ([clockOf]).
                     send(insets, sliding = slides.isNotEmpty(), running = running)
+                    // In this frame of the slide, the one that moves the
+                    // keys: the carried field is drawn on them in it.
+                    carry.follow(lastReach)
                     return insets
                 }
 
@@ -966,7 +995,7 @@ class MainActivity : FlutterActivity() {
                     // A slide overtaken by another is not the end of the
                     // keys' moving: the window's insets are the new one's
                     // end, and sending them would jump the field there.
-                    if (slides.isEmpty()) reportIme()
+                    if (slides.isEmpty()) rested()
                 }
             },
         )
@@ -1014,6 +1043,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val IME_CHANNEL = "caldo/ime"
+        const val CARRY_CHANNEL = "caldo/carry"
 
         /**
          * How finely a slide's curve is read for Dart: a straight line

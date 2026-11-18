@@ -40,15 +40,15 @@ lib/
   theme/app_theme.dart     AppPalette + AccentColors, AppColors
   utils/                   dates.dart (every date/time string), platform.dart
   widgets/                 month_grid, task_card, day_sheet, day_hours,
-                           quick_add_bar, tick_off, selection, put_off, carry,
-                           desk, … (see the directory)
+                           quick_add_bar, keys_carry, tick_off, selection,
+                           put_off, carry, desk, … (see the directory)
 ```
 
 Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
 launches, calendars, backups), `PhoneEvents.kt`, `Attachments.kt`,
 `TodayWidget.kt` + `TodayWidgetRuns.kt`, `CaldoApplication.kt`,
 `LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`, `DailySync.kt`,
-`Vault.kt`, `ScreenRecord.kt`.
+`Vault.kt`, `ScreenRecord.kt`, `KeysCarry.kt`.
 Linux: `linux/` is Flutter's GTK runner plus the window
 (`runner/my_application.cc`), `sqlite_shim.cc`, icon + desktop entry,
 `install.sh`. No channels on Linux.
@@ -365,6 +365,27 @@ them will be noticed.
   the kept strip.
 - **The quick-add bar is attached to the keyboard** (`KeyboardLift` translates
   it, same frame, nothing else). **Do not put a curve, spring or cap back.**
+- **In the bar's room, Android carries the field on the keys itself**
+  (`KeysCarry`, `KeysCarry.kt`, `CarriedField`, `FieldCarry`): Flutter's
+  surface and the keyboard's window reach the screen a frame apart as
+  often as together, so no timing in Dart glued it (2.11.22–2.11.31, the
+  clock below, had the numbers within 2pt and the field still visibly off).
+  Dart sends a picture of the field (`toImageSync` of a repaint boundary,
+  raw RGBA) whenever it changes while up on the keys, plus a table of its
+  ground and fade by lift; a view over Flutter's draws it at the top of the
+  keys from `onProgress`, which Android applies with the keys' own move.
+  `onPrepare` puts it up and tells Dart (`carry`); Dart leaves its copy
+  undrawn (`KeyboardGap.carried`), draws it again at rest and says `drawn`,
+  and the picture goes three frames later (same place, so no seam). Closing,
+  it is put by three frames after the field reaches the foot (`park`) —
+  the keys take ~120ms more through the strip, and the bar is back by then.
+  The plus first draws the field open at rest and pictures it
+  (`FieldCarry.raise`, `KeyboardGap.raising`, ~37ms on the emulator), then
+  asks for the keys; so in the bar's room the tools row does not grow in.
+  A filing tick `drop`s the picture (the field goes at once). Recordings
+  take the display's strip over the picture while it shows (`covers`).
+  Everything else on the keys (day sheet, form, a slide with no picture)
+  still rides the clock below.
 - **Keyboard height is the larger of Flutter's `viewInsets` and Android's
   own report** (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the
   display bottom minus what lies below the window. Don't try to correct
@@ -393,7 +414,7 @@ them will be noticed.
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):
   keyboard goes, focus stays, so the next opening doesn't start the IME
   connection from scratch (that opening was the one that misplaced the bar).
-- **Only `KeyboardLift`, `KeyboardRoom`, `QuickAddBar`'s frame and `FieldInBarRoom` read the inset.**
+- **Only `KeyboardLift`, `KeyboardRoom`, `QuickAddBar`'s frame and `FieldInBarRoom` read the inset** (and `CarriedField`, after the frame, for where the field rests).
 - **Long-press the Settings title for keyboard numbers**
   (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
 - **The field's ground and fade follow what is actually under it**
@@ -781,7 +802,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 336 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 340 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

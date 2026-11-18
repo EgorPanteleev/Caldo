@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/tweaks.dart';
 import '../utils/platform.dart';
 import '../widgets/perf_hud.dart';
+import '../widgets/keys_carry.dart';
 import '../widgets/quick_add_bar.dart';
 
 /// Settings › Debug's recording: a video of Caldo and its keyboard alone —
@@ -336,13 +337,31 @@ class _Insets with WidgetsBindingObserver {
   void attach() {
     WidgetsBinding.instance.addObserver(this);
     KeyboardGap.instance.covered.addListener(_reach);
+    KeyboardGap.instance.carried.addListener(_carried);
+    KeyboardGap.instance.raising.addListener(_raising);
+    KeysCarry.took.addListener(_armed);
     didChangeMetrics();
   }
 
   void detach() {
     WidgetsBinding.instance.removeObserver(this);
     KeyboardGap.instance.covered.removeListener(_reach);
+    KeyboardGap.instance.carried.removeListener(_carried);
+    KeyboardGap.instance.raising.removeListener(_raising);
+    KeysCarry.took.removeListener(_armed);
   }
+
+  /// Android carrying the field on the keys, or handing it back.
+  void _carried() =>
+      _to._write('carry', {'on': KeyboardGap.instance.carried.value});
+
+  /// The field drawn open with the keys asked for, until they come.
+  void _raising() =>
+      _to._write('raising', {'on': KeyboardGap.instance.raising.value});
+
+  /// A picture of the field handed to Android, and what it took.
+  void _armed() =>
+      _to._write('arm', {'ms': Recording._one(KeysCarry.took.value)});
 
   /// What Android said of the keys, which the field rides: `viewInsets`
   /// alone leaves out what it was lifted by.
