@@ -10,13 +10,14 @@ class AppColors {
   // Accent (violet → indigo)
   static const accent = Color(0xFF7B61E8);
 
-  // Dark surfaces. The ground is true black — the calendar's already was, and
-  // the app around it reading a shade lighter put a seam down the screen on
-  // every OLED panel. Everything above it is a raised grey instead.
-  static const darkBg = Color(0xFF000000); // app background / content
-  static const darkSidebar = Color(0xFF0C0C0D); // the menu, lifted off black
-  static const darkPanel = Color(0xFF161618); // cards / fields
-  static const darkPanelHi = Color(0xFF212124); // hovered / elevated
+  // Dark surfaces. The ground is one near-black shared with the calendar (two
+  // shades put a seam down the screen), a little grey rather than true black,
+  // which was asked off as too stark. Everything above it is a raised grey,
+  // lifted with it so the steps between them stay as they were.
+  static const darkBg = Color(0xFF111112); // app background / content
+  static const darkSidebar = Color(0xFF17171A); // the menu, lifted off the ground
+  static const darkPanel = Color(0xFF1C1C1F); // cards / fields
+  static const darkPanelHi = Color(0xFF26262A); // hovered / elevated
   static const darkField = Color(0xFF2C2C31); // the quick-add row, on black
   static const darkBorder = Color(0xFF2A2A2E); // hairline borders
 
@@ -88,7 +89,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     text: AppColors.darkText,
     muted: AppColors.darkMuted,
     faint: AppColors.darkFaint,
-    calendar: Color(0xFF000000),
+    calendar: AppColors.darkBg,
   );
 
   static const light = AppPalette(

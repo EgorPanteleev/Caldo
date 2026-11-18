@@ -88,7 +88,7 @@ class ReminderCover(
         @Suppress("DEPRECATION")
         window.statusBarColor = Color.TRANSPARENT
         @Suppress("DEPRECATION")
-        window.navigationBarColor = Color.BLACK
+        window.navigationBarColor = GROUND
         activity.addContentView(
             cover,
             ViewGroup.LayoutParams(
@@ -126,10 +126,10 @@ class ReminderCover(
 
     private fun build(id: Int, words: JSONObject): View {
         val white = Color.WHITE
-        // Opaque, on the app's true black: whatever happens to the app's view
+        // Opaque, on the app's dark ground: whatever happens to the app's view
         // under it, none of it shows through.
         val root = FrameLayout(activity).apply {
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(GROUND)
             isClickable = true
         }
         root.addView(glow(words.optInt("colour", ACCENT)), FrameLayout.LayoutParams(MATCH, MATCH))
@@ -325,6 +325,8 @@ class ReminderCover(
     private companion object {
         /** The app's own accent, for a reminder that came without a colour. */
         const val ACCENT = 0xFF7B61E8.toInt()
+        /** The app's dark ground (`AppColors.darkBg`). */
+        const val GROUND = 0xFF111112.toInt()
 
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
