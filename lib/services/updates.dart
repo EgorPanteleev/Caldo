@@ -5,7 +5,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/strings.dart';
 import '../utils/platform.dart';
@@ -86,11 +85,10 @@ class Updates {
     caseSensitive: false,
   );
 
-  /// How long Later keeps the banner away. A newer release than the one put
-  /// off is offered at once.
-  static const laterFor = Duration(days: 3);
-
-  static const _laterKey = 'updateLater';
+  /// The least time between two looks. Every return to the app looks, and
+  /// some returns come close together — from the file picker, the
+  /// fingerprint prompt — while GitHub answers sixty an hour without a token.
+  static const _lookGap = Duration(minutes: 1);
 
   /// Where a release can be read about and fetched by hand.
   static const _page = 'https://github.com/EgorPanteleev/Caldo/releases/tag';
@@ -100,6 +98,14 @@ class Updates {
   static const linuxFile = 'Caldo-linux-x64.tar.gz';
 
   bool _enabled = false;
+
+  /// Whether Later was pressed since the app started. Nothing is looked for
+  /// again until it starts afresh.
+  bool _putOff = false;
+
+  /// When the last look set out, and whether it is still out.
+  DateTime? _looked;
+  bool _looking = false;
 
   /// Where the current download has got to.
   final ValueNotifier<DownloadProgress> progress = ValueNotifier(null);
@@ -139,28 +145,34 @@ class Updates {
     }
   }
 
-  /// Checks for a newer release and offers it, unless it was put off.
+  /// Checks for a newer release and offers it — on starting and on every
+  /// return to the app, so one released while it sat in the background is
+  /// offered the next time it is opened. Not once Later has been pressed,
+  /// nor while a download is under way, which a fresh offer would only
+  /// disturb.
   Future<void> look() async {
-    final update = await check();
-    if (update == null) return;
-    available.value = update;
-    if (update.urgent || !await _putOff(update)) offered.value = update;
+    final now = DateTime.now();
+    if (_putOff || _looking || progress.value != null) return;
+    if (_looked case final last? when now.difference(last) < _lookGap) return;
+    _looking = true;
+    _looked = now;
+    try {
+      final update = await check();
+      // Later may have been pressed on an earlier offer meanwhile.
+      if (update == null || _putOff) return;
+      available.value = update;
+      offered.value = update;
+    } finally {
+      _looking = false;
+    }
   }
 
-  /// Keeps the banner away for [laterFor]. An urgent release can't be.
-  Future<void> later(Update update) async {
+  /// Keeps the banner away, and stops looking, until the app starts again.
+  /// An urgent release can't be put off.
+  void later(Update update) {
     if (update.urgent) return;
+    _putOff = true;
     offered.value = null;
-    final until = DateTime.now().add(laterFor).millisecondsSinceEpoch;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_laterKey, '${update.version}@$until');
-  }
-
-  Future<bool> _putOff(Update update) async {
-    final prefs = await SharedPreferences.getInstance();
-    final [version, until] = (prefs.getString(_laterKey) ?? '@').split('@');
-    return version == update.version &&
-        DateTime.now().millisecondsSinceEpoch < (int.tryParse(until) ?? 0);
   }
 
   /// The newer release, if there is one. Null on any failure at all — no

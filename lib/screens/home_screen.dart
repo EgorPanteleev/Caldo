@@ -218,6 +218,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Backup.autoIfDue(context.read<SettingsProvider>());
     // Another device may have changed things while this one was away.
     Sync.instance.run();
+    // And a release may have come out.
+    Updates.instance.look();
   }
 
   /// A reminder tapped with the phone in use opens its task, as a row of

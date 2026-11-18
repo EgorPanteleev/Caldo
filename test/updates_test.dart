@@ -3,7 +3,6 @@ import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/widgets/update_banner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 Map<String, Object?> _release(
   String tag, {
@@ -101,7 +100,6 @@ void main() {
 
   group('banner', () {
     setUp(() {
-      SharedPreferences.setMockInitialValues({});
       Updates.instance.offered.value = null;
     });
 
@@ -124,7 +122,7 @@ void main() {
 
     final file = Uri.parse('https://example.com/a.apk');
 
-    testWidgets('Later puts it off until a newer one', (tester) async {
+    testWidgets('Later puts it away', (tester) async {
       await pump(
         tester,
         Update('2.9.7', file, notes: [const ReleaseNotes('2.9.7', '- Fix')]),
@@ -133,9 +131,6 @@ void main() {
       await tester.tap(find.text('Later'));
       await tester.pump();
       expect(find.byType(UpdateBanner), findsNothing);
-
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('updateLater'), startsWith('2.9.7@'));
     });
 
     testWidgets('an urgent one has no Later', (tester) async {

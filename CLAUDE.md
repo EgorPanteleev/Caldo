@@ -450,8 +450,9 @@ them will be noticed.
   (dotted-number compare, `Updates.pick`); the newest is offered with every
   skipped release's notes. Banner: version, a line, Later + filled Update;
   a tap opens What's new (`showUpdateSheet`, notes drawn from their
-  `New:`/`- ` lines). **Later** hides it 3 days for that version
-  (`updateLater` pref); Settings › About keeps an "is out" row meanwhile.
+  `New:`/`- ` lines). Looked for on start and on every resume, at most
+  once a minute (`Updates.look`). **Later** hides it and stops looking
+  until the app restarts; Settings › About keeps an "is out" row meanwhile.
   **A release whose notes hold `<!-- priority: high -->` is urgent**: no
   Later, an Important tag. Banner downloads the ABI's APK and installs through Caldo's own
   `PackageInstaller` session (keeps full-screen permission, no prompt on

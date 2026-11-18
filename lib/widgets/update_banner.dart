@@ -8,8 +8,8 @@ import 'date_time_pickers.dart' show SheetAction, showAppSheet;
 /// Says a newer Caldo is out: its version, a tap to read what is new in it,
 /// Later and Update — and while it downloads, how far it has got.
 ///
-/// Later keeps it away for [Updates.laterFor], no longer: an update put off
-/// is not an update refused, and Settings offers it meanwhile. A release
+/// Later keeps it away until the app next starts, no longer: an update put
+/// off is not an update refused, and Settings offers it meanwhile. A release
 /// marked urgent has no Later and stays until it is installed.
 class UpdateBanner extends StatelessWidget {
   final Update update;
