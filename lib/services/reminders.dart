@@ -13,6 +13,7 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../l10n/strings.dart';
+import '../models/special_day.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart' show TaskProvider, dayOf;
@@ -65,7 +66,13 @@ class Reminders {
   /// What the alarms currently standing were set from, so a change of settings
   /// can re-set them against the same tasks.
   List<Task> _last = const [];
+  List<SpecialDay> _lastDays = const [];
   bool _synced = false;
+
+  /// Where a special day's alarm ids start: they share the plugin with the
+  /// tasks', which are the tasks' own ids and so small, and still fit the
+  /// 32 bits Android keeps one in.
+  static const specialBase = 2000000000;
 
   /// The alarms this run of the app has set, by task id, each with what it
   /// was set to say and when — so a sync only touches the ones that changed.
@@ -288,7 +295,7 @@ class Reminders {
   /// change in how they are worded rather than in when they go off, such as
   /// the clock times are written on.
   Future<void> refresh() async {
-    if (_synced) await sync(_last);
+    if (_synced) await sync(_last, days: _lastDays);
   }
 
   Future<void> configure({
@@ -307,11 +314,12 @@ class Reminders {
     _allDayMinutes = allDayMinutes;
     _lead = lead;
     _fullScreen = fullScreen;
-    if (_synced) await sync(_last);
+    if (_synced) await sync(_last, days: _lastDays);
   }
 
   /// Brings the alarms in line with [tasks]: one per task that is still to
-  /// come.
+  /// come — and one for each of the special [days] that falls within reach
+  /// and asks to be, on the day at the all-day hour.
   ///
   /// The first sync cancels everything and sets the lot, since an earlier run
   /// of the app may have left alarms behind. After that only what changed is
@@ -319,12 +327,14 @@ class Reminders {
   /// the plugin rewrites its whole store of alarms for each one it sets, all
   /// on the platform's main thread — which is where frames come from, so the
   /// card sliding into place after a tick stuttered through it.
-  Future<void> sync(List<Task> tasks) async {
+  Future<void> sync(List<Task> tasks, {List<SpecialDay>? days}) async {
     if (!_ready) return;
     _last = tasks;
+    _lastDays = days ?? _lastDays;
     _synced = true;
     try {
       final wanted = <int, (DateTime, Task, String)>{};
+      final special = <int, (DateTime, SpecialDay, String)>{};
       if (_enabled) {
         final now = DateTime.now();
         final until = now.add(_horizon);
@@ -343,6 +353,21 @@ class Reminders {
             '${at.toIso8601String()}|${task.title}|$body|$_exact|$_fullScreen|${_colourOf(task)}|${S.current.code}',
           );
         }
+        final today = dayOf(now);
+        for (final day in _lastDays) {
+          if (!day.remind || day.id == null) continue;
+          final on = day.nextFrom(today);
+          final at = on.add(Duration(minutes: _allDayMinutes));
+          // Today's hour has gone by: it was announced, or the day was
+          // made after it. Next year's is out of reach either way.
+          if (at.isBefore(now)) continue;
+          if (at.isAfter(until)) continue;
+          special[specialBase + day.id!] = (
+            at,
+            day,
+            '${at.toIso8601String()}|${day.name}|${_specialBody(day, on)}|$_exact|${S.current.code}',
+          );
+        }
       }
 
       var standing = _standing;
@@ -352,13 +377,18 @@ class Reminders {
         standing = _standing = {};
       }
       for (final id in [...standing.keys]) {
-        if (wanted[id]?.$3 == standing[id]) continue;
+        if ((wanted[id]?.$3 ?? special[id]?.$3) == standing[id]) continue;
         await _cancel(id);
         standing.remove(id);
       }
       for (final MapEntry(key: id, value: (at, task, said)) in wanted.entries) {
         if (standing[id] == said) continue;
         await _schedule(id, at, task);
+        standing[id] = said;
+      }
+      for (final MapEntry(key: id, value: (at, day, said)) in special.entries) {
+        if (standing[id] == said) continue;
+        await _scheduleSpecial(id, at, day);
         standing[id] = said;
       }
     } catch (error, stack) {
@@ -451,9 +481,18 @@ class Reminders {
             urgency: LinuxNotificationUrgency.normal,
             sound: ThemeLinuxSound('message-new-instant'),
             actions: [
-              LinuxNotificationAction(key: done, label: S.current.reminderDone),
-              for (final MapEntry(key: key, value: minutes) in snoozes.entries)
-                LinuxNotificationAction(key: key, label: snoozeLabel(minutes)),
+              if (!alarm.plain) ...[
+                LinuxNotificationAction(
+                  key: done,
+                  label: S.current.reminderDone,
+                ),
+                for (final MapEntry(key: key, value: minutes)
+                    in snoozes.entries)
+                  LinuxNotificationAction(
+                    key: key,
+                    label: snoozeLabel(minutes),
+                  ),
+              ],
             ],
           ),
         ),
@@ -502,6 +541,43 @@ class Reminders {
             ),
             AndroidNotificationAction(dismissed, S.current.reminderDismiss),
           ],
+        ),
+      ),
+      androidScheduleMode: _exact
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexactAllowWhileIdle,
+    );
+  }
+
+  /// What a special day's notification says under its name: what it is,
+  /// and the years it makes [on].
+  static String _specialBody(SpecialDay day, DateTime on) =>
+      S.current.specialLine(day.kind, day.yearsIn(on.year));
+
+  /// A special day's alarm: on the day, in its colour, with no buttons —
+  /// there is nothing to tick off or put off — and never over the lock
+  /// screen, which is for things that cannot wait. A tap opens the app.
+  Future<void> _scheduleSpecial(int id, DateTime at, SpecialDay day) {
+    final body = _specialBody(day, dayOf(at));
+    if (onDesktop) {
+      _alarms[id] = _Alarm(at, day.name, body, plain: true);
+      _arm();
+      return Future.value();
+    }
+    return _plugin.zonedSchedule(
+      id: id,
+      scheduledDate: tz.TZDateTime.from(at, tz.local),
+      title: day.name,
+      body: body,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          S.current.reminderChannel,
+          channelDescription: S.current.reminderChannelHint,
+          importance: Importance.high,
+          priority: fln.Priority.high,
+          category: AndroidNotificationCategory.event,
+          color: day.color,
         ),
       ),
       androidScheduleMode: _exact
@@ -576,5 +652,8 @@ class _Alarm {
   final String title;
   final String body;
 
-  const _Alarm(this.at, this.title, this.body);
+  /// A special day's, which has nothing to be done or put off.
+  final bool plain;
+
+  const _Alarm(this.at, this.title, this.body, {this.plain = false});
 }

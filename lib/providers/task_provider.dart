@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../data/holidays.dart';
 import '../db/database.dart';
+import '../models/special_day.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../services/background.dart';
@@ -32,7 +34,9 @@ class TaskProvider extends ChangeNotifier {
 
   void _changedOutside() {
     rearranging.value++;
-    _reloadAll();
+    // A sync may have brought a birthday down, which nothing else here
+    // changes behind the provider's back.
+    _readSpecialDays().then((_) => _reloadAll());
   }
 
   List<TaskList> _lists = [];
@@ -148,6 +152,92 @@ class TaskProvider extends ChangeNotifier {
 
   /// How many days ahead the Tasks screen looks.
   static const agendaDays = 30;
+
+  // ---- Special days -------------------------------------------------------
+
+  List<SpecialDay> _specialDays = const [];
+
+  /// Birthdays and the user's other yearly days, in the order of the year.
+  List<SpecialDay> get specialDays => _specialDays;
+
+  /// [_around]'s maps, kept until the special days or the country change:
+  /// it is called from inside the calendar's build, on every frame the
+  /// month is dragged open, as [Holidays.around] is for the same reason.
+  final _around = <String, Map<DateTime, List<Holiday>>>{};
+
+  /// The public holidays of [month] and its neighbours in [country], with
+  /// the special days of the same months after them, keyed by day.
+  Map<DateTime, List<Holiday>> daysAround(String? country, DateTime month) {
+    final public = Holidays.around(country, month);
+    if (_specialDays.isEmpty) return public;
+    return _around.putIfAbsent('$country|${month.year}-${month.month}', () {
+      final map = {
+        for (final MapEntry(:key, :value) in public.entries) key: [...value],
+      };
+      for (var m = month.month - 1; m <= month.month + 1; m++) {
+        final shown = DateTime(month.year, m);
+        for (final special in _specialDays) {
+          final on = special.inYear(shown.year);
+          if (on.month != shown.month) continue;
+          map.putIfAbsent(on, () => []).add(Holiday.of(special, on));
+        }
+      }
+      return map;
+    });
+  }
+
+  /// The days from [from] up to [until] that have a special day on them.
+  Iterable<DateTime> specialDaysBetween(DateTime from, DateTime until) sync* {
+    for (final special in _specialDays) {
+      final on = special.nextFrom(from);
+      if (on.isBefore(until)) yield on;
+    }
+  }
+
+  Future<void> loadSpecialDays() async {
+    await _readSpecialDays();
+    notifyListeners();
+    await _afterRead();
+  }
+
+  /// The app's first read: the special days, then the agenda, so the
+  /// first reminders set include theirs. Not on every read of the agenda,
+  /// which a tick is: they change only here, or with a sync.
+  Future<void> start() async {
+    await _readSpecialDays();
+    await loadTasks();
+  }
+
+  /// The maps made from them are only let go of when they changed.
+  Future<void> _readSpecialDays() async {
+    final read = await _db.getSpecialDays();
+    if (_sameDays(read, _specialDays)) return;
+    _specialDays = read;
+    _around.clear();
+  }
+
+  static bool _sameDays(List<SpecialDay> a, List<SpecialDay> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!mapEquals(a[i].toMap(), b[i].toMap())) return false;
+    }
+    return true;
+  }
+
+  Future<void> addSpecialDay(SpecialDay day) async {
+    await _db.insertSpecialDay(day);
+    await loadSpecialDays();
+  }
+
+  Future<void> updateSpecialDay(SpecialDay day) async {
+    await _db.updateSpecialDay(day);
+    await loadSpecialDays();
+  }
+
+  Future<void> deleteSpecialDay(int id) async {
+    await _db.deleteSpecialDay(id);
+    await loadSpecialDays();
+  }
 
   // ---- Lists --------------------------------------------------------------
 
@@ -306,7 +396,10 @@ class TaskProvider extends ChangeNotifier {
   /// reason the alarms are: every change ends here.
   Future<void> _afterRead() async {
     Reminders.instance.lists = _lists;
-    await Reminders.instance.sync([..._allOverdue, ..._allUpcoming]);
+    await Reminders.instance.sync([
+      ..._allOverdue,
+      ..._allUpcoming,
+    ], days: _specialDays);
     await TodayWidget.publish(this);
     // The same reasoning brings the account in: whatever changed here, a
     // round goes up shortly after.
@@ -714,9 +807,10 @@ class TaskProvider extends ChangeNotifier {
   /// Reloads whatever the UI currently has on screen after a mutation.
   /// Reads everything back after the database has been replaced under it
   /// by a restore. The group on show may not exist any more, so all are.
-  Future<void> reloadRestored() {
+  Future<void> reloadRestored() async {
     _group = null;
-    return _reloadAll();
+    await _readSpecialDays();
+    await _reloadAll();
   }
 
   Future<void> _reloadAll() async {

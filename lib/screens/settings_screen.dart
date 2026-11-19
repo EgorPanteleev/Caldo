@@ -28,6 +28,7 @@ import '../widgets/perf_hud.dart';
 import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/sign_in_sheet.dart';
+import '../widgets/special_days.dart';
 import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/theme_switcher.dart';
 import '../widgets/update_banner.dart' show showUpdateSheet;
@@ -542,6 +543,28 @@ List<Widget> _calendar(BuildContext context, SettingsProvider settings, S s) {
           ),
       ],
     ),
+    _Group(
+      children: [
+        Builder(
+          builder: (context) {
+            final count = context.select<TaskProvider, int>(
+              (t) => t.specialDays.length,
+            );
+            return _Row(
+              icon: Icons.cake_outlined,
+              title: s.specialDays,
+              value: count == 0 ? s.noneYet : s.specialDaysCount(count),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      _Page(title: (s) => s.specialDays, rows: _specialDays),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    ),
     // The phone's calendars are Android's to hand over; a desktop has no
     // one place its calendars are kept.
     if (!onDesktop)
@@ -573,6 +596,41 @@ List<Widget> _calendar(BuildContext context, SettingsProvider settings, S s) {
             ),
         ],
       ),
+  ];
+}
+
+/// The user's birthdays and other yearly days, the next first, and a row
+/// that adds one.
+List<Widget> _specialDays(
+  BuildContext context,
+  SettingsProvider settings,
+  S s,
+) {
+  final today = dayOf(DateTime.now());
+  final days = [...context.watch<TaskProvider>().specialDays]
+    ..sort((a, b) => a.nextFrom(today).compareTo(b.nextFrom(today)));
+  return [
+    _Group(
+      footnote: s.specialDaysNote,
+      children: [
+        for (final day in days)
+          _Row(
+            leading: Icon(day.icon, size: 21, color: day.color),
+            title: day.name,
+            value: () {
+              final next = day.nextFrom(today);
+              return '${Dates.shortDay(next)} · '
+                  '${s.specialLine(day.kind, day.yearsIn(next.year))}';
+            }(),
+            onTap: () => showSpecialDaySheet(context, day: day),
+          ),
+        _Row(
+          icon: Icons.add,
+          title: s.addSpecialDay,
+          onTap: () => showSpecialDaySheet(context),
+        ),
+      ],
+    ),
   ];
 }
 

@@ -128,7 +128,8 @@ class _DaySheetState extends State<_DaySheet> {
     final country = context.watch<SettingsProvider>().effectiveHolidayCountry;
     final day = dayOf(widget.day);
     final tasks = provider.tasksForDay(day);
-    final holidays = Holidays.around(country, day)[day] ?? const <Holiday>[];
+    final holidays =
+        provider.daysAround(country, day)[day] ?? const <Holiday>[];
     final events = eventsOnShow(context)?.on(day) ?? const [];
     final open = tasks.where((t) => !t.done).length;
     final view = MediaQueryData.fromView(View.of(context));

@@ -860,7 +860,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       date: day,
       tasks: provider.tasksForDay(day),
       holidays:
-          Holidays.around(settings.effectiveHolidayCountry, day)[day] ??
+          provider.daysAround(settings.effectiveHolidayCountry, day)[day] ??
           const <Holiday>[],
       events: events?.on(day) ?? const [],
       lists: provider.lists,
@@ -964,8 +964,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                                                   mondayFirst: mondayFirst,
                                                   tasksByDay:
                                                       provider.tasksByDay,
-                                                  holidaysByDay:
-                                                      Holidays.around(
+                                                  holidaysByDay: provider
+                                                      .daysAround(
                                                         country,
                                                         _monthOfPage(i),
                                                       ),
@@ -1208,10 +1208,11 @@ class _CalendarScreenState extends State<CalendarScreen>
                                                 selected: _selected,
                                                 mondayFirst: mondayFirst,
                                                 tasksByDay: provider.tasksByDay,
-                                                holidaysByDay: Holidays.around(
-                                                  country,
-                                                  _monthOfPage(i),
-                                                ),
+                                                holidaysByDay: provider
+                                                    .daysAround(
+                                                      country,
+                                                      _monthOfPage(i),
+                                                    ),
                                                 eventsByDay:
                                                     events?.byDay ?? const {},
                                                 lists: provider.lists,
@@ -1252,8 +1253,8 @@ class _CalendarScreenState extends State<CalendarScreen>
                                                   mondayFirst: mondayFirst,
                                                   tasksByDay:
                                                       provider.tasksByDay,
-                                                  holidaysByDay:
-                                                      Holidays.around(
+                                                  holidaysByDay: provider
+                                                      .daysAround(
                                                         country,
                                                         shown,
                                                       ),

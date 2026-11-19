@@ -18,6 +18,7 @@ import '../utils/dates.dart';
 import '../utils/platform.dart';
 import 'attachments_field.dart' show AttachmentMark;
 import 'selection.dart';
+import 'special_days.dart';
 import 'task_menu.dart';
 
 /// A task as it appears under the calendar: a card inked with its list's
@@ -825,7 +826,9 @@ const taskCardTickKey = Key('task-card-tick');
 const taskCardMarkKey = Key('task-card-mark');
 
 /// A public holiday beside a day's tasks: the same card as a [TaskCard], with
-/// a green mark where the tick would be and nothing to tick off.
+/// a green mark where the tick would be and nothing to tick off. One of the
+/// user's special days is the same card again in its own colour and with
+/// its own mark, and a tap opens it to be changed.
 class HolidayCard extends StatelessWidget {
   final Holiday holiday;
 
@@ -837,55 +840,75 @@ class HolidayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final s = S.of(context);
+    final special = holiday.special;
+    final color = holiday.color;
+    final line = special == null
+        ? s.publicHoliday
+        : s.specialLine(special.kind, special.yearsIn(holiday.date.year));
+    final body = Padding(
+      padding: dense ? TaskCard._insideDense : TaskCard._inside,
+      child: Row(
+        children: [
+          Icon(
+            special?.icon ?? Icons.celebration_outlined,
+            color: color,
+            size: dense ? 20 : 22,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: dense
+                // The mark says what it is; the words saying so are left to
+                // the full card.
+                ? Text(
+                    holiday.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: p.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        holiday.name,
+                        style: TextStyle(
+                          color: p.text,
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        line,
+                        style: TextStyle(color: p.muted, fontSize: 12.5),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
     return Padding(
       padding: TaskCard.margin,
       child: Container(
-        padding: dense ? TaskCard._insideDense : TaskCard._inside,
-        decoration: TaskCard.paneOf(AppColors.holiday),
-        foregroundDecoration: TaskCard.rimDecoration(AppColors.holiday),
-        child: Row(
-          children: [
-            Icon(
-              Icons.celebration_outlined,
-              color: AppColors.holiday,
-              size: dense ? 20 : 22,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: dense
-                  // The green mark says it is a holiday; the words saying
-                  // so are left to the full card.
-                  ? Text(
-                      holiday.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: p.text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          holiday.name,
-                          style: TextStyle(
-                            color: p.text,
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          S.of(context).publicHoliday,
-                          style: TextStyle(color: p.muted, fontSize: 12.5),
-                        ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
+        foregroundDecoration: TaskCard.rimDecoration(color),
+        child: special == null
+            ? DecoratedBox(decoration: TaskCard.paneOf(color), child: body)
+            : Material(
+                type: MaterialType.transparency,
+                child: Ink(
+                  decoration: TaskCard.paneOf(color),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(TaskCard.radius),
+                    onTap: () => showSpecialDaySheet(context, day: special),
+                    child: body,
+                  ),
+                ),
+              ),
       ),
     );
   }

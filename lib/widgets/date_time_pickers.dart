@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
@@ -436,32 +437,7 @@ class _TimeSheetState extends State<_TimeSheet> {
           // pixels rather than to each number, one halfway across the edge
           // comes out bright above the line and dim below it. That split is
           // what shows a wheel standing between two values.
-          child: ShaderMask(
-            shaderCallback: (rect) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0x00FFFFFF),
-                Color(0x52FFFFFF),
-                Color(0x52FFFFFF),
-                Color(0xFFFFFFFF),
-                Color(0xFFFFFFFF),
-                Color(0x52FFFFFF),
-                Color(0x52FFFFFF),
-                Color(0x00FFFFFF),
-              ],
-              stops: [
-                0.0,
-                0.14,
-                _bandTop,
-                _bandTop,
-                _bandBottom,
-                _bandBottom,
-                0.86,
-                1.0,
-              ],
-            ).createShader(rect),
-            blendMode: BlendMode.dstIn,
+          child: _WheelMask(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -573,6 +549,9 @@ class _Wheel extends StatefulWidget {
   /// Hours and minutes run round; AM/PM has two values and an end to it.
   final bool looping;
 
+  /// Smaller for words — a month's name — than for numbers.
+  final double fontSize;
+
   const _Wheel({
     required this.controller,
     required this.count,
@@ -580,6 +559,7 @@ class _Wheel extends StatefulWidget {
     required this.label,
     required this.onChanged,
     this.looping = true,
+    this.fontSize = 30,
   });
 
   @override
@@ -598,7 +578,7 @@ class _WheelState extends State<_Wheel> {
     final p = AppTheme.of(context);
     final style = TextStyle(
       color: _touched ? AppTheme.accentOf(context).color : p.text,
-      fontSize: 30,
+      fontSize: widget.fontSize,
       height: 1,
       fontWeight: FontWeight.w600,
       fontFeatures: const [FontFeature.tabularFigures()],
@@ -606,7 +586,15 @@ class _WheelState extends State<_Wheel> {
 
     final children = [
       for (var i = 0; i < widget.count; i++)
-        Center(child: Text(widget.label(i), style: style)),
+        Center(
+          child: Text(
+            widget.label(i),
+            style: style,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.fade,
+          ),
+        ),
     ];
 
     return Listener(
@@ -630,6 +618,151 @@ class _WheelState extends State<_Wheel> {
           childDelegate: widget.looping
               ? ListWheelChildLoopingListDelegate(children: children)
               : ListWheelChildListDelegate(children: children),
+        ),
+      ),
+    );
+  }
+}
+
+/// The mask over a set of wheels: bright in one row's height down the
+/// middle, a third of that outside it, fading out at the ends.
+class _WheelMask extends StatelessWidget {
+  final Widget child;
+
+  const _WheelMask({required this.child});
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    shaderCallback: (rect) => const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Color(0x00FFFFFF),
+        Color(0x52FFFFFF),
+        Color(0x52FFFFFF),
+        Color(0xFFFFFFFF),
+        Color(0xFFFFFFFF),
+        Color(0x52FFFFFF),
+        Color(0x52FFFFFF),
+        Color(0x00FFFFFF),
+      ],
+      stops: [
+        0.0,
+        0.14,
+        _bandTop,
+        _bandTop,
+        _bandBottom,
+        _bandBottom,
+        0.86,
+        1.0,
+      ],
+    ).createShader(rect),
+    blendMode: BlendMode.dstIn,
+    child: child,
+  );
+}
+
+// ---- A day of the year ----------------------------------------------------
+
+/// A day of the year on the clock's wheels — the day, the month and a year
+/// that may be left unsaid ("—", its last row), for a birthday whose year
+/// is not known.
+class DayWheels extends StatefulWidget {
+  final int month;
+  final int day;
+  final int? year;
+  final void Function(int month, int day, int? year) onChanged;
+
+  const DayWheels({
+    super.key,
+    required this.month,
+    required this.day,
+    this.year,
+    required this.onChanged,
+  });
+
+  /// The earliest year the wheel offers.
+  static const firstYear = 1900;
+
+  @override
+  State<DayWheels> createState() => _DayWheelsState();
+}
+
+class _DayWheelsState extends State<DayWheels> {
+  late int _month = widget.month;
+  late int _day = widget.day;
+  late int? _year = widget.year;
+
+  /// Years run up the wheel to this one, as the days and months do, and
+  /// "—" comes after it: the wheel starts there for a new day, the recent
+  /// years nearest, and a drag down goes back through them.
+  final _thisYear = DateTime.now().year;
+  int get _years => _thisYear - DayWheels.firstYear + 1;
+  int _yearItem(int? year) =>
+      year == null ? _years : year - DayWheels.firstYear;
+
+  late final _days = FixedExtentScrollController(initialItem: _day - 1);
+  late final _months = FixedExtentScrollController(initialItem: _month - 1);
+  late final _yearWheel = FixedExtentScrollController(
+    initialItem: _yearItem(_year),
+  );
+
+  @override
+  void dispose() {
+    _days.dispose();
+    _months.dispose();
+    _yearWheel.dispose();
+    super.dispose();
+  }
+
+  void _changed() => widget.onChanged(_month, _day, _year);
+
+  @override
+  Widget build(BuildContext context) {
+    final code = S.of(context).code;
+    final months = DateFormat.MMM(code);
+    return SizedBox(
+      height: _wheelHeight,
+      child: _WheelMask(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _Wheel(
+              controller: _days,
+              count: 31,
+              width: 62,
+              label: (i) => '${i + 1}',
+              onChanged: (i) {
+                _day = i + 1;
+                _changed();
+              },
+            ),
+            _Wheel(
+              controller: _months,
+              count: 12,
+              width: 112,
+              fontSize: 24,
+              // Months by name, as short as the language writes them:
+              // a number beside the day's would leave which is which to
+              // the reader's habits.
+              label: (i) => months.format(DateTime(2000, i + 1)),
+              onChanged: (i) {
+                _month = i + 1;
+                _changed();
+              },
+            ),
+            _Wheel(
+              controller: _yearWheel,
+              count: _years + 1,
+              width: 96,
+              looping: false,
+              label: (i) => i == _years ? '—' : '${DayWheels.firstYear + i}',
+              onChanged: (i) {
+                _year = i == _years ? null : DayWheels.firstYear + i;
+                _changed();
+              },
+            ),
+          ],
         ),
       ),
     );

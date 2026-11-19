@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 
+import '../models/special_day.dart';
 import '../models/task.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -216,6 +217,39 @@ class S {
   String get allClear => _word('allClear');
   String moreCount(int hidden) => _fill('moreCount', {'n': hidden});
   String get publicHoliday => _word('publicHoliday');
+
+  // ---- Special days --------------------------------------------------------
+  String get specialDays => _word('specialDays');
+  String specialDaysCount(int n) => _count('specialDaysCount', n);
+  String get noneYet => _word('noneYet');
+  String get specialDaysNote => _word('specialDaysNote');
+  String get addSpecialDay => _word('addSpecialDay');
+  String get newSpecialDay => _word('newSpecialDay');
+  String get editSpecialDay => _word('editSpecialDay');
+  String get specialName => _word('specialName');
+  String get kindBirthday => _word('kindBirthday');
+  String get kindAnniversary => _word('kindAnniversary');
+  String get kindOther => _word('kindOther');
+  String get specialDay => _word('specialDay');
+  String turnsAge(int n) => _count('turnsAge', n);
+  String yearsOn(int n) => _count('yearsOn', n);
+  String get remindOnTheDay => _word('remindOnTheDay');
+
+  /// What a special day's card says under its name: what it is, and how
+  /// many years it has been when that is known — "Birthday · Turns 30".
+  String specialLine(SpecialKind kind, int? years) {
+    final what = switch (kind) {
+      SpecialKind.birthday => kindBirthday,
+      SpecialKind.anniversary => kindAnniversary,
+      SpecialKind.other => specialDay,
+    };
+    if (years == null) return what;
+    return '$what · ${kind == SpecialKind.birthday ? turnsAge(years) : yearsOn(years)}';
+  }
+
+  /// "Delete "{name}"?", which is worded for nothing in particular.
+  String deleteQuestion(String name) =>
+      _fill('deleteGroupQuestion', {'name': name});
   String eventFrom(String time) => _fill('eventFrom', {'time': time});
   String eventUntil(String time) => _fill('eventUntil', {'time': time});
   String addTaskOn(String date) => _fill('addTaskOn', {'date': date});

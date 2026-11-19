@@ -90,18 +90,25 @@ class _TasksScreenState extends State<TasksScreen> {
     // still a day with something on it.
     final events = eventsOnShow(context);
     final horizon = today.add(const Duration(days: TaskProvider.agendaDays));
+    // Nor is one with a birthday on it: it is there to be seen coming.
     final days = {
       ...byDay.keys,
       for (final day in events?.byDay.keys ?? const <DateTime>[])
         if (!day.isBefore(today) && day.isBefore(horizon)) day,
+      ...provider.specialDaysBetween(today, horizon),
     }.toList()..sort();
     final undated = provider.undated;
     final hasAnything =
         overdue.isNotEmpty || days.isNotEmpty || undated.isNotEmpty;
 
     // Public holidays fall in among the days rather than in a list of their
-    // own, the same way they do under the calendar.
-    final holidays = Holidays.around(country, today);
+    // own, the same way they do under the calendar. The months either side
+    // of today do not always reach the agenda's last day (from the 31st of
+    // January it is in March), so those around that day are read as well.
+    final holidays = {
+      ...provider.daysAround(country, today),
+      ...provider.daysAround(country, horizon),
+    };
 
     // One card for everything on a day. A timed task was a bare row with a
     // lone colour bar on it and its hour stranded at the far edge, which read

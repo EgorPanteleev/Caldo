@@ -933,7 +933,7 @@ class _DayCell extends StatelessWidget {
     );
 
     final markerColours = [
-      for (final _ in holidays) AppColors.holiday,
+      for (final holiday in holidays) holiday.color,
       for (final event in events) event.color,
       for (final task in tasks) taskColor(task),
     ];
@@ -994,7 +994,7 @@ class _DayCell extends StatelessWidget {
                                 for (final holiday in holidays)
                                   (
                                     label: holiday.name,
-                                    color: AppColors.holiday,
+                                    color: holiday.color,
                                     done: false,
                                     task: null,
                                   ),

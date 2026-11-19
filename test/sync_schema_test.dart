@@ -223,6 +223,17 @@ void main() {
         'created_at': 1,
       });
       expect((await (await db()).query('vault_keys')).single['dirty'], 1);
+      // And v13: the special days, the same.
+      expect(await (await db()).query('special_days'), isEmpty);
+      await (await db()).insert('special_days', {
+        'name': 'Mum',
+        'month': 4,
+        'day': 2,
+        'created_at': 1,
+      });
+      final mum = (await (await db()).query('special_days')).single;
+      expect(mum['dirty'], 1);
+      expect(mum['uuid'], isNotNull);
     },
   );
 }

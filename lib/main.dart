@@ -104,7 +104,7 @@ class CaldoApp extends StatelessWidget {
         ChangeNotifierProxyProvider<SettingsProvider, TaskProvider>(
           create: (_) => TaskProvider()
             ..loadLists()
-            ..loadTasks(),
+            ..start(),
           update: (_, settings, tasks) =>
               tasks!..setShowCompleted(settings.showCompleted),
         ),

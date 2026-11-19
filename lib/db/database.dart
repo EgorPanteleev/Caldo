@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../models/completion.dart';
+import '../models/special_day.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 
@@ -18,12 +19,13 @@ class AppDatabase {
   factory AppDatabase.named(String name) => AppDatabase._(name);
 
   final String _dbName;
-  static const _dbVersion = 12;
+  static const _dbVersion = 13;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
   static const _vaultKeys = 'vault_keys';
   static const _secrets = 'secrets';
+  static const _specialDays = 'special_days';
   static const _syncState = 'sync_state';
   static const _tombstones = 'tombstones';
 
@@ -89,6 +91,7 @@ class AppDatabase {
         // cannot come out with different triggers.
         await _addSync(db);
         await _addVault(db);
+        await _addSpecialDays(db);
         await db.insert(_lists, {
           'name': 'Personal',
           'style_id': 'violet',
@@ -166,6 +169,10 @@ class AppDatabase {
         if (oldVersion < 12) {
           // v11 -> the vault: its keys and the secrets they seal.
           await _addVault(db);
+        }
+        if (oldVersion < 13) {
+          // v12 -> birthdays and other days of the user's own.
+          await _addSpecialDays(db);
         }
       },
     );
@@ -307,6 +314,26 @@ class AppDatabase {
     ''');
     await _stamp(db, _vaultKeys);
     await _stamp(db, _secrets);
+  }
+
+  /// Birthdays, anniversaries and other days that come back every year
+  /// (schema v13): a month and a day, the year it began when known.
+  static Future<void> _addSpecialDays(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE $_specialDays (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'birthday',
+        month INTEGER NOT NULL,
+        day INTEGER NOT NULL,
+        year INTEGER,
+        style_id TEXT NOT NULL DEFAULT 'pink',
+        remind INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        $_syncColumns
+      )
+    ''');
+    await _stamp(db, _specialDays);
   }
 
   /// Gives the oldest group — the default, which cannot be deleted — the
@@ -702,6 +729,39 @@ class AppDatabase {
     });
   }
 
+  // ---- Special days -------------------------------------------------------
+
+  /// Every special day, in the order of the year: January's first.
+  Future<List<SpecialDay>> getSpecialDays() async {
+    final db = await database;
+    final rows = await db.query(
+      _specialDays,
+      orderBy: 'month ASC, day ASC, created_at ASC',
+    );
+    return rows.map(SpecialDay.fromMap).toList();
+  }
+
+  Future<SpecialDay> insertSpecialDay(SpecialDay day) async {
+    final db = await database;
+    final id = await db.insert(_specialDays, day.toMap()..remove('id'));
+    return day.copyWith(id: id);
+  }
+
+  Future<void> updateSpecialDay(SpecialDay day) async {
+    final db = await database;
+    await db.update(
+      _specialDays,
+      day.toMap()..remove('id'),
+      where: 'id = ?',
+      whereArgs: [day.id],
+    );
+  }
+
+  Future<void> deleteSpecialDay(int id) async {
+    final db = await database;
+    await db.delete(_specialDays, where: 'id = ?', whereArgs: [id]);
+  }
+
   // ---- Backups ------------------------------------------------------------
 
   /// The tables a backup carries, in the order they are written back: a
@@ -709,10 +769,18 @@ class AppDatabase {
   ///
   /// The vault's go too, as sealed as they are here: a backup is a file
   /// left lying about, and opens no secret without the master password.
-  static const backedUp = [_lists, _tasks, _completions, _vaultKeys, _secrets];
+  static const backedUp = [
+    _lists,
+    _tasks,
+    _completions,
+    _vaultKeys,
+    _secrets,
+    _specialDays,
+  ];
 
-  /// The vault's tables, which a backup from before them does not have.
-  static const _vaultTables = {_vaultKeys, _secrets};
+  /// The tables made after backups were, which a backup from before them
+  /// does not have.
+  static const _laterTables = {_vaultKeys, _secrets, _specialDays};
 
   static int get schema => _dbVersion;
 
@@ -745,10 +813,10 @@ class AppDatabase {
     final db = await database;
     // A backup made before there was a vault leaves the vault as it is
     // rather than emptying it: restoring last month's tasks should not cost
-    // every password.
+    // every password. Nor every birthday, made since.
     final restored = [
       for (final table in backedUp)
-        if (!_vaultTables.contains(table) || tables.containsKey(table)) table,
+        if (!_laterTables.contains(table) || tables.containsKey(table)) table,
     ];
     await db.transaction((txn) async {
       for (final table in restored.reversed) {

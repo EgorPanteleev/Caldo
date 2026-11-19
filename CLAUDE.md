@@ -26,9 +26,9 @@ network is used only for the GitHub release check/download and Supabase sync
 lib/
   data/holidays.dart       public holidays, computed on device
   l10n/                    strings.dart (S) + words_*.dart, a table per language
-  db/database.dart         schema v12 (+ migrations); db/sync_store.dart
+  db/database.dart         schema v13 (+ migrations); db/sync_store.dart
   models/                  task (Repeat, Priority), task_list (ListStyle,
-                           colorOfTask), completion, secret
+                           colorOfTask), completion, secret, special_day
   providers/               task, settings, events, vault
   services/                reminders, background (isolates), today_widget,
                            device_calendars, updates, backup, sync, account,
@@ -207,6 +207,24 @@ them will be noticed.
   copies older than an hour. No camera permission declared, on purpose.
 - **Holidays are not tasks**: computed, read-only, country from locale or
   Settings.
+- **Special days** (asked for: birthdays and other yearly days;
+  `SpecialDay`, schema v13 `special_days`, synced and backed up like the
+  rest; a backup from before leaves them be): a month, a day, a year only
+  if known (then "turns 30" / "5 years", `S.specialLine`), a kind
+  (birthday, anniversary, other — icon and starting colour), a colour,
+  remind on the day. They ride the holidays' path as a `Holiday` with
+  `special` set (`TaskProvider.daysAround` merges them into
+  `Holidays.around`, cached): after the public ones, in their own
+  colour, on the grid, day panel, day sheet, hours view and Schedule —
+  where a day with only a special day on it still shows
+  (`specialDaysBetween`). A tap on the card opens `showSpecialDaySheet`
+  (day/month/year wheels, `DayWheels`, "—" past this year for no year).
+  Listed and added in Settings › Calendar › Special days. Feb 29 falls on
+  the 28th. Read at start (`TaskProvider.start`), after a sync or restore,
+  and on their own changes — not on every agenda read (a tick), which
+  also kept `screens_test`'s 80ms drains in time. Alarms: id
+  `Reminders.specialBase` + id, all-day hour, no buttons, not full
+  screen. Not on the home-screen widget.
 - **"Show completed" applies everywhere a run is drawn**
   (`TaskProvider.setShowCompleted` via `ChangeNotifierProxyProvider`); the
   full lists (`allUpcomingByDay`) keep them.
@@ -837,7 +855,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 340 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 348 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

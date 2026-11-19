@@ -70,6 +70,7 @@ class SyncStore {
     'completions',
     'vault_keys',
     'secrets',
+    'special_days',
   ];
 
   /// What a row carries that is this device's alone, or put into a uuid.

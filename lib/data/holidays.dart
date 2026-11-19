@@ -1,11 +1,25 @@
-import 'dart:ui' show PlatformDispatcher;
+import 'dart:ui' show Color, PlatformDispatcher;
 
-/// A public holiday on a given day.
+import '../models/special_day.dart';
+import '../theme/app_theme.dart' show AppColors;
+
+/// A public holiday on a given day — or one of the user's own special days,
+/// which goes everywhere a holiday does and is drawn the same way, in its
+/// own colour.
 class Holiday {
   final DateTime date;
   final String name;
 
-  const Holiday(this.date, this.name);
+  /// The birthday or other day of the user's this is, or null for a public
+  /// holiday.
+  final SpecialDay? special;
+
+  const Holiday(this.date, this.name, {this.special});
+
+  /// The user's [day] on [date].
+  Holiday.of(SpecialDay day, this.date) : name = day.name, special = day;
+
+  Color get color => special?.color ?? AppColors.holiday;
 }
 
 /// One entry in a country's table: a name and the rule that dates it.
