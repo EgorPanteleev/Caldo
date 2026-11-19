@@ -145,13 +145,15 @@ them will be noticed.
 - **Timed tasks may have an end** (`Task.duration`, minutes, schema v8),
   same day only, written "15:00 – 16:30".
 - **Cards are frosted glass** (asked for from mock-ups, 2026-11-19): 22%
-  of the task's colour, translucent over the ground they stand on, a 1.5pt
-  rim of the colour at 70%, and a grain over the fill (`TaskCard.frost`,
-  `assets/grain.png` from `tool/make_grain.py`, 9% in the text's colour).
-  Deeper ink alone read as a muddy slab. Done keeps a twentieth and a faint
-  rim, no grain. Holidays and phone events wear the same pane
-  (`TaskCard.paneOf`). Ink, rim and grain have Debug sliders. Timed tasks
-  use the same card (no separate row form).
+  of the task's colour, translucent over the ground they stand on, a soft
+  rim (a 1pt line at 60%, the colour bleeding in under it, `SoftRim`; the
+  sharp 1.5pt rim was asked "a bit blur"), and a blurred grain over the
+  fill (`TaskCard.frost`, `assets/grain.png` from `tool/make_grain.py`, 9%
+  in the text's colour). Deeper ink alone read as a muddy slab. Done
+  keeps a twentieth and a faint rim, no grain. Holidays and phone events
+  wear the same pane (`TaskCard.paneOf`, `SoftRim`). Ink, rim, its blur
+  and grain have Debug sliders. Timed tasks use the same card (no
+  separate row form).
 - **A task may carry its own colour** (`Task.styleId`), else its group's.
   Always resolve through `colorOfTask`. Moving group on the form resets to the
   group colour.
