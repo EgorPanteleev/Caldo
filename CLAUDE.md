@@ -148,8 +148,11 @@ them will be noticed.
   of the task's colour (`TaskCard.ink`), translucent over the ground they
   stand on, a 1.5pt rim of the colour at 70%, and a frost of fine grain,
   one sharp pixel per screen pixel, about 3.4% white varying 1.5%
-  (`grainOver`, `assets/grain.png` from `tool/make_grain.py`,
-  unfiltered). 22% under an even 8% veil (the mock-up's "soft grain" as
+  (`CardPane`, `assets/grain.png` from `tool/make_grain.py`,
+  unfiltered). The pane is its own `Decoration`: the grain is an
+  `ImageShader` filling the card's shape, one draw — as a `BoxDecoration`
+  image it clipped and tiled every card each frame, and lerping it
+  (tick, pick) blended through a `saveLayer` per card. 22% under an even 8% veil (the mock-up's "soft grain" as
   Chrome drew it) read as greyish; ink, grain and frost were picked from
   pictures. A coarser grain
   (2.11.37), a blurred one and a soft, bleeding rim (2.11.38) read as

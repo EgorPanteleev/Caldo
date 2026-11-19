@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,7 +39,7 @@ class TaskCard extends StatelessWidget {
   static const radius = 14.0;
 
   /// How much of a card's colour is laid over the ground: 30%, with the
-  /// frost no more than [grainOver]'s own 3.4% white. Picked from pictures
+  /// frost no more than the grain's own 3.4% white. Picked from pictures
   /// ("richer") over 22% under an 8% veil, which read as greyish.
   static const ink = 0.30;
 
@@ -50,18 +52,10 @@ class TaskCard extends StatelessWidget {
   /// (2.11.38).
   static const _grainDepth = 0.0682;
 
-  /// The grain over a card's fill, one of its pixels to each of the
-  /// screen's and unfiltered, so it stays as fine and sharp as it was
-  /// picked: scaled, the smoothing blurred it.
-  static DecorationImage grainOver(BuildContext context, double frost) =>
-      DecorationImage(
-        image: grain,
-        repeat: ImageRepeat.repeat,
-        alignment: Alignment.topLeft,
-        scale: MediaQuery.devicePixelRatioOf(context),
-        filterQuality: FilterQuality.none,
-        opacity: (_grainDepth * Tweaks.cardFrost * frost).clamp(0, 1),
-      );
+  /// How deep the grain is laid on a card [frost] of the way frosted:
+  /// the alpha [CardPane] paints it at.
+  static double frostOf(double frost) =>
+      (_grainDepth * Tweaks.cardFrost * frost).clamp(0, 1);
 
   /// The rim round a card of [colour]: the colour itself, faint once done.
   static Color rimOf(Color colour, {bool faded = false}) => colour.withValues(
@@ -70,12 +64,10 @@ class TaskCard extends StatelessWidget {
 
   /// Fill, grain and rim for a card that is not a task's (a holiday, a
   /// phone event), so it stands among them as one of them.
-  static BoxDecoration paneOf(BuildContext context, Color colour) =>
-      BoxDecoration(
-        color: colour.withValues(alpha: ink * Tweaks.cardInk),
-        image: grainOver(context, 1),
-        borderRadius: BorderRadius.circular(radius),
-      );
+  static CardPane paneOf(Color colour) => CardPane(
+    ink: colour.withValues(alpha: ink * Tweaks.cardInk),
+    frost: frostOf(1),
+  );
   static BoxDecoration rimDecoration(Color colour) => BoxDecoration(
     border: Border.all(color: rimOf(colour), width: 1.5),
     borderRadius: BorderRadius.circular(radius),
@@ -222,28 +214,21 @@ class TaskCard extends StatelessWidget {
             duration: _settle,
             curve: Curves.easeOut,
             padding: dense ? _insideDense : _inside,
-            decoration: BoxDecoration(
+            decoration: CardPane(
               // A done task sinks most of the way back into the ground rather
               // than keeping its place in the run.
-              color: color.withValues(
+              ink: color.withValues(
                 alpha: faded
                     ? 0.07 * Tweaks.doneInk
                     : (TaskCard.ink + (picked ? 0.1 : 0)) * Tweaks.cardInk,
               ),
-              // Kept while done, at nothing, so the grain fades with the ink
-              // instead of going between two frames.
-              image: TaskCard.grainOver(context, faded ? 0 : 1),
-              borderRadius: BorderRadius.circular(TaskCard.radius),
+              // Done, the grain goes to nothing with the ink rather than
+              // between two frames.
+              frost: TaskCard.frostOf(faded ? 0 : 1),
               // A picked-out card is lit in its own colour: a soft glow
               // round it, outside only — under the translucent ink a
               // shadow would cloud the card itself.
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: picked ? 0.5 : 0),
-                  blurRadius: 14,
-                  blurStyle: BlurStyle.outer,
-                ),
-              ],
+              glow: color.withValues(alpha: picked ? 0.5 : 0),
             ),
             // The rim is the task's colour, the edge of the pane; picked
             // out, it is lifted towards white rather than turned white: a
@@ -848,7 +833,7 @@ class HolidayCard extends StatelessWidget {
       padding: TaskCard.margin,
       child: Container(
         padding: dense ? TaskCard._insideDense : TaskCard._inside,
-        decoration: TaskCard.paneOf(context, AppColors.holiday),
+        decoration: TaskCard.paneOf(AppColors.holiday),
         foregroundDecoration: TaskCard.rimDecoration(AppColors.holiday),
         child: Row(
           children: [
@@ -945,7 +930,7 @@ class EventCard extends StatelessWidget {
         child: Material(
           type: MaterialType.transparency,
           child: Ink(
-            decoration: TaskCard.paneOf(context, event.color),
+            decoration: TaskCard.paneOf(event.color),
             child: InkWell(
               borderRadius: BorderRadius.circular(TaskCard.radius),
               onTap: () => DeviceCalendars.open(event),
@@ -1027,3 +1012,147 @@ List<Widget> fixedCards(
   for (final holiday in holidays) HolidayCard(holiday: holiday, dense: dense),
   for (final event in events) EventCard(event: event, day: day, dense: dense),
 ];
+
+/// The pane a card is drawn on: its ink, the grain over it and, picked out,
+/// a glow round it. A decoration of its own rather than a [BoxDecoration]
+/// with the grain as its image: that clips each card to its corners and
+/// tiles the grain into it a draw at a time, which every card on show paid
+/// for again on every frame of a scroll. Here the grain is a shader the
+/// pane's own shape is filled with, one draw and no clip.
+class CardPane extends Decoration {
+  /// The fill, the task's colour at its ink.
+  final Color ink;
+
+  /// The grain's alpha ([TaskCard.frostOf]); 0 lays none.
+  final double frost;
+
+  /// The glow round a picked-out card; transparent for none.
+  final Color glow;
+
+  const CardPane({
+    required this.ink,
+    required this.frost,
+    this.glow = Colors.transparent,
+  });
+
+  static CardPane lerp(CardPane a, CardPane b, double t) => CardPane(
+    ink: Color.lerp(a.ink, b.ink, t)!,
+    frost: ui.lerpDouble(a.frost, b.frost, t)!,
+    glow: Color.lerp(a.glow, b.glow, t)!,
+  );
+
+  @override
+  Decoration? lerpFrom(Decoration? a, double t) =>
+      a is CardPane ? lerp(a, this, t) : super.lerpFrom(a, t);
+
+  @override
+  Decoration? lerpTo(Decoration? b, double t) =>
+      b is CardPane ? lerp(this, b, t) : super.lerpTo(b, t);
+
+  RRect _shape(Rect rect) =>
+      RRect.fromRectAndRadius(rect, const Radius.circular(TaskCard.radius));
+
+  @override
+  bool hitTest(Size size, Offset position, {TextDirection? textDirection}) =>
+      _shape(Offset.zero & size).contains(position);
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _CardPanePainter(this, onChanged);
+
+  @override
+  bool operator ==(Object other) =>
+      other is CardPane &&
+      other.ink == ink &&
+      other.frost == frost &&
+      other.glow == glow;
+
+  @override
+  int get hashCode => Object.hash(ink, frost, glow);
+}
+
+class _CardPanePainter extends BoxPainter {
+  final CardPane pane;
+
+  _CardPanePainter(this.pane, super.onChanged);
+
+  /// As a [BoxShadow] of blur radius 14 would have it.
+  static final _glowSigma = Shadow.convertRadiusToSigma(14);
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final rect = offset & configuration.size!;
+    final shape = pane._shape(rect);
+    if (pane.glow.a > 0) {
+      canvas.drawRRect(
+        shape,
+        Paint()
+          ..color = pane.glow
+          ..maskFilter = MaskFilter.blur(BlurStyle.outer, _glowSigma),
+      );
+    }
+    canvas.drawRRect(shape, Paint()..color = pane.ink);
+    if (pane.frost <= 0) return;
+    final grain = _Grain.image;
+    if (grain == null) {
+      _Grain.wait(onChanged);
+      return;
+    }
+    // One of the grain's pixels to each of the screen's, from the card's
+    // corner, and unfiltered, so it stays as fine and sharp as it was
+    // picked: scaled, the smoothing blurred it.
+    final s = 1 / (configuration.devicePixelRatio ?? 1);
+    final place = Float64List.fromList([
+      s, 0, 0, 0, //
+      0, s, 0, 0,
+      0, 0, 1, 0,
+      rect.left, rect.top, 0, 1,
+    ]);
+    canvas.drawRRect(
+      shape,
+      Paint()
+        // With a shader, the colour gives only its alpha.
+        ..color = Color.fromRGBO(255, 255, 255, pane.frost)
+        ..shader = ImageShader(
+          grain,
+          TileMode.repeated,
+          TileMode.repeated,
+          place,
+          filterQuality: FilterQuality.none,
+        ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _Grain.forget(onChanged);
+    super.dispose();
+  }
+}
+
+/// [TaskCard.grain], decoded once for every card. A pane painted before it
+/// is ready lays no grain and is painted again once it is.
+abstract final class _Grain {
+  static ui.Image? image;
+  static ImageStream? _stream;
+  static final _waiting = <VoidCallback>{};
+
+  static void wait(VoidCallback? then) {
+    if (then != null) _waiting.add(then);
+    if (_stream != null) return;
+    // Listened to for good, so the image is never let go of.
+    _stream = TaskCard.grain.resolve(ImageConfiguration.empty)
+      ..addListener(
+        ImageStreamListener((info, _) {
+          image = info.image;
+          final waiting = [..._waiting];
+          _waiting.clear();
+          for (final then in waiting) {
+            then();
+          }
+        }),
+      );
+  }
+
+  static void forget(VoidCallback? then) => _waiting.remove(then);
+}

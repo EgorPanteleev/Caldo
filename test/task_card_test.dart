@@ -53,7 +53,7 @@ void main() {
           )
           .first,
     );
-    return (box.decoration as BoxDecoration).color!;
+    return (box.decoration as CardPane).ink;
   }
 
   testWidgets('the mark is drawn into the tick rather than switched on', (
