@@ -169,10 +169,9 @@ class _TasksScreenState extends State<TasksScreen> {
           // bottom of it is out of reach while the keyboard is up.
           resizeToAvoidBottomInset: false,
           body: GlassTop(
-            // The groups stand on the full blur, and it fades out below
-            // them, over the room above the first day's heading.
-            below: DayHeader.above,
-            fade: GroupChipsOnGlass.foot + DayHeader.above,
+            // The groups stand on the full blur, which ends square at their
+            // foot: a strip fading out below them was asked off.
+            fade: 0,
             head: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

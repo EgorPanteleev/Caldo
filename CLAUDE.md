@@ -274,9 +274,9 @@ them will be noticed.
   (`lists.sort_order`, schema v9), released in place opens it to edit. A
   carried chip stands on `GroupChips.ground`. On Schedule the row is part
   of the glass head (`GroupChipsOnGlass`, `GlassTop`) and stands on the
-  full blur, as the title does; the blur fades out below it, over the room
-  above the first day's heading (`GlassTop.below`/`fade`,
-  `DayHeader.above`). **The chips are solid**, the chosen one the field's
+  full blur, as the title does, and the glass ends square at its foot
+  (`GlassTop.fade` 0): a strip fading out below it, over the room above
+  the first day's heading, was asked off (2026-11-19). **The chips are solid**, the chosen one the field's
   grey, the rest the ground with a hairline (`onGlass`): see-through
   chips and chips each a blur of their own were both asked back. A
   frosted strip behind the row alone was asked off; the whole top on

@@ -207,19 +207,16 @@ class GlassTop extends StatelessWidget {
   final Widget head;
   final Widget body;
 
-  /// How far below the head the glass reaches, into room the body leaves
-  /// empty at rest; and how long the blur takes there to fade out, ending
-  /// at that foot. Without them it fades over the head's own foot
-  /// ([leadOf]). The groups under Schedule's title were asked to stand on
-  /// the full blur, as the title does, so there it fades below them.
-  final double below;
+  /// How long the blur takes to fade out, ending at the head's foot; else
+  /// [leadOf]. The groups under Schedule's title were asked to stand on the
+  /// full blur, as the title does, and a strip fading out below them was
+  /// asked off, so there it is 0 and the glass ends square.
   final double? fade;
 
   const GlassTop({
     super.key,
     required this.head,
     required this.body,
-    this.below = 0,
     this.fade,
   });
 
@@ -251,7 +248,7 @@ class GlassTop extends StatelessWidget {
       context: context,
       removeTop: true,
       child: CustomMultiChildLayout(
-        delegate: _GlassLayout(below),
+        delegate: _GlassLayout(),
         children: [
           LayoutId(
             id: _Part.body,
@@ -285,11 +282,9 @@ class GlassTop extends StatelessWidget {
 enum _Part { body, glass, head }
 
 /// The head at its own height, then the body the full height told how much
-/// of it the head covers, then the glass under the head and [below] it.
+/// of it the head covers, then the glass under the head.
 class _GlassLayout extends MultiChildLayoutDelegate {
-  final double below;
-
-  _GlassLayout(this.below);
+  _GlassLayout();
 
   @override
   void performLayout(Size size) {
@@ -304,9 +299,7 @@ class _GlassLayout extends MultiChildLayoutDelegate {
     layoutChild(_Part.body, _UnderHead(size, head));
     layoutChild(
       _Part.glass,
-      BoxConstraints.tight(
-        Size(size.width, math.min(size.height, head + below)),
-      ),
+      BoxConstraints.tight(Size(size.width, math.min(size.height, head))),
     );
     for (final part in _Part.values) {
       positionChild(part, Offset.zero);
@@ -314,7 +307,7 @@ class _GlassLayout extends MultiChildLayoutDelegate {
   }
 
   @override
-  bool shouldRelayout(_GlassLayout old) => below != old.below;
+  bool shouldRelayout(_GlassLayout old) => false;
 }
 
 /// The body's constraints, carrying the head's height to the body's
@@ -364,20 +357,31 @@ class _Glass extends StatelessWidget {
                   right: 0,
                   top: 0,
                   height: full + lead / 2,
-                  child: GradedBlur(
-                    most: GlassTop.blur,
-                    least: _light,
-                    downwards: false,
-                    hold: full,
+                  child: lead > 0
+                      ? GradedBlur(
+                          most: GlassTop.blur,
+                          least: _light,
+                          downwards: false,
+                          hold: full,
+                        )
+                      : ClipRect(
+                          child: BackdropFilter.grouped(
+                            filter: ImageFilter.blur(
+                              sigmaX: GlassTop.blur,
+                              sigmaY: GlassTop.blur,
+                            ),
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                ),
+                if (lead > 0)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: full + lead / 2,
+                    bottom: 0,
+                    child: const FadingBlur(most: _light, downwards: false),
                   ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: full + lead / 2,
-                  bottom: 0,
-                  child: const FadingBlur(most: _light, downwards: false),
-                ),
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
