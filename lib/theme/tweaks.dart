@@ -53,9 +53,6 @@ class Tweaks extends ChangeNotifier {
   /// How strong a card's rim is, likewise.
   static double get cardRim => instance.number('cardRim', 1);
 
-  /// How far a card's rim bleeds into it, likewise (`SoftRim`).
-  static double get cardGlow => instance.number('cardGlow', 1);
-
   /// How strong the grain over a card is, likewise.
   static double get cardGrain => instance.number('cardGrain', 1);
 

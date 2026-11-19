@@ -22,8 +22,8 @@ import 'task_menu.dart';
 /// colour, carrying a tick, the title and when it is due.
 ///
 /// The card is a pane of tinted, frosted glass: a little over a fifth of the
-/// list's colour, a soft rim of the colour itself (a fine line, its colour
-/// bleeding a little way in, [SoftRim]), and a fine grain over the fill. Picked from mock-ups over a deeper ink, which read as a slab of
+/// list's colour, a rim of the colour itself, and a fine grain over the
+/// fill. Picked from mock-ups over a deeper ink, which read as a slab of
 /// muddy navy once a day held several cards of one group. Left translucent
 /// rather than mixed into one named colour, so a card is inked by the
 /// ground it actually sits on — the calendar's day panel is a grey, the
@@ -58,11 +58,9 @@ class TaskCard extends StatelessWidget {
         opacity: (0.09 * Tweaks.cardGrain * strength).clamp(0, 1),
       );
 
-  /// The line round a card of [colour]: the colour itself, faint once
-  /// done. A point wide, the [SoftRim] inside it doing the rest: the
-  /// sharp 1.5pt rim it had first was asked to be blurred a little.
+  /// The rim round a card of [colour]: the colour itself, faint once done.
   static Color rimOf(Color colour, {bool faded = false}) => colour.withValues(
-    alpha: ((faded ? 0.22 : 0.6) * Tweaks.cardRim).clamp(0, 1),
+    alpha: ((faded ? 0.22 : 0.7) * Tweaks.cardRim).clamp(0, 1),
   );
 
   /// Fill, grain and rim for a card that is not a task's (a holiday, a
@@ -74,7 +72,7 @@ class TaskCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
       );
   static BoxDecoration rimDecoration(Color colour) => BoxDecoration(
-    border: Border.all(color: rimOf(colour)),
+    border: Border.all(color: rimOf(colour), width: 1.5),
     borderRadius: BorderRadius.circular(radius),
   );
 
@@ -213,166 +211,154 @@ class TaskCard extends StatelessWidget {
               ? (details) => showTaskMenu(context, details.globalPosition, task)
               : null,
           borderRadius: BorderRadius.circular(TaskCard.radius),
-          child: SoftRim(
-            colour: color,
-            strength: faded ? 0 : 1,
-            child: AnimatedContainer(
-              // Ticked off, a card sinks over a moment rather than between two
-              // frames: the point of the gesture is seeing it happen.
-              duration: _settle,
-              curve: Curves.easeOut,
-              padding: dense ? _insideDense : _inside,
-              decoration: BoxDecoration(
-                // A done task sinks most of the way back into the ground rather
-                // than keeping its place in the run.
-                color: color.withValues(
-                  alpha: faded
-                      ? 0.07 * Tweaks.doneInk
-                      : (picked ? 0.32 : 0.22) * Tweaks.cardInk,
-                ),
-                // Kept while done, at nothing, so the grain fades with the ink
-                // instead of going between two frames.
-                image: TaskCard.frost(context, faded ? 0 : 1),
-                borderRadius: BorderRadius.circular(TaskCard.radius),
-                // A picked-out card is lit in its own colour: a soft glow
-                // round it, outside only — under the translucent ink a
-                // shadow would cloud the card itself.
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: picked ? 0.5 : 0),
-                    blurRadius: 14,
-                    blurStyle: BlurStyle.outer,
-                  ),
-                ],
+          child: AnimatedContainer(
+            // Ticked off, a card sinks over a moment rather than between two
+            // frames: the point of the gesture is seeing it happen.
+            duration: _settle,
+            curve: Curves.easeOut,
+            padding: dense ? _insideDense : _inside,
+            decoration: BoxDecoration(
+              // A done task sinks most of the way back into the ground rather
+              // than keeping its place in the run.
+              color: color.withValues(
+                alpha: faded
+                    ? 0.07 * Tweaks.doneInk
+                    : (picked ? 0.32 : 0.22) * Tweaks.cardInk,
               ),
-              // The rim is the task's colour, the edge of the pane; picked
-              // out, it is lifted towards white rather than turned white: a
-              // white box round a violet card read as a frame put on it,
-              // where this reads as the card itself lit up. In front rather
-              // than a border of the card's own, which would take its width
-              // out of what is inside and shift the title.
-              foregroundDecoration: BoxDecoration(
-                border: Border.all(
-                  color: picked
-                      ? Color.lerp(color, Colors.white, 0.4)!
-                      : TaskCard.rimOf(color, faded: faded),
-                  width: picked ? 1.5 : 1,
+              // Kept while done, at nothing, so the grain fades with the ink
+              // instead of going between two frames.
+              image: TaskCard.frost(context, faded ? 0 : 1),
+              borderRadius: BorderRadius.circular(TaskCard.radius),
+              // A picked-out card is lit in its own colour: a soft glow
+              // round it, outside only — under the translucent ink a
+              // shadow would cloud the card itself.
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: picked ? 0.5 : 0),
+                  blurRadius: 14,
+                  blurStyle: BlurStyle.outer,
                 ),
-                borderRadius: BorderRadius.circular(TaskCard.radius),
+              ],
+            ),
+            // The rim is the task's colour, the edge of the pane; picked
+            // out, it is lifted towards white rather than turned white: a
+            // white box round a violet card read as a frame put on it,
+            // where this reads as the card itself lit up. In front rather
+            // than a border of the card's own, which would take its width
+            // out of what is inside and shift the title.
+            foregroundDecoration: BoxDecoration(
+              border: Border.all(
+                color: picked
+                    ? Color.lerp(color, Colors.white, 0.4)!
+                    : TaskCard.rimOf(color, faded: faded),
+                width: 1.5,
               ),
-              child: _WithChecklist(
-                // Keyed by task: a reorderable list hands a card's state to
-                // another task when it reorders, and a checklist left open
-                // belongs to the task it was opened on.
-                key: ValueKey(('checklist', task.id)),
-                task: task,
-                color: color,
-                onTick: onToggle,
-                // While tasks are being picked out the tick picks this one
-                // out, which leaves nothing for its steps to hold back.
-                holdsBack: !selecting,
-                head: (tick, count) => dense
-                    ? Row(
-                        children: [
-                          tick,
-                          const SizedBox(width: 14),
-                          Expanded(child: title),
-                          if (started != null) ...[
-                            const SizedBox(width: 8),
-                            started,
-                          ],
-                          if (count != null) ...[
-                            const SizedBox(width: 8),
-                            count,
-                          ],
-                          const SizedBox(width: 10),
-                          // The time alone: the repeat rule is a mark, not
-                          // words, so a long rule cannot eat into the title.
-                          if (task.repeat != Repeat.none) ...[
-                            Icon(Icons.repeat, size: 14, color: p.faint),
-                            const SizedBox(width: 4),
-                          ],
-                          if (task.attachments.isNotEmpty) ...[
-                            AttachmentMark(
-                              count: task.attachments.length,
-                              color: p.faint,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Text(
-                            _when(
-                              S.of(context),
-                              MediaQuery.alwaysUse24HourFormatOf(context),
-                            ),
-                            maxLines: 1,
-                            style: TextStyle(
-                              color: task.isOverdue
-                                  ? AppColors.overdue
-                                  : p.muted,
-                              fontSize: 12.5,
-                            ),
-                          ),
-                          if (flag != null) ...[const SizedBox(width: 8), flag],
+              borderRadius: BorderRadius.circular(TaskCard.radius),
+            ),
+            child: _WithChecklist(
+              // Keyed by task: a reorderable list hands a card's state to
+              // another task when it reorders, and a checklist left open
+              // belongs to the task it was opened on.
+              key: ValueKey(('checklist', task.id)),
+              task: task,
+              color: color,
+              onTick: onToggle,
+              // While tasks are being picked out the tick picks this one
+              // out, which leaves nothing for its steps to hold back.
+              holdsBack: !selecting,
+              head: (tick, count) => dense
+                  ? Row(
+                      children: [
+                        tick,
+                        const SizedBox(width: 14),
+                        Expanded(child: title),
+                        if (started != null) ...[
+                          const SizedBox(width: 8),
+                          started,
                         ],
-                      )
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          tick,
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                title,
-                                const SizedBox(height: 3),
-                                Row(
-                                  children: [
-                                    if (started != null) ...[
-                                      started,
-                                      const SizedBox(width: 8),
-                                    ],
-                                    Flexible(
-                                      child: Text(
-                                        _subtitle(
-                                          S.of(context),
-                                          MediaQuery.alwaysUse24HourFormatOf(
-                                            context,
-                                          ),
+                        if (count != null) ...[const SizedBox(width: 8), count],
+                        const SizedBox(width: 10),
+                        // The time alone: the repeat rule is a mark, not
+                        // words, so a long rule cannot eat into the title.
+                        if (task.repeat != Repeat.none) ...[
+                          Icon(Icons.repeat, size: 14, color: p.faint),
+                          const SizedBox(width: 4),
+                        ],
+                        if (task.attachments.isNotEmpty) ...[
+                          AttachmentMark(
+                            count: task.attachments.length,
+                            color: p.faint,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          _when(
+                            S.of(context),
+                            MediaQuery.alwaysUse24HourFormatOf(context),
+                          ),
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: task.isOverdue ? AppColors.overdue : p.muted,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                        if (flag != null) ...[const SizedBox(width: 8), flag],
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        tick,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              title,
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  if (started != null) ...[
+                                    started,
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Flexible(
+                                    child: Text(
+                                      _subtitle(
+                                        S.of(context),
+                                        MediaQuery.alwaysUse24HourFormatOf(
+                                          context,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: task.isOverdue
-                                              ? AppColors.overdue
-                                              : p.muted,
-                                          fontSize: 12.5,
-                                        ),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: task.isOverdue
+                                            ? AppColors.overdue
+                                            : p.muted,
+                                        fontSize: 12.5,
                                       ),
                                     ),
-                                    if (task.attachments.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      AttachmentMark(
-                                        count: task.attachments.length,
-                                        color: p.muted,
-                                      ),
-                                    ],
-                                    if (count != null) ...[
-                                      const SizedBox(width: 10),
-                                      count,
-                                    ],
+                                  ),
+                                  if (task.attachments.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    AttachmentMark(
+                                      count: task.attachments.length,
+                                      color: p.muted,
+                                    ),
                                   ],
-                                ),
-                              ],
-                            ),
+                                  if (count != null) ...[
+                                    const SizedBox(width: 10),
+                                    count,
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
-                          if (flag != null) ...[
-                            const SizedBox(width: 10),
-                            flag,
-                          ],
-                        ],
-                      ),
-              ),
+                        ),
+                        if (flag != null) ...[const SizedBox(width: 10), flag],
+                      ],
+                    ),
             ),
           ),
         ),
@@ -840,68 +826,6 @@ class CheckMark extends CustomPainter {
 const taskCardTickKey = Key('task-card-tick');
 const taskCardMarkKey = Key('task-card-mark');
 
-/// A card's colour bleeding a little way in from its edge, as if the rim
-/// were a little out of focus: drawn over [child], clipped to a card's
-/// shape. [strength] eases to where it is set, so a ticked card's rim
-/// sinks with its ink.
-class SoftRim extends StatelessWidget {
-  final Color colour;
-  final double strength;
-  final Widget child;
-
-  const SoftRim({
-    super.key,
-    required this.colour,
-    this.strength = 1,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-    tween: Tween(end: strength),
-    duration: _settle,
-    curve: Curves.easeOut,
-    child: child,
-    builder: (context, t, child) => CustomPaint(
-      foregroundPainter: _SoftRimPainter(
-        colour.withValues(alpha: (0.45 * t * Tweaks.cardGlow).clamp(0, 1)),
-      ),
-      child: child,
-    ),
-  );
-}
-
-class _SoftRimPainter extends CustomPainter {
-  final Color colour;
-
-  const _SoftRimPainter(this.colour);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (colour.a == 0) return;
-    final shape = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      const Radius.circular(TaskCard.radius),
-    );
-    canvas.save();
-    canvas.clipRRect(shape);
-    // A stroke along the edge, half of it outside and clipped away, blurred
-    // inwards: about the 8pt inner shadow of the mock-up it was picked from.
-    canvas.drawRRect(
-      shape,
-      Paint()
-        ..color = colour
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5),
-    );
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_SoftRimPainter old) => old.colour != colour;
-}
-
 /// A public holiday beside a day's tasks: the same card as a [TaskCard], with
 /// a green mark where the tick would be and nothing to tick off.
 class HolidayCard extends StatelessWidget {
@@ -917,55 +841,52 @@ class HolidayCard extends StatelessWidget {
     final p = AppTheme.of(context);
     return Padding(
       padding: TaskCard.margin,
-      child: SoftRim(
-        colour: AppColors.holiday,
-        child: Container(
-          padding: dense ? TaskCard._insideDense : TaskCard._inside,
-          decoration: TaskCard.paneOf(context, AppColors.holiday),
-          foregroundDecoration: TaskCard.rimDecoration(AppColors.holiday),
-          child: Row(
-            children: [
-              Icon(
-                Icons.celebration_outlined,
-                color: AppColors.holiday,
-                size: dense ? 20 : 22,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: dense
-                    // The green mark says it is a holiday; the words saying
-                    // so are left to the full card.
-                    ? Text(
-                        holiday.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: p.text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            holiday.name,
-                            style: TextStyle(
-                              color: p.text,
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            S.of(context).publicHoliday,
-                            style: TextStyle(color: p.muted, fontSize: 12.5),
-                          ),
-                        ],
+      child: Container(
+        padding: dense ? TaskCard._insideDense : TaskCard._inside,
+        decoration: TaskCard.paneOf(context, AppColors.holiday),
+        foregroundDecoration: TaskCard.rimDecoration(AppColors.holiday),
+        child: Row(
+          children: [
+            Icon(
+              Icons.celebration_outlined,
+              color: AppColors.holiday,
+              size: dense ? 20 : 22,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: dense
+                  // The green mark says it is a holiday; the words saying
+                  // so are left to the full card.
+                  ? Text(
+                      holiday.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
                       ),
-              ),
-            ],
-          ),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          holiday.name,
+                          style: TextStyle(
+                            color: p.text,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          S.of(context).publicHoliday,
+                          style: TextStyle(color: p.muted, fontSize: 12.5),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -1014,78 +935,72 @@ class EventCard extends StatelessWidget {
     );
     return Padding(
       padding: TaskCard.margin,
-      child: SoftRim(
-        colour: event.color,
-        child: Container(
-          foregroundDecoration: TaskCard.rimDecoration(event.color),
-          child: Material(
-            type: MaterialType.transparency,
-            child: Ink(
-              decoration: TaskCard.paneOf(context, event.color),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(TaskCard.radius),
-                onTap: () => DeviceCalendars.open(event),
-                child: Padding(
-                  padding: dense ? TaskCard._insideDense : TaskCard._inside,
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.event_outlined,
-                        color: event.color,
-                        size: dense ? 20 : 22,
-                      ),
-                      const SizedBox(width: 14),
-                      if (dense) ...[
-                        Expanded(
-                          child: Text(
-                            event.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: p.text,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          when,
+      child: Container(
+        foregroundDecoration: TaskCard.rimDecoration(event.color),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Ink(
+            decoration: TaskCard.paneOf(context, event.color),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(TaskCard.radius),
+              onTap: () => DeviceCalendars.open(event),
+              child: Padding(
+                padding: dense ? TaskCard._insideDense : TaskCard._inside,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.event_outlined,
+                      color: event.color,
+                      size: dense ? 20 : 22,
+                    ),
+                    const SizedBox(width: 14),
+                    if (dense) ...[
+                      Expanded(
+                        child: Text(
+                          event.title,
                           maxLines: 1,
-                          style: TextStyle(color: p.muted, fontSize: 12.5),
-                        ),
-                      ] else
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                event.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: p.text,
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                event.calendarName.isEmpty
-                                    ? when
-                                    : '$when · ${event.calendarName}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: p.muted,
-                                  fontSize: 12.5,
-                                ),
-                              ),
-                            ],
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: p.text,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                    ],
-                  ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        when,
+                        maxLines: 1,
+                        style: TextStyle(color: p.muted, fontSize: 12.5),
+                      ),
+                    ] else
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              event.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: p.text,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              event.calendarName.isEmpty
+                                  ? when
+                                  : '$when · ${event.calendarName}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: p.muted, fontSize: 12.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
