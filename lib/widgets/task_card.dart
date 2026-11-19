@@ -21,20 +21,60 @@ import 'task_menu.dart';
 /// A task as it appears under the calendar: a card inked with its list's
 /// colour, carrying a tick, the title and when it is due.
 ///
-/// The ink is a quarter of the list's colour over whatever the card is
-/// standing on, which against true black comes out as the near-navy the cards
-/// wear. Left translucent rather than mixed into one named colour, so a card
-/// is inked by the ground it actually sits on — the calendar's day panel is a
-/// grey, the agenda and the day card are black, and a card worked out against
-/// the wrong one of those is a card darker than the sheet under it. There is
-/// no border: the fill is the shape, and an outline a shade brighter than it
-/// only blurred the edge.
+/// The card is a pane of tinted, frosted glass: a little over a fifth of the
+/// list's colour, a rim of the colour itself, and a fine grain over the
+/// fill. Picked from mock-ups over a deeper ink, which read as a slab of
+/// muddy navy once a day held several cards of one group. Left translucent
+/// rather than mixed into one named colour, so a card is inked by the
+/// ground it actually sits on — the calendar's day panel is a grey, the
+/// agenda and the day card are black, and a card worked out against the
+/// wrong one of those is a card darker than the sheet under it.
 class TaskCard extends StatelessWidget {
   /// The room a card leaves around itself, and the corners it is cut to.
   /// Out here because a card being carried is backed in its own shape, and
   /// two places guessing at the same rectangle would drift.
   static const margin = EdgeInsets.fromLTRB(16, 0, 16, 8);
   static const radius = 14.0;
+
+  /// The grain, white with the grain in its alpha (`tool/make_grain.py`),
+  /// tinted with the text's colour so it frosts a light theme too.
+  static const grain = AssetImage('assets/grain.png');
+
+  /// The grain as a card lays it over its fill, at [strength] of its
+  /// depth. Holidays and phone events wear it too, standing among tasks.
+  static DecorationImage frost(BuildContext context, double strength) =>
+      DecorationImage(
+        image: grain,
+        repeat: ImageRepeat.repeat,
+        alignment: Alignment.topLeft,
+        // A grain to about one and a half of the screen's own pixels,
+        // whatever its density: by points it came out coarse on a phone
+        // and sub-pixel on a desk.
+        scale: MediaQuery.devicePixelRatioOf(context) / 1.6,
+        colorFilter: ColorFilter.mode(
+          AppTheme.of(context).text,
+          BlendMode.srcIn,
+        ),
+        opacity: (0.09 * Tweaks.cardGrain * strength).clamp(0, 1),
+      );
+
+  /// The rim round a card of [colour]: the colour itself, faint once done.
+  static Color rimOf(Color colour, {bool faded = false}) => colour.withValues(
+    alpha: ((faded ? 0.22 : 0.7) * Tweaks.cardRim).clamp(0, 1),
+  );
+
+  /// Fill, grain and rim for a card that is not a task's (a holiday, a
+  /// phone event), so it stands among them as one of them.
+  static BoxDecoration paneOf(BuildContext context, Color colour) =>
+      BoxDecoration(
+        color: colour.withValues(alpha: 0.22 * Tweaks.cardInk),
+        image: frost(context, 1),
+        borderRadius: BorderRadius.circular(radius),
+      );
+  static BoxDecoration rimDecoration(Color colour) => BoxDecoration(
+    border: Border.all(color: rimOf(colour), width: 1.5),
+    borderRadius: BorderRadius.circular(radius),
+  );
 
   final Task task;
   final TaskList? list;
@@ -183,8 +223,11 @@ class TaskCard extends StatelessWidget {
               color: color.withValues(
                 alpha: faded
                     ? 0.07 * Tweaks.doneInk
-                    : (picked ? 0.34 : 0.24) * Tweaks.cardInk,
+                    : (picked ? 0.32 : 0.22) * Tweaks.cardInk,
               ),
+              // Kept while done, at nothing, so the grain fades with the ink
+              // instead of going between two frames.
+              image: TaskCard.frost(context, faded ? 0 : 1),
               borderRadius: BorderRadius.circular(TaskCard.radius),
               // A picked-out card is lit in its own colour: a soft glow
               // round it, outside only — under the translucent ink a
@@ -197,18 +240,17 @@ class TaskCard extends StatelessWidget {
                 ),
               ],
             ),
-            // The rim is the task's colour lifted towards white, rather than
-            // a white one: a white box round a violet card read as a frame
-            // put on it, where this reads as the card itself lit up. In
-            // front rather than a border of the card's own, which would
-            // take its width out of what is inside and shift the title.
+            // The rim is the task's colour, the edge of the pane; picked
+            // out, it is lifted towards white rather than turned white: a
+            // white box round a violet card read as a frame put on it,
+            // where this reads as the card itself lit up. In front rather
+            // than a border of the card's own, which would take its width
+            // out of what is inside and shift the title.
             foregroundDecoration: BoxDecoration(
               border: Border.all(
-                color: Color.lerp(
-                  color,
-                  Colors.white,
-                  0.4,
-                )!.withValues(alpha: picked ? 1 : 0),
+                color: picked
+                    ? Color.lerp(color, Colors.white, 0.4)!
+                    : TaskCard.rimOf(color, faded: faded),
                 width: 1.5,
               ),
               borderRadius: BorderRadius.circular(TaskCard.radius),
@@ -801,10 +843,8 @@ class HolidayCard extends StatelessWidget {
       padding: TaskCard.margin,
       child: Container(
         padding: dense ? TaskCard._insideDense : TaskCard._inside,
-        decoration: BoxDecoration(
-          color: AppColors.holiday.withValues(alpha: 0.22),
-          borderRadius: BorderRadius.circular(TaskCard.radius),
-        ),
+        decoration: TaskCard.paneOf(context, AppColors.holiday),
+        foregroundDecoration: TaskCard.rimDecoration(AppColors.holiday),
         child: Row(
           children: [
             Icon(
@@ -895,69 +935,74 @@ class EventCard extends StatelessWidget {
     );
     return Padding(
       padding: TaskCard.margin,
-      child: Material(
-        color: event.color.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(TaskCard.radius),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(TaskCard.radius),
-          onTap: () => DeviceCalendars.open(event),
-          child: Padding(
-            padding: dense ? TaskCard._insideDense : TaskCard._inside,
-            child: Row(
-              children: [
-                Icon(
-                  Icons.event_outlined,
-                  color: event.color,
-                  size: dense ? 20 : 22,
-                ),
-                const SizedBox(width: 14),
-                if (dense) ...[
-                  Expanded(
-                    child: Text(
-                      event.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: p.text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
+      child: Container(
+        foregroundDecoration: TaskCard.rimDecoration(event.color),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Ink(
+            decoration: TaskCard.paneOf(context, event.color),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(TaskCard.radius),
+              onTap: () => DeviceCalendars.open(event),
+              child: Padding(
+                padding: dense ? TaskCard._insideDense : TaskCard._inside,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.event_outlined,
+                      color: event.color,
+                      size: dense ? 20 : 22,
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    when,
-                    maxLines: 1,
-                    style: TextStyle(color: p.muted, fontSize: 12.5),
-                  ),
-                ] else
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                    const SizedBox(width: 14),
+                    if (dense) ...[
+                      Expanded(
+                        child: Text(
                           event.title,
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: p.text,
-                            fontSize: 15.5,
+                            fontSize: 15,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          event.calendarName.isEmpty
-                              ? when
-                              : '$when · ${event.calendarName}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: p.muted, fontSize: 12.5),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        when,
+                        maxLines: 1,
+                        style: TextStyle(color: p.muted, fontSize: 12.5),
+                      ),
+                    ] else
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              event.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: p.text,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              event.calendarName.isEmpty
+                                  ? when
+                                  : '$when · ${event.calendarName}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: p.muted, fontSize: 12.5),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-              ],
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
