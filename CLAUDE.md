@@ -144,14 +144,14 @@ them will be noticed.
 
 - **Timed tasks may have an end** (`Task.duration`, minutes, schema v8),
   same day only, written "15:00 – 16:30".
-- **Cards are frosted glass** (asked for from mock-ups, 2026-11-19): 22%
-  of the task's colour, translucent over the ground they stand on, a
-  1.5pt rim of the colour at 70%, and an 8% white frost over the fill:
-  part even (`TaskCard.fillOf`), part a fine grain, one sharp pixel per
-  screen pixel, varying 1.5% (`grainOver`, `assets/grain.png` from
-  `tool/make_grain.py`, unfiltered). The even 8% is the mock-up's "soft
-  grain" as Chrome drew it (measured: blurred noise comes out flat); the
-  grain's size and depth were picked from pictures. A coarser grain
+- **Cards are frosted glass** (asked for from mock-ups, 2026-11-19): 30%
+  of the task's colour (`TaskCard.ink`), translucent over the ground they
+  stand on, a 1.5pt rim of the colour at 70%, and a frost of fine grain,
+  one sharp pixel per screen pixel, about 3.4% white varying 1.5%
+  (`grainOver`, `assets/grain.png` from `tool/make_grain.py`,
+  unfiltered). 22% under an even 8% veil (the mock-up's "soft grain" as
+  Chrome drew it) read as greyish; ink, grain and frost were picked from
+  pictures. A coarser grain
   (2.11.37), a blurred one and a soft, bleeding rim (2.11.38) read as
   noise. Deeper ink alone read as a muddy slab. Done keeps a twentieth
   and a faint rim, no frost. Holidays and phone events wear the same pane

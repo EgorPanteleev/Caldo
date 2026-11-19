@@ -36,28 +36,19 @@ class TaskCard extends StatelessWidget {
   static const margin = EdgeInsets.fromLTRB(16, 0, 16, 8);
   static const radius = 14.0;
 
-  /// The fill of a card of [colour] at [ink]: the colour, and over it the
-  /// even part of the frost's white at [frost] of its depth; [grainOver]
-  /// lays the rest. Together an 8% white, as the mock-up's "soft grain"
-  /// was drawn (a blurred noise at 16% came out an even 8%, varying by
-  /// under one step in 255).
-  static Color fillOf(Color colour, double ink, {double frost = 1}) =>
-      Color.alphaBlend(
-        Colors.white.withValues(
-          alpha: (_veil * Tweaks.cardFrost * frost).clamp(0, 1),
-        ),
-        colour.withValues(alpha: ink.clamp(0, 1)),
-      );
+  /// How much of a card's colour is laid over the ground: 30%, with the
+  /// frost no more than [grainOver]'s own 3.4% white. Picked from pictures
+  /// ("richer") over 22% under an 8% veil, which read as greyish.
+  static const ink = 0.30;
 
   /// The grain (`tool/make_grain.py`): white, its alpha around half.
   static const grain = AssetImage('assets/grain.png');
 
-  /// Laid at this, the grain is a white of about 3.4% varying by 1.5%,
-  /// and with [_veil] under it comes to the 8%. Picked from pictures over
-  /// none, then raised from 1.25%; a grain twice as large and softened
-  /// read as noise (2.11.38).
+  /// Laid at this, the grain is a white of about 3.4% varying by 1.5%:
+  /// the whole of the frost. Picked from pictures over none, then raised
+  /// from 1.25%; a grain twice as large and softened read as noise
+  /// (2.11.38).
   static const _grainDepth = 0.0682;
-  static const _veil = 0.0475;
 
   /// The grain over a card's fill, one of its pixels to each of the
   /// screen's and unfiltered, so it stays as fine and sharp as it was
@@ -81,7 +72,7 @@ class TaskCard extends StatelessWidget {
   /// phone event), so it stands among them as one of them.
   static BoxDecoration paneOf(BuildContext context, Color colour) =>
       BoxDecoration(
-        color: fillOf(colour, 0.22 * Tweaks.cardInk),
+        color: colour.withValues(alpha: ink * Tweaks.cardInk),
         image: grainOver(context, 1),
         borderRadius: BorderRadius.circular(radius),
       );
@@ -234,12 +225,10 @@ class TaskCard extends StatelessWidget {
             decoration: BoxDecoration(
               // A done task sinks most of the way back into the ground rather
               // than keeping its place in the run.
-              color: TaskCard.fillOf(
-                color,
-                faded
+              color: color.withValues(
+                alpha: faded
                     ? 0.07 * Tweaks.doneInk
-                    : (picked ? 0.32 : 0.22) * Tweaks.cardInk,
-                frost: faded ? 0 : 1,
+                    : (TaskCard.ink + (picked ? 0.1 : 0)) * Tweaks.cardInk,
               ),
               // Kept while done, at nothing, so the grain fades with the ink
               // instead of going between two frames.
