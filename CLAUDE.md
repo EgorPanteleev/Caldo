@@ -148,7 +148,7 @@ them will be noticed.
   of the task's colour, translucent over the ground they stand on, a
   1.5pt rim of the colour at 70%, and an 8% white frost over the fill:
   part even (`TaskCard.fillOf`), part a fine grain, one sharp pixel per
-  screen pixel, varying 1.25% (`grainOver`, `assets/grain.png` from
+  screen pixel, varying 1.5% (`grainOver`, `assets/grain.png` from
   `tool/make_grain.py`, unfiltered). The even 8% is the mock-up's "soft
   grain" as Chrome drew it (measured: blurred noise comes out flat); the
   grain's size and depth were picked from pictures. A coarser grain

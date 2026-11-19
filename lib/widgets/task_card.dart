@@ -52,11 +52,12 @@ class TaskCard extends StatelessWidget {
   /// The grain (`tool/make_grain.py`): white, its alpha around half.
   static const grain = AssetImage('assets/grain.png');
 
-  /// Laid at this, the grain is a white of about 2.8% varying by 1.25%,
+  /// Laid at this, the grain is a white of about 3.4% varying by 1.5%,
   /// and with [_veil] under it comes to the 8%. Picked from pictures over
-  /// none; a grain twice as large and softened read as noise (2.11.38).
-  static const _grainDepth = 0.0568;
-  static const _veil = 0.0531;
+  /// none, then raised from 1.25%; a grain twice as large and softened
+  /// read as noise (2.11.38).
+  static const _grainDepth = 0.0682;
+  static const _veil = 0.0475;
 
   /// The grain over a card's fill, one of its pixels to each of the
   /// screen's and unfiltered, so it stays as fine and sharp as it was

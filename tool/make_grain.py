@@ -3,9 +3,10 @@
 
 White, with the grain in the alpha: plain noise around half, one value a
 pixel and nothing blurred, since the card lays one pixel of it on each of
-the screen's (`TaskCard.grainOver`). Larger and softened grains were tried
-and read as noise; this one was picked from pictures ("fine, 1.5"). The
-alpha keeps its full range and the depth is set where it is drawn.
+the screen's (`TaskCard.grainOver`). Larger and softened grains were
+tried and read as noise; this one was picked from pictures ("fine", then
+level 2). The alpha keeps its full range and the depth is set where it is
+drawn.
 
 Rerun after changing it: python3 tool/make_grain.py
 """
