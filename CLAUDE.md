@@ -274,10 +274,12 @@ them will be noticed.
   tasks go into it; not stored. Alarms, widget and overdue dot use full lists
   (`allOverdue`, `allUpcomingByDay`). **A group's colour is its tasks' colour**
   (`_taskColourToGroup` migrated the old setting).
-- **With All shown, the open add field offers groups**: one chip on its
+- **The open add field offers groups**: one chip on its
   second row opening a list above it (`_GroupButton`, `_Popup` — an
   `OverlayPortal`, not a route, inside a `TextFieldTapRegion`, so the
-  keyboard stays), reset to default each opening.
+  keyboard stays), reset each opening to the group on show (`groupForNew`),
+  else the default. Shown with a group chosen too (asked for; it was All
+  only).
 
 ### Shell, navigation
 

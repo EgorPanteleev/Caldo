@@ -79,7 +79,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
   bool _raising = false;
 
   /// The group picked under the field for the task being typed; null for
-  /// the default. Back to the default each time the field opens, so a pick
+  /// the group on show, or the default when every group is. Back to the default each time the field opens, so a pick
   /// made for one task does not quietly file the next.
   int? _group;
 
@@ -256,11 +256,11 @@ class _QuickAddBarState extends State<QuickAddBar> {
     // character left it a plus over an active field.
     final writing = _focus.hasFocus || _raising;
 
-    // With every group on show there is no telling which one a new task
-    // belongs in, so the group is offered under the open field; one group
-    // on show is where it goes, and a single group is no choice at all.
+    // The group is offered under the open field whatever is on show: with
+    // one group chosen it starts on that one, and can still be changed
+    // without leaving for the form. A single group is no choice at all.
     final picking = context.select<TaskProvider, bool>(
-      (t) => writing && t.group == null && t.lists.length > 1,
+      (t) => writing && t.lists.length > 1,
     );
 
     // Escape closes the field, as Back does on a phone.
@@ -543,7 +543,8 @@ class _GroupButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final lists = context.select<TaskProvider, List<TaskList>>((t) => t.lists);
-    final fallback = context.read<TaskProvider>().defaultGroup;
+    // What null files into: the group on show, else the default.
+    final fallback = context.select<TaskProvider, int>((t) => t.groupForNew);
     final chosen = lists.any((l) => l.id == picked) ? picked! : fallback;
     final list = lists.firstWhere(
       (l) => l.id == chosen,

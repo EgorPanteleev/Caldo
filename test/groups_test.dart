@@ -298,10 +298,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(filed, [uni.id, null]);
 
-    // One group on show is where a task goes; nothing to pick.
+    // With one group on show the chip is still offered, starting on that
+    // group, and another can be picked.
     provider.showGroup(uni.id);
     await tester.tap(find.byType(TextField));
     await tester.pumpAndSettle();
-    expect(find.byKey(quickAddGroupsKey), findsNothing);
+    expect(find.byKey(quickAddGroupsKey), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(quickAddGroupsKey),
+        matching: find.text('University'),
+      ),
+      findsOneWidget,
+    );
+    await tester.enterText(find.byType(TextField), 'Thesis');
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pumpAndSettle();
+    expect(filed, [uni.id, null, null]);
+
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(quickAddGroupsKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Personal').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Groceries');
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pumpAndSettle();
+    expect(filed.last, provider.defaultGroup);
   });
 }
