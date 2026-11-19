@@ -146,7 +146,7 @@ them will be noticed.
   same day only, written "15:00 – 16:30".
 - **Cards are frosted glass** (asked for from mock-ups, 2026-11-19): 30%
   of the task's colour (`TaskCard.ink`), translucent over the ground they
-  stand on, a 1.5pt rim of the colour at 70%, and a frost of fine grain,
+  stand on, a 1.5pt rim of the colour at 56% (the tick's square outlined the same), and a frost of fine grain,
   one sharp pixel per screen pixel, about 3.4% white varying 1.5%
   (`CardPane`, `assets/grain.png` from `tool/make_grain.py`,
   unfiltered). The pane is its own `Decoration`: the grain is an
@@ -156,8 +156,8 @@ them will be noticed.
   Chrome drew it) read as greyish; ink, grain and frost were picked from
   pictures. A coarser grain
   (2.11.37), a blurred one and a soft, bleeding rim (2.11.38) read as
-  noise. Deeper ink alone read as a muddy slab. Done keeps a twentieth
-  and a faint rim, no frost. Holidays and phone events wear the same pane
+  noise. Deeper ink alone read as a muddy slab. Done keeps 9.45% ink
+  and a faint rim (18%), no frost. Holidays and phone events wear the same pane
   (`TaskCard.paneOf`). Ink, rim and frost have Debug sliders. Timed tasks
   use the same card (no separate row form).
 - **A task may carry its own colour** (`Task.styleId`), else its group's.

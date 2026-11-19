@@ -85,10 +85,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
     final early = cardInk(tester);
     expect(early.a, lessThan(open.a), reason: 'already fading');
-    expect(early.a, greaterThan(0.07), reason: 'not there yet');
+    expect(early.a, greaterThan(TaskCard.doneInk), reason: 'not there yet');
 
     await tester.pumpAndSettle();
-    expect(cardInk(tester).a, moreOrLessEquals(0.07, epsilon: 0.001));
+    expect(cardInk(tester).a, moreOrLessEquals(TaskCard.doneInk, epsilon: 0.001));
   });
 
   testWidgets('a leaving card folds away to nothing', (tester) async {

@@ -389,7 +389,7 @@ class _BlockView extends StatelessWidget {
     final tall = (block.end - block.start) >= 45;
     return Material(
       color: colour.withValues(
-        alpha: done ? 0.05 * Tweaks.doneInk : 0.25 * Tweaks.cardInk,
+        alpha: done ? 0.0675 * Tweaks.doneInk : 0.25 * Tweaks.cardInk,
       ),
       borderRadius: BorderRadius.circular(6),
       clipBehavior: Clip.antiAlias,

@@ -43,6 +43,11 @@ class TaskCard extends StatelessWidget {
   /// ("richer") over 22% under an 8% veil, which read as greyish.
   static const ink = 0.30;
 
+  /// What is left of the ink once a task is done: 9.45%, a sinking most
+  /// of the way back into the ground. Raised from 7% from the Debug
+  /// sliders (1.35×).
+  static const doneInk = 0.0945;
+
   /// The grain (`tool/make_grain.py`): white, its alpha around half.
   static const grain = AssetImage('assets/grain.png');
 
@@ -58,8 +63,9 @@ class TaskCard extends StatelessWidget {
       (_grainDepth * Tweaks.cardFrost * frost).clamp(0, 1);
 
   /// The rim round a card of [colour]: the colour itself, faint once done.
+  /// 56% (18% done), taken down from 70% from the Debug sliders (0.8×).
   static Color rimOf(Color colour, {bool faded = false}) => colour.withValues(
-    alpha: ((faded ? 0.22 : 0.7) * Tweaks.cardRim).clamp(0, 1),
+    alpha: ((faded ? 0.176 : 0.56) * Tweaks.cardRim).clamp(0, 1),
   );
 
   /// Fill, grain and rim for a card that is not a task's (a holiday, a
@@ -219,7 +225,7 @@ class TaskCard extends StatelessWidget {
               // than keeping its place in the run.
               ink: color.withValues(
                 alpha: faded
-                    ? 0.07 * Tweaks.doneInk
+                    ? TaskCard.doneInk * Tweaks.doneInk
                     : (TaskCard.ink + (picked ? 0.1 : 0)) * Tweaks.cardInk,
               ),
               // Done, the grain goes to nothing with the ink rather than
@@ -571,7 +577,7 @@ class _Step extends StatelessWidget {
               decoration: BoxDecoration(
                 color: step.done ? color : Colors.transparent,
                 borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: color, width: 1.5),
+                border: Border.all(color: TaskCard.rimOf(color), width: 1.5),
               ),
               child: CustomPaint(
                 painter: CheckMark(progress: step.done ? 1 : 0),
@@ -739,11 +745,13 @@ class _TickState extends State<_Tick> with TickerProviderStateMixin {
                 decoration: BoxDecoration(
                   color: widget.color.withValues(alpha: fill),
                   borderRadius: BorderRadius.circular(7),
-                  // Outlined in the task's own colour rather than a neutral grey:
-                  // with the card itself plain, this is the only place the colour
-                  // a task was given is still said, and an empty square is a
-                  // small enough mark to say it without tinting the whole run.
-                  border: Border.all(color: widget.color, width: 1.8),
+                  // Outlined as the card is rimmed, so the square reads as
+                  // drawn with the same pen as the card's edge rather than
+                  // a brighter frame set on it.
+                  border: Border.all(
+                    color: TaskCard.rimOf(widget.color),
+                    width: 1.5,
+                  ),
                 ),
                 child: CustomPaint(
                   key: taskCardMarkKey,
