@@ -176,7 +176,7 @@ class _DebugRows extends StatelessWidget {
                 children: [
                   _InkRow(tweak: 'cardInk', title: 'Cards'),
                   _InkRow(tweak: 'cardRim', title: 'Card rims'),
-                  _InkRow(tweak: 'cardGrain', title: 'Card grain', most: 4),
+                  _InkRow(tweak: 'cardFrost', title: 'Card frost'),
                   _InkRow(tweak: 'doneInk', title: 'Done cards'),
                   _InkRow(tweak: 'chipInk', title: 'Day chips, opened month'),
                 ],
