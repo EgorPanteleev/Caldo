@@ -22,8 +22,8 @@ import 'task_menu.dart';
 /// colour, carrying a tick, the title and when it is due.
 ///
 /// The card is a pane of tinted, frosted glass: a little over a fifth of the
-/// list's colour, a rim of the colour itself, and a faint white veil over
-/// the fill, the frost. Picked from mock-ups over a deeper ink, which read as a slab of
+/// list's colour, a rim of the colour itself, and over the fill a faint
+/// white veil with a fine grain in it, the frost. Picked from mock-ups over a deeper ink, which read as a slab of
 /// muddy navy once a day held several cards of one group. Left translucent
 /// rather than mixed into one named colour, so a card is inked by the
 /// ground it actually sits on — the calendar's day panel is a grey, the
@@ -36,17 +36,39 @@ class TaskCard extends StatelessWidget {
   static const margin = EdgeInsets.fromLTRB(16, 0, 16, 8);
   static const radius = 14.0;
 
-  /// The fill of a card of [colour] at [ink]: the colour, and over it a
-  /// white veil at [frost] of its depth. The veil is what the mock-up's
-  /// "soft grain" was once drawn: a blurred noise at 16% came out an even
-  /// 8% white, varying by under one step in 255. A real grain was tried
-  /// in its place (2.11.37–38) and read as noise.
+  /// The fill of a card of [colour] at [ink]: the colour, and over it the
+  /// even part of the frost's white at [frost] of its depth; [grainOver]
+  /// lays the rest. Together an 8% white, as the mock-up's "soft grain"
+  /// was drawn (a blurred noise at 16% came out an even 8%, varying by
+  /// under one step in 255).
   static Color fillOf(Color colour, double ink, {double frost = 1}) =>
       Color.alphaBlend(
         Colors.white.withValues(
-          alpha: (0.08 * Tweaks.cardFrost * frost).clamp(0, 1),
+          alpha: (_veil * Tweaks.cardFrost * frost).clamp(0, 1),
         ),
         colour.withValues(alpha: ink.clamp(0, 1)),
+      );
+
+  /// The grain (`tool/make_grain.py`): white, its alpha around half.
+  static const grain = AssetImage('assets/grain.png');
+
+  /// Laid at this, the grain is a white of about 2.8% varying by 1.25%,
+  /// and with [_veil] under it comes to the 8%. Picked from pictures over
+  /// none; a grain twice as large and softened read as noise (2.11.38).
+  static const _grainDepth = 0.0568;
+  static const _veil = 0.0531;
+
+  /// The grain over a card's fill, one of its pixels to each of the
+  /// screen's and unfiltered, so it stays as fine and sharp as it was
+  /// picked: scaled, the smoothing blurred it.
+  static DecorationImage grainOver(BuildContext context, double frost) =>
+      DecorationImage(
+        image: grain,
+        repeat: ImageRepeat.repeat,
+        alignment: Alignment.topLeft,
+        scale: MediaQuery.devicePixelRatioOf(context),
+        filterQuality: FilterQuality.none,
+        opacity: (_grainDepth * Tweaks.cardFrost * frost).clamp(0, 1),
       );
 
   /// The rim round a card of [colour]: the colour itself, faint once done.
@@ -59,6 +81,7 @@ class TaskCard extends StatelessWidget {
   static BoxDecoration paneOf(BuildContext context, Color colour) =>
       BoxDecoration(
         color: fillOf(colour, 0.22 * Tweaks.cardInk),
+        image: grainOver(context, 1),
         borderRadius: BorderRadius.circular(radius),
       );
   static BoxDecoration rimDecoration(Color colour) => BoxDecoration(
@@ -217,6 +240,9 @@ class TaskCard extends StatelessWidget {
                     : (picked ? 0.32 : 0.22) * Tweaks.cardInk,
                 frost: faded ? 0 : 1,
               ),
+              // Kept while done, at nothing, so the grain fades with the ink
+              // instead of going between two frames.
+              image: TaskCard.grainOver(context, faded ? 0 : 1),
               borderRadius: BorderRadius.circular(TaskCard.radius),
               // A picked-out card is lit in its own colour: a soft glow
               // round it, outside only — under the translucent ink a
