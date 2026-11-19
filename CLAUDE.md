@@ -327,7 +327,13 @@ them will be noticed.
   `ShaderMask` draws nothing. **Every backdrop filter costs a read of the
   screen and passes of its own**: 2.11.14 (sixteen bands here, seventeen
   in the head, a blur per chip) dropped frames; measure with
-  `showPerformanceOverlay` on a profile build before adding one. **Every screen runs on
+  `showPerformanceOverlay` on a profile build before adding one. The head's bands
+  and its `FadingBlur` share one `BackdropGroup` (`_Glass`), as do the bar
+  and the plus (`_TabBar`). To see what the GPU pays, run the emulator
+  with `-gpu swiftshader_indirect`: scrolling Schedule took 127ms a
+  frame there with the glass, 68 without the head's, 21 without any
+  blur; grouping made it ~110. Two bands instead of four didn't measure
+  faster; none left an edge across the title. **Every screen runs on
   under it** (the shell no longer pads pages): scrolls end with
   `BarRoom.of(context)` of room; Schedule and the calendar rest their
   field over their foot with one widget (`FieldInBarRoom`), standing on a

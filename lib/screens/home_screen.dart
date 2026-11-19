@@ -693,28 +693,32 @@ class _TabBar extends StatelessWidget {
     // the board, Done and Settings it opened the form on its own, and was
     // asked off them.
     final gone = foot == null || (foot?.selection?.active ?? false);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(right: BarRoom.tabsSide, bottom: 10),
-          child: IgnorePointer(
-            ignoring: gone,
-            child: AnimatedScale(
-              scale: gone ? 0.6 : 1,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              child: AnimatedOpacity(
-                opacity: gone ? 0 : 1,
+    // The bar and the plus read one copy of the screen between them: each
+    // blur reading its own was much of what a frame of a scroll cost.
+    return BackdropGroup(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: BarRoom.tabsSide, bottom: 10),
+            child: IgnorePointer(
+              ignoring: gone,
+              child: AnimatedScale(
+                scale: gone ? 0.6 : 1,
                 duration: const Duration(milliseconds: 200),
-                child: _AddButton(onTap: onAdd, onLongPress: onAddInFull),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: gone ? 0 : 1,
+                  duration: const Duration(milliseconds: 200),
+                  child: _AddButton(onTap: onAdd, onLongPress: onAddInFull),
+                ),
               ),
             ),
           ),
-        ),
-        _bar(context),
-      ],
+          _bar(context),
+        ],
+      ),
     );
   }
 
@@ -823,7 +827,7 @@ class _TabBar extends StatelessWidget {
     // blurred, rather than the bar being a solid slab over the screen.
     return ClipRRect(
       borderRadius: BorderRadius.circular(_height / 2),
-      child: BackdropFilter(
+      child: BackdropFilter.grouped(
         filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
         child: pill,
       ),
@@ -893,7 +897,7 @@ class _AddButton extends StatelessWidget {
       button: true,
       label: S.of(context).newTask,
       child: ClipOval(
-        child: BackdropFilter(
+        child: BackdropFilter.grouped(
           filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
           child: Material(
             key: barAddKey,

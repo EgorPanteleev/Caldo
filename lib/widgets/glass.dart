@@ -12,7 +12,8 @@ import 'desk.dart';
 ///
 /// A blur can't be faded in by a gradient (masked, a blur drew nothing at
 /// all here); hence bands. They read one copy of the screen between them
-/// ([BackdropGroup]), so each blurs what is really under it. Each band is
+/// ([BackdropGroup]) — the one they stand in, if any, so others beside
+/// them can share it — so each blurs what is really under it. Each band is
 /// a blur of its own, and they are what this costs: sixteen of them under
 /// a head and sixteen under the tab bar dropped frames. Few bands show
 /// their edges where the blur is light and type can still be read, so a
@@ -64,27 +65,28 @@ class GradedBlur extends StatelessWidget {
         ),
       ),
     );
+    final bands = LayoutBuilder(
+      builder: (context, box) {
+        final whole = box.maxHeight;
+        final held = math.min(hold, whole);
+        final step = (whole - held) / steps;
+        return Stack(
+          children: [
+            if (held > 0) band(downwards ? whole - held : 0, held, most),
+            for (var i = 0; i < steps; i++)
+              band(
+                downwards ? i * step : whole - (i + 1) * step,
+                step,
+                _sigma(i),
+              ),
+          ],
+        );
+      },
+    );
     return IgnorePointer(
-      child: BackdropGroup(
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final whole = box.maxHeight;
-            final held = math.min(hold, whole);
-            final step = (whole - held) / steps;
-            return Stack(
-              children: [
-                if (held > 0) band(downwards ? whole - held : 0, held, most),
-                for (var i = 0; i < steps; i++)
-                  band(
-                    downwards ? i * step : whole - (i + 1) * step,
-                    step,
-                    _sigma(i),
-                  ),
-              ],
-            );
-          },
-        ),
-      ),
+      child: BackdropGroup.of(context) == null
+          ? BackdropGroup(child: bands)
+          : bands,
     );
   }
 }
@@ -95,7 +97,8 @@ class GradedBlur extends StatelessWidget {
 /// down only: a second pass across, after it, read the screen as it was
 /// rather than what this one made of it, and never showed. Too light to
 /// see that here; a strong one smeared type into streaks. A renderer
-/// without shader filters (the desktop's) gets [GradedBlur]'s bands.
+/// without shader filters (the desktop's) gets [GradedBlur]'s bands. In a
+/// [BackdropGroup] it reads the group's copy of the screen.
 class FadingBlur extends StatefulWidget {
   /// The blur's sigma at its strongest.
   final double most;
@@ -166,6 +169,7 @@ class _FadingBlurState extends State<FadingBlur> {
     return IgnorePointer(
       child: ClipRect(
         child: BackdropFilter(
+          backdropGroupKey: BackdropGroup.of(context)?.backdropKey,
           filter: ImageFilter.shader(shader),
           child: const SizedBox.expand(),
         ),
@@ -332,7 +336,9 @@ class _UnderHead extends BoxConstraints {
 /// The glass itself: a full blur down to [fade] above its foot (or
 /// [GlassTop.leadOf]), then thinning to none at it — in a few bands while it is strong,
 /// then smoothly ([FadingBlur]) while it is light enough for steps to show
-/// — with the ground laid over in step.
+/// — with the ground laid over in step. Bands and the smooth part read one
+/// copy of the screen between them: a copy each was a fifth of what a frame
+/// of Schedule's scroll cost to draw.
 class _Glass extends StatelessWidget {
   final double? fade;
 
@@ -350,44 +356,46 @@ class _Glass extends StatelessWidget {
           final height = box.maxHeight;
           final lead = math.min(height, fade ?? GlassTop.leadOf(height));
           final full = height - lead;
-          return Stack(
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: full + lead / 2,
-                child: GradedBlur(
-                  most: GlassTop.blur,
-                  least: _light,
-                  downwards: false,
-                  hold: full,
+          return BackdropGroup(
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  height: full + lead / 2,
+                  child: GradedBlur(
+                    most: GlassTop.blur,
+                    least: _light,
+                    downwards: false,
+                    hold: full,
+                  ),
                 ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: full + lead / 2,
-                bottom: 0,
-                child: const FadingBlur(most: _light, downwards: false),
-              ),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        p.bg.withValues(alpha: GlassTop.fill),
-                        p.bg.withValues(alpha: GlassTop.fill),
-                        p.bg.withValues(alpha: 0),
-                      ],
-                      stops: [0, height > 0 ? full / height : 0, 1],
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: full + lead / 2,
+                  bottom: 0,
+                  child: const FadingBlur(most: _light, downwards: false),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          p.bg.withValues(alpha: GlassTop.fill),
+                          p.bg.withValues(alpha: GlassTop.fill),
+                          p.bg.withValues(alpha: 0),
+                        ],
+                        stops: [0, height > 0 ? full / height : 0, 1],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
