@@ -89,7 +89,11 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  new.updated_at := now();
+  -- What the list goes by: a size sent on opening a chat is not news.
+  if (new.state, new.note, new.title) is distinct from
+     (old.state, old.note, old.title) then
+    new.updated_at := now();
+  end if;
   return new;
 end;
 $$;

@@ -88,7 +88,10 @@ void main() {
     expect(early.a, greaterThan(TaskCard.doneInk), reason: 'not there yet');
 
     await tester.pumpAndSettle();
-    expect(cardInk(tester).a, moreOrLessEquals(TaskCard.doneInk, epsilon: 0.001));
+    expect(
+      cardInk(tester).a,
+      moreOrLessEquals(TaskCard.doneInk, epsilon: 0.001),
+    );
   });
 
   testWidgets('a leaving card folds away to nothing', (tester) async {

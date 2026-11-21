@@ -899,11 +899,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _agents.watch();
     _terminal.onOutput = _typed;
     _terminal.onResize = (cols, rows, _, _) => _sized(cols, rows);
-    try {
-      _feed = _agents.feed(widget.chat, _show);
-    } catch (_) {
-      // Signed out meanwhile: nothing to show.
-    }
+    _follow();
     _TermFont.read().then((size) {
       if (mounted) setState(() => _font = size);
     });
@@ -923,10 +919,45 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    _follow();
+    // Started again: it takes the size it is shown at.
+    final view = _viewSize;
+    if ((_chat?.live ?? false) && view != null && _toldSize != view) {
+      _sized(view.$1, view.$2);
+    }
+    setState(() {});
   }
 
-  final _clean = TermCleaner();
+  /// The size the view lays the terminal out at, while it does.
+  (int, int)? _viewSize;
+  bool _forcing = false;
+
+  /// Starts reading the chat once it is known whether it has ended: opened
+  /// from a task's form, the list may not have been read yet.
+  ///
+  /// What it wrote is drawn at the size it was last written at: drawn at
+  /// another, xterm loses the alternate screen Claude draws in as it
+  /// resizes, and only the bits redrawn since show. A live chat is then
+  /// told the view's size, and redraws whole at it.
+  void _follow() {
+    final chat = _chat;
+    if (_feed != null || chat == null) return;
+    if (!chat.live || _viewSize == null) {
+      _forcing = true;
+      _terminal.resize(chat.cols, chat.rows);
+      _forcing = false;
+    }
+    try {
+      _feed = _agents.feed(widget.chat, _show);
+    } catch (_) {
+      // Signed out meanwhile: nothing to show.
+    }
+  }
+
+  /// An ended chat keeps the last of its alternate screen: Claude draws
+  /// there, and leaving it as it exits would leave nothing to read back.
+  late final _clean = TermCleaner(keepAlternate: () => !(_chat?.live ?? true));
 
   /// While what the agent wrote is being drawn: whatever the terminal
   /// says then is its answer to a question in it (what terminal is this,
@@ -966,18 +997,17 @@ class _ChatScreenState extends State<ChatScreen> {
   (int, int)? _toldSize;
 
   void _sized(int cols, int rows) {
+    if (_forcing) return;
+    _viewSize = (cols, rows);
+    // An ended chat is shown at its own size; sent, it would be drawn at
+    // the wrong one next time.
+    if (!(_chat?.live ?? false)) return;
     _sizing?.cancel();
     _sizing = Timer(const Duration(milliseconds: 400), () {
       final chat = _chat;
-      if (_toldSize == (cols, rows)) return;
-      if (_toldSize == null &&
-          chat != null &&
-          chat.cols == cols &&
-          chat.rows == rows) {
-        _toldSize = (cols, rows);
-        return;
-      }
+      if (_toldSize == (cols, rows) || chat == null || !chat.live) return;
       _toldSize = (cols, rows);
+      if (chat.cols == cols && chat.rows == rows) return;
       unawaited(_agents.resize(widget.chat, cols, rows));
     });
   }
@@ -1021,6 +1051,11 @@ class _ChatScreenState extends State<ChatScreen> {
     await _agents.remove(widget.chat);
     if (mounted) Navigator.of(context).pop();
   }
+
+  /// The text size at which [cols] columns fill [width], no bigger than
+  /// the chosen one. A monospace cell is about 0.6 of its size wide.
+  double _fitted(double width, int cols) =>
+      (width / (cols * 0.6)).clamp(5.0, _font);
 
   TerminalTheme _theme(AppPalette p) => TerminalTheme(
     cursor: p.text.withValues(alpha: 0.75),
@@ -1072,19 +1107,28 @@ class _ChatScreenState extends State<ChatScreen> {
               onDelete: _delete,
             ),
             Expanded(
-              child: TerminalView(
-                _terminal,
-                controller: _controller,
-                theme: _theme(p),
-                textStyle: TerminalStyle(fontSize: _font),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                // A key a time over the network is no way to type on a
-                // phone; the field below is. A desktop's keys go straight
-                // in.
-                readOnly: !onDesktop || !live,
-                hardwareKeyboardOnly: onDesktop,
-                autofocus: onDesktop,
-                keyboardAppearance: Brightness.dark,
+              child: LayoutBuilder(
+                builder: (context, box) => TerminalView(
+                  _terminal,
+                  controller: _controller,
+                  theme: _theme(p),
+                  // An ended chat's text is made small enough for the width
+                  // it was written at to fit; the view's size is only told
+                  // to a live one.
+                  textStyle: TerminalStyle(
+                    fontSize: live || chat == null
+                        ? _font
+                        : _fitted(box.maxWidth - 12, chat.cols),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  // A key a time over the network is no way to type on a
+                  // phone; the field below is. A desktop's keys go straight
+                  // in.
+                  readOnly: !onDesktop || !live,
+                  hardwareKeyboardOnly: onDesktop,
+                  autofocus: onDesktop,
+                  keyboardAppearance: Brightness.dark,
+                ),
               ),
             ),
             if (live) ...[
@@ -1404,9 +1448,16 @@ class _InputRow extends StatelessWidget {
 /// mode) reach its SGR as if plain, and underlined everything after.
 /// A sequence cut across two pieces is held until the rest comes.
 class TermCleaner {
+  /// Whether leaving the alternate screen is dropped.
+  final bool Function() keepAlternate;
+
+  TermCleaner({bool Function()? keepAlternate})
+    : keepAlternate = keepAlternate ?? (() => false);
+
   String _held = '';
 
   static final _private = RegExp(r'\x1b\[[<>=][0-9;:]*[@-~]');
+  static final _leaveAlternate = RegExp(r'\x1b\[\?(?:1049|1047|47)l');
 
   /// An escape sequence not yet ended at the end of a piece.
   static final _open = RegExp(r'\x1b(\[[0-9;:<>=?]*)?$');
@@ -1419,6 +1470,7 @@ class TermCleaner {
       _held = text.substring(open.start);
       text = text.substring(0, open.start);
     }
-    return text.replaceAll(_private, '');
+    text = text.replaceAll(_private, '');
+    return keepAlternate() ? text.replaceAll(_leaveAlternate, '') : text;
   }
 }

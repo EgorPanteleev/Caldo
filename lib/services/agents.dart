@@ -237,7 +237,10 @@ class Agents extends ChangeNotifier {
       return;
     }
     try {
-      final w = await client.from('workers').select().order('name');
+      final w = await client
+          .from('workers')
+          .select()
+          .order('name', ascending: true);
       final c = await client
           .from('chats')
           .select()
@@ -415,7 +418,7 @@ class ChatFeed {
           .select('seq, data, snap')
           .eq('chat_id', chat)
           .gte('seq', next)
-          .order('seq')
+          .order('seq', ascending: true)
           .limit(200);
       for (final row in rows) {
         _hand(row, snapsToo: snapsToo && _last < 0);

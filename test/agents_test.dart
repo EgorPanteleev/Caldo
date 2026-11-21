@@ -106,6 +106,10 @@ void main() {
     expect(clean.add('d\x1b[>4'), 'd');
     expect(clean.add(';2me\x1b[1mf'), 'e\x1b[1mf');
     expect(clean.add('\x1b[?2004h'), '\x1b[?2004h');
+
+    // An ended chat's last screen stays where Claude drew it.
+    final ended = TermCleaner(keepAlternate: () => true);
+    expect(ended.add('\x1b[?1049hhi\x1b[?1049l'), '\x1b[?1049hhi');
   });
 
   group('the tab', () {

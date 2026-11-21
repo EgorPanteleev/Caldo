@@ -309,7 +309,7 @@ class Worker {
         .from('chat_in')
         .select('*, chats!inner(worker_id)')
         .eq('chats.worker_id', state.id)
-        .order('id')
+        .order('id', ascending: true)
         .limit(500);
     await _take(typed);
   }
