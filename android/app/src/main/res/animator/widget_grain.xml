@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card's frost: the grain at the app's depth while open (enabled) — its
+     own alpha is about half, so a white of about 3.4% — and none once done,
+     going with the ink rather than between two frames (`TaskCard.frostOf`). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true">
+        <objectAnimator
+            android:duration="240"
+            android:interpolator="@interpolator/widget_ease_out"
+            android:propertyName="alpha"
+            android:valueTo="0.0682"
+            android:valueType="floatType"/>
+    </item>
+    <item>
+        <objectAnimator
+            android:duration="240"
+            android:interpolator="@interpolator/widget_ease_out"
+            android:propertyName="alpha"
+            android:valueTo="0"
+            android:valueType="floatType"/>
+    </item>
+</selector>

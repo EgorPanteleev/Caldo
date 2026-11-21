@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The cards' frost, the app's grain (assets/grain.png, tool/make_grain.py)
+     copied in as it is: one of its pixels on each of the screen's, so kept
+     out of density scaling (drawable-nodpi), tiled and unfiltered, as the
+     app lays it (`CardPane`).
+
+     In a layer a point square, filling whatever it is drawn in: the tile
+     alone is as tall as its 256 pixels, and a view showing it held every
+     card to that height at the least. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="1dp"
+        android:height="1dp"
+        android:gravity="fill">
+        <bitmap
+            android:antialias="false"
+            android:dither="false"
+            android:filter="false"
+            android:src="@drawable/widget_grain_tile"
+            android:tileMode="repeat"/>
+    </item>
+</layer-list>

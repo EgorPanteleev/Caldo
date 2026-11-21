@@ -36,9 +36,14 @@ RES = os.path.join(os.path.dirname(__file__), "..", "android", "app", "src", "ma
 HEADER = '<?xml version="1.0" encoding="utf-8"?>\n<!-- Written by tool/make_widget_ticks.py; edit that, not this. -->\n'
 
 # The card's tick (`_Tick`, `CheckMark`): a 24-point square with corners of
-# 7, outlined in the task's colour, filled in it once ticked, with a white
-# check drawn through it.
-OUTLINE = "M7,0.9 H17 A6.1,6.1 0 0 1 23.1,7 V17 A6.1,6.1 0 0 1 17,23.1 H7 A6.1,6.1 0 0 1 0.9,17 V7 A6.1,6.1 0 0 1 7,0.9 Z"
+# 7, filled in the task's colour once ticked, with a white check drawn
+# through it. Outlined as the card is rimmed (`TaskCard.rimOf`): 1.5 inside
+# its edge, in the colour at 56% — the full colour was a brighter frame set
+# on the card than the card's own edge.
+OUTLINE = "M7,0.75 H17 A6.25,6.25 0 0 1 23.25,7 V17 A6.25,6.25 0 0 1 17,23.25 H7 A6.25,6.25 0 0 1 0.75,17 V7 A6.25,6.25 0 0 1 7,0.75 Z"
+
+# `TaskCard.rimOf`'s 56%, as the alpha of an #AARRGGBB colour.
+RIM = "8F"
 BOX = "M7,0 H17 A7,7 0 0 1 24,7 V17 A7,7 0 0 1 17,24 H7 A7,7 0 0 1 0,17 V7 A7,7 0 0 1 7,0 Z"
 CHECK = "M6.24,12.48 L10.56,16.8 L18.24,7.68"
 
@@ -52,8 +57,8 @@ def vector(colour, fill, check):
     <path
         android:name="outline"
         android:pathData="{OUTLINE}"
-        android:strokeColor="{colour}"
-        android:strokeWidth="1.8"/>
+        android:strokeColor="#{RIM}{colour[1:]}"
+        android:strokeWidth="1.5"/>
     <path
         android:name="fill"
         android:pathData="{BOX}"
@@ -158,13 +163,15 @@ TEXT = """            <LinearLayout
 
 
 def row(name):
-    return HEADER + f"""<!-- A task card in {name}, as Schedule draws one: its ink behind, the tick,
-     the title and under it the time or "All day". The outer frame's padding
-     is the gap to the next card, and its top margin is where it stands in
-     the widget. Each part plays its piece of a tick as the app's card does,
-     on an animator started by flipping its enabled state (TodayWidgetRuns):
-     the row slides, the card fades when it is leaving, the ink sinks and
-     the title is crossed out. -->
+    return HEADER + f"""<!-- A task card in {name}, as Schedule draws one: a pane of frosted glass
+     (`TaskCard`, `CardPane`) — its ink, the grain over it and its rim in
+     front — then the tick, the title and under it the time or "All day".
+     The outer frame's padding is the gap to the next card, and its top
+     margin is where it stands in the widget. Each part plays its piece of a
+     tick as the app's card does, on an animator started by flipping its
+     enabled state (TodayWidgetRuns): the row slides, the card fades when it
+     is leaving, the ink sinks with the grain and the rim, and the title is
+     crossed out. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_row"
     android:layout_width="match_parent"
@@ -176,16 +183,27 @@ def row(name):
         android:id="@+id/widget_card"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/widget_pane"
+        android:clipToOutline="true"
         android:stateListAnimator="@animator/widget_leave">
 
         <ImageView
             android:id="@+id/widget_ink"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:alpha="0.24"
+            android:alpha="0.30"
             android:scaleType="fitXY"
             android:src="@drawable/widget_ink"
             android:stateListAnimator="@animator/widget_ink"/>
+
+        <ImageView
+            android:id="@+id/widget_grain"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.0682"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_grain"
+            android:stateListAnimator="@animator/widget_grain"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -214,6 +232,16 @@ def row(name):
 
 {TEXT}
         </LinearLayout>
+
+        <!-- In front of all the rest, as the app's rim is. -->
+        <ImageView
+            android:id="@+id/widget_rim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.56"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_rim"
+            android:stateListAnimator="@animator/widget_rim"/>
     </FrameLayout>
 </FrameLayout>
 """

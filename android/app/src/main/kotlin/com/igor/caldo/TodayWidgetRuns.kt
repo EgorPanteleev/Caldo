@@ -93,8 +93,17 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
     private var locale: Locale = Locale.getDefault()
     private var words: Context = context
 
+    /**
+     * When the next of today's open tasks comes due, in milliseconds, or
+     * null if none is still to come: its time is written in red from then
+     * on, so the widget has to be drawn again then ([TodayWidget.wake]).
+     */
+    var nextLate: Long? = null
+        private set
+
     /** Reads the copy, as it is now, into runs. */
     fun load() {
+        nextLate = null
         val prefs = TodayWidget.prefs(context)
         val copy = prefs.getString(TodayWidget.KEY, null) ?: run {
             rows = emptyList()
@@ -130,9 +139,20 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
                 end = if (task.isNull("end")) null else task.optInt("end"),
                 done = done,
                 colour = task.getLong("colour").toInt(),
-                // `Task.isOverdue`: an earlier day, or a time today gone by.
-                late = !done && (day < today || (day == today && minute != null && minute < minuteNow)),
+                // `Task.isOverdue`: an earlier day, or a time today gone by —
+                // by the app's reckoning from the minute it is due, not the
+                // one after.
+                late = !done && (day < today || (day == today && minute != null && minute <= minuteNow)),
             )
+            if (!done && day == today && minute != null && minute > minuteNow) {
+                val due = (now.clone() as Calendar).apply {
+                    set(Calendar.HOUR_OF_DAY, minute / 60)
+                    set(Calendar.MINUTE, minute % 60)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                nextLate = minOf(nextLate ?: due, due)
+            }
             when {
                 // Shown while fading out of the run, though by then done.
                 day < today -> if (!item.done || item.id in leaving) overdue.add(item)
@@ -410,9 +430,16 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
      */
     private fun box(row: Item) = RemoteViews(context.packageName, layoutFor(row.colour)).apply {
         card(row)
-        // Open is enabled, done is not: the ink and both titles each play
+        // Open is enabled, done is not: the pane and both titles each play
         // their part of the crossing out when it changes.
-        for (part in intArrayOf(R.id.widget_ink, R.id.widget_title, R.id.widget_title_done)) {
+        val parts = intArrayOf(
+            R.id.widget_ink,
+            R.id.widget_grain,
+            R.id.widget_rim,
+            R.id.widget_title,
+            R.id.widget_title_done,
+        )
+        for (part in parts) {
             setBoolean(part, "setEnabled", !row.done)
         }
         setTextViewText(R.id.widget_title, row.title)
@@ -429,12 +456,15 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
     }
 
     /**
-     * An event from the phone's calendars: its colour's ink and mark, its
+     * An event from the phone's calendars: its colour's pane and mark, its
      * title and time, and a tap that opens it in the calendar app.
      */
     private fun event(row: Item) = RemoteViews(context.packageName, R.layout.widget_event).apply {
         val event = row.event!!
         card(row)
+        // Before Android 12 the card cannot be clipped to its corners, and
+        // the grain would square them off (see layout/widget_task.xml).
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) setViewVisibility(R.id.widget_grain, View.GONE)
         setInt(R.id.widget_event_icon, "setColorFilter", row.colour)
         setTextViewText(R.id.widget_title, row.title)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -479,9 +509,10 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
     )
 
-    /** What every task row has, whichever tick it wears. */
+    /** What every card has, whichever tick it wears. */
     private fun RemoteViews.card(row: Item) {
         setInt(R.id.widget_ink, "setColorFilter", row.colour)
+        setInt(R.id.widget_rim, "setColorFilter", row.colour)
         setTextViewText(
             R.id.widget_time,
             when {
@@ -516,6 +547,7 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
     private fun item(row: Item) = RemoteViews(context.packageName, R.layout.widget_task).apply {
         card(row)
         setInt(R.id.widget_ink, "setImageAlpha", if (row.done) INK_DONE else INK)
+        setInt(R.id.widget_rim, "setImageAlpha", if (row.done) RIM_DONE else RIM)
         setTextViewText(R.id.widget_title, if (row.done) crossedOut(row.title) else row.title)
         setTextColor(R.id.widget_title, if (row.done) FAINT else TEXT)
         setImageViewResource(
@@ -523,6 +555,9 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
             if (row.done) R.drawable.widget_tick_done else R.drawable.widget_tick_open,
         )
         setInt(R.id.widget_tick, "setColorFilter", row.colour)
+        // The empty square is outlined as the card is rimmed; the filled one
+        // is the colour itself.
+        setInt(R.id.widget_tick, "setImageAlpha", if (row.done) 255 else RIM)
         setViewVisibility(R.id.widget_check, if (row.done) View.VISIBLE else View.GONE)
         setOnClickPendingIntent(R.id.widget_tick_area, tap(TodayWidget.OP_TOGGLE, row.id))
         setOnClickPendingIntent(R.id.widget_card, tap(TodayWidget.OP_OPEN, row.id))
@@ -553,12 +588,19 @@ class TodayWidgetRuns(private val context: Context, private val widget: Int) {
 
         /**
          * The card's ink before Android 12, out of 255, as the app inks it
-         * over the same black: a quarter of the task's colour, and a
-         * fourteenth once done. From Android 12 the same is played out by
-         * animator/widget_ink.xml.
+         * over the same black (`TaskCard.ink`, `doneInk`): 30% of the
+         * task's colour, and 9.45% once done. From Android 12 the same is
+         * played out by animator/widget_ink.xml.
          */
-        private const val INK = 61
-        private const val INK_DONE = 18
+        private const val INK = 77
+        private const val INK_DONE = 24
+
+        /**
+         * The card's rim before Android 12, out of 255 (`TaskCard.rimOf`):
+         * 56% of its colour, and 17.6% once done (animator/widget_rim.xml).
+         */
+        private const val RIM = 143
+        private const val RIM_DONE = 45
 
         private const val MOST = 60
 

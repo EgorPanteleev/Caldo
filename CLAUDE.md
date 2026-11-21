@@ -628,6 +628,24 @@ them will be noticed.
 - **Phone events show too** (`PhoneEvents.kt`, `layout/widget_event.xml`),
   read by the widget itself; whether shown rides on the copy
   (`SettingsProvider.storedEvents`). Event keys start at 1e9.
+- **Its cards are the app's glass** (asked as "improve the widget",
+  2026-11-21): ink 30%/9.45% done, a 1.5dp rim at 56%/17.6%
+  (`widget_rim`, a stroke shape tinted from code — its clear `<solid>` is
+  load-bearing, a filter fills a shape without one), the grain at 0.0682
+  (`widget_grain`: `assets/grain.png` copied to `drawable-nodpi`, tiled,
+  unfiltered, inside a 1dp `layer-list` item with gravity fill — the bare
+  tile's 256px held every card that tall), clipped by the card's
+  `clipToOutline` on `widget_pane`. Tick squares outlined like the rim.
+  Pane alphas play on `stateListAnimator`s as the ink's do. Measured on
+  the emulator within a step of the app's card. No grain before Android
+  12 (nothing clips it there). If the app's card numbers change, change
+  `animator/widget_{ink,rim,grain}.xml`, `INK`/`RIM` and
+  `make_widget_ticks.py`'s `RIM`.
+- **It wakes itself when the clock changes what it shows**
+  (`TodayWidget.wake`, `TodayWidgetRuns.nextLate`): at midnight, or when a
+  task of today's comes due (its time turns red, from its own minute as
+  `Task.isOverdue` does). Booked on every drawing, exact where allowed,
+  non-waking.
 
 ### Phone calendars, language, updates, backup, sync
 

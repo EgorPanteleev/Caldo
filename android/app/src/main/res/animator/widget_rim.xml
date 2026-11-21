@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card's rim: its colour at 56% while open (enabled), faint at 17.6%
+     once done, with the ink (`TaskCard.rimOf`). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true">
+        <objectAnimator
+            android:duration="240"
+            android:interpolator="@interpolator/widget_ease_out"
+            android:propertyName="alpha"
+            android:valueTo="0.56"
+            android:valueType="floatType"/>
+    </item>
+    <item>
+        <objectAnimator
+            android:duration="240"
+            android:interpolator="@interpolator/widget_ease_out"
+            android:propertyName="alpha"
+            android:valueTo="0.176"
+            android:valueType="floatType"/>
+    </item>
+</selector>

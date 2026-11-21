@@ -7,9 +7,9 @@
     android:viewportHeight="24">
     <path
         android:name="outline"
-        android:pathData="M7,0.9 H17 A6.1,6.1 0 0 1 23.1,7 V17 A6.1,6.1 0 0 1 17,23.1 H7 A6.1,6.1 0 0 1 0.9,17 V7 A6.1,6.1 0 0 1 7,0.9 Z"
-        android:strokeColor="#7B61E8"
-        android:strokeWidth="1.8"/>
+        android:pathData="M7,0.75 H17 A6.25,6.25 0 0 1 23.25,7 V17 A6.25,6.25 0 0 1 17,23.25 H7 A6.25,6.25 0 0 1 0.75,17 V7 A6.25,6.25 0 0 1 7,0.75 Z"
+        android:strokeColor="#8F7B61E8"
+        android:strokeWidth="1.5"/>
     <path
         android:name="fill"
         android:pathData="M7,0 H17 A7,7 0 0 1 24,7 V17 A7,7 0 0 1 17,24 H7 A7,7 0 0 1 0,17 V7 A7,7 0 0 1 7,0 Z"

@@ -34,7 +34,6 @@ import kotlin.math.roundToInt
 class TodayWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         for (id in ids) manager.updateAppWidget(id, views(context, manager, id))
-        wakeAtMidnight(context)
     }
 
     // Resized: the cards are placed by their measured heights, and a title
@@ -79,7 +78,7 @@ class TodayWidget : AppWidgetProvider() {
                     }
                 }
             }
-            ACTION_MIDNIGHT -> refresh(context)
+            ACTION_WAKE -> refresh(context)
             else -> super.onReceive(context, intent)
         }
     }
@@ -198,7 +197,9 @@ class TodayWidget : AppWidgetProvider() {
 
     companion object {
         const val ACTION_ITEM = "com.igor.caldo.widget.ITEM"
-        const val ACTION_MIDNIGHT = "com.igor.caldo.widget.MIDNIGHT"
+        // Named for what it first woke the widget for; kept, since a wake
+        // already booked carries it.
+        const val ACTION_WAKE = "com.igor.caldo.widget.MIDNIGHT"
         const val EXTRA_OP = "op"
         const val EXTRA_TASK = "task"
         const val OP_TOGGLE = "toggle"
@@ -285,6 +286,7 @@ class TodayWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_screen, words.getString(R.string.widget_schedule))
             views.setTextViewText(R.id.widget_empty_text, words.getString(R.string.widget_nothing))
             val runs = TodayWidgetRuns(context, id).apply { load() }
+            wake(context, runs.nextLate)
             val width = cardWidth(context, manager, id)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 // The agenda is the one row of a list, which scrolls it; the
@@ -372,29 +374,41 @@ class TodayWidget : AppWidgetProvider() {
             }
 
         /**
-         * The runs are sorted into Today, Tomorrow and the rest when the
-         * widget is drawn, so it has to be drawn again when the date
-         * changes — the copy is the same, but yesterday's Today is not.
+         * Books the widget's next drawing for when what it shows changes
+         * with the clock alone, the copy being the same: at midnight, since
+         * the runs are sorted into Today, Tomorrow and the rest as it is
+         * drawn and yesterday's Today is not today's; or sooner, at [late],
+         * when a task of today's comes due and its time turns red, as it
+         * does in the app.
+         *
+         * Booked on every drawing, the one it wakes included, so each wake
+         * books the next. Not a wakeup: a phone asleep is shown the change
+         * when it wakes. Exact where Caldo may be (its reminders need it):
+         * a plain alarm may come as late as three quarters of the wait
+         * again, which left a task due this evening black for hours.
          */
-        private fun wakeAtMidnight(context: Context) {
+        private fun wake(context: Context, late: Long?) {
             val midnight = Calendar.getInstance().apply {
                 add(Calendar.DAY_OF_MONTH, 1)
                 set(Calendar.HOUR_OF_DAY, 0)
                 set(Calendar.MINUTE, 0)
                 set(Calendar.SECOND, 5)
                 set(Calendar.MILLISECOND, 0)
-            }
+            }.timeInMillis
+            // A second into its minute, so it is drawn as due.
+            val at = if (late != null) minOf(late + 1_000, midnight) else midnight
             val alarm = context.getSystemService(AlarmManager::class.java) ?: return
-            alarm.set(
-                AlarmManager.RTC,
-                midnight.timeInMillis,
-                PendingIntent.getBroadcast(
-                    context,
-                    3,
-                    Intent(context, TodayWidget::class.java).setAction(ACTION_MIDNIGHT),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                ),
+            val drawing = PendingIntent.getBroadcast(
+                context,
+                3,
+                Intent(context, TodayWidget::class.java).setAction(ACTION_WAKE),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarm.canScheduleExactAlarms()) {
+                alarm.setExact(AlarmManager.RTC, at, drawing)
+            } else {
+                alarm.set(AlarmManager.RTC, at, drawing)
+            }
         }
     }
 }

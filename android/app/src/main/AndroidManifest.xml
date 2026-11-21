@@ -134,8 +134,8 @@
             android:exported="false"/>
 
         <!-- The home-screen widget, and the service that hands it its rows.
-             The receiver also takes the widget's taps and its midnight
-             redraw, so it is exported only as far as the launcher needs. -->
+             The receiver also takes the widget's taps and its timed
+             redraws, so it is exported only as far as the launcher needs. -->
         <!-- Says an update from inside the app is in (SelfUpdate): Android
              will not let the app open itself again after replacing it. -->
         <receiver

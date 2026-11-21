@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- An event from the phone's own calendar, as Schedule cards one: inked in
-     its colour, a calendar mark where a task has its tick, the title and
+<!-- An event from the phone's own calendar, as Schedule cards one: the
+     same pane of frosted glass as a task's (ink, grain and rim in its
+     colour), a calendar mark where a task has its tick, the title and
      under it its time or "All day". Nothing to tick; a tap opens it in the
      calendar app. Laid in the widget's frame as a task's row is, so it has
      the same ids for its place and its slide. -->
@@ -14,15 +15,25 @@
     <FrameLayout
         android:id="@+id/widget_card"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@drawable/widget_pane"
+        android:clipToOutline="true">
 
         <ImageView
             android:id="@+id/widget_ink"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:alpha="0.22"
+            android:alpha="0.30"
             android:scaleType="fitXY"
             android:src="@drawable/widget_ink"/>
+
+        <ImageView
+            android:id="@+id/widget_grain"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.0682"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_grain"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -68,5 +79,13 @@
                     android:textSize="12.5sp"/>
             </LinearLayout>
         </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_rim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.56"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_rim"/>
     </FrameLayout>
 </FrameLayout>

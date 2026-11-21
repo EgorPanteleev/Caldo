@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A card's outline and nothing else: the card clips to it, so the grain
+     laid over its ink keeps to the card's corners. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#00000000"/>
+    <corners android:radius="14dp"/>
+</shape>

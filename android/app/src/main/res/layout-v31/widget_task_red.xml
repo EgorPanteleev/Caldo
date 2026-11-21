@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Written by tool/make_widget_ticks.py; edit that, not this. -->
-<!-- A task card in red, as Schedule draws one: its ink behind, the tick,
-     the title and under it the time or "All day". The outer frame's padding
-     is the gap to the next card, and its top margin is where it stands in
-     the widget. Each part plays its piece of a tick as the app's card does,
-     on an animator started by flipping its enabled state (TodayWidgetRuns):
-     the row slides, the card fades when it is leaving, the ink sinks and
-     the title is crossed out. -->
+<!-- A task card in red, as Schedule draws one: a pane of frosted glass
+     (`TaskCard`, `CardPane`) — its ink, the grain over it and its rim in
+     front — then the tick, the title and under it the time or "All day".
+     The outer frame's padding is the gap to the next card, and its top
+     margin is where it stands in the widget. Each part plays its piece of a
+     tick as the app's card does, on an animator started by flipping its
+     enabled state (TodayWidgetRuns): the row slides, the card fades when it
+     is leaving, the ink sinks with the grain and the rim, and the title is
+     crossed out. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_row"
     android:layout_width="match_parent"
@@ -18,16 +20,27 @@
         android:id="@+id/widget_card"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/widget_pane"
+        android:clipToOutline="true"
         android:stateListAnimator="@animator/widget_leave">
 
         <ImageView
             android:id="@+id/widget_ink"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:alpha="0.24"
+            android:alpha="0.30"
             android:scaleType="fitXY"
             android:src="@drawable/widget_ink"
             android:stateListAnimator="@animator/widget_ink"/>
+
+        <ImageView
+            android:id="@+id/widget_grain"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.0682"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_grain"
+            android:stateListAnimator="@animator/widget_grain"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -101,5 +114,15 @@
                     android:textSize="12.5sp"/>
             </LinearLayout>
         </LinearLayout>
+
+        <!-- In front of all the rest, as the app's rim is. -->
+        <ImageView
+            android:id="@+id/widget_rim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:alpha="0.56"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_rim"
+            android:stateListAnimator="@animator/widget_rim"/>
     </FrameLayout>
 </FrameLayout>

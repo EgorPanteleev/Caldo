@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A task card before Android 12, as Schedule draws one: its ink behind,
-     the tick, the title and under it the time or "All day". The outer
+     the tick, the title and under it the time or "All day", and its rim in
+     front. No grain: before Android 12 a widget's view cannot be clipped to
+     the card's corners, and the grain would square them off. The outer
      frame's padding is the gap to the next card. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -80,5 +82,12 @@
                     android:textSize="12.5sp"/>
             </LinearLayout>
         </LinearLayout>
+
+        <ImageView
+            android:id="@+id/widget_rim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitXY"
+            android:src="@drawable/widget_rim"/>
     </FrameLayout>
 </FrameLayout>
