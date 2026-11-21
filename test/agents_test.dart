@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/mcp/agents.dart';
@@ -255,6 +256,20 @@ void main() {
         claudeTranscript('/home/a', '/home/a/dev/src/Caldo', 's'),
         '/home/a/.claude/projects/-home-a-dev-src-Caldo/s.jsonl',
       );
+    });
+
+    test('resumes only a session Claude has written down', () {
+      // Named by its first hook but never spoken in, a session has no
+      // transcript, and `--resume` on it ends Claude at once.
+      final home = Directory.systemTemp.createTempSync('caldo_resume').path;
+      addTearDown(() => Directory(home).deleteSync(recursive: true));
+      const dir = '/work';
+      expect(resumable(claude, home, dir, 's'), isNull);
+      File(claudeTranscript(home, dir, 's')).createSync(recursive: true);
+      expect(resumable(claude, home, dir, 's'), 's');
+      expect(resumable(claude, home, dir, null), isNull);
+      const codex = AgentSpec(id: 'codex', label: 'Codex', command: ['codex']);
+      expect(resumable(codex, home, dir, 't'), 't');
     });
   });
 

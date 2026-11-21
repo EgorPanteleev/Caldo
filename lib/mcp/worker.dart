@@ -321,13 +321,17 @@ class Worker {
   /// [chat]'s private channel: input heard on it is put in at once, ahead
   /// of its row. A chat has one here at a time, its [_Talker]'s or its
   /// [_Live]'s: of two joins to one topic, the server keeps the later.
-  RealtimeChannel _lineOf(String chat) => remote.client
-      .channel('chat:$chat', opts: const RealtimeChannelConfig(private: true))
-      .onBroadcast(
-        event: 'in',
-        callback: (message) => _cast(chat, _Talker._payloadOf(message)),
-      )
-    ..subscribe();
+  RealtimeChannel _lineOf(String chat) =>
+      remote.client
+          .channel(
+            'chat:$chat',
+            opts: const RealtimeChannelConfig(private: true),
+          )
+          .onBroadcast(
+            event: 'in',
+            callback: (message) => _cast(chat, _Talker._payloadOf(message)),
+          )
+        ..subscribe();
 
   /// A row of input heard by realtime: put in at once, not after a look.
   void _heard(Map<String, dynamic> row) {
@@ -476,6 +480,7 @@ class Worker {
     final place = await _placeOf(ask);
     if (place == null) return null;
     final (spec, dir) = place;
+    resume = resumable(spec, home, dir, resume);
     final first = prompt ?? (resume != null ? '' : ask.prompt);
     final argv = launchOf(
       spec,
@@ -1159,7 +1164,7 @@ class _Talker implements TalkSink {
     _closing = false;
     talk = made;
     try {
-      await made.start(resume: session);
+      await made.start(resume: resumable(spec, worker.home, dir, session));
     } catch (e) {
       talk = null;
       await made.close();

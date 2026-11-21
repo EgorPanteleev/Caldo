@@ -464,6 +464,17 @@ String claudeTranscript(String home, String dir, String session) =>
     '$home/.claude/projects/'
     '${dir.replaceAll(RegExp(r'[^A-Za-z0-9]'), '-')}/$session.jsonl';
 
+/// [session] if [spec] can take it up, else null to start afresh. Claude
+/// names a session as soon as it starts but writes it down only with its
+/// first turn; asked to resume one never spoken in, it says "No
+/// conversation found" and exits, and would at every message after.
+String? resumable(AgentSpec spec, String home, String dir, String? session) {
+  if (session == null || !spec.isClaude) return session;
+  return File(claudeTranscript(home, dir, session)).existsSync()
+      ? session
+      : null;
+}
+
 /// Codex's app server: JSON-RPC a line each way. A thread is the chat
 /// (its id kept as the session), a turn each message; Codex asks before a
 /// command or a change as a request of its own, answered `accept`,
@@ -507,12 +518,18 @@ class CodexTalk extends Talk {
       'sandbox': sandbox,
       'model': ?ask.model,
     };
-    final Map result;
+    Map? result;
     if (resume != null) {
-      result = await _call('thread/resume', {'threadId': resume, ...settings});
-    } else {
-      result = await _call('thread/start', settings);
+      try {
+        result = await _call('thread/resume', {
+          'threadId': resume,
+          ...settings,
+        });
+      } on StateError {
+        // A thread never spoken in may not have been kept: begun afresh.
+      }
     }
+    result ??= await _call('thread/start', settings);
     final thread = result['thread'] as Map? ?? const {};
     _thread = thread['id'] as String?;
     if (_thread != null) sink.inSession(_thread!);
