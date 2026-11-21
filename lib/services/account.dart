@@ -10,6 +10,7 @@ import 'package:supabase/supabase.dart';
 import '../db/sync_store.dart';
 import '../theme/tweaks.dart';
 import '../utils/platform.dart';
+import 'caldo_server.dart';
 import 'file_sync.dart';
 import 'sync.dart';
 
@@ -27,38 +28,13 @@ class Account {
   Account._();
   static final instance = Account._();
 
-  /// Where the server is: Caldo's project on Supabase's cloud, unless a
-  /// device is pointed elsewhere in Settings — a local Supabase on this PC,
-  /// which the emulator and the desktop reach at different addresses.
-  static const _builtServer = String.fromEnvironment(
-    'CALDO_SYNC_URL',
-    defaultValue: 'https://eqgczddzmvmczwcgbenr.supabase.co',
-  );
-
-  /// The server's public key: it only says which project a request is for,
-  /// and every row is guarded by who is signed in, not by this.
-  static const _builtKey = String.fromEnvironment(
-    'CALDO_SYNC_KEY',
-    defaultValue: 'sb_publishable_UifMTJoD6l7uP40ZtL8aAA_2zk9ot27',
-  );
-
-  /// The key every local Supabase is started with, for any other address.
-  static const _localKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwi'
-      'cm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnW'
-      'NReilDMblYTn_I0';
-
-  /// The domain a name is kept under. `.invalid` is reserved never to
-  /// resolve, so nothing could ever be mailed to one by mistake.
-  static const _domain = '@caldo.invalid';
+  static const _builtServer = CaldoServer.url;
 
   /// The address Auth knows the name [name] by.
-  static String loginOf(String name) => name.trim().toLowerCase() + _domain;
+  static String loginOf(String name) => CaldoServer.loginOf(name);
 
   /// The name in a login, or the login itself for an account made by email.
-  static String nameIn(String login) => login.endsWith(_domain)
-      ? login.substring(0, login.length - _domain.length)
-      : login;
+  static String nameIn(String login) => CaldoServer.nameIn(login);
 
   /// Letters, digits, `_` and `-`, in parts joined by single dots, three to
   /// thirty-two in all: what an address can carry before its `@`.
@@ -189,7 +165,7 @@ class Account {
   void _connect(String address) {
     _client = SupabaseClient(
       address,
-      address == _builtServer ? _builtKey : _localKey,
+      CaldoServer.keyFor(address),
       // A code typed in needs no PKCE, which would want somewhere to keep
       // its verifier between sending the code and checking it.
       authOptions: const AuthClientOptions(authFlowType: AuthFlowType.implicit),

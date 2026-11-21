@@ -42,6 +42,8 @@ lib/
   widgets/                 month_grid, task_card, day_sheet, day_hours,
                            quick_add_bar, keys_carry, tick_off, selection,
                            put_off, carry, desk, … (see the directory)
+  mcp/                     the MCP server's: book, remote, tools, protocol
+bin/caldo_mcp.dart         the MCP server (plain Dart); tool/mcp/install.sh
 ```
 
 Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
@@ -771,6 +773,42 @@ master password behind it.
   free page (Samsung draws that).
 - **Ask for the fastest display mode at the current resolution** (`MainActivity`).
 
+## The MCP server
+
+Asked for so an assistant can read and change the tasks (2026-11-21); the
+next steps talked over were a watcher on the PC that hands a task marked
+for Claude to `claude -p`, then a "Hand to Claude" action in the app.
+
+- **It is one more device on the sync server**, not a reader of a local
+  database: it signs in as the user and goes through `sync_push`/`sync_pull`
+  (`Remote`, `SupabaseRemote`), so the phone hears within seconds and sets
+  its own alarms. Each tool pulls first (`Caldo.refresh`); the account is
+  held in memory (`Book`), never written ahead of the server.
+- **It ticks with the app's model**: `models/task.dart` is Flutter-free
+  (`package:meta`, no `setEquals`) so `Task.completed`, `toStage` and
+  `Repeat` run there as in the app. Keep it so; `task_list.dart` and
+  `special_day.dart` still import Material and are not used there. Server
+  address and login naming are in `services/caldo_server.dart` for the same
+  reason.
+- **An edit sends only the fields it changed** (`Caldo._diff`; the server
+  lays them over the row), stamped past the row's own, and is read back: a
+  loss to another device's edit is reported, not claimed done.
+- **The session, not the password, is kept** (`caldo-mcp login`,
+  `~/.config/caldo/mcp/session.json`, 600), renewed by hand only under a
+  file lock, the file read first (`SessionFile`, `ready`): every Claude
+  session runs its own server, and a refresh token spent twice ends the
+  session. Five servers starting on an expired token made one refresh.
+  `recoverSession` won't renew with `autoRefreshToken` off; it signs out.
+- **The vault is out of reach on purpose**, and so are groups' creation and
+  attachments' files.
+- Ids are the first 8 characters of the uuid. Times are this computer's.
+- **Install**: `tool/mcp/install.sh` → a kernel snapshot run by Flutter's
+  Dart (`dart compile exe` refuses packages with build hooks; sqlite3 has
+  one), `~/.local/bin/caldo-mcp`. Rerun after changing `lib/mcp` or the
+  models. `caldo-mcp call <tool> '<json>'` runs one from a shell;
+  `XDG_CONFIG_HOME` points it at another session (tried on the local stack
+  with an account made by the admin API).
+
 ## Linux
 
 Two layouts on a desktop: **≥900pt wide is a desktop program**, narrower is
@@ -855,7 +893,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 348 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 358 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

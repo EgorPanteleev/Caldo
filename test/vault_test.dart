@@ -13,8 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'support/fake_server.dart';
 import 'support/test_db.dart';
-import 'sync_test.dart' show FakeServer;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

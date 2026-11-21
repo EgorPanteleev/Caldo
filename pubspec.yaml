@@ -60,6 +60,9 @@ dependencies:
   # what it holds, in pure Dart so the phone and the desktop seal alike.
   # Already here under the Supabase client.
   pointycastle: ^4.0.0
+  # `@immutable` for the models the MCP server shares with the app, which
+  # runs on plain Dart and cannot import Flutter. Flutter's own pin.
+  meta: ^1.17.0
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,8 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+// Not Flutter's foundation: the Caldo MCP server (`bin/caldo_mcp.dart`)
+// runs this file on plain Dart, so a tick there is the app's tick.
+import 'package:meta/meta.dart';
 
 /// The unit a rule repeats by.
 enum RepeatUnit { none, day, week, month, year }
@@ -223,7 +225,8 @@ class Repeat {
       other is Repeat &&
       other.unit == unit &&
       other.every == every &&
-      setEquals(other.weekdays, weekdays) &&
+      other.weekdays.length == weekdays.length &&
+      other.weekdays.containsAll(weekdays) &&
       other.monthEnd == monthEnd &&
       other.until == until &&
       other.left == left;
