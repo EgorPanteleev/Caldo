@@ -1120,11 +1120,12 @@ outside git; the original debug key). Lose them and no update installs over
 Caldo again — keep copies off this machine. A release build without
 `key.properties` fails on purpose.
 
-**Release only when asked.** Commit each change, but don't bump, build or
-publish unprompted (the in-app updater ships whatever is latest). A release
-means both `release/` (`Caldo-arm64.apk`, `Caldo-armv7.apk`,
-`Caldo-universal.apk`) and `gh release create vX.Y.Z release/*.apk` from the
-latest commit. An update users must not put off carries
+**Release only when asked.** Commit each change (on its branch, see
+Conventions), but don't bump, build or publish unprompted (the in-app
+updater ships whatever is latest). A release means both `release/`
+(`Caldo-arm64.apk`, `Caldo-armv7.apk`, `Caldo-universal.apk`) and `gh
+release create vX.Y.Z release/*.apk` from the latest commit on `master` —
+never from an unmerged branch. An update users must not put off carries
 `<!-- priority: high -->` in its notes (`--notes`); add it only when asked.
 `tool/package_linux.sh` adds `Caldo-linux-x64.tar.gz`; whether a
 release carries it is the user's call.
@@ -1228,6 +1229,24 @@ pattern the killing command itself contains.**
 - Commit messages are prose: what changed and why. End with the
   `Co-Authored-By` line.
 - `flutter analyze` clean before every commit.
+
+### Branches and pull requests
+
+Asked for (2026-11-21): every change goes to Egor as a pull request, and
+he accepts it or not.
+
+- **Never commit to `master`.** Each feature or fix starts on its own
+  branch off an up-to-date `master` (`git pull`, then `feature/<short-name>`
+  or `fix/<short-name>`). Commit on it as the work goes.
+- **When it's done** — tests green, `flutter analyze` clean, seen on the
+  emulator — push the branch and open a pull request against `master`
+  (`gh pr create`): what changed and why, how it was checked, anything
+  left open. End the description with the attribution line.
+- **Don't merge it yourself.** Egor merges or closes it. Changes he asks
+  for in review go on the same branch, and the same PR.
+- One branch, one change: unrelated work gets a branch of its own. Before
+  starting a new one, `git switch master && git pull`.
+- The emulator runs whichever branch is being worked on.
 
 ## Known gaps
 
