@@ -19,7 +19,18 @@ class Errand {
   /// The session to carry on, for a task handed back after an answer.
   final String? resume;
 
-  const Errand(this.prompt, this.dir, this.model, {this.resume});
+  /// The task's title and uuid, for the chat it is done in ([Worker]).
+  final String? title;
+  final String? task;
+
+  const Errand(
+    this.prompt,
+    this.dir,
+    this.model, {
+    this.resume,
+    this.title,
+    this.task,
+  });
 }
 
 /// What came back from Claude.
@@ -287,14 +298,37 @@ class Watcher {
         answer = Answer(false, 'There is no folder $where on this computer.');
       } else if (last != null && last.dir == where && h.task.repeat.isNone) {
         answer = await hand(
-          Errand(_againPrompt(h.task), where, model, resume: last.session),
+          Errand(
+            _againPrompt(h.task),
+            where,
+            model,
+            resume: last.session,
+            title: h.task.title,
+            task: h.uuid,
+          ),
         );
         // A session gone from this computer: begun again from the task.
         if (!answer.ok && answer.session == null) {
-          answer = await hand(Errand(_prompt(h.task), where, model));
+          answer = await hand(
+            Errand(
+              _prompt(h.task),
+              where,
+              model,
+              title: h.task.title,
+              task: h.uuid,
+            ),
+          );
         }
       } else {
-        answer = await hand(Errand(_prompt(h.task), where, model));
+        answer = await hand(
+          Errand(
+            _prompt(h.task),
+            where,
+            model,
+            title: h.task.title,
+            task: h.uuid,
+          ),
+        );
       }
     } catch (e) {
       answer = Answer(false, 'Claude could not be started: $e');
@@ -372,10 +406,10 @@ class Watcher {
   String _prompt(Task t) {
     final out = StringBuffer(
       'This task was handed to you from Caldo, the user\'s calendar and '
-      'to-do app. Nobody is watching this session and no one can answer questions: do the task '
-      'yourself, here on the user\'s computer. If something you need is '
-      'missing, or a step is risky or can\'t be undone, stop there and say '
-      'what is needed instead.\n\n'
+      'to-do app. The user may look in on this session from their phone, '
+      'but do not count on it: do the task yourself, here on their '
+      'computer. If something you need is missing, or a step is risky or '
+      'can\'t be undone, stop there and say what is needed instead.\n\n'
       'Your last message is written into the task\'s notes for the user to '
       'read on their phone, so keep it short and plain: what you did, '
       'where, and anything left for them. Do not tick the task off or edit '

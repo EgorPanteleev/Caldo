@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Runs `caldo-mcp watch` as a systemd user service, so tasks handed to a
-# Claude model in Caldo are done by Claude on this computer.
+# Runs `caldo-mcp watch` as a systemd user service: this computer becomes
+# one of the account's workers, running the agents the app's Agents tab
+# asks for (in tmux), and tasks handed to a Claude model in Caldo are done
+# by Claude here.
 #
 #   tool/mcp/watch.sh [watch options]   install (or reinstall) and start it
 #   tool/mcp/watch.sh --remove          stop it and take it out
 #
 # Options go to `caldo-mcp watch` as they are, e.g. --dir ~/dev/src or
-# --permission-mode acceptEdits. Needs tool/mcp/install.sh and
+# --permission-mode acceptEdits, or --name desk for what the app calls it. Needs tool/mcp/install.sh and
 # `caldo-mcp login` first. The service is given the PATH of the shell this
 # is run from: a unit's own has no flutter, pnpm and the rest Claude may
 # need. Logs: journalctl --user -u caldo-watch -f
@@ -26,6 +28,8 @@ mcp="$HOME/.local/bin/caldo-mcp"
 [[ -x "$mcp" ]] || { echo "Run tool/mcp/install.sh first." >&2; exit 1; }
 "$mcp" status >/dev/null || { echo "Run caldo-mcp login first." >&2; exit 1; }
 command -v claude >/dev/null || { echo "No claude on the PATH." >&2; exit 1; }
+command -v tmux >/dev/null ||
+  echo "No tmux: tasks will still be done, but the Agents tab can't run chats here." >&2
 
 args=""
 for a in "$@"; do args+=" $(printf '%q' "$a")"; done

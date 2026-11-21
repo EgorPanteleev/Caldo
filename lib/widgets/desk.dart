@@ -330,7 +330,7 @@ class MouseDraggable<T extends Object> extends Draggable<T> {
 /// and has it first.
 ///
 /// The rest are the wide layout's: Ctrl+N for a new task, Ctrl+F or Ctrl+K
-/// to search, Ctrl+1 to 6 for the screens in the sidebar's order, and on
+/// to search, Ctrl+1 to 7 for the screens in the sidebar's order, and on
 /// the calendar the arrows for the day, Page Up and Down for the month and
 /// Home or T for today. Not while a dialog is open over the screens, and
 /// the plain keys not while something is being typed: an arrow in a field
@@ -422,6 +422,7 @@ class DeskKeys extends StatelessWidget {
     LogicalKeyboardKey.digit4,
     LogicalKeyboardKey.digit5,
     LogicalKeyboardKey.digit6,
+    LogicalKeyboardKey.digit7,
   ];
 
   @override

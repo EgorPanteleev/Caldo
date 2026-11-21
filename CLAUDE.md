@@ -33,17 +33,17 @@ lib/
   services/                reminders, background (isolates), today_widget,
                            device_calendars, updates, backup, sync, account,
                            attachments, file_sync, desktop, sealing,
-                           vault_device, recording
+                           vault_device, recording, agents
   screens/                 home (shell), tasks (Schedule), calendar, board,
                            done, search, task_edit, settings, desk_shell,
-                           vault
+                           vault, agents
   theme/app_theme.dart     AppPalette + AccentColors, AppColors
   utils/                   dates.dart (every date/time string), platform.dart
   widgets/                 month_grid, task_card, day_sheet, day_hours,
                            quick_add_bar, keys_carry, tick_off, selection,
                            put_off, carry, desk, … (see the directory)
   mcp/                     the MCP server's: book, remote, tools, protocol,
-                           watch
+                           watch; the worker's: worker, agents, terminal
 bin/caldo_mcp.dart         the MCP server and watcher (plain Dart);
                            tool/mcp/install.sh, tool/mcp/watch.sh
 ```
@@ -59,9 +59,9 @@ Linux: `linux/` is Flutter's GTK runner plus the window
 Icon: SVG in `assets/icon/src`, rendered by `tool/make_icon.sh`
 (`rsvg-convert`); PNGs checked in.
 
-Six destinations: **Schedule, Calendar, Board, Done, Vault, Settings**, in
-four tabs: **Tasks** (Schedule, Board, Done), Calendar, Vault, Settings. Any
-of the first five can be hidden; Settings can't.
+Seven destinations: **Schedule, Calendar, Board, Done, Vault, Agents,
+Settings**, in five tabs: **Tasks** (Schedule, Board, Done), Calendar, Vault,
+Agents, Settings. Any of the first six can be hidden; Settings can't.
 
 **Lists are "groups"; there are no list screens.** Groups surface through a
 chip row and a sheet only. `openList`, `GradientIconButton`, `SelectionBar`
@@ -324,7 +324,8 @@ them will be noticed.
 - **Hidden screens** (`hiddenScreens`): never all five; start falls back to the
   first visible but the choice is kept (`startScreen`). Overdue dot is on
   Tasks, or Calendar if Schedule is hidden. Hidden screens still build.
-- **Four tabs, no menu.** Six read as "overwhelmed"; four was asked for.
+- **Five tabs, no menu.** Six read as "overwhelmed"; four was asked for,
+  then Agents as "a separate tab" (2026-11-21).
   Schedule, Board and Done are views under one **Tasks** tab (`taskViews`,
   `TaskViews`, `_tasksTab`), which reopens the view last shown (`_lastView`).
   Their headers write all three names, the current one lit, the others
@@ -784,6 +785,71 @@ master password behind it.
 - Forgot the password: Delete vault on the locked page (tombstones reach
   every device). No recovery, by design.
 
+### Agents
+
+Asked for (2026-11-21) as "a separate tab, like chats": create a chat,
+choose model, effort, folder, plugins, skills and the computer (worker), see
+a terminal and write in it — and "it should also work for other AIs, Codex
+or my local machine". Tasks handed to a Claude model run as chats too.
+
+- **A real terminal, not a transcript**: each chat is a program in a tmux
+  session on the worker (`Tmux`, `tmux -L caldo -f /dev/null`, session
+  `c<uuid without dashes>`), its raw output piped to a file
+  (`pipe-pane -O`) and read on by the worker every 50ms; keys go in as
+  bytes (`send-keys -H`). A typed line is pasted (`paste-buffer -p`,
+  bracketed if asked) and Enter sent 150ms later — Claude takes text and
+  Enter in one write as a paste with a new line. The program waits on a
+  flag file until the pipe is in place, or Claude's first screen is lost.
+  tmux answers the program's terminal queries; the app's xterm must not
+  (`_drawing` drops what xterm says while drawing; replaying history would
+  type its answers into the agent). `TermCleaner` strips `ESC [ <>=…`
+  requests (Claude's `ESC[>4;2m` read as underline + faint by xterm.dart).
+- **Server-only tables, not synced rows** (`…_agents.sql`): `workers`
+  (heartbeat every 30s; online if seen < 90s; agents, plugins, skills,
+  folders it offers), `chats` (state new → running/asking/idle →
+  ended/failed, note, size, Claude's session), `chat_out` (output pieces,
+  at most every 200ms per chat; a snapshot (`capture-pane -e`) after 300
+  pieces once quiet, and everything before the previous snapshot deleted;
+  the app reads from the latest snapshot on, skips later ones), `chat_in`
+  (keys, line, size, stop, start; the worker applies realtime's payload at
+  once, polls every 15s, deletes what it took). RLS: own rows only, input
+  and output only on own chats.
+- **What a worker can run** (`AgentBook`): Claude and Codex if on the
+  PATH, a shell always, and anything in `~/.config/caldo/mcp/agents.json`
+  (`{"llama": {"label": …, "command": ["llama-cli", ["-m", "{model}"],
+  "{prompt}"], "models": […], "prompt": "arg|type|none"}}`; a list is
+  dropped whole when a blank in it is empty). Claude's command is built in
+  code (`launchOf`): `--model --effort --permission-mode --resume -n`,
+  `--settings` with its hooks and, only if the chat changed them,
+  `enabledPlugins`; chosen skills go in `--append-system-prompt`.
+  Plugins from `installed_plugins.json`, skills from `~/.claude/skills`
+  and each plugin's `skills/`, folders from `~/.claude.json`'s projects.
+- **Claude's hooks say how it stands**: SessionStart (session kept for
+  Start again → `--resume`), UserPromptSubmit/PostToolUse → running,
+  Notification → asking, Stop → idle, its `last_assistant_message` the
+  task's answer. Each hook appends its JSON to `<chat>.events`.
+- **The watcher's errands are chats** (`Worker.errand`, the `hand` the
+  `Watcher` is given when tmux is installed; `ClaudeCli` still without
+  it): interactive Claude in the task's folder, waiting for the first
+  Stop (or `--timeout`, after which it goes on in its chat); handed back,
+  the same chat restarts with `--resume`. The task form has "Open its
+  chat"; the list marks task chats.
+- **The app**: `AgentsScreen` (list; long press/right-click deletes),
+  `NewChatScreen` (last choices kept in prefs `agents_last`),
+  `ChatScreen` (xterm 4, `readOnly` on the phone — a key per round trip is
+  no way to type — so a field sends lines and a row gives Esc, Tab,
+  Shift+Tab, arrows, ^C, Enter; a desktop's keys go straight in; size
+  sent 400ms after it settles; text size in prefs `terminal_font`).
+  Nothing is read unless the tab or a chat is open (`Agents.watch`).
+- A chat restarted after the worker restarted is taken up again if its
+  tmux session lives (`worker.json` keeps offsets and seqs); otherwise it
+  is marked ended. Attach on the computer with `tmux -L caldo attach -t
+  c<id>` (copied from the chat's menu).
+- **Testing it costs real Claude turns** on the account; the shell agent
+  doesn't. A test worker signed into an account whose tasks were synced
+  from the emulator took up an old "Tidy the downloads" task at once —
+  look for tasks with `claude` set before starting one.
+
 ### Android platform bits
 
 - **Launcher icon** (`LauncherIcon.kt`, two `activity-alias`es): on Samsung the
@@ -838,8 +904,10 @@ over after it.
   each opening), a row in the form, or the MCP tools' `claude`; the card
   shows `ClaudeMark`. A "Claude" group was built first and asked off: no
   separate group. The board says how it stands: Not started waits, In
-  progress while `claude -p --model <it>` works on it (prompt on stdin,
-  `--output-format json`, `--permission-mode auto` by default), then the
+  progress while Claude works on it — as a chat in the Agents tab where
+  tmux is installed (see Agents), else `claude -p --model <it>` (prompt
+  on stdin, `--output-format json`); `--permission-mode auto` by
+  default — then the
   answer is appended to the notes ("— Claude, d.mm hh:mm —", cut at 6000)
   and it is ticked as the app ticks. Not done (an error, a timeout, a
   folder not there) stays In progress with the reason and the tools
@@ -938,7 +1006,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 365 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 382 tests, all passing; keep it so. `supabase test db` — 41.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

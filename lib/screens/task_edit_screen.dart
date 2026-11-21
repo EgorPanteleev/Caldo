@@ -9,6 +9,9 @@ import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/attachments.dart';
+import '../db/database.dart';
+import '../services/agents.dart';
+import 'agents_screen.dart' show openChat;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -334,6 +337,23 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
 
   /// Which Claude model the task is handed to, if any. "" stands for none
   /// in the sheet, which gives null back for "put away".
+  Future<void> _openChat() async {
+    final id = widget.task?.id;
+    if (id == null) return;
+    final uuid = await AppDatabase.instance.taskUuid(id);
+    final chat = uuid == null
+        ? null
+        : await Agents.instance.chatOfTask(uuid).catchError((_) => null);
+    if (!mounted) return;
+    if (chat == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(S.of(context).noChats)));
+      return;
+    }
+    await openChat(context, chat);
+  }
+
   Future<void> _pickClaude() async {
     final s = S.of(context);
     final picked = await choose<String>(
@@ -718,6 +738,18 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                         setState(() => _claude = null);
                                       },
                               ),
+                              // Handed over already: its chat, to watch it
+                              // or say more.
+                              if (widget.task?.claude != null &&
+                                  Agents.instance.signedIn) ...[
+                                const SizedBox(height: 12),
+                                _FieldTile(
+                                  icon: Icons.terminal_rounded,
+                                  label: s.agents,
+                                  value: s.chatOpen,
+                                  onTap: _openChat,
+                                ),
+                              ],
                               const SizedBox(height: 22),
                               Text(
                                 s.sectionPriority,

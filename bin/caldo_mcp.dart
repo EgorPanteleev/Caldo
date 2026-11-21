@@ -9,21 +9,27 @@
 //   caldo-mcp call <tool> ['{"json": "arguments"}']
 //                             run one tool from a shell
 //   caldo-mcp watch [--dir ~] [--permission-mode auto] [--timeout 30]
-//                   [--claude claude]
-//                             hand Claude the tasks the app hands it, and
-//                             write its answers back (tool/mcp/watch.sh
-//                             makes it a service)
+//                   [--claude claude] [--name NAME]
+//                             be one of the account's workers: run the
+//                             agents the app's Agents tab asks for, each in
+//                             a terminal (tmux -L caldo), and hand Claude the
+//                             tasks the app hands it, writing its answers
+//                             back (tool/mcp/watch.sh makes it a service)
 //
 // Plain Dart, no Flutter: run with `dart`, or installed by
 // tool/mcp/install.sh.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caldo/mcp/agents.dart';
 import 'package:caldo/mcp/protocol.dart';
 import 'package:caldo/mcp/remote.dart';
 import 'package:caldo/mcp/tools.dart';
+import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/mcp/watch.dart';
+import 'package:caldo/mcp/worker.dart';
 import 'package:caldo/services/caldo_server.dart';
 
 const _version = '1.0.0';
@@ -47,7 +53,7 @@ Future<void> main(List<String> args) async {
       stderr.writeln(
         'Usage: caldo-mcp [serve | login [--server URL] | logout | status | '
         'call <tool> [json] | watch [--dir D] [--permission-mode M] '
-        '[--timeout MIN] [--claude PATH]]',
+        '[--timeout MIN] [--claude PATH] [--name NAME]]',
       );
       exitCode = 64;
   }
@@ -190,16 +196,42 @@ Future<int> _watch(SessionFile file, List<String> args) async {
   final home = Platform.environment['HOME'] ?? '/';
   final dir = (option('dir') ?? home).replaceFirst(RegExp(r'^~(?=/|$)'), home);
   final remote = SupabaseRemote(file);
+  final permission = option('permission-mode') ?? 'auto';
+  final timeout = Duration(
+    minutes: int.tryParse(option('timeout') ?? '') ?? 30,
+  );
+  void log(String line) => stdout.writeln(line);
+
+  // Without tmux there are no terminals to run chats in: tasks are still
+  // done, by `claude -p`, with nothing to watch.
+  Worker? worker;
+  if (Tmux.installed) {
+    final state = WorkerState(File('${file.dir}/worker.json'));
+    if (option('name') case final name?) state.name = name;
+    state.save();
+    final cache = Platform.environment['XDG_CACHE_HOME'] ?? '$home/.cache';
+    worker = Worker(
+      remote: remote,
+      tmux: Tmux(dir: '$cache/caldo/chats'),
+      book: AgentBook(home: home, config: file.dir),
+      state: state,
+      home: home,
+      log: log,
+    );
+  }
   final watcher = Watcher(
     caldo: Caldo(remote),
     dir: dir,
     state: WatchState(File('${file.dir}/watch.json')),
-    hand: ClaudeCli(
-      command: option('claude') ?? 'claude',
-      permissionMode: option('permission-mode') ?? 'auto',
-      timeout: Duration(minutes: int.tryParse(option('timeout') ?? '') ?? 30),
-    ).call,
-    log: (line) => stdout.writeln(line),
+    hand: worker != null
+        ? (errand) =>
+              worker!.errand(errand, permission: permission, timeout: timeout)
+        : ClaudeCli(
+            command: option('claude') ?? 'claude',
+            permissionMode: permission,
+            timeout: timeout,
+          ).call,
+    log: log,
   );
   try {
     await remote.ready();
@@ -211,5 +243,17 @@ Future<int> _watch(SessionFile file, List<String> args) async {
     'Watching for tasks handed to Claude, for ${remote.name}; Claude '
     'works in $dir.',
   );
+  if (worker != null) {
+    stdout.writeln(
+      'Working as ${worker.name}: chats run in tmux -L caldo '
+      '(attach with `tmux -L caldo attach -t c<chat id>`).',
+    );
+    unawaited(worker.run());
+  } else {
+    stdout.writeln(
+      'No tmux here: the Agents tab cannot run chats on this '
+      'computer.',
+    );
+  }
   await watcher.run(heard: remote.changes());
 }

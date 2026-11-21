@@ -263,6 +263,46 @@ class S {
   String get figureWeek => _word('figureWeek');
   String daysInARow(int days) => _count('daysInARow', days);
 
+  // ---- Agents --------------------------------------------------------------
+  String get agents => _word('agents');
+  String get newChat => _word('newChat');
+  String get agentsSignIn => _word('agentsSignIn');
+  String get agentsSignInHint => _word('agentsSignInHint');
+  String get agentsNoWorker => _word('agentsNoWorker');
+  String get agentsNoWorkerHint => _word('agentsNoWorkerHint');
+  String get noChats => _word('noChats');
+  String get noChatsHint => _word('noChatsHint');
+  String get chatWorker => _word('chatWorker');
+  String get chatAgent => _word('chatAgent');
+  String get chatModel => _word('chatModel');
+  String get chatEffort => _word('chatEffort');
+  String get chatFolder => _word('chatFolder');
+  String get chatPermission => _word('chatPermission');
+  String get chatPlugins => _word('chatPlugins');
+  String get chatSkills => _word('chatSkills');
+  String get chatTitle => _word('chatTitle');
+  String get chatPrompt => _word('chatPrompt');
+  String get chatStart => _word('chatStart');
+  String get chatDefault => _word('chatDefault');
+  String get chatOffline => _word('chatOffline');
+  String get chatOther => _word('chatOther');
+  String get chatMessage => _word('chatMessage');
+  String get chatStop => _word('chatStop');
+  String get chatAgain => _word('chatAgain');
+  String get chatDelete => _word('chatDelete');
+  String get deleteChatQuestion => _word('deleteChatQuestion');
+  String get chatAsked => _word('chatAsked');
+  String get chatRunning => _word('chatRunning');
+  String get chatAsking => _word('chatAsking');
+  String get chatIdle => _word('chatIdle');
+  String get chatEnded => _word('chatEnded');
+  String get chatFailed => _word('chatFailed');
+  String get chatBigger => _word('chatBigger');
+  String get chatSmaller => _word('chatSmaller');
+  String get chatFromTask => _word('chatFromTask');
+  String get chatOpen => _word('chatOpen');
+  String chatAttach(String name) => _fill('chatAttach', {'name': name});
+
   // ---- The vault -----------------------------------------------------------
   String get vault => _word('vault');
   String get vaultLooking => _word('vaultLooking');

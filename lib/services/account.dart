@@ -71,6 +71,11 @@ class Account {
 
   SupabaseClient? _client;
   StreamSubscription<AuthState>? _auth;
+
+  /// The client, while signed in: for what lives on the server only (the
+  /// Agents tab's chats), not the synced rows.
+  SupabaseClient? get client =>
+      _client?.auth.currentSession == null ? null : _client;
   RealtimeChannel? _channel;
   Timer? _every;
 

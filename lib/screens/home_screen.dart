@@ -24,6 +24,7 @@ import '../widgets/task_views.dart';
 import '../widgets/sign_in_sheet.dart' show showJoinSheet;
 import '../widgets/tick_off.dart' show UndoSlot, withdrawUndo;
 import '../widgets/update_banner.dart';
+import 'agents_screen.dart';
 import 'board_screen.dart';
 import 'calendar_screen.dart';
 import 'desk_shell.dart';
@@ -78,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       BoardScreen(shown: _boardShown),
       DoneScreen(shown: _doneShown),
       VaultScreen(shown: _vaultShown),
+      AgentsScreen(shown: _agentsShown),
       const SettingsScreen(),
     ])
       KeyedSubtree(key: GlobalKey(), child: page),
@@ -119,10 +121,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final _boardShown = ValueNotifier<bool>(_index == _board);
   late final _doneShown = ValueNotifier<bool>(_index == _done);
   late final _vaultShown = ValueNotifier<bool>(_index == _vault);
+  late final _agentsShown = ValueNotifier<bool>(_index == _agentsPage);
 
   static final _board = AppScreen.board.index;
   static final _done = AppScreen.done.index;
   static final _vault = AppScreen.vault.index;
+  static final _agentsPage = AppScreen.agents.index;
 
   @override
   void initState() {
@@ -165,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _search() => openSearch(context);
 
   /// The screen at [place] in the sidebar's order, if it is in it; Settings
-  /// is the sixth.
+  /// is the seventh.
   void _selectView(AppScreen view) => _select(view.index);
 
   void _show(int place) {
@@ -280,6 +284,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _boardShown.dispose();
     _doneShown.dispose();
     _vaultShown.dispose();
+    _agentsShown.dispose();
     super.dispose();
   }
 
@@ -300,6 +305,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _boardShown.value = i == _board;
     _doneShown.value = i == _done;
     _vaultShown.value = i == _vault;
+    _agentsShown.value = i == _agentsPage;
     DeskActions.instance.onCalendar = i == AppScreen.calendar.index;
     final provider = context.read<TaskProvider>();
     if (i == AppScreen.schedule.index) provider.loadTasks();
@@ -762,7 +768,11 @@ class _TabBar extends StatelessWidget {
     // stands for all three views and is lit on any of them.
     final tabs = <(int, ScreenItem)>[
       if (tasksTab case final views?) (views, tasksItem),
-      for (final screen in [AppScreen.calendar, AppScreen.vault])
+      for (final screen in [
+        AppScreen.calendar,
+        AppScreen.vault,
+        AppScreen.agents,
+      ])
         if (!hidden.contains(screen)) (screen.index, screenItems[screen.index]),
       (_settings, screenItems[_settings]),
     ];
@@ -1062,6 +1072,7 @@ final screenItems = [
   ScreenItem(Icons.view_kanban_outlined, Icons.view_kanban, (s) => s.board),
   ScreenItem(Icons.task_alt_outlined, Icons.task_alt, (s) => s.done),
   ScreenItem(Icons.lock_outline_rounded, Icons.lock_rounded, (s) => s.vault),
+  ScreenItem(Icons.terminal_rounded, Icons.terminal_rounded, (s) => s.agents),
   ScreenItem(Icons.settings_outlined, Icons.settings, (s) => s.settings),
 ];
 

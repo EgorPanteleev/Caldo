@@ -534,6 +534,19 @@ class AppDatabase {
     return rows.isEmpty ? null : Task.fromMap(rows.first);
   }
 
+  /// The uuid a task goes by on the server: the Agents tab's chats name
+  /// their task by it.
+  Future<String?> taskUuid(int id) async {
+    final db = await database;
+    final rows = await db.query(
+      _tasks,
+      columns: ['uuid'],
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return rows.isEmpty ? null : rows.first['uuid'] as String?;
+  }
+
   Future<Task> insert(Task task) async {
     final db = await database;
     final id = await db.insert(_tasks, task.toMap()..remove('id'));

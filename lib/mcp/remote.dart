@@ -220,6 +220,19 @@ class SupabaseRemote implements Remote {
     ];
   }
 
+  /// The client, its session good for a while yet: for the worker's
+  /// tables, which are not synced rows.
+  Future<SupabaseClient> signedIn() async {
+    await ready();
+    return _client;
+  }
+
+  /// The client as it is, for a realtime channel: one held open is told
+  /// each renewed token by the client itself.
+  SupabaseClient get client => _client;
+
+  String? get userId => _client.auth.currentUser?.id;
+
   /// Says whenever the account's rows change on the server, as the app's
   /// realtime channel hears it (`Account._listen`). The channel signs in
   /// with the session held, and is told each renewed token by the client.
