@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +18,7 @@ import '../widgets/desk.dart';
 import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardGap;
 import '../widgets/screen_header.dart';
+import '../widgets/talk_view.dart';
 
 /// Chats with agents — Claude, Codex, a model of the user's own, a shell —
 /// each run in a terminal on one of the user's computers (a worker,
@@ -551,6 +553,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
         prompt: kind.prompt == 'none' ? '' : _prompt.text.trim(),
         cols: cols,
         rows: rows,
+        inChat: kind.talks,
       );
       unawaited(_remember());
       if (!mounted) return;
@@ -881,14 +884,16 @@ class _Field extends StatelessWidget {
   }
 }
 
-/// One chat's terminal: what the agent's terminal shows, as it shows it,
-/// and keys and messages back.
+/// One chat: Claude's or Codex's as a chat ([TalkView]), and beside it its
+/// terminal, where the agent's own screen runs; any other agent's terminal
+/// alone. One program at a time has the session, so moving between the
+/// two moves the chat — the side not holding it says so, with a button.
 ///
-/// On the phone a line is written in the field under it and sent whole
-/// (pasted, then Enter), with a row of the keys a phone's keyboard lacks;
-/// tapping the terminal does not bring up the keyboard, which would type a
-/// key at a time over the network. On a desktop the terminal takes the
-/// keys itself as well.
+/// In the terminal, on the phone a line is written in the field under it
+/// and sent whole (pasted, then Enter), with a row of the keys a phone's
+/// keyboard lacks; tapping the terminal does not bring up the keyboard,
+/// which would type a key at a time over the network. On a desktop the
+/// terminal takes the keys itself as well.
 class ChatScreen extends StatefulWidget {
   final String chat;
 
@@ -905,7 +910,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
   ChatFeed? _feed;
+  TalkFeed? _talk;
   double _font = _TermFont.standard;
+
+  /// Which side is on show, once chosen: else the side holding the chat.
+  bool? _asChat;
 
   Chat? get _chat => _agents.chat(widget.chat);
 
@@ -927,6 +936,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _agents.removeListener(_changed);
     _agents.unwatch();
     _feed?.close();
+    _talk?.dispose();
     _sizing?.cancel();
     _flushing?.cancel();
     _input.dispose();
@@ -935,8 +945,16 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  ChatState? _lastState;
+
   void _changed() {
     if (!mounted) return;
+    // The row has caught up with what was broadcast, or gone past it.
+    final now = _chat?.state;
+    if (now != _lastState) {
+      _lastState = now;
+      _talk?.state.value = null;
+    }
     _follow();
     // Started again: it takes the size it is shown at.
     final view = _viewSize;
@@ -959,7 +977,16 @@ class _ChatScreenState extends State<ChatScreen> {
   /// told the view's size, and redraws whole at it.
   void _follow() {
     final chat = _chat;
-    if (_feed != null || chat == null) return;
+    if (chat == null) return;
+    if (chat.talks && _talk == null) {
+      try {
+        _talk = _agents.talk(widget.chat);
+      } catch (_) {
+        // Signed out meanwhile.
+      }
+    }
+    // A chat in its chat has no terminal to read until it is moved there.
+    if (_feed != null || (chat.talks && chat.inChat)) return;
     if (!chat.live || _viewSize == null) {
       _forcing = true;
       _terminal.resize(chat.cols, chat.rows);
@@ -999,7 +1026,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _typed(String data) {
     if (_drawing) return;
-    _keys.write(data);
+    _keys.write(TermSwipe.wheelFixed(data));
     _flushing ??= Timer(const Duration(milliseconds: 30), () {
       _flushing = null;
       final keys = _keys.toString();
@@ -1031,8 +1058,46 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _send() {
     final text = _input.text;
+    if (text.trim().isEmpty && (_chat?.inChat ?? false)) return;
     _input.clear();
-    unawaited(_agents.line(widget.chat, text.trimRight()));
+    final chat = _chat;
+    unawaited(
+      _agents.line(
+        widget.chat,
+        text.trimRight(),
+        over: chat != null && chat.inChat ? _talk : null,
+      ),
+    );
+  }
+
+  Future<void> _toTerminal() async {
+    final s = S.of(context);
+    if (_chat?.state == ChatState.running) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: Text(s.chatMoveStops),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(s.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(s.chatToTerminal),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    setState(() => _asChat = false);
+    await _agents.move(widget.chat, toChat: false);
+  }
+
+  Future<void> _toChat() async {
+    setState(() => _asChat = true);
+    await _agents.move(widget.chat, toChat: true);
   }
 
   void _key(TerminalKey key, {bool shift = false, bool ctrl = false}) {
@@ -1106,6 +1171,22 @@ class _ChatScreenState extends State<ChatScreen> {
     final p = AppTheme.of(context);
     final chat = _chat;
     final live = chat?.live ?? false;
+    final talks = chat != null && chat.talks;
+    final asChat = talks && (_asChat ?? chat.inChat);
+    final talk = _talk;
+    final again = chat != null && !live && chat.state != ChatState.asked
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: FilledButton.tonal(
+                onPressed: () => _agents.again(widget.chat),
+                child: Text(s.chatAgain),
+              ),
+            ),
+          )
+        : null;
     return Scaffold(
       backgroundColor: p.bg,
       resizeToAvoidBottomInset: false,
@@ -1122,60 +1203,189 @@ class _ChatScreenState extends State<ChatScreen> {
               onStop: () => _agents.stop(widget.chat),
               onAgain: () => _agents.again(widget.chat),
               onDelete: _delete,
+              asChat: talks ? asChat : null,
+              onView: (chat) => setState(() => _asChat = chat),
             ),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, box) => TerminalView(
-                  _terminal,
-                  controller: _controller,
-                  theme: _theme(p),
-                  // An ended chat's text is made small enough for the width
-                  // it was written at to fit; the view's size is only told
-                  // to a live one.
-                  textStyle: _TermFont.style(
-                    live || chat == null
-                        ? _font
-                        : _fitted(box.maxWidth - 2 * _TermFont.side, chat.cols),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(
-                    _TermFont.side,
-                    4,
-                    _TermFont.side,
-                    4,
-                  ),
-                  // A key a time over the network is no way to type on a
-                  // phone; the field below is. A desktop's keys go straight
-                  // in.
-                  readOnly: !onDesktop || !live,
-                  hardwareKeyboardOnly: onDesktop,
-                  autofocus: onDesktop,
-                  keyboardAppearance: Brightness.dark,
-                ),
-              ),
+              child: asChat && talk != null
+                  ? ValueListenableBuilder(
+                      valueListenable: talk.state,
+                      builder: (context, heard, _) => TalkView(
+                        feed: talk,
+                        working:
+                            chat.inChat &&
+                            (heard ?? chat.state.name) == 'running',
+                        onAnswer: (item, choice) => _agents.answer(
+                          widget.chat,
+                          item,
+                          choice,
+                          over: talk,
+                        ),
+                      ),
+                    )
+                  : talks && chat.inChat
+                  ? _Elsewhere(
+                      text: s.chatInChatNow(_agentName(chat)),
+                      action: live ? s.chatToTerminal : null,
+                      onTap: _toTerminal,
+                    )
+                  : asChat
+                  ? const SizedBox.shrink()
+                  : _terminalView(chat, live, p),
             ),
-            if (live) ...[
-              _KeyRow(onKey: _key),
-              _InputRow(
-                controller: _input,
-                focus: _inputFocus,
-                hint: s.chatMessage,
-                onSend: _send,
-              ),
-            ] else if (chat != null && chat.state != ChatState.asked)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: FilledButton.tonal(
-                    onPressed: () => _agents.again(widget.chat),
-                    child: Text(s.chatAgain),
-                  ),
+            if (asChat) ...[
+              if (!chat.inChat)
+                _MoveBar(
+                  text: s.chatInTerminalNow,
+                  action: s.chatToChat,
+                  onTap: _toChat,
+                )
+              else if (live && talk != null)
+                ValueListenableBuilder(
+                  valueListenable: talk.state,
+                  builder: (context, heard, _) {
+                    final at = heard ?? chat.state.name;
+                    return _InputRow(
+                      controller: _input,
+                      focus: _inputFocus,
+                      hint: s.chatMessage,
+                      onSend: _send,
+                      onStop: at == 'running' || at == 'asking'
+                          ? () => _agents.interrupt(widget.chat, over: talk)
+                          : null,
+                    );
+                  },
+                )
+              else
+                ?again,
+            ] else if (!(talks && chat.inChat)) ...[
+              if (live) ...[
+                _KeyRow(onKey: _key),
+                _InputRow(
+                  controller: _input,
+                  focus: _inputFocus,
+                  hint: s.chatMessage,
+                  onSend: _send,
                 ),
-              ),
+              ] else
+                ?again,
+            ],
             SizedBox(height: KeyboardGap.of(context)),
           ],
         ),
+      ),
+    );
+  }
+
+  String _agentName(Chat chat) =>
+      _agents
+          .worker(chat.workerId)
+          ?.agents
+          .where((a) => a.id == chat.agent)
+          .firstOrNull
+          ?.label ??
+      chat.agent;
+
+  Widget _terminalView(Chat? chat, bool live, AppPalette p) => LayoutBuilder(
+    builder: (context, box) => TermSwipe(
+      terminal: _terminal,
+      lineHeight: _font * 1.2,
+      cellWidth: _font * 0.6,
+      padding: const Offset(_TermFont.side, 4),
+      enabled: live,
+      child: TerminalView(
+        _terminal,
+        controller: _controller,
+        theme: _theme(p),
+        // An ended chat's text is made small enough for the width it was
+        // written at to fit; the view's size is only told to a live one.
+        textStyle: _TermFont.style(
+          live || chat == null
+              ? _font
+              : _fitted(box.maxWidth - 2 * _TermFont.side, chat.cols),
+        ),
+        padding: const EdgeInsets.fromLTRB(
+          _TermFont.side,
+          4,
+          _TermFont.side,
+          4,
+        ),
+        // A key a time over the network is no way to type on a phone; the
+        // field below is. A desktop's keys go straight in.
+        readOnly: !onDesktop || !live,
+        hardwareKeyboardOnly: onDesktop,
+        autofocus: onDesktop,
+        keyboardAppearance: Brightness.dark,
+      ),
+    ),
+  );
+}
+
+/// The side of a chat not holding it: what is going on, and a button to
+/// bring the chat here.
+class _Elsewhere extends StatelessWidget {
+  final String text;
+  final String? action;
+  final VoidCallback onTap;
+
+  const _Elsewhere({
+    required this.text,
+    required this.action,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.terminal_rounded, size: 36, color: p.faint),
+            const SizedBox(height: 14),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: p.muted, fontSize: 14, height: 1.4),
+            ),
+            if (action != null) ...[
+              const SizedBox(height: 18),
+              FilledButton.tonal(onPressed: onTap, child: Text(action!)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Under the chat while the chat is in its terminal: where it is, and the
+/// way back.
+class _MoveBar extends StatelessWidget {
+  final String text;
+  final String action;
+  final VoidCallback onTap;
+
+  const _MoveBar({
+    required this.text,
+    required this.action,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 10, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(text, style: TextStyle(color: p.muted, fontSize: 13)),
+          ),
+          FilledButton.tonal(onPressed: onTap, child: Text(action)),
+        ],
       ),
     );
   }
@@ -1189,6 +1399,10 @@ class _Head extends StatelessWidget {
   final VoidCallback onAgain;
   final VoidCallback onDelete;
 
+  /// Which side is on show, for a chat with both; null for a terminal only.
+  final bool? asChat;
+  final ValueChanged<bool> onView;
+
   const _Head({
     required this.chat,
     required this.font,
@@ -1196,6 +1410,8 @@ class _Head extends StatelessWidget {
     required this.onStop,
     required this.onAgain,
     required this.onDelete,
+    required this.asChat,
+    required this.onView,
   });
 
   @override
@@ -1247,6 +1463,8 @@ class _Head extends StatelessWidget {
             ),
           ] else
             const Spacer(),
+          if (asChat case final asChat?)
+            _SideSwitch(asChat: asChat, onView: onView),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: p.muted),
             onSelected: (choice) {
@@ -1271,13 +1489,15 @@ class _Head extends StatelessWidget {
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'bigger', child: Text(s.chatBigger)),
-              PopupMenuItem(value: 'smaller', child: Text(s.chatSmaller)),
+              if (asChat != true) ...[
+                PopupMenuItem(value: 'bigger', child: Text(s.chatBigger)),
+                PopupMenuItem(value: 'smaller', child: Text(s.chatSmaller)),
+              ],
               if (chat != null && chat.live)
                 PopupMenuItem(value: 'stop', child: Text(s.chatStop))
               else if (chat != null && chat.state != ChatState.asked)
                 PopupMenuItem(value: 'again', child: Text(s.chatAgain)),
-              if (chat != null && chat.live)
+              if (chat != null && chat.live && !chat.inChat)
                 PopupMenuItem(
                   value: 'attach',
                   child: Text(
@@ -1294,6 +1514,60 @@ class _Head extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Chat or terminal: two icons in a pill, the one on show lit.
+class _SideSwitch extends StatelessWidget {
+  final bool asChat;
+  final ValueChanged<bool> onView;
+
+  const _SideSwitch({required this.asChat, required this.onView});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = AppTheme.of(context);
+    Widget side(bool chat, IconData icon, String name) {
+      final lit = chat == asChat;
+      return Tooltip(
+        message: name,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: lit
+              ? null
+              : () {
+                  HapticFeedback.selectionClick();
+                  onView(chat);
+                },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: 40,
+            height: 28,
+            decoration: BoxDecoration(
+              color: lit ? p.panelHi : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, size: 17, color: lit ? p.text : p.faint),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          side(true, Icons.chat_bubble_outline_rounded, s.chatAsChat),
+          side(false, Icons.terminal_rounded, s.chatAsTerminal),
         ],
       ),
     );
@@ -1403,11 +1677,15 @@ class _InputRow extends StatelessWidget {
   final String hint;
   final VoidCallback onSend;
 
+  /// While a turn is under way: the button, with nothing written, stops it.
+  final VoidCallback? onStop;
+
   const _InputRow({
     required this.controller,
     required this.focus,
     required this.hint,
     required this.onSend,
+    this.onStop,
   });
 
   @override
@@ -1468,27 +1746,142 @@ class _InputRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Material(
-            color: p.field,
-            shape: CircleBorder(
-              side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
-            ),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onSend();
-              },
-              child: SizedBox.square(
-                dimension: 44,
-                child: Icon(Icons.arrow_upward_rounded, color: p.text),
-              ),
-            ),
+          ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) {
+              final stop = onStop != null && controller.text.trim().isEmpty;
+              return Material(
+                color: p.field,
+                shape: CircleBorder(
+                  side: BorderSide(
+                    color: BarRoom.rim(p),
+                    width: BarRoom.rimWidth,
+                  ),
+                ),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    stop ? onStop!() : onSend();
+                  },
+                  child: SizedBox.square(
+                    dimension: 44,
+                    child: stop
+                        ? Tooltip(
+                            message: S.of(context).chatInterrupt,
+                            child: Icon(Icons.stop_rounded, color: p.text),
+                          )
+                        : Icon(Icons.arrow_upward_rounded, color: p.text),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
     );
   }
+}
+
+/// A finger's swipe over a program that draws its own screen — Claude,
+/// Codex, anything in the alternate screen — sent to it as the mouse's
+/// wheel, a notch a line, as a terminal on a computer would: xterm.dart
+/// drops a swipe there, so the user could not scroll the chat at all. A
+/// program that has not asked for the mouse gets the arrow keys instead.
+///
+/// It only listens, taking no part in the gestures, so xterm's own
+/// scrolling of the ordinary screen's history and a mouse's selection on
+/// a desk are left as they are.
+class TermSwipe extends StatefulWidget {
+  final Terminal terminal;
+  final double lineHeight;
+  final double cellWidth;
+
+  /// Where the terminal's first cell starts inside [child].
+  final Offset padding;
+  final bool enabled;
+  final Widget child;
+
+  const TermSwipe({
+    super.key,
+    required this.terminal,
+    required this.lineHeight,
+    required this.cellWidth,
+    required this.padding,
+    required this.enabled,
+    required this.child,
+  });
+
+  /// [data] with xterm.dart's wheel set right: it numbers the wheel's
+  /// buttons 68–71 where terminals use 64–67, which reads as the wheel
+  /// with Shift held, and Claude does not scroll for that.
+  static String wheelFixed(String data) => data
+      .replaceAllMapped(
+        RegExp(r'\x1b\[<(6[89]|7[01]);'),
+        (m) => '\x1b[<${int.parse(m[1]!) - 4};',
+      )
+      .replaceAllMapped(
+        RegExp('\x1b\\[M([\x64-\x67])'),
+        (m) => '\x1b[M${String.fromCharCode(m[1]!.codeUnitAt(0) - 4)}',
+      );
+
+  @override
+  State<TermSwipe> createState() => _TermSwipeState();
+}
+
+class _TermSwipeState extends State<TermSwipe> {
+  int? _finger;
+  double _moved = 0;
+
+  void _down(PointerDownEvent e) {
+    if (e.kind != PointerDeviceKind.touch &&
+        e.kind != PointerDeviceKind.stylus) {
+      return;
+    }
+    _finger = e.pointer;
+    _moved = 0;
+  }
+
+  void _move(PointerMoveEvent e) {
+    final t = widget.terminal;
+    if (e.pointer != _finger || !widget.enabled || !t.isUsingAltBuffer) return;
+    _moved += e.delta.dy;
+    final cell = CellOffset(
+      ((e.localPosition.dx - widget.padding.dx) / widget.cellWidth)
+          .floor()
+          .clamp(0, t.viewWidth - 1),
+      ((e.localPosition.dy - widget.padding.dy) / widget.lineHeight)
+          .floor()
+          .clamp(0, t.viewHeight - 1),
+    );
+    while (_moved.abs() >= widget.lineHeight) {
+      // A finger drawn down brings what is above into view: the wheel up.
+      final up = _moved > 0;
+      _moved -= up ? widget.lineHeight : -widget.lineHeight;
+      if (t.mouseMode.reportScroll) {
+        t.mouseInput(
+          up ? TerminalMouseButton.wheelUp : TerminalMouseButton.wheelDown,
+          TerminalMouseButtonState.down,
+          cell,
+        );
+      } else {
+        t.keyInput(up ? TerminalKey.arrowUp : TerminalKey.arrowDown);
+      }
+    }
+  }
+
+  void _up(PointerEvent e) {
+    if (e.pointer == _finger) _finger = null;
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: _down,
+    onPointerMove: _move,
+    onPointerUp: _up,
+    onPointerCancel: _up,
+    child: widget.child,
+  );
 }
 
 /// What the agent wrote, less what xterm.dart would read wrongly: requests

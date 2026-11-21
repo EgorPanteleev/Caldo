@@ -24,6 +24,10 @@ class AgentSpec {
   /// up, or not at all.
   final String prompt;
 
+  /// Whether it can be spoken to in messages ([Talk]) and drawn as a chat,
+  /// not only run in a terminal: Claude and Codex.
+  final bool talks;
+
   /// The command line, each part a word or a list of words left out
   /// together when any of them names a blank that is empty.
   final List<Object> command;
@@ -39,6 +43,7 @@ class AgentSpec {
     this.pluginsOn = const [],
     this.skills = const [],
     this.prompt = 'arg',
+    this.talks = false,
   });
 
   bool get isClaude => id == 'claude';
@@ -54,6 +59,7 @@ class AgentSpec {
     'plugins_on': pluginsOn,
     'skills': skills,
     'prompt': prompt,
+    'talks': talks,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part
@@ -118,7 +124,15 @@ class AgentBook {
           ['-c', 'model_reasoning_effort={effort}'],
           '{prompt}',
         ],
-        efforts: ['minimal', 'low', 'medium', 'high'],
+        efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
+        permissions: [
+          'on-request',
+          'untrusted',
+          'never',
+          'read-only',
+          'full-access',
+        ],
+        talks: true,
       );
     }
     out['shell'] = AgentSpec(
@@ -212,6 +226,7 @@ class AgentBook {
       plugins: plugins,
       pluginsOn: on,
       skills: skills,
+      talks: true,
     );
   }
 
@@ -249,6 +264,9 @@ class ChatAsk {
   final int cols;
   final int rows;
 
+  /// `chat`, spoken to in messages, or `terminal`.
+  final String mode;
+
   const ChatAsk({
     required this.id,
     required this.agent,
@@ -264,6 +282,7 @@ class ChatAsk {
     this.taskUuid,
     this.cols = 80,
     this.rows = 24,
+    this.mode = 'terminal',
   });
 
   factory ChatAsk.fromJson(Map json) => ChatAsk(
@@ -281,6 +300,7 @@ class ChatAsk {
     taskUuid: json['task_uuid'] as String?,
     cols: json['cols'] as int? ?? 80,
     rows: json['rows'] as int? ?? 24,
+    mode: json['mode'] as String? ?? 'terminal',
   );
 }
 
@@ -298,6 +318,16 @@ List<String> launchOf(
   String? events,
 }) {
   final first = prompt ?? ask.prompt;
+  if (spec.id == 'codex' && resume != null) {
+    // Its thread taken up in its own terminal, with the chat's choices.
+    return [
+      'codex',
+      'resume',
+      if (ask.model != null) ...['-m', ask.model!],
+      if (ask.effort != null) ...['-c', 'model_reasoning_effort=${ask.effort}'],
+      resume,
+    ];
+  }
   if (!spec.isClaude) {
     return spec.argv({
       'model': ask.model,
@@ -308,40 +338,61 @@ List<String> launchOf(
       'prompt': spec.prompt == 'arg' ? first : null,
     });
   }
-  final settings = <String, Object?>{
-    if (events != null)
-      'hooks': {
-        for (final hook in _hooks)
-          hook: [
-            {
-              'hooks': [
+  return [
+    'claude',
+    ...claudeChoices(
+      spec,
+      ask,
+      resume: resume,
+      settings: {
+        if (events != null)
+          'hooks': {
+            for (final hook in _hooks)
+              hook: [
                 {
-                  'type': 'command',
-                  // One line per event; a hook's input is one JSON object.
-                  'command': '{ cat; echo; } >> ${_quoted(events)}',
+                  'hooks': [
+                    {
+                      'type': 'command',
+                      // One line per event; a hook's input is one JSON
+                      // object.
+                      'command': '{ cat; echo; } >> ${_quoted(events)}',
+                    },
+                  ],
                 },
               ],
-            },
-          ],
+          },
       },
+    ),
+    if (first.isNotEmpty) first,
+  ];
+}
+
+/// The choices a chat makes of Claude, for its chat ([ClaudeTalk]) and its
+/// terminal alike; [settings] go in with the plugins it chose.
+List<String> claudeChoices(
+  AgentSpec spec,
+  ChatAsk ask, {
+  String? resume,
+  Map<String, Object?> settings = const {},
+}) {
+  final all = {
+    ...settings,
     if (ask.plugins case final chosen?)
       'enabledPlugins': {for (final p in spec.plugins) p: chosen.contains(p)},
   };
   return [
-    'claude',
     if (ask.model != null) ...['--model', ask.model!],
     if (ask.effort != null) ...['--effort', ask.effort!],
     if (ask.permission != null) ...['--permission-mode', ask.permission!],
     if (resume != null) ...['--resume', resume],
     if (ask.title.isNotEmpty) ...['-n', ask.title],
-    if (settings.isNotEmpty) ...['--settings', jsonEncode(settings)],
+    if (all.isNotEmpty) ...['--settings', jsonEncode(all)],
     if (ask.skills.isNotEmpty) ...[
       '--append-system-prompt',
       'The user chose these skills for this session: '
           '${ask.skills.join(', ')}. Use them (the Skill tool) wherever '
           'they apply.',
     ],
-    if (first.isNotEmpty) first,
   ];
 }
 

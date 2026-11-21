@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase/supabase.dart';
@@ -20,6 +21,9 @@ class AgentKind {
   /// How a first message reaches it: 'arg', 'type' or 'none'.
   final String prompt;
 
+  /// Whether it can be a chat drawn here, not only a terminal.
+  final bool talks;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -30,6 +34,7 @@ class AgentKind {
     this.pluginsOn = const [],
     this.skills = const [],
     this.prompt = 'arg',
+    this.talks = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -42,6 +47,7 @@ class AgentKind {
     pluginsOn: _strings(json['plugins_on']),
     skills: _strings(json['skills']),
     prompt: json['prompt'] as String? ?? 'arg',
+    talks: json['talks'] == true,
   );
 }
 
@@ -102,6 +108,9 @@ class Chat {
   final String? session;
   final DateTime updatedAt;
 
+  /// Whether it is in its chat, spoken to in messages, or in its terminal.
+  final bool inChat;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -119,7 +128,11 @@ class Chat {
     this.cols = 80,
     this.rows = 24,
     this.session,
+    this.inChat = false,
   });
+
+  /// Whether it can be a chat at all: one begun as one, wherever it is now.
+  bool get talks => agent == 'claude' || agent == 'codex';
 
   /// Its program is running: it takes keys.
   bool get live =>
@@ -133,6 +146,29 @@ class Chat {
     final line = prompt.trim().split('\n').first;
     return line;
   }
+
+  /// [c] as it is once moved: said here at once, so the screen follows the
+  /// tap, not the worker's word on it.
+  Chat._moved(Chat c, bool toChat)
+    : this(
+        id: c.id,
+        workerId: c.workerId,
+        agent: c.agent,
+        title: c.title,
+        model: c.model,
+        effort: c.effort,
+        dir: c.dir,
+        permission: c.permission,
+        prompt: c.prompt,
+        taskUuid: c.taskUuid,
+        state: c.state,
+        note: c.note,
+        cols: c.cols,
+        rows: c.rows,
+        session: c.session,
+        updatedAt: c.updatedAt,
+        inChat: toChat,
+      );
 
   static ChatState _stateOf(String? s) => switch (s) {
     'running' => ChatState.running,
@@ -160,6 +196,7 @@ class Chat {
     rows: json['rows'] as int? ?? 24,
     session: json['session'] as String?,
     updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+    inChat: json['mode'] == 'chat',
   );
 }
 
@@ -285,10 +322,12 @@ class Agents extends ChangeNotifier {
     String prompt = '',
     int cols = 80,
     int rows = 24,
+    bool inChat = false,
   }) async {
     final row = await _client!
         .from('chats')
         .insert({
+          'mode': inChat ? 'chat' : 'terminal',
           'worker_id': worker,
           'agent': agent,
           'title': title,
@@ -313,8 +352,10 @@ class Agents extends ChangeNotifier {
   /// Keys as the terminal puts them out.
   Future<void> keys(String chat, String data) => _in(chat, 'keys', data: data);
 
-  /// A message: pasted, then Enter.
-  Future<void> line(String chat, String text) => _in(chat, 'line', data: text);
+  /// A message: pasted, then Enter — or, to a chat [over] its feed, said
+  /// there at once as well as kept.
+  Future<void> line(String chat, String text, {TalkFeed? over}) =>
+      _in(chat, 'line', data: text, over: over);
 
   Future<void> resize(String chat, int cols, int rows) =>
       _in(chat, 'size', cols: cols.clamp(10, 500), rows: rows.clamp(5, 300));
@@ -322,6 +363,28 @@ class Agents extends ChangeNotifier {
   Future<void> stop(String chat) => _in(chat, 'stop');
 
   Future<void> again(String chat) => _in(chat, 'start');
+
+  /// [choice] — `allow`, `always` or `deny` — for the question [item].
+  Future<void> answer(
+    String chat,
+    String item,
+    String choice, {
+    TalkFeed? over,
+  }) => _in(chat, 'answer', data: '$choice $item', over: over);
+
+  /// The turn under way cut short; the chat stays.
+  Future<void> interrupt(String chat, {TalkFeed? over}) =>
+      _in(chat, 'interrupt', over: over);
+
+  /// The chat moved to its terminal, or back to its chat.
+  Future<void> move(String chat, {required bool toChat}) async {
+    chats = [
+      for (final c in chats)
+        if (c.id == chat) Chat._moved(c, toChat) else c,
+    ];
+    notifyListeners();
+    await _in(chat, 'mode', data: toChat ? 'chat' : 'terminal');
+  }
 
   Future<void> remove(String chat) async {
     await _client!.from('chats').delete().eq('id', chat);
@@ -332,27 +395,47 @@ class Agents extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Input for [chat], kept as a row the worker takes; with [over], also
+  /// broadcast on the chat's channel, which it hears a quarter of a second
+  /// sooner. Their shared key says which it has taken.
   Future<void> _in(
     String chat,
     String kind, {
     String? data,
     int? cols,
     int? rows,
+    TalkFeed? over,
   }) async {
+    final key = over == null ? null : _key();
+    if (over != null) {
+      if (kind == 'line') over.said(data ?? '', key!);
+      over.cast({'kind': kind, 'data': data, 'key': key});
+    }
     await _client!.from('chat_in').insert({
       'chat_id': chat,
       'kind': kind,
       'data': ?data,
       'cols': ?cols,
       'rows': ?rows,
+      'key': ?key,
     });
   }
+
+  static final _random = Random();
+
+  static String _key() => [
+    for (var i = 0; i < 12; i++)
+      'abcdefghijklmnopqrstuvwxyz0123456789'[_random.nextInt(36)],
+  ].join();
 
   /// What [chat]'s terminal has written, from its latest snapshot on, then
   /// each piece as it comes. A piece is handed over once, in order; a
   /// snapshot after the first is the screen as it already is, and skipped.
   ChatFeed feed(String chat, void Function(String data) onData) =>
       ChatFeed._(_client!, chat, onData);
+
+  /// What [chat] has said as a chat, kept up as it says more.
+  TalkFeed talk(String chat) => TalkFeed._(_client!, chat);
 }
 
 /// A chat's output as it is read back and comes in.
@@ -473,5 +556,221 @@ class ChatFeed {
     _poll?.cancel();
     final channel = _channel;
     if (channel != null) unawaited(_client.removeChannel(channel));
+  }
+}
+
+/// One thing said in a chat: the user's words, the agent's, its thinking, a
+/// tool it used (and what came of it), a question for the user, a note.
+@immutable
+class ChatItem {
+  final String id;
+  final int seq;
+  final String kind;
+  final Map<String, dynamic> body;
+
+  const ChatItem({
+    required this.id,
+    required this.seq,
+    required this.kind,
+    required this.body,
+  });
+
+  String get text => body['text'] as String? ?? '';
+
+  factory ChatItem.fromJson(Map json) => ChatItem(
+    id: json['id'] as String,
+    seq: json['seq'] as int,
+    kind: json['kind'] as String,
+    body: Map<String, dynamic>.from(json['body'] as Map? ?? const {}),
+  );
+}
+
+/// A chat's items, read whole on opening and kept up by realtime; and the
+/// words of an answer as they are written, heard on the chat's private
+/// channel before the item that ends them is.
+class TalkFeed extends ChangeNotifier {
+  final SupabaseClient? _client;
+  final String chat;
+
+  final _byId = <String, ChatItem>{};
+  List<ChatItem> items = const [];
+  bool loaded = false;
+
+  /// Answers being written, by item: their words so far. Told apart from
+  /// [items] so a word arriving redraws only the answer it is in.
+  final pieces = ValueNotifier<Map<String, String>>(const {});
+
+  /// The chat's state as last broadcast — sooner than its row, which the
+  /// list of chats is read from; null once the row has caught up.
+  final state = ValueNotifier<String?>(null);
+
+  RealtimeChannel? _rows;
+  RealtimeChannel? _live;
+  Timer? _poll;
+  bool _closed = false;
+
+  /// [items] as they are, heard from nothing: for tests.
+  @visibleForTesting
+  TalkFeed.held(this.chat, List<ChatItem> items) : _client = null {
+    _take([
+      for (final i in items)
+        {'id': i.id, 'seq': i.seq, 'kind': i.kind, 'body': i.body},
+    ]);
+    loaded = true;
+  }
+
+  /// Words of an answer as the channel brings them: for tests.
+  @visibleForTesting
+  void hear(Map<String, dynamic> message) => _piece(message);
+
+  TalkFeed._(SupabaseClient client, this.chat) : _client = client {
+    _rows = client
+        .channel('caldo-talk-$chat')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_items',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'chat_id',
+            value: chat,
+          ),
+          callback: (change) {
+            if (change.eventType != PostgresChangeEvent.delete) {
+              _take([change.newRecord]);
+            }
+          },
+        )
+        .subscribe();
+    _live = client
+        .channel('chat:$chat', opts: const RealtimeChannelConfig(private: true))
+        .onBroadcast(event: 'delta', callback: _piece)
+        .onBroadcast(
+          event: 'item',
+          callback: (message) => _take([_payloadOf(message)]),
+        )
+        .onBroadcast(
+          event: 'state',
+          callback: (message) {
+            if (!_closed) state.value = _payloadOf(message)['state'] as String?;
+          },
+        )
+        .subscribe();
+    unawaited(_read());
+    // Realtime can drop a change; the last few are read again now and then.
+    _poll = Timer.periodic(const Duration(seconds: 6), (_) => _read(late: 40));
+  }
+
+  /// Everything, or with [late] only the last that many — enough to catch
+  /// a tool's output or an answer a dropped change left out.
+  Future<void> _read({int? late}) async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      var from = 0;
+      if (late != null) {
+        if (!loaded) return;
+        from = items.isEmpty ? 0 : items.last.seq - late;
+      }
+      while (!_closed) {
+        final rows = await client
+            .from('chat_items')
+            .select('id, seq, kind, body')
+            .eq('chat_id', chat)
+            .gte('seq', from)
+            .order('seq', ascending: true)
+            .limit(500);
+        _take(rows);
+        if (rows.length < 500) break;
+        from = (rows.last['seq'] as int) + 1;
+      }
+      if (!loaded) {
+        loaded = true;
+        if (!_closed) notifyListeners();
+      }
+    } catch (_) {
+      // Offline: the next look tries again.
+    }
+  }
+
+  void _take(List<Map<String, dynamic>> rows) {
+    if (_closed || rows.isEmpty) return;
+    var changed = false;
+    var moved = false;
+    var writing = pieces.value;
+    for (final row in rows) {
+      final item = ChatItem.fromJson(row);
+      final was = _byId[item.id];
+      if (was != null && mapEquals(was.body, item.body)) continue;
+      _byId[item.id] = item;
+      changed = true;
+      moved |= was == null || was.seq != item.seq;
+      if (item.kind == 'text' && writing.containsKey(item.id)) {
+        writing = {...writing}..remove(item.id);
+      }
+    }
+    if (!changed) return;
+    if (moved) {
+      items = _byId.values.toList()..sort((a, b) => a.seq.compareTo(b.seq));
+    } else {
+      items = [for (final i in items) _byId[i.id]!];
+    }
+    if (writing != pieces.value) pieces.value = writing;
+    notifyListeners();
+  }
+
+  static Map<String, dynamic> _payloadOf(Map<String, dynamic> message) =>
+      message['payload'] is Map
+      ? Map<String, dynamic>.from(message['payload'] as Map)
+      : message;
+
+  /// Input sent on the chat's channel: heard by the worker at once.
+  void cast(Map<String, dynamic> input) {
+    final channel = _live;
+    if (channel == null || _closed) return;
+    unawaited(
+      channel
+          .sendBroadcastMessage(event: 'in', payload: {...input})
+          .then((_) {}, onError: (Object _) {}),
+    );
+  }
+
+  /// The user's words shown at once, before the worker has said them back;
+  /// its item, when it comes by the same id, takes their place.
+  void said(String text, String key) {
+    if (text.trim().isEmpty) return;
+    _take([
+      {
+        'id': 'u$key',
+        'seq': (items.isEmpty ? 0 : items.last.seq) + 1,
+        'kind': 'user',
+        'body': {'text': text},
+      },
+    ]);
+  }
+
+  void _piece(Map<String, dynamic> message) {
+    if (_closed) return;
+    final p = _payloadOf(message);
+    final id = p['id'], at = p['at'], text = p['text'];
+    if (id is! String || at is! int || text is! String) return;
+    if (_byId[id]?.kind == 'text') return;
+    final now = pieces.value[id] ?? '';
+    // Pieces come in order on one channel; one heard twice, or after a
+    // gap, is left for the whole answer to set right.
+    if (at > now.length || at + text.length <= now.length) return;
+    pieces.value = {...pieces.value, id: now + text.substring(now.length - at)};
+  }
+
+  @override
+  void dispose() {
+    _closed = true;
+    _poll?.cancel();
+    for (final channel in [_rows, _live]) {
+      if (channel != null) unawaited(_client?.removeChannel(channel));
+    }
+    pieces.dispose();
+    state.dispose();
+    super.dispose();
   }
 }

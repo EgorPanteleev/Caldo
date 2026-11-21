@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(8);
+select plan(13);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -33,6 +33,18 @@ select lives_ok(
 select throws_ok(
   $$update public.chats set state = 'gone'$$,
   '23514', null, 'a chat is only in a known state');
+select lives_ok(
+  $$insert into public.chat_items (chat_id, id, seq, kind, body) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'msg_1:0', 0, 'text',
+     '{"text": "Done."}')$$,
+  'the worker says what the agent said, as an item');
+select lives_ok(
+  $$insert into public.chat_in (chat_id, kind, data) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'answer', 'allow ask:1')$$,
+  'the app answers its question');
+select throws_ok(
+  $$update public.chats set mode = 'window'$$,
+  '23514', null, 'a chat is in its chat or its terminal');
 reset role;
 
 select pg_temp.act_as('22222222-2222-4222-8222-222222222222');
@@ -49,6 +61,14 @@ select throws_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 1, 'x',
      '22222222-2222-4222-8222-222222222222')$$,
   '42501', null, 'nor write into its terminal');
+select is(
+  (select count(*)::int from public.chat_items), 0,
+  'nor sees what was said in it');
+select throws_ok(
+  $$insert into public.chat_items (chat_id, id, seq, kind, user_id) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'x', 1, 'text',
+     '22222222-2222-4222-8222-222222222222')$$,
+  '42501', null, 'nor puts words in its mouth');
 reset role;
 
 select * from finish();

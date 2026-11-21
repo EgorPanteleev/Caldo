@@ -7,6 +7,7 @@ import 'package:supabase/supabase.dart';
 
 import 'agents.dart';
 import 'remote.dart';
+import 'talk.dart';
 import 'terminal.dart';
 import 'watch.dart';
 
@@ -22,6 +23,10 @@ class WorkerState {
   /// events file has been read.
   final Map<String, Map<String, int>> chats = {};
 
+  /// Per chat moved from its chat to its terminal: when, so what was said
+  /// there is read back into the chat from its transcript on the way back.
+  final Map<String, int> marks = {};
+
   WorkerState(this.file) {
     try {
       final json = jsonDecode(file.readAsStringSync()) as Map;
@@ -31,6 +36,7 @@ class WorkerState {
           in (json['chats'] as Map? ?? const {}).entries) {
         chats[key as String] = (value as Map).cast<String, int>();
       }
+      marks.addAll((json['marks'] as Map? ?? const {}).cast<String, int>());
     } catch (_) {
       id = _uuid();
     }
@@ -39,7 +45,9 @@ class WorkerState {
   void save() {
     file.parent.createSync(recursive: true);
     final next = File('${file.path}.next')
-      ..writeAsStringSync(jsonEncode({'id': id, 'name': name, 'chats': chats}));
+      ..writeAsStringSync(
+        jsonEncode({'id': id, 'name': name, 'chats': chats, 'marks': marks}),
+      );
     next.renameSync(file.path);
   }
 
@@ -128,6 +136,9 @@ class Worker {
   final void Function(String line) log;
 
   final Map<String, _Live> _live = {};
+
+  /// The chats spoken to in messages, by id: their programs, while up.
+  final Map<String, _Talker> _talks = {};
 
   /// The input rows already put in, by id, so one heard and then read
   /// again is not typed twice.
@@ -218,6 +229,24 @@ class Worker {
         .inFilter('state', ['running', 'asking', 'idle']);
     for (final row in mine) {
       final ask = ChatAsk.fromJson(row);
+      if (ask.mode == 'chat') {
+        // Its program went with the worker; its session is taken up again
+        // with the next message.
+        final spec = _specOf(ask.agent);
+        if (spec == null) {
+          await _set(ask.id, 'ended', 'There is no ${ask.agent} on $name.');
+          continue;
+        }
+        _talks[ask.id] = await _Talker.make(this, ask, spec);
+        if (row['state'] != 'idle') {
+          await _set(
+            ask.id,
+            'idle',
+            'Cut off when the worker on $name started again.',
+          );
+        }
+        continue;
+      }
       final kept = state.chats[ask.id];
       final pane = panes[Tmux.nameOf(ask.id)];
       final spec = _specOf(ask.agent);
@@ -263,7 +292,7 @@ class Worker {
           callback: (change) {
             final gone = change.eventType == PostgresChangeEvent.delete;
             final id = (gone ? change.oldRecord : change.newRecord)['id'];
-            if (gone && _live.containsKey(id)) {
+            if (gone && (_live.containsKey(id) || _talks.containsKey(id))) {
               unawaited(_guard(() => _drop(id as String)));
             }
             if (!_wake.isCompleted) _wake.complete();
@@ -276,7 +305,7 @@ class Worker {
   void _heard(Map<String, dynamic> row) {
     final chat = row['chat_id'] as String?;
     if (chat == null) return;
-    final mine = _live.containsKey(chat);
+    final mine = _live.containsKey(chat) || _talks.containsKey(chat);
     if (!mine) {
       // Perhaps an ended chat of this worker's, asked to start again.
       if (!_wake.isCompleted) _wake.complete();
@@ -303,7 +332,11 @@ class Worker {
           .eq('state', 'new')
           .select();
       if (taken.isEmpty) continue;
-      await _guard(() => _start(ChatAsk.fromJson(row)));
+      final ask = ChatAsk.fromJson(row);
+      await _guard(
+        () async =>
+            ask.mode == 'chat' ? await _startTalk(ask) : await _start(ask),
+      );
     }
     final typed = await db
         .from('chat_in')
@@ -319,48 +352,84 @@ class Worker {
     final done = <int>[];
     for (final row in rows) {
       final id = row['id'] as int;
-      if (id <= _applied) {
-        done.add(id);
-        continue;
-      }
-      _applied = id;
       done.add(id);
-      final chat = row['chat_id'] as String;
-      final live = _live[chat];
-      switch (row['kind']) {
-        case 'start' when live == null:
-          await _restart(chat);
-        case 'stop' when live != null:
-          await tmux.kill(chat);
-        case 'size':
-          final cols = row['cols'] as int?;
-          final rows = row['rows'] as int?;
-          if (cols == null || rows == null) break;
-          if (live != null) {
-            live.typing = live.typing.then(
-              (_) => tmux.resize(chat, cols, rows),
-            );
-          }
-          // Kept, so the chat starts again at the app's size.
-          unawaited(
-            _db.then(
-              (db) => db
-                  .from('chats')
-                  .update({'cols': cols, 'rows': rows})
-                  .eq('id', chat),
-            ),
-          );
-        case 'keys' when live != null:
-          final bytes = utf8.encode(row['data'] as String? ?? '');
-          live.typing = live.typing.then((_) => tmux.keys(chat, bytes));
-        case 'line' when live != null:
-          final text = row['data'] as String? ?? '';
-          live.typing = live.typing.then((_) => tmux.line(chat, text));
-      }
+      if (id <= _applied) continue;
+      _applied = id;
+      await _apply(row['chat_id'] as String, row);
     }
     if (done.isNotEmpty) {
       final db = await _db;
       await db.from('chat_in').delete().inFilter('id', done);
+    }
+  }
+
+  /// The keys of input already put in, heard broadcast or read as a row:
+  /// whichever comes second is not put in again.
+  final _keys = <String>{};
+
+  /// Input broadcast on a chat's channel, put in at once; its row, come
+  /// later, is passed over.
+  void _cast(String chat, Map payload) =>
+      unawaited(_guard(() => _apply(chat, payload)));
+
+  /// One piece of input for [chat]: as a row of `chat_in`, or broadcast.
+  Future<void> _apply(String chat, Map row) async {
+    final key = row['key'];
+    if (key is String) {
+      if (!_keys.add(key)) return;
+      if (_keys.length > 2000) _keys.remove(_keys.first);
+    }
+    final live = _live[chat];
+    final talker = _talks[chat];
+    switch (row['kind']) {
+      case 'line' when talker != null:
+        await talker.say(
+          row['data'] as String? ?? '',
+          id: key is String ? 'u$key' : null,
+        );
+      case 'answer' when talker != null:
+        // "<choice> <item>".
+        final data = row['data'] as String? ?? '';
+        final cut = data.indexOf(' ');
+        if (cut > 0) {
+          talker.answer(data.substring(cut + 1), data.substring(0, cut));
+        }
+      case 'interrupt' when talker != null:
+        talker.interrupt();
+      case 'stop' when talker != null:
+        _talks.remove(chat);
+        await talker.close();
+        await _set(chat, 'ended', null);
+      case 'mode':
+        await _move(chat, row['data'] as String? ?? '');
+      case 'start' when live == null && talker == null:
+        await _restart(chat);
+      case 'start' when talker != null && talker.talk == null:
+        await talker.wake();
+      case 'stop' when live != null:
+        await tmux.kill(chat);
+      case 'size':
+        final cols = row['cols'] as int?;
+        final rows = row['rows'] as int?;
+        if (cols == null || rows == null) break;
+        if (live != null) {
+          live.typing = live.typing.then((_) => tmux.resize(chat, cols, rows));
+        }
+        // Kept, so the chat starts again at the app's size.
+        unawaited(
+          _db.then(
+            (db) => db
+                .from('chats')
+                .update({'cols': cols, 'rows': rows})
+                .eq('id', chat),
+          ),
+        );
+      case 'keys' when live != null:
+        final bytes = utf8.encode(row['data'] as String? ?? '');
+        live.typing = live.typing.then((_) => tmux.keys(chat, bytes));
+      case 'line' when live != null:
+        final text = row['data'] as String? ?? '';
+        live.typing = live.typing.then((_) => tmux.line(chat, text));
     }
   }
 
@@ -376,16 +445,9 @@ class Worker {
   /// Starts [ask] in a terminal: fresh, or with Claude's [resume] taken up
   /// and [prompt] in place of the chat's own first message.
   Future<_Live?> _start(ChatAsk ask, {String? resume, String? prompt}) async {
-    final spec = _specOf(ask.agent);
-    if (spec == null) {
-      await _set(ask.id, 'failed', 'There is no ${ask.agent} on $name.');
-      return null;
-    }
-    final dir = _expand(ask.dir ?? home);
-    if (!Directory(dir).existsSync()) {
-      await _set(ask.id, 'failed', 'There is no folder $dir on $name.');
-      return null;
-    }
+    final place = await _placeOf(ask);
+    if (place == null) return null;
+    final (spec, dir) = place;
     final first = prompt ?? (resume != null ? '' : ask.prompt);
     final argv = launchOf(
       spec,
@@ -447,7 +509,119 @@ class Worker {
         .maybeSingle();
     if (row == null) return;
     final ask = ChatAsk.fromJson(row);
+    if (ask.mode == 'chat') {
+      await _startTalk(ask, resume: ask.session);
+      return;
+    }
     await _start(ask, resume: ask.agent == 'claude' ? ask.session : null);
+  }
+
+  /// Where [ask] is to run, or null — the chat marked failed — if this
+  /// computer has not got the agent or the folder.
+  Future<(AgentSpec, String)?> _placeOf(ChatAsk ask) async {
+    final spec = _specOf(ask.agent);
+    if (spec == null) {
+      await _set(ask.id, 'failed', 'There is no ${ask.agent} on $name.');
+      return null;
+    }
+    final dir = _expand(ask.dir ?? home);
+    if (!Directory(dir).existsSync()) {
+      await _set(ask.id, 'failed', 'There is no folder $dir on $name.');
+      return null;
+    }
+    return (spec, dir);
+  }
+
+  /// Starts [ask] spoken to in messages ([Talk]): fresh, or carrying on
+  /// [resume], with [prompt] — else the chat's own first message — said
+  /// once it is up.
+  Future<_Talker?> _startTalk(
+    ChatAsk ask, {
+    String? resume,
+    String? prompt,
+  }) async {
+    final place = await _placeOf(ask);
+    if (place == null) return null;
+    final (spec, dir) = place;
+    final talker = _talks[ask.id] = await _Talker.make(
+      this,
+      ask,
+      spec,
+      session: resume,
+      dir: dir,
+    );
+    try {
+      await talker.wake();
+    } catch (e) {
+      _talks.remove(ask.id);
+      await talker.close();
+      await _set(ask.id, 'failed', '$e');
+      return null;
+    }
+    final first = prompt ?? (resume != null ? '' : ask.prompt);
+    log('[${_short(ask.id)}] ${spec.label} in $dir (chat)');
+    if (first.isNotEmpty) {
+      await talker.say(first);
+    } else {
+      await _set(ask.id, 'idle', null);
+    }
+    return talker;
+  }
+
+  /// A chat moved between its chat and its terminal: one program at a
+  /// time has its session. Into the terminal, Claude or Codex is taken up
+  /// there in its own screen; back, what was said there is read from the
+  /// session's transcript into the chat.
+  Future<void> _move(String chat, String to) async {
+    final db = await _db;
+    final row = await db
+        .from('chats')
+        .select()
+        .eq('id', chat)
+        .eq('worker_id', state.id)
+        .maybeSingle();
+    if (row == null) return;
+    final ask = ChatAsk.fromJson(row);
+    if (to == 'terminal') {
+      final talker = _talks.remove(chat);
+      if (talker == null) return;
+      await talker.close();
+      state.marks[chat] = DateTime.now().millisecondsSinceEpoch;
+      state.save();
+      await db.from('chats').update({'mode': 'terminal'}).eq('id', chat);
+      await _start(ask, resume: talker.session, prompt: '');
+      return;
+    }
+    if (to != 'chat' || _talks.containsKey(chat)) return;
+    final live = _live.remove(chat);
+    var session = ask.session;
+    if (live != null) {
+      session = live.session ?? session;
+      await _putAway(chat, live);
+    }
+    await db
+        .from('chats')
+        .update({'mode': 'chat', 'session': session})
+        .eq('id', chat);
+    final place = await _placeOf(ask);
+    if (place == null) return;
+    final (spec, dir) = place;
+    final talker = _talks[chat] = await _Talker.make(
+      this,
+      ask,
+      spec,
+      session: session,
+      dir: dir,
+    );
+    final since = state.marks.remove(chat);
+    state.save();
+    if (since != null && session != null) talker.readBack(since);
+    try {
+      await talker.wake();
+      await _set(chat, 'idle', null);
+    } catch (e) {
+      await _set(chat, 'idle', '$e');
+    }
   }
 
   Future<int> _nextSeq(String chat) async {
@@ -667,13 +841,7 @@ class Worker {
     // Once: the check each second may find it ended while it is ended here.
     if (_live[chat] != live) return;
     _live.remove(chat);
-    _readOut(chat, live);
-    _readEvents(chat, live);
-    live.decoder.close();
-    await _alone(live, () => _flush(chat, live));
-    await tmux.kill(chat);
-    tmux.forget(chat);
-    state.chats.remove(chat);
+    await _putAway(chat, live);
     final failed = status != null && status != 0;
     await _set(
       chat,
@@ -687,8 +855,28 @@ class Worker {
     log('[${_short(chat)}] ended${failed ? ' ($status)' : ''}');
   }
 
+  /// A terminal done with, already out of [_live]: the last of it sent, its
+  /// tmux session and files put away.
+  Future<void> _putAway(String chat, _Live live) async {
+    _readOut(chat, live);
+    _readEvents(chat, live);
+    live.decoder.close();
+    await _alone(live, () => _flush(chat, live));
+    await tmux.kill(chat);
+    tmux.forget(chat);
+    state.chats.remove(chat);
+    state.save();
+  }
+
   /// A chat deleted in the app: its terminal goes with it.
   Future<void> _drop(String chat) async {
+    final talker = _talks.remove(chat);
+    if (talker != null) {
+      talker.forgotten = true;
+      await talker.close();
+      talker.turn?.complete((answered: false, text: ''));
+      talker.turn = null;
+    }
     final live = _live.remove(chat);
     await tmux.kill(chat);
     tmux.forget(chat);
@@ -701,9 +889,8 @@ class Worker {
   }
 
   /// A task's errand, done as a chat of this worker's, so the app can watch
-  /// it and talk to it: Claude in a terminal, the answer its first turn's
-  /// last message. Handed back, the task's chat is taken up again in
-  /// Claude's same session.
+  /// it and talk to it: Claude spoken to in messages, the answer its first
+  /// turn's last. Handed back, the task's chat carries on Claude's session.
   Future<Answer> errand(
     Errand errand, {
     required String permission,
@@ -728,9 +915,10 @@ class Worker {
         await tmux.kill(chat);
         await _end(chat, old, 0);
       }
+      await _talks.remove(chat)?.close();
       await db
           .from('chats')
-          .update({'model': errand.model, 'state': 'running'})
+          .update({'model': errand.model, 'state': 'running', 'mode': 'chat'})
           .eq('id', chat);
     } else {
       final made = await db
@@ -745,18 +933,22 @@ class Worker {
             'prompt': errand.prompt,
             'task_uuid': errand.task,
             'state': 'running',
+            'mode': 'chat',
           })
           .select()
           .single();
       chat = made['id'] as String;
     }
     final row = await db.from('chats').select().eq('id', chat).single();
-    final live = await _start(
+    final turn = Completer<_Turn>();
+    _waiting[chat] = turn;
+    final talker = await _startTalk(
       ChatAsk.fromJson(row),
       resume: errand.resume,
       prompt: errand.prompt,
     );
-    if (live == null) {
+    _waiting.remove(chat);
+    if (talker == null) {
       final failed = await db
           .from('chats')
           .select('note')
@@ -764,7 +956,6 @@ class Worker {
           .single();
       return Answer(false, '${failed['note'] ?? 'Not started.'}');
     }
-    final turn = live.turn = Completer<_Turn>();
     final _Turn ended;
     try {
       ended = await turn.future.timeout(timeout);
@@ -773,16 +964,304 @@ class Worker {
         false,
         'Still at work after ${timeout.inMinutes} minutes; it goes on in its '
         'chat in Caldo\'s Agents tab.',
-        session: live.session,
+        session: talker.session,
       );
+    } finally {
+      if (talker.turn == turn) talker.turn = null;
     }
     return ended.answered
-        ? Answer(true, ended.text.trim(), session: live.session)
+        ? Answer(true, ended.text.trim(), session: talker.session)
         : Answer(
             false,
             'Claude ended before it answered.',
-            session: live.session,
+            session: talker.session,
           );
+  }
+
+  /// A turn an errand waits on, handed to its chat's talker as it is made:
+  /// a quick turn could end before the talker were given it after.
+  final Map<String, Completer<_Turn>> _waiting = {};
+}
+
+/// One chat spoken to in messages here: its [Talk] while its program is
+/// up, and the way what it says reaches the app — each item as a row of
+/// `chat_items`, said again as it changes; an answer's words as they are
+/// written as a broadcast on the chat's private channel, a few times a
+/// second, which a row would be too slow and too heavy for.
+class _Talker implements TalkSink {
+  final Worker worker;
+  final ChatAsk ask;
+  final AgentSpec spec;
+  final String dir;
+  Talk? talk;
+  String? session;
+  String state = 'idle';
+  Completer<_Turn>? turn;
+
+  /// Deleted in the app: nothing more is written for it.
+  bool forgotten = false;
+  bool _closing = false;
+
+  /// The seq the next new item goes up as, and each item's own.
+  int _seq;
+  final _seqs = <String, int>{};
+  final _queue = <String, Map<String, Object?>>{};
+  bool _posting = false;
+
+  final _pieces = <String, StringBuffer>{};
+  final _sent = <String, int>{};
+  final _whole = <String>{};
+  Timer? _piecing;
+  final RealtimeChannel _channel;
+
+  /// What a resumed Codex thread said after this, shown when it is up.
+  int? _since;
+
+  _Talker._(
+    this.worker,
+    this.ask,
+    this.spec,
+    this._seq, {
+    required this.dir,
+    this.session,
+  }) : _channel = worker.remote.client.channel(
+         'chat:${ask.id}',
+         opts: const RealtimeChannelConfig(private: true),
+       ) {
+    _channel
+        .onBroadcast(
+          event: 'in',
+          callback: (message) => worker._cast(ask.id, _payloadOf(message)),
+        )
+        .subscribe();
+  }
+
+  /// A broadcast's own payload, whether or not it comes wrapped.
+  static Map _payloadOf(Map message) =>
+      message['payload'] is Map ? message['payload'] as Map : message;
+
+  /// [payload] sent on the chat's channel — a copy: the client writes its
+  /// own keys into the map it is given, and a row queued to be kept would
+  /// go up with them.
+  void _broadcast(String event, Map<String, dynamic> payload) => unawaited(
+    _channel
+        .sendBroadcastMessage(event: event, payload: {...payload})
+        .then((_) {}, onError: (Object _) {}),
+  );
+
+  static Future<_Talker> make(
+    Worker worker,
+    ChatAsk ask,
+    AgentSpec spec, {
+    String? session,
+    String? dir,
+  }) async {
+    final db = await worker._db;
+    final last = await db
+        .from('chat_items')
+        .select('seq')
+        .eq('chat_id', ask.id)
+        .order('seq', ascending: false)
+        .limit(1);
+    return _Talker._(
+      worker,
+      ask,
+      spec,
+      last.isEmpty ? 0 : (last.first['seq'] as int) + 1,
+      dir: dir ?? worker._expand(ask.dir ?? worker.home),
+      session: session ?? ask.session,
+    )..turn = worker._waiting[ask.id];
+  }
+
+  /// Its program started, if it is not up: carrying on its session. Asked
+  /// twice at once — two messages heard together — it starts once, and
+  /// neither is said before it is up.
+  Future<void> wake() => talk != null && _waking == null
+      ? Future.value()
+      : _waking ??= _wake().whenComplete(() => _waking = null);
+
+  Future<void>? _waking;
+
+  Future<void> _wake() async {
+    if (talk != null) return;
+    final made = Talk.of(spec, ask, this, dir);
+    if (made == null) {
+      throw StateError('${spec.label} has no chat, only a terminal.');
+    }
+    if (made is CodexTalk) made.since = _since;
+    _since = null;
+    _closing = false;
+    talk = made;
+    try {
+      await made.start(resume: session);
+    } catch (e) {
+      talk = null;
+      await made.close();
+      rethrow;
+    }
+  }
+
+  Future<void> say(String text, {String? id}) async {
+    if (text.trim().isEmpty) return;
+    await wake();
+    talk!.say(text, id: id);
+  }
+
+  void answer(String item, String choice) => talk?.answer(item, choice);
+
+  void interrupt() => talk?.interrupt();
+
+  Future<void> close() async {
+    _closing = true;
+    await talk?.close();
+    talk = null;
+    _piecing?.cancel();
+    await worker.remote.client.removeChannel(_channel);
+  }
+
+  /// What was said in the chat's terminal since [since]: read from
+  /// Claude's transcript now, or from Codex's thread as it is taken up.
+  void readBack(int since) {
+    if (spec.id == 'codex') {
+      _since = since;
+      return;
+    }
+    final file = File(claudeTranscript(worker.home, dir, session!));
+    if (!file.existsSync()) return;
+    final reader = ClaudeTalk(spec, ask, this, dir: dir);
+    for (final line in file.readAsLinesSync()) {
+      try {
+        final json = jsonDecode(line) as Map;
+        final at = DateTime.tryParse('${json['timestamp']}');
+        if (at == null || at.millisecondsSinceEpoch <= since) continue;
+        if (json['type'] == 'assistant' || json['type'] == 'user') {
+          reader.take(json);
+        }
+      } on FormatException {
+        // A line cut short: the program was ended as it wrote it.
+      }
+    }
+  }
+
+  @override
+  void item(String id, String kind, Map<String, Object?> body) {
+    if (forgotten) return;
+    if (kind == 'text') {
+      _whole.add(id);
+      _pieces.remove(id);
+    }
+    final seq = _seqs[id] ??= _seq++;
+    final row = {
+      'chat_id': ask.id,
+      'id': id,
+      'seq': seq,
+      'kind': kind,
+      'body': body,
+    };
+    _queue[id] = row;
+    // Heard at once on the channel; the row, a quarter of a second behind,
+    // is what is kept. One too big for a broadcast comes by the row alone.
+    if (jsonEncode(body).length < 100000) _broadcast('item', row);
+    unawaited(_post());
+  }
+
+  /// The rows waiting, sent together, in turn: one item said twice quickly
+  /// goes up once, as it last stood.
+  Future<void> _post() async {
+    if (_posting) return;
+    _posting = true;
+    try {
+      while (_queue.isNotEmpty && !forgotten) {
+        final rows = _queue.values.toList();
+        _queue.clear();
+        try {
+          final db = await worker._db;
+          await db.from('chat_items').upsert(rows);
+        } catch (e) {
+          worker.log('[${_short(ask.id)}] items not sent: $e');
+          for (final row in rows) {
+            _queue.putIfAbsent(row['id'] as String, () => row);
+          }
+          await Future<void>.delayed(const Duration(seconds: 2));
+        }
+      }
+    } finally {
+      _posting = false;
+    }
+  }
+
+  @override
+  void delta(String id, String text) {
+    if (forgotten || _whole.contains(id) || text.isEmpty) return;
+    (_pieces[id] ??= StringBuffer()).write(text);
+    _piecing ??= Timer(const Duration(milliseconds: 40), _sendPieces);
+  }
+
+  void _sendPieces() {
+    _piecing = null;
+    for (final MapEntry(key: id, value: text) in _pieces.entries) {
+      if (text.isEmpty) continue;
+      final at = _sent[id] ?? 0;
+      _sent[id] = at + text.length;
+      unawaited(
+        _channel
+            .sendBroadcastMessage(
+              event: 'delta',
+              payload: {'id': id, 'at': at, 'text': text.toString()},
+            )
+            .then((_) {}, onError: (Object _) {}),
+      );
+      text.clear();
+    }
+  }
+
+  @override
+  void stands(String to, {String? note}) {
+    if (forgotten || (to == state && note == null)) return;
+    state = to;
+    _broadcast('state', {'state': to, 'note': note});
+    unawaited(worker._guard(() => worker._set(ask.id, to, note)));
+  }
+
+  @override
+  void inSession(String id) {
+    if (id == session || forgotten) return;
+    session = id;
+    unawaited(
+      worker._guard(
+        () async => (await worker._db)
+            .from('chats')
+            .update({'session': id})
+            .eq('id', ask.id),
+      ),
+    );
+  }
+
+  @override
+  void turnEnded(String answer, {bool failed = false}) {
+    final waiting = turn;
+    turn = null;
+    if (waiting != null && !waiting.isCompleted) {
+      waiting.complete((answered: !failed, text: answer));
+    }
+  }
+
+  @override
+  void exited(int code, String why) {
+    talk = null;
+    if (_closing || forgotten) return;
+    // Ended by itself: the chat waits to be taken up again with the next
+    // message, unless it never began.
+    final failed = code != 0;
+    if (failed) {
+      item('x${DateTime.now().millisecondsSinceEpoch}', 'note', {
+        'text': why.isEmpty ? '${spec.label} exited with $code.' : why,
+        'error': true,
+      });
+    }
+    stands(session == null && failed ? 'failed' : 'idle');
+    turnEnded('', failed: true);
+    worker.log('[${_short(ask.id)}] ${spec.label} exited ($code)');
   }
 }
 

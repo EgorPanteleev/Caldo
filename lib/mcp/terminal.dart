@@ -135,7 +135,10 @@ class Tmux {
   Future<void> kill(String chat) => _tmux(['kill-session', '-t', nameOf(chat)]);
 
   /// The screen as it stands, scrollback and all, as bytes that draw it on
-  /// a blank terminal of the same size, the cursor left where it is.
+  /// a blank terminal of the same size, the cursor left where it is — and
+  /// the modes its program had turned on put back: drawn from a picture
+  /// alone, the app's terminal no longer knew Claude takes the mouse, and
+  /// a swipe was sent as arrow keys, which step through its history.
   Future<String?> snapshot(String chat) async {
     final name = nameOf(chat);
     final at = await _tmux([
@@ -143,10 +146,10 @@ class Tmux {
       '-p',
       '-t',
       name,
-      '#{cursor_x} #{cursor_y} #{alternate_on}',
+      '#{cursor_x} #{cursor_y} #{alternate_on} ${[for (final (flag, _) in modes) '#{$flag}'].join(' ')}',
     ]);
     if (at.exitCode != 0) return null;
-    final [x, y, alt] = '${at.stdout}'.trim().split(' ');
+    final [x, y, alt, ...flags] = '${at.stdout}'.trim().split(' ');
     final shot = await _tmux([
       'capture-pane',
       '-p',
@@ -161,8 +164,29 @@ class Tmux {
     return '\x1b[0m\x1b[H\x1b[2J'
         '${alt == '1' ? '\x1b[?1049h\x1b[H\x1b[2J' : ''}'
         '${lines.join('\x1b[0m\r\n')}'
-        '\x1b[0m\x1b[${int.parse(y) + 1};${int.parse(x) + 1}H';
+        '\x1b[0m\x1b[${int.parse(y) + 1};${int.parse(x) + 1}H'
+        '${modesOf(flags)}';
   }
+
+  /// The private modes a snapshot restores, by the tmux flag that says
+  /// whether each is on: the mouse's reports, bracketed paste, the
+  /// cursor's keys and whether it shows.
+  static const modes = [
+    ('mouse_standard_flag', 1000),
+    ('mouse_button_flag', 1002),
+    ('mouse_all_flag', 1003),
+    ('mouse_utf8_flag', 1005),
+    ('mouse_sgr_flag', 1006),
+    ('bracket_paste_flag', 2004),
+    ('keypad_cursor_flag', 1),
+    ('cursor_flag', 25),
+  ];
+
+  /// Each of [modes] set or reset as [flags] (tmux's `1` or `0`) say.
+  static String modesOf(List<String> flags) => [
+    for (final (i, (_, mode)) in modes.indexed)
+      if (i < flags.length) '\x1b[?$mode${flags[i] == '1' ? 'h' : 'l'}',
+  ].join();
 
   /// A chat's files, once it is done with.
   void forget(String chat) {

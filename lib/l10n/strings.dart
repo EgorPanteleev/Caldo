@@ -302,6 +302,24 @@ class S {
   String get chatFromTask => _word('chatFromTask');
   String get chatOpen => _word('chatOpen');
   String chatAttach(String name) => _fill('chatAttach', {'name': name});
+  String get chatAsChat => _word('chatAsChat');
+  String get chatAsTerminal => _word('chatAsTerminal');
+  String get chatAllow => _word('chatAllow');
+  String get chatAlways => _word('chatAlways');
+  String get chatDeny => _word('chatDeny');
+  String get chatAllowed => _word('chatAllowed');
+  String get chatAlwaysAllowed => _word('chatAlwaysAllowed');
+  String get chatDenied => _word('chatDenied');
+  String get chatThinking => _word('chatThinking');
+  String get chatWorking => _word('chatWorking');
+  String get chatInterrupt => _word('chatInterrupt');
+  String get chatToTerminal => _word('chatToTerminal');
+  String get chatToChat => _word('chatToChat');
+  String get chatInTerminalNow => _word('chatInTerminalNow');
+  String chatInChatNow(String agent) =>
+      _fill('chatInChatNow', {'agent': agent});
+  String get chatEmpty => _word('chatEmpty');
+  String get chatMoveStops => _word('chatMoveStops');
 
   // ---- The vault -----------------------------------------------------------
   String get vault => _word('vault');

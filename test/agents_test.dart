@@ -2,15 +2,332 @@ import 'dart:convert';
 
 import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/mcp/agents.dart';
+import 'package:caldo/mcp/talk.dart';
+import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/screens/agents_screen.dart';
 import 'package:caldo/services/agents.dart';
 import 'package:caldo/theme/app_theme.dart';
+import 'package:caldo/widgets/talk_view.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:xterm/xterm.dart';
+
+/// What a talk said, as the worker would have sent it on.
+class _Heard implements TalkSink {
+  final items = <String, (String, Map<String, Object?>)>{};
+  final order = <String>[];
+  final deltas = <String, String>{};
+  final states = <String>[];
+  String? session;
+  String? answer;
+
+  @override
+  void item(String id, String kind, Map<String, Object?> body) {
+    if (!items.containsKey(id)) order.add(id);
+    items[id] = (kind, body);
+  }
+
+  @override
+  void delta(String id, String text) => deltas[id] = (deltas[id] ?? '') + text;
+
+  @override
+  void stands(String state, {String? note}) => states.add(state);
+
+  @override
+  void inSession(String id) => session = id;
+
+  @override
+  void turnEnded(String answer, {bool failed = false}) => this.answer = answer;
+
+  @override
+  void exited(int code, String why) {}
+}
 
 void main() {
+  group('a talk', () {
+    const ask = ChatAsk(id: 'c', agent: 'claude');
+    const claude = AgentSpec(
+      id: 'claude',
+      label: 'Claude',
+      command: ['claude'],
+    );
+
+    test("reads Claude's stream: words as they come, tools, a question", () {
+      final heard = _Heard();
+      final talk = ClaudeTalk(claude, ask, heard, dir: '/tmp');
+      for (final line in [
+        {'type': 'system', 'subtype': 'init', 'session_id': 's1'},
+        {'type': 'system', 'subtype': 'status', 'status': 'requesting'},
+        {
+          'type': 'stream_event',
+          'event': {
+            'type': 'message_start',
+            'message': {'id': 'm1'},
+          },
+        },
+        {
+          'type': 'stream_event',
+          'event': {
+            'type': 'content_block_start',
+            'index': 0,
+            'content_block': {'type': 'tool_use', 'id': 't1', 'name': 'Bash'},
+          },
+        },
+        {
+          'type': 'assistant',
+          'message': {
+            'id': 'm1',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 't1',
+                'name': 'Bash',
+                'input': {'command': 'ls -A | wc -l'},
+              },
+            ],
+          },
+        },
+        {
+          'type': 'control_request',
+          'request_id': 'r1',
+          'request': {
+            'subtype': 'can_use_tool',
+            'tool_name': 'Bash',
+            'input': {'command': 'ls -A | wc -l'},
+            'permission_suggestions': [
+              {'type': 'setMode', 'mode': 'acceptEdits'},
+            ],
+          },
+        },
+        {
+          'type': 'user',
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': 't1', 'content': '3'},
+            ],
+          },
+        },
+        {
+          'type': 'stream_event',
+          'event': {
+            'type': 'message_start',
+            'message': {'id': 'm2'},
+          },
+        },
+        {
+          'type': 'stream_event',
+          'event': {
+            'type': 'content_block_start',
+            'index': 0,
+            'content_block': {'type': 'thinking'},
+          },
+        },
+        {
+          'type': 'stream_event',
+          'event': {
+            'type': 'content_block_start',
+            'index': 1,
+            'content_block': {'type': 'text', 'text': ''},
+          },
+        },
+        for (final piece in ['There are ', '3 files.'])
+          {
+            'type': 'stream_event',
+            'event': {
+              'type': 'content_block_delta',
+              'index': 1,
+              'delta': {'type': 'text_delta', 'text': piece},
+            },
+          },
+        {
+          'type': 'assistant',
+          'message': {
+            'id': 'm2',
+            'content': [
+              {'type': 'text', 'text': 'There are 3 files.'},
+            ],
+          },
+        },
+        {
+          'type': 'result',
+          'subtype': 'success',
+          'result': 'There are 3 files.',
+        },
+      ]) {
+        talk.take(line);
+      }
+      expect(heard.session, 's1');
+      expect(heard.order, ['t1', 'ask:r1', 'm2:0']);
+      final (kind, tool) = heard.items['t1']!;
+      expect(kind, 'tool');
+      expect(tool['line'], 'ls -A | wc -l');
+      expect(tool['output'], '3');
+      expect(tool['done'], isTrue);
+      expect(heard.items['ask:r1']!.$2['choices'], ['allow', 'always', 'deny']);
+      // The pieces and the whole block are one item by one id.
+      expect(heard.deltas['m2:0'], 'There are 3 files.');
+      expect(heard.items['m2:0']!.$2['text'], 'There are 3 files.');
+      expect(heard.answer, 'There are 3 files.');
+      expect(heard.states, ['running', 'asking', 'idle']);
+    });
+
+    test("reads Codex's app server: its thread, a command, its answer", () {
+      final heard = _Heard();
+      final talk = CodexTalk(
+        const ChatAsk(id: 'c', agent: 'codex'),
+        heard,
+        dir: '/tmp',
+      );
+      for (final line in [
+        {
+          'method': 'turn/started',
+          'params': {
+            'turn': {'id': 'turn1'},
+          },
+        },
+        {
+          'method': 'item/started',
+          'params': {
+            'item': {
+              'type': 'commandExecution',
+              'id': 'i1',
+              'command': 'git status',
+            },
+          },
+        },
+        {
+          'id': 7,
+          'method': 'item/commandExecution/requestApproval',
+          'params': {'itemId': 'i1', 'command': 'git status', 'reason': 'Why'},
+        },
+        {
+          'method': 'item/completed',
+          'params': {
+            'item': {
+              'type': 'commandExecution',
+              'id': 'i1',
+              'command': 'git status',
+              'aggregatedOutput': 'clean',
+              'exitCode': 0,
+            },
+          },
+        },
+        {
+          'method': 'item/agentMessage/delta',
+          'params': {'itemId': 'i2', 'delta': 'All '},
+        },
+        {
+          'method': 'item/agentMessage/delta',
+          'params': {'itemId': 'i2', 'delta': 'clean.'},
+        },
+        {
+          'method': 'item/completed',
+          'params': {
+            'item': {'type': 'agentMessage', 'id': 'i2', 'text': 'All clean.'},
+          },
+        },
+        {
+          'method': 'turn/completed',
+          'params': {
+            'turn': {'id': 'turn1', 'status': 'completed'},
+          },
+        },
+      ]) {
+        talk.take(line);
+      }
+      expect(heard.order, ['i1', 'ask:7', 'i2']);
+      expect(heard.items['i1']!.$2['output'], 'clean');
+      expect(heard.items['i1']!.$2['failed'], isFalse);
+      expect(heard.items['ask:7']!.$2['line'], 'git status');
+      expect(heard.deltas['i2'], 'All clean.');
+      expect(heard.answer, 'All clean.');
+      expect(heard.states.last, 'idle');
+      talk.answer('ask:7', 'always');
+      expect(heard.items['ask:7']!.$2['answer'], 'always');
+    });
+
+    test("finds Claude's transcript of a session", () {
+      expect(
+        claudeTranscript('/home/a', '/home/a/dev/src/Caldo', 's'),
+        '/home/a/.claude/projects/-home-a-dev-src-Caldo/s.jsonl',
+      );
+    });
+  });
+
+  test("a snapshot puts back the modes its program turned on", () {
+    // Claude's: the mouse's every move in SGR, bracketed paste, the
+    // cursor's keys, its cursor hidden.
+    expect(
+      Tmux.modesOf(['0', '0', '1', '0', '1', '1', '1', '0']),
+      '\x1b[?1000l\x1b[?1002l\x1b[?1003h\x1b[?1005l\x1b[?1006h'
+      '\x1b[?2004h\x1b[?1h\x1b[?25l',
+    );
+  });
+
+  test("an answer's words are joined as they come, once each", () {
+    final feed = TalkFeed.held('c', const []);
+    addTearDown(feed.dispose);
+    feed.hear({
+      'payload': {'id': 'm:0', 'at': 0, 'text': 'Hel'},
+    });
+    feed.hear({
+      'payload': {'id': 'm:0', 'at': 0, 'text': 'Hel'},
+    });
+    feed.hear({
+      'payload': {'id': 'm:0', 'at': 3, 'text': 'lo'},
+    });
+    // After a gap: left for the whole answer.
+    feed.hear({
+      'payload': {'id': 'm:0', 'at': 9, 'text': '!'},
+    });
+    expect(feed.pieces.value, {'m:0': 'Hello'});
+  });
+
+  testWidgets("a swipe over Claude's own screen scrolls it", (tester) async {
+    final out = <String>[];
+    final t = Terminal(maxLines: 1000)
+      ..onOutput = (data) => out.add(TermSwipe.wheelFixed(data));
+    // Claude's: its own screen, every move of the mouse reported, in SGR.
+    t.write('\x1b[?1049h\x1b[?1003h\x1b[?1006h');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TermSwipe(
+            terminal: t,
+            lineHeight: 12,
+            cellWidth: 6,
+            padding: Offset.zero,
+            enabled: true,
+            child: TerminalView(t, readOnly: true),
+          ),
+        ),
+      ),
+    );
+    final finger = await tester.startGesture(const Offset(100, 100));
+    for (var i = 0; i < 6; i++) {
+      await finger.moveBy(const Offset(0, 10));
+    }
+    await finger.up();
+    expect(out, isNotEmpty);
+    expect(out.every((o) => o.startsWith('\x1b[<64;')), isTrue, reason: '$out');
+
+    // A wheel on a desk: set right on its way out.
+    out.clear();
+    await tester.sendEventToBinding(
+      const PointerScrollEvent(
+        position: Offset(100, 100),
+        scrollDelta: Offset(0, 40),
+      ),
+    );
+    await tester.pump();
+    expect(out, isNotEmpty);
+    expect(out.every((o) => o.startsWith('\x1b[<65;')), isTrue, reason: '$out');
+  });
+
   group('a command line', () {
     const llama = AgentSpec(
       id: 'llama',
@@ -183,6 +500,84 @@ void main() {
           scrollable: list,
         );
         expect(find.text(s.chatStart), findsOneWidget);
+      });
+
+      testWidgets('draws a chat in ${S.names[code]}', (tester) async {
+        final feed = TalkFeed.held('c', [
+          const ChatItem(
+            id: 'u',
+            seq: 0,
+            kind: 'user',
+            body: {'text': 'How many files are there?'},
+          ),
+          const ChatItem(
+            id: 't',
+            seq: 1,
+            kind: 'tool',
+            body: {
+              'name': 'Bash',
+              'line': 'ls -A | wc -l; ls -la --color=never /a/rather/long/path',
+              'output': '3',
+              'done': true,
+            },
+          ),
+          const ChatItem(
+            id: 'k',
+            seq: 2,
+            kind: 'thinking',
+            body: {'text': 'Counting.'},
+          ),
+          const ChatItem(
+            id: 'a',
+            seq: 3,
+            kind: 'text',
+            body: {
+              'text':
+                  '## Files\n\nThere are **3**: `a`, `b` and `c`.\n\n'
+                  '- one\n- two\n  carried on\n1. first\n\n'
+                  '> quoted\n\n'
+                  '| name | size |\n|---|---|\n| a | 0 |\n\n'
+                  '```sh\nls -la --color=never /a/rather/long/path/to/look/in\n```',
+            },
+          ),
+          const ChatItem(
+            id: 'q',
+            seq: 4,
+            kind: 'ask',
+            body: {
+              'tool': 'Write',
+              'line': '/home/someone/dev/src/Caldo/lib/a_long_file_name.dart',
+              'detail': 'hi',
+              'choices': ['allow', 'always', 'deny'],
+            },
+          ),
+          const ChatItem(
+            id: 'n',
+            seq: 5,
+            kind: 'note',
+            body: {'text': 'Context compacted.'},
+          ),
+        ]);
+        addTearDown(feed.dispose);
+        await pump(
+          tester,
+          code,
+          Scaffold(
+            body: TalkView(feed: feed, working: true, onAnswer: (_, _) {}),
+          ),
+        );
+        final s = S.forCode(code);
+        expect(find.text(s.chatAllow), findsOneWidget);
+        expect(find.text(s.chatWorking), findsOneWidget);
+        // Opened at the foot: the tool is above, scrolled to.
+        await tester.scrollUntilVisible(
+          find.text('Bash'),
+          -200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.text('Bash'));
+        await tester.pump();
+        expect(find.text('3'), findsWidgets);
       });
     }
   });

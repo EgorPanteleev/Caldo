@@ -43,7 +43,8 @@ lib/
                            quick_add_bar, keys_carry, tick_off, selection,
                            put_off, carry, desk, … (see the directory)
   mcp/                     the MCP server's: book, remote, tools, protocol,
-                           watch; the worker's: worker, agents, terminal
+                           watch; the worker's: worker, agents, talk,
+                           terminal
 bin/caldo_mcp.dart         the MCP server and watcher (plain Dart);
                            tool/mcp/install.sh, tool/mcp/watch.sh
 ```
@@ -791,8 +792,59 @@ Asked for (2026-11-21) as "a separate tab, like chats": create a chat,
 choose model, effort, folder, plugins, skills and the computer (worker), see
 a terminal and write in it — and "it should also work for other AIs, Codex
 or my local machine". Tasks handed to a Claude model run as chats too.
+Then (same day): "i cant scroll terminal and its looks bad … for codex it
+will be different … must work fast" — chosen: a chat of its own for Claude
+and Codex, the terminal side by side.
 
-- **A real terminal, not a transcript**: each chat is a program in a tmux
+- **Claude and Codex are chats, drawn by the app** (`Talk`,
+  `lib/mcp/talk.dart`; `TalkView`, `MarkdownText`): Claude as `claude -p
+  --input-format stream-json --output-format stream-json --verbose
+  --include-partial-messages --permission-prompt-tool stdio` (one process
+  for many turns; a permission question comes as a `can_use_tool`
+  control request, answered allow/deny, "always" passing its
+  `permission_suggestions` back); Codex as `codex app-server` (JSON-RPC:
+  `thread/start|resume`, `turn/start`, approvals as server requests
+  answered accept/acceptForSession/decline; written from its
+  `generate-ts` types, never run here — no OpenAI login on this machine).
+  Both put out the same items (`TalkSink`): user, text, thinking, tool
+  (one line: name + command/file; opened, its detail and output, cut at
+  4000), ask (buttons until answered), note. Shell and `agents.json`
+  agents stay terminals only. A chat is in its chat or its terminal
+  (`chats.mode`), one program holding the session at a time: the head's
+  Chat/Terminal switch shows either side, and the side not holding it
+  offers the move (`chat_in` `mode`). To the terminal, the session is
+  resumed in tmux (`claude --resume`, `codex resume`); back, what was said
+  there is read from Claude's transcript after the move's time
+  (`claudeTranscript`, `WorkerState.marks`) or from Codex's resumed thread.
+- **Fast because live things go by broadcast** on the chat's private
+  channel `chat:<id>` (RLS on `realtime.messages`): measured locally, a
+  row reaches a listener in 36–460ms (Postgres changes are polled), a
+  broadcast in 1–5ms. The worker broadcasts answer pieces (every 40ms),
+  each item and the state, and keeps items as `chat_items` rows (upserted
+  by id, the durable record); the app broadcasts its input and also
+  inserts it into `chat_in` with the same `key`, which the worker takes
+  once (`Worker._keys`). The user's words show at once (`TalkFeed.said`,
+  id `u<key>`, replaced by the worker's item of that id). A broadcast
+  payload is copied before sending: the client writes `type`/`event` into
+  the map, and a row queued with it was refused. Locally a new chat was up
+  in ~0.1–0.5s and the user's words came back in ~10ms; the first word is
+  the model's own ~1.8s.
+- **The chat list is one forward list that follows the foot** while the
+  reader is there (`_follow`, a few frames as a lazy list learns its
+  length); new words are added below, so a reader scrolled up is left
+  alone. An anchor with older items growing upwards was tried first and
+  scrolled a fresh chat's top into blank space.
+- **A swipe over the terminal is sent as the wheel** (`TermSwipe`): in
+  the alternate screen (Claude's, Codex's) xterm.dart drops a touch drag
+  entirely, which is why it could not be scrolled; a notch a line, arrows
+  if the program has not asked for the mouse; it only listens, so the
+  ordinary screen's history and a desk's selection are xterm's. xterm.dart
+  4.0 numbers the wheel 68–71 (Shift+wheel); `TermSwipe.wheelFixed` sets
+  it to 64–67 on the way out, or Claude ignores it. A snapshot restores the
+  program's modes (mouse, bracketed paste, cursor keys, cursor;
+  `Tmux.modes`): from a picture alone the app's terminal forgot Claude
+  wanted the mouse.
+- **A real terminal, not a transcript**: each terminal is a program in a tmux
   session on the worker (`Tmux`, `tmux -L caldo -f /dev/null`, session
   `c<uuid without dashes>`), its raw output piped to a file
   (`pipe-pane -O`) and read on by the worker every 50ms; keys go in as
@@ -811,9 +863,10 @@ or my local machine". Tasks handed to a Claude model run as chats too.
   at most every 200ms per chat; a snapshot (`capture-pane -e`) after 300
   pieces once quiet, and everything before the previous snapshot deleted;
   the app reads from the latest snapshot on, skips later ones), `chat_in`
-  (keys, line, size, stop, start; the worker applies realtime's payload at
-  once, polls every 15s, deletes what it took). RLS: own rows only, input
-  and output only on own chats.
+  (keys, line, size, stop, start, answer, interrupt, mode; the worker
+  applies realtime's payload at once, polls every 15s, deletes what it
+  took), `chat_items` (`…_agent_chats.sql`; a chat's items by id, in
+  `seq`). RLS: own rows only, input and output only on own chats.
 - **What a worker can run** (`AgentBook`): Claude and Codex if on the
   PATH, a shell always, and anything in `~/.config/caldo/mcp/agents.json`
   (`{"llama": {"label": …, "command": ["llama-cli", ["-m", "{model}"],
@@ -830,13 +883,15 @@ or my local machine". Tasks handed to a Claude model run as chats too.
   task's answer. Each hook appends its JSON to `<chat>.events`.
 - **The watcher's errands are chats** (`Worker.errand`, the `hand` the
   `Watcher` is given when tmux is installed; `ClaudeCli` still without
-  it): interactive Claude in the task's folder, waiting for the first
-  Stop (or `--timeout`, after which it goes on in its chat); handed back,
-  the same chat restarts with `--resume`. The task form has "Open its
+  it): Claude in messages in the task's folder, the answer its first
+  turn's `result` (or `--timeout`, after which it goes on in its chat);
+  handed back, the same chat carries on with `--resume`. The task form has "Open its
   chat"; the list marks task chats.
 - **The app**: `AgentsScreen` (list; long press/right-click deletes),
   `NewChatScreen` (last choices kept in prefs `agents_last`),
-  `ChatScreen` (xterm 4, `readOnly` on the phone — a key per round trip is
+  `ChatScreen` (Chat/Terminal switch for Claude and Codex; the send
+  button stops a turn while one runs and the field is empty; the
+  terminal: xterm 4, `readOnly` on the phone — a key per round trip is
   no way to type — so a field sends lines and a row gives Esc, Tab,
   Shift+Tab, arrows, ^C, Enter; a desktop's keys go straight in; size
   sent 400ms after it settles; text size in prefs `terminal_font`).
@@ -846,12 +901,15 @@ or my local machine". Tasks handed to a Claude model run as chats too.
   and drew as boxes. The key row fits the width (no scrolling; ⏎ was cut
   off), keys in the terminal's font.
   Nothing is read unless the tab or a chat is open (`Agents.watch`).
-- A chat restarted after the worker restarted is taken up again if its
+- A terminal chat is taken up again after the worker restarted if its
   tmux session lives (`worker.json` keeps offsets and seqs); otherwise it
-  is marked ended. Attach on the computer with `tmux -L caldo attach -t
+  is marked ended. A chat in its chat waits idle and resumes its session
+  with the next message. Attach on the computer with `tmux -L caldo attach -t
   c<id>` (copied from the chat's menu).
 - **Testing it costs real Claude turns** on the account; the shell agent
-  doesn't. A test worker signed into an account whose tasks were synced
+  doesn't. Try a worker against the local stack from a script that builds
+  `Worker` with `Tmux(socket: 'caldoe2e')` — never the user's `caldo`
+  socket, where their real watcher's chats live. A test worker signed into an account whose tasks were synced
   from the emulator took up an old "Tidy the downloads" task at once —
   look for tasks with `claude` set before starting one.
 
@@ -1011,7 +1069,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 382 tests, all passing; keep it so. `supabase test db` — 41.
+`flutter test` — 400 tests, all passing; keep it so. `supabase test db` — 46.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
