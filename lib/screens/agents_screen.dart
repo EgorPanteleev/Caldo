@@ -346,11 +346,18 @@ class _TermFont {
   /// JetBrains Mono, bundled: Android's own monospace is wide-set and thin.
   /// What it hasn't got comes from Term Symbols (Claude's ⏵ and ⎿ are in
   /// no font Android has), then the system's.
-  static TerminalStyle style(double size) => TerminalStyle(
-    fontSize: size,
-    fontFamily: 'JetBrains Mono',
-    fontFamilyFallback: _fallback,
-  );
+  ///
+  /// The same one while the size is: xterm tells styles apart by identity,
+  /// and a new one throws away every letter it has laid out.
+  static TerminalStyle style(double size) => _style?.fontSize == size
+      ? _style!
+      : _style = TerminalStyle(
+          fontSize: size,
+          fontFamily: 'JetBrains Mono',
+          fontFamilyFallback: _fallback,
+        );
+
+  static TerminalStyle? _style;
 
   static final _fallback = [
     'Term Symbols',
@@ -1139,7 +1146,21 @@ class _ChatScreenState extends State<ChatScreen> {
   double _fitted(double width, int cols) =>
       (width / (cols * 0.6)).clamp(5.0, _font);
 
-  TerminalTheme _theme(AppPalette p) => TerminalTheme(
+  /// Made again only for another palette: xterm tells themes apart by
+  /// identity, and a new one throws away every letter it has laid out —
+  /// on every rebuild, which the keyboard's slide makes each frame.
+  TerminalTheme _theme(AppPalette p) {
+    if (!identical(p, _themedFor)) {
+      _themedFor = p;
+      _themed = _themeOf(p);
+    }
+    return _themed!;
+  }
+
+  AppPalette? _themedFor;
+  TerminalTheme? _themed;
+
+  static TerminalTheme _themeOf(AppPalette p) => TerminalTheme(
     cursor: p.text.withValues(alpha: 0.75),
     selection: p.muted.withValues(alpha: 0.4),
     foreground: p.text,
@@ -1215,12 +1236,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         working:
                             chat.inChat &&
                             (heard ?? chat.state.name) == 'running',
-                        onAnswer: (item, choice) => _agents.answer(
-                          widget.chat,
-                          item,
-                          choice,
-                          over: talk,
-                        ),
+                        onAnswer: (item, choice) =>
+                            _agents.answer(widget.chat, item, choice),
                       ),
                     )
                   : talks && chat.inChat
@@ -1251,7 +1268,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       hint: s.chatMessage,
                       onSend: _send,
                       onStop: at == 'running' || at == 'asking'
-                          ? () => _agents.interrupt(widget.chat, over: talk)
+                          ? () => _agents.interrupt(widget.chat)
                           : null,
                     );
                   },

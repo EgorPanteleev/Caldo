@@ -416,6 +416,83 @@ void main() {
     });
   });
 
+  group("a terminal's output", () {
+    late StringBuffer drawn;
+    late TermOrder order;
+    setUp(() {
+      drawn = StringBuffer();
+      order = TermOrder(drawn.write);
+    });
+
+    Map<String, dynamic> piece(int seq, int start, int at, String data) => {
+      'life': 1,
+      'seq': seq,
+      'start': start,
+      'at': at,
+      'data': data,
+    };
+
+    test('is drawn from pieces before their row comes', () {
+      order.row(0, 'hello ');
+      order.piece(piece(1, 6, 6, 'wor'));
+      order.piece(piece(1, 6, 9, 'ld'));
+      expect('$drawn', 'hello world');
+      // The row brings what the pieces did, and is passed over.
+      order.row(1, 'world');
+      expect('$drawn', 'hello world');
+    });
+
+    test('takes the rest of a row the pieces left out', () {
+      order.row(0, 'ab');
+      order.piece(piece(1, 2, 2, 'cd'));
+      order.row(1, 'cdef');
+      expect('$drawn', 'abcdef');
+    });
+
+    test('carries on past a row not heard yet', () {
+      order.row(0, 'a');
+      order.piece(piece(1, 1, 1, 'bc'));
+      // Row 1 went up; the next row's piece comes before it is heard.
+      order.piece(piece(2, 3, 3, 'de'));
+      order.row(1, 'bc');
+      order.row(2, 'def');
+      expect('$drawn', 'abcdef');
+    });
+
+    test('holds a piece after a gap until the gap is filled', () {
+      order.row(0, 'a');
+      order.piece(piece(1, 1, 1, 'b'));
+      order.piece(piece(1, 1, 3, 'd'));
+      expect('$drawn', 'ab');
+      order.row(1, 'bcd');
+      expect('$drawn', 'abcd');
+    });
+
+    test('draws rows whole when no pieces come', () {
+      order.row(0, 'a');
+      order.row(1, 'b');
+      expect('$drawn', 'ab');
+    });
+
+    test('counts afresh for a worker started again', () {
+      order.row(0, 'abc');
+      order.piece(piece(1, 3, 3, 'd'));
+      order.row(1, 'd');
+      order.piece({...piece(2, 0, 0, 'x'), 'life': 2});
+      order.row(2, 'xy');
+      expect('$drawn', 'abcdxy');
+    });
+
+    test('passes over a snapshot after the first', () {
+      order.row(4, 'SCREEN', snap: true, snapsToo: true);
+      order.row(5, 'a');
+      order.row(6, 'ALSO', snap: true);
+      order.piece(piece(7, 9, 9, 'b'));
+      order.row(7, 'b');
+      expect('$drawn', 'SCREENab');
+    });
+  });
+
   test("the terminal is spared Claude's private requests", () {
     final clean = TermCleaner();
     expect(clean.add('a\x1b[>4;2mb\x1b[<uc'), 'abc');

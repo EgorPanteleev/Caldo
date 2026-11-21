@@ -829,6 +829,21 @@ and Codex, the terminal side by side.
   the map, and a row queued with it was refused. Locally a new chat was up
   in ~0.1–0.5s and the user's words came back in ~10ms; the first word is
   the model's own ~1.8s.
+- **A terminal goes by broadcast too** (asked as "console rendering is too
+  slow", 2026-11-21): typed keys and lines go on `chat:<id>` beside their
+  row, and the worker broadcasts what it reads every 50ms (`_castOut`,
+  event `out`) as well as the `chat_out` rows, which stay the record. A
+  piece names its run (`life`), its row's `seq` and `start` and its own
+  `at`, places in the worker's run of output, so `TermOrder` draws each
+  stretch once from whichever brings it first; a snapshot or a new run
+  forgets the places, and rows are drawn whole until a piece places them
+  again. A key typed came back drawn in ~50ms on the local stack, against
+  ~800ms by rows both ways. The app holds one channel per chat for both
+  feeds (`Agents._hold`): of two joins to one topic from one socket the
+  server keeps the later. xterm tells a theme and a text style apart by
+  identity and lays every letter out again for a new one, so the screen
+  keeps both (`_theme`, `_TermFont.style`) — it rebuilds each frame of the
+  keyboard's slide.
 - **The chat list is one forward list that follows the foot** while the
   reader is there (`_follow`, a few frames as a lazy list learns its
   length); new words are added below, so a reader scrolled up is left
@@ -1069,7 +1084,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 400 tests, all passing; keep it so. `supabase test db` — 46.
+`flutter test` — 407 tests, all passing; keep it so. `supabase test db` — 46.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

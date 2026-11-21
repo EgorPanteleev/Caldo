@@ -84,6 +84,16 @@ class _Live {
   final pending = StringBuffer();
   late final ByteConversionSink decoder;
 
+  /// The chat's private channel, on which what is read goes out at once.
+  final RealtimeChannel line;
+
+  /// Where [pending] starts in this run's output, and how far into it has
+  /// been broadcast; [life] tells this run from one before, which counted
+  /// from nothing too.
+  int at = 0;
+  int cast = 0;
+  final life = DateTime.now().microsecondsSinceEpoch;
+
   DateTime sentAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime wroteAt = DateTime.now();
   bool sending = false;
@@ -105,6 +115,7 @@ class _Live {
     required this.seq,
     required this.snap,
     required this.lastSnap,
+    required this.line,
   }) {
     decoder = const Utf8Decoder(
       allowMalformed: true,
@@ -263,6 +274,7 @@ class Worker {
                 seq: await _seqAfter(ask.id, kept),
                 snap: kept['snap'] ?? -1,
                 lastSnap: kept['last_snap'] ?? -1,
+                line: _lineOf(ask.id),
               )
               ..state = row['state'] as String
               ..session = row['session'] as String?;
@@ -305,6 +317,17 @@ class Worker {
         )
         .subscribe();
   }
+
+  /// [chat]'s private channel: input heard on it is put in at once, ahead
+  /// of its row. A chat has one here at a time, its [_Talker]'s or its
+  /// [_Live]'s: of two joins to one topic, the server keeps the later.
+  RealtimeChannel _lineOf(String chat) => remote.client
+      .channel('chat:$chat', opts: const RealtimeChannelConfig(private: true))
+      .onBroadcast(
+        event: 'in',
+        callback: (message) => _cast(chat, _Talker._payloadOf(message)),
+      )
+    ..subscribe();
 
   /// A row of input heard by realtime: put in at once, not after a look.
   void _heard(Map<String, dynamic> row) {
@@ -473,6 +496,7 @@ class Worker {
       seq: await _seqAfter(ask.id, kept),
       snap: kept?['snap'] ?? -1,
       lastSnap: kept?['last_snap'] ?? -1,
+      line: _lineOf(ask.id),
     )..session = resume ?? ask.session;
     if (live.seq > 0) {
       // Taken up again in the same chat: the old screen is put by, so the
@@ -486,6 +510,7 @@ class Worker {
       await tmux.start(ask.id, argv, cwd: dir, cols: ask.cols, rows: ask.rows);
     } catch (e) {
       _live.remove(ask.id);
+      await remote.client.removeChannel(live.line);
       await _set(ask.id, 'failed', '$e');
       return null;
     }
@@ -661,8 +686,10 @@ class Worker {
   void _pump() {
     final now = DateTime.now();
     for (final MapEntry(key: chat, value: live) in _live.entries.toList()) {
-      final grew = _readOut(chat, live);
-      if (grew) live.wroteAt = now;
+      if (_readOut(chat, live)) {
+        live.wroteAt = now;
+        _castOut(live);
+      }
       _readEvents(chat, live);
       if (!live.sending &&
           live.pending.isNotEmpty &&
@@ -688,6 +715,35 @@ class Worker {
       raf.closeSync();
     }
     return true;
+  }
+
+  /// What has been read since the last piece, broadcast at once: a row
+  /// goes up a few times a second at most, and is heard through Postgres
+  /// changes a quarter of a second or so later; a broadcast is heard in a
+  /// few milliseconds. The rows stay the record, and fill any gap.
+  void _castOut(_Live live) {
+    final text = live.pending.toString();
+    final from = max(live.cast, live.at);
+    final to = live.at + text.length;
+    if (to <= from) return;
+    live.cast = to;
+    final piece = text.substring(from - live.at);
+    // Too big for a broadcast: its row brings it.
+    if (piece.length > 100000) return;
+    unawaited(
+      live.line
+          .sendBroadcastMessage(
+            event: 'out',
+            payload: {
+              'life': live.life,
+              'seq': live.seq,
+              'start': live.at,
+              'at': from,
+              'data': piece,
+            },
+          )
+          .then((_) {}, onError: (Object _) {}),
+    );
   }
 
   /// Claude's hooks, one line each: its session, a turn begun or done, a
@@ -794,6 +850,7 @@ class Worker {
       live.pending
         ..clear()
         ..write(rest);
+      live.at += data.length;
       live.seq++;
       live.sinceSnap++;
       live.sentAt = DateTime.now();
@@ -879,6 +936,7 @@ class Worker {
     _readEvents(chat, live);
     live.decoder.close();
     await _alone(live, () => _flush(chat, live));
+    await remote.client.removeChannel(live.line);
     await tmux.kill(chat);
     tmux.forget(chat);
     state.chats.remove(chat);
@@ -895,6 +953,7 @@ class Worker {
       talker.turn = null;
     }
     final live = _live.remove(chat);
+    if (live != null) await remote.client.removeChannel(live.line);
     await tmux.kill(chat);
     tmux.forget(chat);
     state.chats.remove(chat);
@@ -1041,17 +1100,7 @@ class _Talker implements TalkSink {
     this._seq, {
     required this.dir,
     this.session,
-  }) : _channel = worker.remote.client.channel(
-         'chat:${ask.id}',
-         opts: const RealtimeChannelConfig(private: true),
-       ) {
-    _channel
-        .onBroadcast(
-          event: 'in',
-          callback: (message) => worker._cast(ask.id, _payloadOf(message)),
-        )
-        .subscribe();
-  }
+  }) : _channel = worker._lineOf(ask.id);
 
   /// A broadcast's own payload, whether or not it comes wrapped.
   static Map _payloadOf(Map message) =>

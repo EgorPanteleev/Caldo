@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -365,16 +366,11 @@ class Agents extends ChangeNotifier {
   Future<void> again(String chat) => _in(chat, 'start');
 
   /// [choice] — `allow`, `always` or `deny` — for the question [item].
-  Future<void> answer(
-    String chat,
-    String item,
-    String choice, {
-    TalkFeed? over,
-  }) => _in(chat, 'answer', data: '$choice $item', over: over);
+  Future<void> answer(String chat, String item, String choice) =>
+      _in(chat, 'answer', data: '$choice $item');
 
   /// The turn under way cut short; the chat stays.
-  Future<void> interrupt(String chat, {TalkFeed? over}) =>
-      _in(chat, 'interrupt', over: over);
+  Future<void> interrupt(String chat) => _in(chat, 'interrupt');
 
   /// The chat moved to its terminal, or back to its chat.
   Future<void> move(String chat, {required bool toChat}) async {
@@ -395,9 +391,14 @@ class Agents extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Input for [chat], kept as a row the worker takes; with [over], also
-  /// broadcast on the chat's channel, which it hears a quarter of a second
-  /// sooner. Their shared key says which it has taken.
+  /// Input for the program itself, which it waits on as it is typed.
+  static const _typed = {'keys', 'line', 'answer', 'interrupt'};
+
+  /// Input for [chat], kept as a row the worker takes; typed input is also
+  /// broadcast on the chat's channel while the chat is open, which the
+  /// worker hears a quarter of a second sooner. Their shared key says
+  /// which it has taken. A line said [over] a chat's feed shows there at
+  /// once.
   Future<void> _in(
     String chat,
     String kind, {
@@ -406,10 +407,11 @@ class Agents extends ChangeNotifier {
     int? rows,
     TalkFeed? over,
   }) async {
-    final key = over == null ? null : _key();
-    if (over != null) {
-      if (kind == 'line') over.said(data ?? '', key!);
-      over.cast({'kind': kind, 'data': data, 'key': key});
+    final line = _lines[chat];
+    final key = line != null && _typed.contains(kind) ? _key() : null;
+    if (key != null) {
+      if (kind == 'line') over?.said(data ?? '', key);
+      line!.cast({'kind': kind, 'data': data, 'key': key});
     }
     await _client!.from('chat_in').insert({
       'chat_id': chat,
@@ -432,29 +434,88 @@ class Agents extends ChangeNotifier {
   /// each piece as it comes. A piece is handed over once, in order; a
   /// snapshot after the first is the screen as it already is, and skipped.
   ChatFeed feed(String chat, void Function(String data) onData) =>
-      ChatFeed._(_client!, chat, onData);
+      ChatFeed._(_client!, chat, onData, _hold(chat), () => _release(chat));
 
   /// What [chat] has said as a chat, kept up as it says more.
-  TalkFeed talk(String chat) => TalkFeed._(_client!, chat);
+  TalkFeed talk(String chat) =>
+      TalkFeed._(_client!, chat, _hold(chat), () => _release(chat));
+
+  /// Each open chat's private channel, shared by its feeds: of two joins
+  /// to one topic from one socket, the server keeps only the later.
+  final _lines = <String, _ChatLine>{};
+
+  RealtimeChannel _hold(String chat) {
+    final line = _lines[chat] ??= _ChatLine(_client!, chat);
+    line.holders++;
+    return line.channel;
+  }
+
+  void _release(String chat) {
+    final line = _lines[chat];
+    if (line == null || --line.holders > 0) return;
+    _lines.remove(chat);
+    unawaited(line.client.removeChannel(line.channel));
+  }
 }
+
+/// A chat's private channel, `chat:<id>`: what the worker says as it
+/// happens comes on it, and typed input goes on it ahead of its row.
+class _ChatLine {
+  final SupabaseClient client;
+  final RealtimeChannel channel;
+  int holders = 0;
+
+  // Joined at once: broadcasts need no binding at the join, so the feeds
+  // holding it add theirs after.
+  _ChatLine(this.client, String chat)
+    : channel = client.channel(
+        'chat:$chat',
+        opts: const RealtimeChannelConfig(private: true),
+      )..subscribe();
+
+  /// Input heard by the worker at once — a copy: the client writes its own
+  /// keys into the map it is given.
+  void cast(Map<String, dynamic> input) => unawaited(
+    channel
+        .sendBroadcastMessage(event: 'in', payload: {...input})
+        .then((_) {}, onError: (Object _) {}),
+  );
+}
+
+/// A broadcast's own payload, whether or not it comes wrapped.
+Map<String, dynamic> _payloadOf(Map<String, dynamic> message) =>
+    message['payload'] is Map
+    ? Map<String, dynamic>.from(message['payload'] as Map)
+    : message;
 
 /// A chat's output as it is read back and comes in.
 class ChatFeed {
   final SupabaseClient _client;
   final String chat;
-  final void Function(String data) onData;
+  final TermOrder _order;
+  final VoidCallback _release;
 
   RealtimeChannel? _channel;
 
-  /// The seq handed over last; pieces heard while the past is read wait in
-  /// [_early].
-  int _last = -1;
+  /// Rows heard while the past is read wait in [_early].
   bool _caughtUp = false;
   final _early = <Map<String, dynamic>>[];
   bool _closed = false;
   Timer? _poll;
 
-  ChatFeed._(this._client, this.chat, this.onData) {
+  ChatFeed._(
+    this._client,
+    this.chat,
+    void Function(String data) onData,
+    RealtimeChannel line,
+    this._release,
+  ) : _order = TermOrder(onData) {
+    line.onBroadcast(
+      event: 'out',
+      callback: (message) {
+        if (!_closed) _order.piece(_payloadOf(message));
+      },
+    );
     _channel = _client
         .channel('caldo-chat-$chat')
         .onPostgresChanges(
@@ -504,7 +565,7 @@ class ChatFeed {
           .order('seq', ascending: true)
           .limit(200);
       for (final row in rows) {
-        _hand(row, snapsToo: snapsToo && _last < 0);
+        _hand(row, snapsToo: snapsToo && _order.last < 0);
       }
       if (rows.length < 200) break;
       next = _seq(rows.last) + 1;
@@ -517,7 +578,7 @@ class ChatFeed {
       _early.add(row);
       return;
     }
-    if (_seq(row) > _last + 1) {
+    if (_seq(row) > _order.last + 1) {
       // One missed: read from where it was, which brings this one too.
       unawaited(_fill());
       return;
@@ -531,7 +592,7 @@ class ChatFeed {
     if (!_caughtUp || _filling || _closed) return;
     _filling = true;
     try {
-      await _read(_last + 1);
+      await _read(_order.last + 1);
     } catch (_) {
       // Offline; the next poll tries again.
     } finally {
@@ -540,22 +601,129 @@ class ChatFeed {
   }
 
   void _hand(Map<String, dynamic> row, {bool snapsToo = false}) {
-    final seq = _seq(row);
-    if (seq <= _last || _closed) return;
-    _last = seq;
-    // The first piece read may be a snapshot, which draws the screen from
-    // nothing; one after it is a picture of what is already drawn.
-    if (row['snap'] == true && !snapsToo) return;
-    onData(row['data'] as String);
+    if (_closed) return;
+    _order.row(
+      _seq(row),
+      row['data'] as String,
+      snap: row['snap'] == true,
+      snapsToo: snapsToo,
+    );
   }
 
   static int _seq(Map row) => row['seq'] as int;
 
   void close() {
+    if (_closed) return;
     _closed = true;
     _poll?.cancel();
     final channel = _channel;
     if (channel != null) unawaited(_client.removeChannel(channel));
+    _release();
+  }
+}
+
+/// A terminal's output put in order from the two ways it comes: rows of
+/// `chat_out`, the record, a few times a second and heard through Postgres
+/// changes a quarter of a second or so late; and pieces broadcast as the
+/// worker reads them, heard within milliseconds. A piece says where in
+/// the worker's run of output it starts and where its row does, so
+/// whichever brings a stretch first draws it and the other is passed over.
+class TermOrder {
+  final void Function(String data) onData;
+
+  TermOrder(this.onData);
+
+  /// The last row taken.
+  int last = -1;
+
+  /// The worker's run the places below count in: a worker started again
+  /// counts from nothing.
+  Object? _life;
+
+  /// Where rows not yet taken start in the run, as pieces and rows tell.
+  final _starts = <int, int>{};
+
+  /// How far into the run is drawn; null until a piece has placed it.
+  int? _drawn;
+
+  /// Pieces not drawn yet, by where they start.
+  final _held = SplayTreeMap<int, String>();
+
+  /// A row, in order. The first may be a snapshot, which draws the screen
+  /// from nothing ([snapsToo]); one after it is a picture of what is drawn
+  /// already.
+  void row(int seq, String data, {bool snap = false, bool snapsToo = false}) {
+    if (seq <= last) return;
+    final start = seq == last + 1 ? _starts[seq] : null;
+    last = seq;
+    _starts.removeWhere((s, _) => s <= seq);
+    if (snap) {
+      // A worker taken up again snaps first, counting afresh.
+      _forget();
+      if (snapsToo) onData(data);
+      return;
+    }
+    final drawn = _drawn;
+    if (start == null || drawn == null) {
+      onData(data);
+    } else if (start + data.length > drawn) {
+      onData(data.substring(max(0, drawn - start)));
+    }
+    if (start == null) {
+      _drawn = null;
+    } else {
+      _drawn = max(drawn ?? 0, start + data.length);
+      _starts[seq + 1] = start + data.length;
+    }
+    _drain();
+  }
+
+  /// A broadcast piece: `life`, `seq` and `start` of its row, `at` where
+  /// it starts itself, and its `data`.
+  void piece(Map<String, dynamic> p) {
+    final seq = p['seq'], start = p['start'], at = p['at'], data = p['data'];
+    if (seq is! int || start is! int || at is! int || data is! String) return;
+    if (p['life'] != _life) {
+      _forget();
+      _life = p['life'];
+    }
+    if (seq > last) _starts[seq] ??= start;
+    if (data.isNotEmpty) {
+      _held.update(
+        at,
+        (had) => had.length >= data.length ? had : data,
+        ifAbsent: () => data,
+      );
+    }
+    _drain();
+  }
+
+  /// Draws the held pieces that carry on from what is drawn. Until a piece
+  /// has said where the next row starts, there is nothing to carry on from.
+  void _drain() {
+    final placed = _drawn ??= _starts[last + 1];
+    if (placed == null) {
+      while (_held.length > 500) {
+        _held.remove(_held.firstKey());
+      }
+      return;
+    }
+    var drawn = placed;
+    while (_held.isNotEmpty && _held.firstKey()! <= drawn) {
+      final at = _held.firstKey()!;
+      final data = _held.remove(at)!;
+      if (at + data.length > drawn) {
+        onData(data.substring(drawn - at));
+        drawn = at + data.length;
+      }
+    }
+    _drawn = drawn;
+  }
+
+  void _forget() {
+    _drawn = null;
+    _starts.clear();
+    _held.clear();
   }
 }
 
@@ -605,13 +773,15 @@ class TalkFeed extends ChangeNotifier {
   final state = ValueNotifier<String?>(null);
 
   RealtimeChannel? _rows;
-  RealtimeChannel? _live;
+  final VoidCallback? _release;
   Timer? _poll;
   bool _closed = false;
 
   /// [items] as they are, heard from nothing: for tests.
   @visibleForTesting
-  TalkFeed.held(this.chat, List<ChatItem> items) : _client = null {
+  TalkFeed.held(this.chat, List<ChatItem> items)
+    : _client = null,
+      _release = null {
     _take([
       for (final i in items)
         {'id': i.id, 'seq': i.seq, 'kind': i.kind, 'body': i.body},
@@ -623,7 +793,13 @@ class TalkFeed extends ChangeNotifier {
   @visibleForTesting
   void hear(Map<String, dynamic> message) => _piece(message);
 
-  TalkFeed._(SupabaseClient client, this.chat) : _client = client {
+  TalkFeed._(
+    SupabaseClient client,
+    this.chat,
+    RealtimeChannel line,
+    VoidCallback release,
+  ) : _client = client,
+      _release = release {
     _rows = client
         .channel('caldo-talk-$chat')
         .onPostgresChanges(
@@ -642,8 +818,7 @@ class TalkFeed extends ChangeNotifier {
           },
         )
         .subscribe();
-    _live = client
-        .channel('chat:$chat', opts: const RealtimeChannelConfig(private: true))
+    line
         .onBroadcast(event: 'delta', callback: _piece)
         .onBroadcast(
           event: 'item',
@@ -654,8 +829,7 @@ class TalkFeed extends ChangeNotifier {
           callback: (message) {
             if (!_closed) state.value = _payloadOf(message)['state'] as String?;
           },
-        )
-        .subscribe();
+        );
     unawaited(_read());
     // Realtime can drop a change; the last few are read again now and then.
     _poll = Timer.periodic(const Duration(seconds: 6), (_) => _read(late: 40));
@@ -719,22 +893,6 @@ class TalkFeed extends ChangeNotifier {
     notifyListeners();
   }
 
-  static Map<String, dynamic> _payloadOf(Map<String, dynamic> message) =>
-      message['payload'] is Map
-      ? Map<String, dynamic>.from(message['payload'] as Map)
-      : message;
-
-  /// Input sent on the chat's channel: heard by the worker at once.
-  void cast(Map<String, dynamic> input) {
-    final channel = _live;
-    if (channel == null || _closed) return;
-    unawaited(
-      channel
-          .sendBroadcastMessage(event: 'in', payload: {...input})
-          .then((_) {}, onError: (Object _) {}),
-    );
-  }
-
   /// The user's words shown at once, before the worker has said them back;
   /// its item, when it comes by the same id, takes their place.
   void said(String text, String key) {
@@ -766,9 +924,9 @@ class TalkFeed extends ChangeNotifier {
   void dispose() {
     _closed = true;
     _poll?.cancel();
-    for (final channel in [_rows, _live]) {
-      if (channel != null) unawaited(_client?.removeChannel(channel));
-    }
+    final rows = _rows;
+    if (rows != null) unawaited(_client?.removeChannel(rows));
+    _release?.call();
     pieces.dispose();
     state.dispose();
     super.dispose();
