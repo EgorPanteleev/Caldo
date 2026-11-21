@@ -42,8 +42,10 @@ lib/
   widgets/                 month_grid, task_card, day_sheet, day_hours,
                            quick_add_bar, keys_carry, tick_off, selection,
                            put_off, carry, desk, … (see the directory)
-  mcp/                     the MCP server's: book, remote, tools, protocol
-bin/caldo_mcp.dart         the MCP server (plain Dart); tool/mcp/install.sh
+  mcp/                     the MCP server's: book, remote, tools, protocol,
+                           watch
+bin/caldo_mcp.dart         the MCP server and watcher (plain Dart);
+                           tool/mcp/install.sh, tool/mcp/watch.sh
 ```
 
 Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
@@ -776,8 +778,8 @@ master password behind it.
 ## The MCP server
 
 Asked for so an assistant can read and change the tasks (2026-11-21); the
-next steps talked over were a watcher on the PC that hands a task marked
-for Claude to `claude -p`, then a "Hand to Claude" action in the app.
+watcher below came next; a "Hand to Claude" action in the app was talked
+over after it.
 
 - **It is one more device on the sync server**, not a reader of a local
   database: it signs in as the user and goes through `sync_push`/`sync_pull`
@@ -808,6 +810,25 @@ for Claude to `claude -p`, then a "Hand to Claude" action in the app.
   models. `caldo-mcp call <tool> '<json>'` runs one from a shell;
   `XDG_CONFIG_HOME` points it at another session (tried on the local stack
   with an account made by the admin API).
+- **The watcher** (`caldo-mcp watch`, `lib/mcp/watch.dart`; a systemd user
+  service `caldo-watch` from `tool/mcp/watch.sh`, options passed through,
+  the installing shell's PATH baked in): asked for so tasks can be sent
+  from the app to Claude on the PC. **A task is sent by putting it in a
+  group named "Claude"** — nothing new in the app, and the board says how
+  it stands: Not started waits, In progress while `claude -p` works on it
+  (prompt on stdin, `--output-format json`, `--permission-mode auto` by
+  default), then the answer is appended to the notes ("— Claude, d.mm
+  hh:mm —", cut at 6000) and it is ticked as the app ticks. Not done (an
+  error, a timeout, a folder not there) stays In progress with the reason
+  and the tools refused; moved back to Not started it runs again, resuming
+  its session (`watch.json` beside the session keeps task → session and
+  folder; not for repeating tasks). A dated task waits for its day or
+  time. `in: ~/folder` in the notes picks where Claude works, else
+  `--dir` (home). One task at a time; one watcher (`watch.lock`); a task
+  left In progress by a stopped watcher gets an "Interrupted" note on the
+  next start. Woken by realtime on `sync_rows` (`SupabaseRemote.changes`,
+  then 2s for the phone's pushes to land), polled each minute anyway.
+  Tried end to end on the local stack: answered within 10s of the add.
 
 ## Linux
 
@@ -893,7 +914,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 358 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 364 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

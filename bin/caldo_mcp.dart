@@ -8,6 +8,11 @@
 //   caldo-mcp status
 //   caldo-mcp call <tool> ['{"json": "arguments"}']
 //                             run one tool from a shell
+//   caldo-mcp watch [--group Claude] [--dir ~] [--permission-mode auto]
+//                   [--model M] [--timeout 30] [--claude claude]
+//                             hand Claude the tasks put in a group, and
+//                             write its answers back (tool/mcp/watch.sh
+//                             makes it a service)
 //
 // Plain Dart, no Flutter: run with `dart`, or installed by
 // tool/mcp/install.sh.
@@ -18,6 +23,7 @@ import 'dart:io';
 import 'package:caldo/mcp/protocol.dart';
 import 'package:caldo/mcp/remote.dart';
 import 'package:caldo/mcp/tools.dart';
+import 'package:caldo/mcp/watch.dart';
 import 'package:caldo/services/caldo_server.dart';
 
 const _version = '1.0.0';
@@ -35,10 +41,13 @@ Future<void> main(List<String> args) async {
       exitCode = await _status(file);
     case 'call' when args.length >= 2:
       exitCode = await _call(file, args[1], args.length > 2 ? args[2] : '{}');
+    case 'watch':
+      exitCode = await _watch(file, args.skip(1).toList());
     default:
       stderr.writeln(
         'Usage: caldo-mcp [serve | login [--server URL] | logout | status | '
-        'call <tool> [json]]',
+        'call <tool> [json] | watch [--group G] [--dir D] '
+        '[--permission-mode M] [--model M] [--timeout MIN] [--claude PATH]]',
       );
       exitCode = 64;
   }
@@ -160,4 +169,49 @@ Future<int> _call(SessionFile file, String name, String json) async {
   );
   stdout.writeln(((answer['content'] as List).single as Map)['text']);
   return answer['isError'] == true ? 1 : 0;
+}
+
+Future<int> _watch(SessionFile file, List<String> args) async {
+  String? option(String name) {
+    final at = args.indexOf('--$name');
+    return at >= 0 && at + 1 < args.length ? args[at + 1] : null;
+  }
+
+  // One watcher per account here, or a task would be handed over twice.
+  Directory(file.dir).createSync(recursive: true);
+  final lock = await File('${file.dir}/watch.lock').open(mode: FileMode.write);
+  try {
+    await lock.lock(FileLock.exclusive);
+  } on FileSystemException {
+    stderr.writeln('Another caldo-mcp watch is running.');
+    return 1;
+  }
+
+  final home = Platform.environment['HOME'] ?? '/';
+  final dir = (option('dir') ?? home).replaceFirst(RegExp(r'^~(?=/|$)'), home);
+  final remote = SupabaseRemote(file);
+  final watcher = Watcher(
+    caldo: Caldo(remote),
+    groupName: option('group') ?? 'Claude',
+    dir: dir,
+    state: WatchState(File('${file.dir}/watch.json')),
+    hand: ClaudeCli(
+      command: option('claude') ?? 'claude',
+      permissionMode: option('permission-mode') ?? 'auto',
+      model: option('model'),
+      timeout: Duration(minutes: int.tryParse(option('timeout') ?? '') ?? 30),
+    ).call,
+    log: (line) => stdout.writeln(line),
+  );
+  try {
+    await remote.ready();
+  } catch (e) {
+    stderr.writeln('$e');
+    return 1;
+  }
+  stdout.writeln(
+    'Watching "${watcher.groupName}" for ${remote.name}; Claude works in '
+    '$dir.',
+  );
+  await watcher.run(heard: remote.changes());
 }

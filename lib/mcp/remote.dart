@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -217,6 +218,23 @@ class SupabaseRemote implements Remote {
       for (final r in rows as List)
         ServerRow.fromJson((r as Map).cast<String, Object?>()),
     ];
+  }
+
+  /// Says whenever the account's rows change on the server, as the app's
+  /// realtime channel hears it (`Account._listen`). The channel signs in
+  /// with the session held, and is told each renewed token by the client.
+  Stream<void> changes() {
+    final heard = StreamController<void>.broadcast();
+    _client
+        .channel('caldo-watch')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'sync_rows',
+          callback: (_) => heard.add(null),
+        )
+        .subscribe();
+    return heard.stream;
   }
 
   /// Ends this session on the server: its refresh token is spent for good.
