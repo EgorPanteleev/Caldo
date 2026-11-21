@@ -47,6 +47,9 @@ WorkingDirectory=%h
 ExecStart=$mcp watch$args
 Restart=on-failure
 RestartSec=30
+# Only the watcher itself is stopped: the tmux server its chats run in
+# stays, so a restart takes them up again rather than ending them.
+KillMode=process
 Environment="PATH=$HOME/.local/bin:$PATH"
 
 [Install]

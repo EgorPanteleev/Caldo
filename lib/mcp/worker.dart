@@ -251,20 +251,25 @@ class Worker {
       final pane = panes[Tmux.nameOf(ask.id)];
       final spec = _specOf(ask.agent);
       if (pane != null && kept != null && spec != null) {
-        _live[ask.id] =
+        final live = _live[ask.id] =
             _Live(
                 ask,
                 spec,
-                offset: kept['offset'] ?? 0,
-                events: kept['events'] ?? 0,
-                seq: kept['seq'] ?? 0,
+                // Skipped to the end of its files: what was read but not
+                // sent went with the last worker, and the snapshot below
+                // draws the screen whole instead.
+                offset: _lengthOf(tmux.outOf(ask.id)),
+                events: _lengthOf(tmux.eventsOf(ask.id)),
+                seq: await _seqAfter(ask.id, kept),
                 snap: kept['snap'] ?? -1,
                 lastSnap: kept['last_snap'] ?? -1,
               )
               ..state = row['state'] as String
               ..session = row['session'] as String?;
+        await _snapshot(ask.id, live);
         log('[${_short(ask.id)}] taken up again');
       } else {
+        state.chats.remove(ask.id);
         if (pane != null) await tmux.kill(ask.id);
         await _set(
           ask.id,
@@ -465,7 +470,7 @@ class Worker {
       // What is already in the files is from before, and sent or lost.
       offset: out.existsSync() ? out.lengthSync() : 0,
       events: events.existsSync() ? events.lengthSync() : 0,
-      seq: kept?['seq'] ?? await _nextSeq(ask.id),
+      seq: await _seqAfter(ask.id, kept),
       snap: kept?['snap'] ?? -1,
       lastSnap: kept?['last_snap'] ?? -1,
     )..session = resume ?? ask.session;
@@ -622,6 +627,18 @@ class Worker {
     } catch (e) {
       await _set(chat, 'idle', '$e');
     }
+  }
+
+  /// The seq [chat]'s next piece goes up as: past what was [kept] here and
+  /// past what the server has — a worker ended hard last saved its seq up
+  /// to a second before it sent more, and every piece after went up as one
+  /// the server already had, and was refused.
+  Future<int> _seqAfter(String chat, Map<String, int>? kept) async =>
+      max(kept?['seq'] ?? 0, await _nextSeq(chat));
+
+  static int _lengthOf(String path) {
+    final file = File(path);
+    return file.existsSync() ? file.lengthSync() : 0;
   }
 
   Future<int> _nextSeq(String chat) async {
