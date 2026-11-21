@@ -20,6 +20,8 @@ import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardGap;
 import '../widgets/screen_header.dart';
 import '../widgets/talk_view.dart';
 
+part 'agent_rules.dart';
+
 /// Chats with agents — Claude, Codex, a model of the user's own, a shell —
 /// each run in a terminal on one of the user's computers (a worker,
 /// `caldo-mcp watch`) and watched and typed into here.
@@ -130,6 +132,12 @@ class _AgentsScreenState extends State<AgentsScreen> {
           child: ScreenHeader(
             title: s.agents,
             actions: [
+              if (_agents.signedIn)
+                IconButton(
+                  icon: Icon(Icons.rule_rounded, color: p.muted),
+                  tooltip: s.agentRules,
+                  onPressed: () => openRules(context),
+                ),
               if (_agents.signedIn && _agents.workers.isNotEmpty)
                 IconButton(
                   icon: Icon(Icons.add, color: p.muted),
@@ -396,6 +404,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
   String? _permission;
   Set<String>? _plugins;
   final Set<String> _skills = {};
+
+  /// Chosen rules, by id: kept across agents, since a rule is the user's,
+  /// not the agent's.
+  final Set<String> _rules = {};
   bool _starting = false;
 
   @override
@@ -449,6 +461,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
       if (last['worker'] == _worker && last['dir'] is String) {
         _dir.text = last['dir'] as String;
       }
+      _rules.addAll([
+        for (final id in last['rules'] as List? ?? const []) '$id',
+      ]);
     });
   }
 
@@ -464,6 +479,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
           'effort': _effort,
           'permission': _permission,
           'dir': _dir.text.trim(),
+          'rules': _rules.toList(),
         }),
       );
     } catch (_) {}
@@ -557,6 +573,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
             ? null
             : plugins.toList(),
         skills: _skills.toList(),
+        rules: kind.rules ? [..._agents.rules.where(_chosen)] : const [],
         prompt: kind.prompt == 'none' ? '' : _prompt.text.trim(),
         cols: cols,
         rows: rows,
@@ -573,6 +590,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
   }
+
+  bool _chosen(AgentRule rule) => _rules.contains(rule.id);
 
   @override
   Widget build(BuildContext context) {
@@ -736,6 +755,35 @@ class _NewChatScreenState extends State<NewChatScreen> {
                                       : _skills.add(skill);
                                 }),
                               ),
+                          ],
+                        ),
+                      ],
+                      if (kind.rules) ...[
+                        _Section(s.agentRules),
+                        _Picks(
+                          children: [
+                            for (final rule in _agents.rules)
+                              _Pick(
+                                label: _ruleName(s, rule),
+                                selected: _chosen(rule),
+                                onTap: () => setState(() {
+                                  _chosen(rule)
+                                      ? _rules.remove(rule.id)
+                                      : _rules.add(rule.id);
+                                }),
+                              ),
+                            _Pick(
+                              label: _agents.rules.isEmpty
+                                  ? s.newRule
+                                  : s.editRules,
+                              icon: _agents.rules.isEmpty
+                                  ? Icons.add
+                                  : Icons.edit_outlined,
+                              selected: false,
+                              onTap: () => _agents.rules.isEmpty
+                                  ? openRule(context)
+                                  : openRules(context),
+                            ),
                           ],
                         ),
                       ],

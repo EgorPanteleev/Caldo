@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(13);
+select plan(16);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -45,6 +45,10 @@ select lives_ok(
 select throws_ok(
   $$update public.chats set mode = 'window'$$,
   '23514', null, 'a chat is in its chat or its terminal');
+select lives_ok(
+  $$insert into public.agent_rules (name, body) values
+    ('Tests', 'Run the tests before saying it is done.')$$,
+  'a rule is written');
 reset role;
 
 select pg_temp.act_as('22222222-2222-4222-8222-222222222222');
@@ -64,6 +68,13 @@ select throws_ok(
 select is(
   (select count(*)::int from public.chat_items), 0,
   'nor sees what was said in it');
+select is(
+  (select count(*)::int from public.agent_rules), 0,
+  'nor reads its rules');
+select throws_ok(
+  $$insert into public.agent_rules (name, user_id) values
+    ('x', '11111111-1111-4111-8111-111111111111')$$,
+  '42501', null, 'nor writes one for it');
 select throws_ok(
   $$insert into public.chat_items (chat_id, id, seq, kind, user_id) values
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'x', 1, 'text',

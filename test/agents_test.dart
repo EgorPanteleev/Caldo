@@ -429,6 +429,75 @@ void main() {
       );
       expect(argv, ['claude', '--resume', 'session-1']);
     });
+
+    test('is told the skills and the rules in one appended prompt', () {
+      final ask = ChatAsk.fromJson({
+        'id': 'x',
+        'agent': 'claude',
+        'skills': ['clean-code'],
+        'rules': [
+          {'name': 'Tests', 'body': 'Run them first.'},
+          {'name': 'Empty', 'body': '  '},
+        ],
+      });
+      final argv = launchOf(claude, ask);
+      expect(argv.where((w) => w == '--append-system-prompt'), hasLength(1));
+      final text = argv[argv.indexOf('--append-system-prompt') + 1];
+      expect(text, contains('clean-code'));
+      expect(text, contains('## Tests\n\nRun them first.'));
+      expect(text, isNot(contains('Empty')));
+    });
+  });
+
+  group('rules', () {
+    test('none, or only empty ones, are no rules', () {
+      expect(rulesText(null), isNull);
+      expect(rulesText([]), isNull);
+      expect(
+        rulesText([
+          {'name': 'x', 'body': ''},
+        ]),
+        isNull,
+      );
+    });
+
+    test("reach Codex as its developer instructions, a shell's not at all", () {
+      const codex = AgentSpec(
+        id: 'codex',
+        label: 'Codex',
+        command: [
+          'codex',
+          ['-c', 'developer_instructions={rules}'],
+          '{prompt}',
+        ],
+      );
+      final ask = ChatAsk.fromJson({
+        'id': 'x',
+        'agent': 'codex',
+        'prompt': 'Go',
+        'rules': [
+          {'name': '', 'body': 'Be brief.'},
+        ],
+      });
+      expect(codex.takesRules, isTrue);
+      final argv = launchOf(codex, ask);
+      expect(argv[1], '-c');
+      expect(argv[2], startsWith('developer_instructions='));
+      expect(argv[2], endsWith('Be brief.'));
+      expect(argv.last, 'Go');
+      expect(
+        launchOf(codex, ask, resume: 'th1'),
+        containsAllInOrder(['resume', '-c', argv[2], 'th1']),
+      );
+      expect(
+        launchOf(codex, const ChatAsk(id: 'x', agent: 'codex', prompt: 'Go')),
+        ['codex', 'Go'],
+      );
+
+      const shell = AgentSpec(id: 'shell', label: 'Shell', command: ['bash']);
+      expect(shell.takesRules, isFalse);
+      expect(launchOf(shell, ask), ['bash']);
+    });
   });
 
   group("a terminal's output", () {
@@ -526,6 +595,7 @@ void main() {
     tearDown(() {
       S.use('en');
       Agents.instance.workers = const [];
+      Agents.instance.rules = const [];
     });
 
     Future<void> pump(WidgetTester tester, String code, Widget home) async {
@@ -572,11 +642,18 @@ void main() {
                 permissions: ['auto', 'manual', 'acceptEdits', 'plan'],
                 plugins: ['clangd-lsp@claude-plugins-official'],
                 skills: ['clean-code'],
+                rules: true,
               ),
               AgentKind(id: 'shell', label: 'Shell', prompt: 'type'),
             ],
           ),
         ];
+        const rule = AgentRule(
+          id: 'r',
+          name: 'Run the whole test suite before saying anything is done',
+          body: 'Run `flutter test` and say what failed.',
+        );
+        Agents.instance.rules = const [rule];
         await pump(tester, code, const NewChatScreen());
         expect(find.text('opus'), findsOneWidget);
         // The form's list, not a field's own scroll inside it.
@@ -592,6 +669,16 @@ void main() {
           scrollable: list,
         );
         expect(find.text(s.chatStart), findsOneWidget);
+        expect(find.text(rule.name), findsOneWidget);
+        expect(find.text(s.editRules), findsOneWidget);
+
+        await pump(tester, code, const RulesScreen());
+        expect(find.text(rule.name), findsOneWidget);
+        await pump(tester, code, const RuleScreen(rule: rule));
+        expect(find.text(s.ruleBody.toUpperCase()), findsOneWidget);
+        Agents.instance.rules = const [];
+        await pump(tester, code, const RulesScreen());
+        expect(find.text(s.noRules), findsOneWidget);
       });
 
       testWidgets('draws a chat in ${S.names[code]}', (tester) async {

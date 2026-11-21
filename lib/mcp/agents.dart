@@ -7,7 +7,8 @@ import 'dart:io';
 /// Claude is known in full (its plugins, skills, permission modes, and the
 /// hooks that say when it is waiting); any other is a command line written
 /// out in `agents.json` beside the session ([AgentBook.read]), with
-/// `{model}`, `{effort}`, `{prompt}` and the rest put in where named.
+/// `{model}`, `{effort}`, `{prompt}`, `{rules}` and the rest put in where
+/// named.
 class AgentSpec {
   final String id;
   final String label;
@@ -48,6 +49,16 @@ class AgentSpec {
 
   bool get isClaude => id == 'claude';
 
+  /// Whether the rules chosen for a chat reach it: Claude's always, any
+  /// other's only if its command line has a place for them.
+  bool get takesRules =>
+      isClaude ||
+      command.any(
+        (part) => (part is List ? part : [part]).any(
+          (w) => (w as String).contains('{rules}'),
+        ),
+      );
+
   /// What the app is told: everything but the command line.
   Map<String, Object?> toJson() => {
     'id': id,
@@ -60,6 +71,7 @@ class AgentSpec {
     'skills': skills,
     'prompt': prompt,
     'talks': talks,
+    'rules': takesRules,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part
@@ -122,6 +134,7 @@ class AgentBook {
           'codex',
           ['-m', '{model}'],
           ['-c', 'model_reasoning_effort={effort}'],
+          ['-c', 'developer_instructions={rules}'],
           '{prompt}',
         ],
         efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
@@ -259,6 +272,10 @@ class ChatAsk {
   final List<String>? plugins;
   final List<String> skills;
   final String prompt;
+
+  /// The rules chosen for it, written out as the agent is told them; null
+  /// for none.
+  final String? rules;
   final String? session;
   final String? taskUuid;
   final int cols;
@@ -278,6 +295,7 @@ class ChatAsk {
     this.plugins,
     this.skills = const [],
     this.prompt = '',
+    this.rules,
     this.session,
     this.taskUuid,
     this.cols = 80,
@@ -296,6 +314,7 @@ class ChatAsk {
     plugins: json['plugins'] == null ? null : _strings(json['plugins']),
     skills: _strings(json['skills']),
     prompt: json['prompt'] as String? ?? '',
+    rules: rulesText(json['rules']),
     session: _blank(json['session']),
     taskUuid: json['task_uuid'] as String?,
     cols: json['cols'] as int? ?? 80,
@@ -305,6 +324,22 @@ class ChatAsk {
 }
 
 String? _blank(Object? s) => s is String && s.trim().isNotEmpty ? s : null;
+
+/// A chat's rules, `[{name, body}]` as the app keeps them on it, written
+/// out as one text: each under its name, the empty ones left out.
+String? rulesText(Object? rules) {
+  final parts = [
+    for (final rule in rules is List ? rules : const [])
+      if (rule case {'body': final String body} when body.trim().isNotEmpty)
+        switch (_blank(rule['name'])) {
+          final name? => '## $name\n\n${body.trim()}',
+          null => body.trim(),
+        },
+  ];
+  if (parts.isEmpty) return null;
+  return 'The user set these rules for this session. Follow them.\n\n'
+      '${parts.join('\n\n')}';
+}
 
 /// The words that start [ask] with [spec]: Claude's built here, every other
 /// from its command line. With [resume], Claude takes up that session.
@@ -325,6 +360,7 @@ List<String> launchOf(
       'resume',
       if (ask.model != null) ...['-m', ask.model!],
       if (ask.effort != null) ...['-c', 'model_reasoning_effort=${ask.effort}'],
+      if (ask.rules != null) ...['-c', 'developer_instructions=${ask.rules}'],
       resume,
     ];
   }
@@ -335,6 +371,7 @@ List<String> launchOf(
       'permission': ask.permission,
       'dir': ask.dir,
       'title': ask.title,
+      'rules': ask.rules,
       'prompt': spec.prompt == 'arg' ? first : null,
     });
   }
@@ -387,13 +424,21 @@ List<String> claudeChoices(
     if (resume != null) ...['--resume', resume],
     if (ask.title.isNotEmpty) ...['-n', ask.title],
     if (all.isNotEmpty) ...['--settings', jsonEncode(all)],
-    if (ask.skills.isNotEmpty) ...[
-      '--append-system-prompt',
+    if (_appended(ask) case final text?) ...['--append-system-prompt', text],
+  ];
+}
+
+/// What goes after Claude's own system prompt: the skills chosen, then the
+/// rules — one text, since Claude takes one.
+String? _appended(ChatAsk ask) {
+  final parts = [
+    if (ask.skills.isNotEmpty)
       'The user chose these skills for this session: '
           '${ask.skills.join(', ')}. Use them (the Skill tool) wherever '
           'they apply.',
-    ],
+    ?ask.rules,
   ];
+  return parts.isEmpty ? null : parts.join('\n\n');
 }
 
 /// The hooks that tell the worker how Claude stands: its session, a turn

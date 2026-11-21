@@ -25,6 +25,9 @@ class AgentKind {
   /// Whether it can be a chat drawn here, not only a terminal.
   final bool talks;
 
+  /// Whether the rules chosen for a chat reach it.
+  final bool rules;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -36,6 +39,7 @@ class AgentKind {
     this.skills = const [],
     this.prompt = 'arg',
     this.talks = false,
+    this.rules = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -49,6 +53,24 @@ class AgentKind {
     skills: _strings(json['skills']),
     prompt: json['prompt'] as String? ?? 'arg',
     talks: json['talks'] == true,
+    rules: json['rules'] == true,
+  );
+}
+
+/// Standing instructions for agents, written here once and chosen for each
+/// chat as it starts; the chat keeps its own copy of their words.
+@immutable
+class AgentRule {
+  final String id;
+  final String name;
+  final String body;
+
+  const AgentRule({required this.id, required this.name, required this.body});
+
+  factory AgentRule.fromJson(Map json) => AgentRule(
+    id: json['id'] as String,
+    name: json['name'] as String? ?? '',
+    body: json['body'] as String? ?? '',
   );
 }
 
@@ -213,6 +235,7 @@ class Agents extends ChangeNotifier {
 
   List<AgentWorker> workers = const [];
   List<Chat> chats = const [];
+  List<AgentRule> rules = const [];
   bool loaded = false;
   Object? error;
 
@@ -228,6 +251,7 @@ class Agents extends ChangeNotifier {
   void watch() {
     if (_watching++ > 0) return;
     unawaited(load());
+    unawaited(loadRules());
     final client = _client;
     if (client == null) return;
     _channel = client
@@ -294,6 +318,53 @@ class Agents extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Read when watching begins and kept by this device's own edits: rules
+  /// change seldom, and never on their own.
+  Future<void> loadRules() async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      final r = await client
+          .from('agent_rules')
+          .select()
+          .order('name', ascending: true);
+      rules = [for (final row in r) AgentRule.fromJson(row)];
+      notifyListeners();
+    } catch (_) {
+      // Kept as they were; the next watch reads them again.
+    }
+  }
+
+  AgentRule? rule(String id) => rules.where((r) => r.id == id).firstOrNull;
+
+  /// [name] and [body] as rule [id], or as a new rule without one.
+  Future<void> saveRule({
+    String? id,
+    required String name,
+    required String body,
+  }) async {
+    final fields = {'name': name, 'body': body};
+    final query = id == null
+        ? _client!.from('agent_rules').insert(fields)
+        : _client!.from('agent_rules').update(fields).eq('id', id);
+    final saved = AgentRule.fromJson(await query.select().single());
+    rules = [
+      for (final r in rules)
+        if (r.id != saved.id) r,
+      saved,
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    notifyListeners();
+  }
+
+  Future<void> removeRule(String id) async {
+    await _client!.from('agent_rules').delete().eq('id', id);
+    rules = [
+      for (final r in rules)
+        if (r.id != id) r,
+    ];
+    notifyListeners();
+  }
+
   /// The latest chat a task was done in, if any.
   Future<String?> chatOfTask(String taskUuid) async {
     final rows = await _client
@@ -320,6 +391,7 @@ class Agents extends ChangeNotifier {
     String? permission,
     List<String>? plugins,
     List<String> skills = const [],
+    List<AgentRule> rules = const [],
     String prompt = '',
     int cols = 80,
     int rows = 24,
@@ -338,6 +410,12 @@ class Agents extends ChangeNotifier {
           'permission': permission,
           'plugins': plugins,
           'skills': skills,
+          // Left out when none, so a server without the column still
+          // starts a chat.
+          if (rules.isNotEmpty)
+            'rules': [
+              for (final r in rules) {'name': r.name, 'body': r.body},
+            ],
           'prompt': prompt,
           'cols': cols.clamp(10, 500),
           'rows': rows.clamp(5, 300),

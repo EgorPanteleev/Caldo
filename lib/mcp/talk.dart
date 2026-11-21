@@ -517,6 +517,9 @@ class CodexTalk extends Talk {
       'approvalPolicy': approval,
       'sandbox': sandbox,
       'model': ?ask.model,
+      // A thread keeps those it began with: a resumed one is not told
+      // them again.
+      'developerInstructions': ?ask.rules,
     };
     Map? result;
     if (resume != null) {
