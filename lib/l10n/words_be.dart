@@ -206,6 +206,8 @@ const Map<String, Object> be = {
   'remindDayBefore': "Напомніць напярэдадні",
   'reminderLabel': "Напамін",
   'noReminder': "Без напаміну",
+  'claudeLabel': "Claude",
+  'claudeNone': "Не адпраўляць",
   'sectionPriority': "ПРЫЯРЫТЭТ",
   'priority.none': "Няма",
   'priority.low': "Нізкі",

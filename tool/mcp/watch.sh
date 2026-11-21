@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Runs `caldo-mcp watch` as a systemd user service, so tasks put in Caldo's
-# "Claude" group are handed to Claude on this computer.
+# Runs `caldo-mcp watch` as a systemd user service, so tasks handed to a
+# Claude model in Caldo are done by Claude on this computer.
 #
 #   tool/mcp/watch.sh [watch options]   install (or reinstall) and start it
 #   tool/mcp/watch.sh --remove          stop it and take it out
@@ -33,7 +33,7 @@ for a in "$@"; do args+=" $(printf '%q' "$a")"; done
 mkdir -p "$(dirname "$unit")"
 cat > "$unit" <<UNIT
 [Unit]
-Description=Caldo: hand Claude the tasks in its group
+Description=Caldo: hand Claude the tasks handed to it in the app
 After=network-online.target
 Wants=network-online.target
 

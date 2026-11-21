@@ -207,6 +207,8 @@ const Map<String, Object> uk = {
   'remindDayBefore': "Нагадати напередодні",
   'reminderLabel': "Нагадування",
   'noReminder': "Без нагадування",
+  'claudeLabel': "Claude",
+  'claudeNone': "Не надсилати",
   'sectionPriority': "ПРІОРИТЕТ",
   'priority.none': "Немає",
   'priority.low': "Низький",

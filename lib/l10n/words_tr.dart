@@ -202,6 +202,8 @@ const Map<String, Object> tr = {
   'remindDayBefore': "Bir gün önce hatırlat",
   'reminderLabel': "Hatırlatıcı",
   'noReminder': "Hatırlatma yok",
+  'claudeLabel': "Claude",
+  'claudeNone': "Gönderme",
   'sectionPriority': "ÖNCELİK",
   'priority.none': "Yok",
   'priority.low': "Düşük",

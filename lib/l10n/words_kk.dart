@@ -202,6 +202,8 @@ const Map<String, Object> kk = {
   'remindDayBefore': "Бір күн бұрын еске салу",
   'reminderLabel': "Еске салу",
   'noReminder': "Еске салусыз",
+  'claudeLabel': "Claude",
+  'claudeNone': "Жібермеу",
   'sectionPriority': "БАСЫМДЫҚ",
   'priority.none': "Жоқ",
   'priority.low': "Төмен",

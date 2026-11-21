@@ -209,6 +209,8 @@ const Map<String, Object> fr = {
   'remindDayBefore': "Rappel la veille",
   'reminderLabel': "Rappel",
   'noReminder': "Pas de rappel",
+  'claudeLabel': "Claude",
+  'claudeNone': "Ne pas envoyer",
   'sectionPriority': "PRIORITÉ",
   'priority.none': "Aucune",
   'priority.low': "Basse",

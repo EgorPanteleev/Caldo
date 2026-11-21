@@ -129,6 +129,27 @@ void main() {
     },
   );
 
+  test('a task handed to Claude here is handed over on the phone', () async {
+    await run('add_task', {'title': 'Tidy the downloads', 'claude': 'haiku'});
+    await phone.round();
+    expect((await phone.named('Tidy the downloads')).claude, 'haiku');
+    expect(
+      await run('task', {'id': idOf('Tidy the downloads')}),
+      contains('Handed to Claude: haiku'),
+    );
+
+    await run('update_task', {
+      'id': idOf('Tidy the downloads'),
+      'claude': 'none',
+    });
+    await phone.round();
+    expect((await phone.named('Tidy the downloads')).claude, isNull);
+    await expectLater(
+      run('update_task', {'id': idOf('Tidy the downloads'), 'claude': 'gpt'}),
+      throwsA(isA<Refusal>()),
+    );
+  });
+
   test('the agenda reads what the phone has, day by day', () async {
     final at = DateTime.now().millisecondsSinceEpoch;
     await phone.db.insert(

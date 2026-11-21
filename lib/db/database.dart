@@ -19,7 +19,7 @@ class AppDatabase {
   factory AppDatabase.named(String name) => AppDatabase._(name);
 
   final String _dbName;
-  static const _dbVersion = 13;
+  static const _dbVersion = 14;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -81,7 +81,8 @@ class AppDatabase {
             remind_before INTEGER,
             snoozed_until INTEGER,
             started_at INTEGER,
-            duration INTEGER
+            duration INTEGER,
+            claude TEXT
           )
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
@@ -173,6 +174,10 @@ class AppDatabase {
         if (oldVersion < 13) {
           // v12 -> birthdays and other days of the user's own.
           await _addSpecialDays(db);
+        }
+        if (oldVersion < 14) {
+          // v13 -> a task can be handed to Claude, with the model to use.
+          await db.execute('ALTER TABLE $_tasks ADD COLUMN claude TEXT');
         }
       },
     );

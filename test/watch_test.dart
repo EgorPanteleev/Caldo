@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:caldo/mcp/tools.dart';
 import 'package:caldo/mcp/watch.dart';
 import 'package:caldo/models/task.dart';
-import 'package:caldo/models/task_list.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -41,14 +40,9 @@ void main() {
     },
   );
 
-  Future<int> claudeGroup() async =>
-      (await phone.db.insertList(
-        TaskList(name: 'Claude', styleId: 'violet', createdAt: 1),
-      )).id!;
-
   Future<void> add(
-    int group,
     String title, {
+    String? claude = 'opus',
     DateTime? due,
     bool hasTime = false,
     String notes = '',
@@ -56,7 +50,8 @@ void main() {
     bool done = false,
   }) => phone.db.insert(
     Task(
-      listId: group,
+      listId: 1,
+      claude: claude,
       title: title,
       notes: notes,
       dueAt: due?.millisecondsSinceEpoch,
@@ -85,9 +80,8 @@ void main() {
     scratch.deleteSync(recursive: true);
   });
 
-  test('a task put in the group is worked on, answered and ticked', () async {
-    final group = await claudeGroup();
-    await add(group, 'Tidy the downloads', notes: 'Only the PDFs');
+  test('a task handed to Claude is worked on, answered and ticked', () async {
+    await add('Tidy the downloads', notes: 'Only the PDFs', claude: 'sonnet');
     await phone.round();
 
     Task? during;
@@ -102,6 +96,7 @@ void main() {
     expect(asked.single.prompt, contains('Task: Tidy the downloads'));
     expect(asked.single.prompt, contains('Only the PDFs'));
     expect(asked.single.dir, scratch.path);
+    expect(asked.single.model, 'sonnet');
     expect(asked.single.resume, isNull);
 
     await phone.round();
@@ -113,20 +108,18 @@ void main() {
     expect(await phone.count('select count(*) from completions'), 1);
   });
 
-  test('only what waits in the group, and is due, is taken up', () async {
-    final group = await claudeGroup();
-    await add(1, 'Not for Claude');
-    await add(group, 'Tomorrow', due: today.add(const Duration(days: 1)));
+  test('only what is handed over, waiting and due, is taken up', () async {
+    await add('Not for Claude', claude: null);
+    await add('Tomorrow', due: today.add(const Duration(days: 1)));
     await add(
-      group,
       'Later today',
       due: now.add(const Duration(hours: 1)),
       hasTime: true,
     );
-    await add(group, 'Under way', startedAt: 1);
-    await add(group, 'Finished', done: true);
-    await add(group, 'Today', due: today);
-    await add(group, 'Overdue', due: today.subtract(const Duration(days: 2)));
+    await add('Under way', startedAt: 1);
+    await add('Finished', done: true);
+    await add('Today', due: today);
+    await add('Overdue', due: today.subtract(const Duration(days: 2)));
     await phone.round();
 
     expect(await watcher().once(), 2);
@@ -136,18 +129,10 @@ void main() {
     ]);
   });
 
-  test('without the group nothing happens', () async {
-    await add(1, 'Anything');
-    await phone.round();
-    expect(await watcher().once(), 0);
-    expect(asked, isEmpty);
-  });
-
   test(
     'a task not done stays In progress; handed back, its session goes on',
     () async {
-      final group = await claudeGroup();
-      await add(group, 'Fix the build', notes: 'in: ${Directory.systemTemp.path}');
+      await add('Fix the build', notes: 'in: ${Directory.systemTemp.path}');
       await phone.round();
       answer = (_) => const Answer(
         false,
@@ -170,9 +155,9 @@ void main() {
 
       // The user adds a word and moves it back.
       await phone.db.update(
-        task.toStage(Stage.notStarted, 0).copyWith(
-          notes: '${task.notes}\n\nUse sqlite.',
-        ),
+        task
+            .toStage(Stage.notStarted, 0)
+            .copyWith(notes: '${task.notes}\n\nUse sqlite.'),
       );
       await phone.round();
       answer = (_) => const Answer(true, 'Fixed.', session: 's1');
@@ -188,8 +173,7 @@ void main() {
   );
 
   test('a folder that is not there is said, not worked in', () async {
-    final group = await claudeGroup();
-    await add(group, 'Somewhere', notes: 'in: /no/such/folder');
+    await add('Somewhere', notes: 'in: /no/such/folder');
     await phone.round();
     expect(await watcher().once(), 1);
     expect(asked, isEmpty);
@@ -200,8 +184,7 @@ void main() {
   });
 
   test('a task left In progress by a stopped watcher is noted', () async {
-    final group = await claudeGroup();
-    await add(group, 'Cut short');
+    await add('Cut short');
     await phone.round();
     // Claude is never heard back from: the watcher stops part way.
     final first = watcher();

@@ -207,6 +207,8 @@ const Map<String, Object> pl = {
   'remindDayBefore': "Przypomnij dzień wcześniej",
   'reminderLabel': "Przypomnienie",
   'noReminder': "Bez przypomnienia",
+  'claudeLabel': "Claude",
+  'claudeNone': "Nie wysyłaj",
   'sectionPriority': "PRIORYTET",
   'priority.none': "Brak",
   'priority.low': "Niski",

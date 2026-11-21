@@ -178,7 +178,11 @@ class _CalendarScreenState extends State<CalendarScreen>
   }
 
   /// Creates an all-day task on the selected day straight from the field.
-  Future<void> _addQuickTask(int? group, List<Attachment> attached) async {
+  Future<void> _addQuickTask(
+    int? group,
+    List<Attachment> attached,
+    String? claude,
+  ) async {
     final title = _quickAdd.text;
     _quickAdd.clear();
     await quickAddTask(
@@ -187,6 +191,7 @@ class _CalendarScreenState extends State<CalendarScreen>
       title: title,
       group: group,
       attachments: attached,
+      claude: claude,
     );
   }
 

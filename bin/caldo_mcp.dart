@@ -8,9 +8,9 @@
 //   caldo-mcp status
 //   caldo-mcp call <tool> ['{"json": "arguments"}']
 //                             run one tool from a shell
-//   caldo-mcp watch [--group Claude] [--dir ~] [--permission-mode auto]
-//                   [--model M] [--timeout 30] [--claude claude]
-//                             hand Claude the tasks put in a group, and
+//   caldo-mcp watch [--dir ~] [--permission-mode auto] [--timeout 30]
+//                   [--claude claude]
+//                             hand Claude the tasks the app hands it, and
 //                             write its answers back (tool/mcp/watch.sh
 //                             makes it a service)
 //
@@ -46,8 +46,8 @@ Future<void> main(List<String> args) async {
     default:
       stderr.writeln(
         'Usage: caldo-mcp [serve | login [--server URL] | logout | status | '
-        'call <tool> [json] | watch [--group G] [--dir D] '
-        '[--permission-mode M] [--model M] [--timeout MIN] [--claude PATH]]',
+        'call <tool> [json] | watch [--dir D] [--permission-mode M] '
+        '[--timeout MIN] [--claude PATH]]',
       );
       exitCode = 64;
   }
@@ -192,13 +192,11 @@ Future<int> _watch(SessionFile file, List<String> args) async {
   final remote = SupabaseRemote(file);
   final watcher = Watcher(
     caldo: Caldo(remote),
-    groupName: option('group') ?? 'Claude',
     dir: dir,
     state: WatchState(File('${file.dir}/watch.json')),
     hand: ClaudeCli(
       command: option('claude') ?? 'claude',
       permissionMode: option('permission-mode') ?? 'auto',
-      model: option('model'),
       timeout: Duration(minutes: int.tryParse(option('timeout') ?? '') ?? 30),
     ).call,
     log: (line) => stdout.writeln(line),
@@ -210,8 +208,8 @@ Future<int> _watch(SessionFile file, List<String> args) async {
     return 1;
   }
   stdout.writeln(
-    'Watching "${watcher.groupName}" for ${remote.name}; Claude works in '
-    '$dir.',
+    'Watching for tasks handed to Claude, for ${remote.name}; Claude '
+    'works in $dir.',
   );
   await watcher.run(heard: remote.changes());
 }

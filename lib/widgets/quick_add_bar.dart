@@ -30,21 +30,25 @@ const quickAddGroupsKey = Key('quick-add-groups');
 /// Identifies the plus that attaches a photo or a file to the task typed.
 const quickAddAttachKey = Key('quick-add-attach');
 
+/// Identifies the chip that hands the task typed to a Claude model.
+const quickAddClaudeKey = Key('quick-add-claude');
+
 /// The field under a day's tasks: type a title, confirm, and it lands on the
 /// day in view without opening the full form. Used by the calendar and by the
 /// day card that opens over it.
 ///
 /// Opened, it is two rows: the title on top, and under it a plus that
-/// attaches photos and files, the group the task goes into, and the tick
-/// that files it.
+/// attaches photos and files, the group the task goes into, the Claude model
+/// it is handed to, if any, and the tick that files it.
 class QuickAddBar extends StatefulWidget {
   final DateTime date;
   final TextEditingController controller;
 
   /// Files what has been typed, into the group picked under the field — or,
   /// with null, the one a task made on this screen goes into anyway — with
-  /// whatever was attached to it.
-  final void Function(int? group, List<Attachment> attached) onSubmit;
+  /// whatever was attached to it, handed to the [Task.claude] model picked.
+  final void Function(int? group, List<Attachment> attached, String? claude)
+  onSubmit;
 
   /// Opens the full form. The button is a plus until the field is opened, and
   /// a plus has to lead somewhere — pressing it on an empty field used to do
@@ -88,11 +92,16 @@ class _QuickAddBarState extends State<QuickAddBar> {
   /// (`Attachments.sweep`), as the form's are.
   final List<Attachment> _attached = [];
 
+  /// The model the task being typed is handed to, or null; let go of on the
+  /// same terms as [_group].
+  String? _claude;
+
   void _focused() {
     if (!mounted) return;
     setState(() {
       if (_focus.hasFocus && !_open && !_raising) {
         _group = null;
+        _claude = null;
         _attached.clear();
       }
       _open = _focus.hasFocus;
@@ -145,6 +154,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
     }
     if (!_open) {
       _group = null;
+      _claude = null;
       _attached.clear();
     }
     setState(() => _raising = true);
@@ -198,9 +208,15 @@ class _QuickAddBarState extends State<QuickAddBar> {
     widget.onSubmit(
       lists.any((l) => l.id == _group) ? _group : null,
       List.of(_attached),
+      _claude,
     );
     // Kept with nothing typed: nothing was filed to take them.
-    if (filing) setState(_attached.clear);
+    if (filing) {
+      setState(() {
+        _attached.clear();
+        _claude = null;
+      });
+    }
     // A field that has filed its task lets go of the focus, and goes from
     // the screen at once; Android is not to carry it down on the keys.
     if (filing) CarriedField.of(context)?.drop();
@@ -311,15 +327,24 @@ class _QuickAddBarState extends State<QuickAddBar> {
               ),
             const SizedBox(width: 8),
             Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: picking
-                    ? _GroupButton(
+              child: Row(
+                children: [
+                  if (picking) ...[
+                    Flexible(
+                      child: _GroupButton(
                         key: quickAddGroupsKey,
                         picked: _group,
                         onPick: (id) => setState(() => _group = id),
-                      )
-                    : null,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  _ClaudeButton(
+                    key: quickAddClaudeKey,
+                    picked: _claude,
+                    onPick: (model) => setState(() => _claude = model),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 8),
@@ -602,6 +627,82 @@ class _GroupButton extends StatelessWidget {
   }
 }
 
+/// The chip beside the group's: the Claude model the task is handed to on
+/// the user's computer (`caldo-mcp watch`), or none, as it starts. Only a
+/// mark while none is picked, so the group's name keeps the room.
+class _ClaudeButton extends StatelessWidget {
+  final String? picked;
+  final ValueChanged<String?> onPick;
+
+  const _ClaudeButton({super.key, required this.picked, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    final model = picked;
+    return _Popup(
+      anchor: (toggle) => Tooltip(
+        message: s.claudeLabel,
+        child: Material(
+          type: MaterialType.transparency,
+          shape: StadiumBorder(
+            side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              toggle();
+            },
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(9, 8, model == null ? 9 : 11, 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    model == null
+                        ? Icons.auto_awesome_outlined
+                        : Icons.auto_awesome,
+                    size: 17,
+                    color: model == null ? p.muted : p.text,
+                  ),
+                  if (model != null) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      ClaudeModels.name(model),
+                      maxLines: 1,
+                      style: TextStyle(color: p.text, fontSize: 13.5),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      menu: (close) => _Menu(
+        children: [
+          for (final m in [null, ...ClaudeModels.all])
+            _MenuItem(
+              leading: Icon(
+                m == null ? Icons.block : Icons.auto_awesome,
+                size: 17,
+                color: p.muted,
+              ),
+              label: m == null ? s.claudeNone : ClaudeModels.name(m),
+              chosen: m == model,
+              onTap: () {
+                close();
+                onPick(m);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The plus under the title, which attaches a photo or a file to the task
 /// as the form's Attachments do.
 class _AttachButton extends StatelessWidget {
@@ -862,6 +963,7 @@ Future<void> quickAddTask(
   required String title,
   int? group,
   List<Attachment> attachments = const [],
+  String? claude,
 }) async {
   final trimmed = title.trim();
   if (trimmed.isEmpty) return;
@@ -873,6 +975,7 @@ Future<void> quickAddTask(
       dueAt: dayOf(day).millisecondsSinceEpoch,
       createdAt: DateTime.now().millisecondsSinceEpoch,
       attachments: attachments,
+      claude: claude,
     ),
   );
 }

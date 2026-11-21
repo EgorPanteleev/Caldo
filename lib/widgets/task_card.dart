@@ -288,6 +288,10 @@ class TaskCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                         ],
+                        if (task.claude != null) ...[
+                          Icon(Icons.auto_awesome, size: 14, color: p.faint),
+                          const SizedBox(width: 4),
+                        ],
                         Text(
                           _when(
                             S.of(context),
@@ -343,6 +347,10 @@ class TaskCard extends StatelessWidget {
                                       count: task.attachments.length,
                                       color: p.muted,
                                     ),
+                                  ],
+                                  if (task.claude case final model?) ...[
+                                    const SizedBox(width: 8),
+                                    ClaudeMark(model: model, color: p.muted),
                                   ],
                                   if (count != null) ...[
                                     const SizedBox(width: 10),
@@ -632,6 +640,31 @@ const _leave = Duration(milliseconds: 280);
 /// screen would otherwise show it as one more open task. Jira's status
 /// lozenge, in Jira's blue for it: small capitals on a tint of their own
 /// colour, so it reads as a status rather than as the task's colour.
+/// A card's word that the task is handed to Claude, and to which model.
+class ClaudeMark extends StatelessWidget {
+  final String model;
+  final Color color;
+
+  const ClaudeMark({super.key, required this.model, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    key: claudeMarkKey,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(Icons.auto_awesome, size: 13, color: color),
+      const SizedBox(width: 3),
+      Text(
+        ClaudeModels.name(model),
+        maxLines: 1,
+        style: TextStyle(color: color, fontSize: 12.5),
+      ),
+    ],
+  );
+}
+
+const claudeMarkKey = Key('claude-mark');
+
 class InProgressBadge extends StatelessWidget {
   static const color = Color(0xFF579DFF);
 

@@ -26,7 +26,7 @@ network is used only for the GitHub release check/download and Supabase sync
 lib/
   data/holidays.dart       public holidays, computed on device
   l10n/                    strings.dart (S) + words_*.dart, a table per language
-  db/database.dart         schema v13 (+ migrations); db/sync_store.dart
+  db/database.dart         schema v14 (+ migrations); db/sync_store.dart
   models/                  task (Repeat, Priority), task_list (ListStyle,
                            colorOfTask), completion, secret, special_day
   providers/               task, settings, events, vault
@@ -812,23 +812,29 @@ over after it.
   with an account made by the admin API).
 - **The watcher** (`caldo-mcp watch`, `lib/mcp/watch.dart`; a systemd user
   service `caldo-watch` from `tool/mcp/watch.sh`, options passed through,
-  the installing shell's PATH baked in): asked for so tasks can be sent
-  from the app to Claude on the PC. **A task is sent by putting it in a
-  group named "Claude"** — nothing new in the app, and the board says how
-  it stands: Not started waits, In progress while `claude -p` works on it
-  (prompt on stdin, `--output-format json`, `--permission-mode auto` by
-  default), then the answer is appended to the notes ("— Claude, d.mm
-  hh:mm —", cut at 6000) and it is ticked as the app ticks. Not done (an
-  error, a timeout, a folder not there) stays In progress with the reason
-  and the tools refused; moved back to Not started it runs again, resuming
-  its session (`watch.json` beside the session keeps task → session and
-  folder; not for repeating tasks). A dated task waits for its day or
-  time. `in: ~/folder` in the notes picks where Claude works, else
-  `--dir` (home). One task at a time; one watcher (`watch.lock`); a task
-  left In progress by a stopped watcher gets an "Interrupted" note on the
-  next start. Woken by realtime on `sync_rows` (`SupabaseRemote.changes`,
-  then 2s for the phone's pushes to land), polled each minute anyway.
-  Tried end to end on the local stack: answered within 10s of the add.
+  the installing shell's PATH baked in; rerun both scripts after changing
+  it): asked for so tasks can be sent from the app to Claude on the PC.
+  **A task is sent by naming a model on it** (`Task.claude`, schema v14:
+  opus, sonnet, haiku or fable, `ClaudeModels`; null keeps it), from a ✦
+  chip beside the add field's group chip (`_ClaudeButton`, back to none
+  each opening), a row in the form, or the MCP tools' `claude`; the card
+  shows `ClaudeMark`. A "Claude" group was built first and asked off: no
+  separate group. The board says how it stands: Not started waits, In
+  progress while `claude -p --model <it>` works on it (prompt on stdin,
+  `--output-format json`, `--permission-mode auto` by default), then the
+  answer is appended to the notes ("— Claude, d.mm hh:mm —", cut at 6000)
+  and it is ticked as the app ticks. Not done (an error, a timeout, a
+  folder not there) stays In progress with the reason and the tools
+  refused; moved back to Not started it runs again, resuming its session
+  (`watch.json` beside the session keeps task → session and folder; not
+  for repeating tasks, which run afresh each round). A dated task waits
+  for its day or time. `in: ~/folder` in the notes picks where Claude
+  works, else `--dir` (home). One task at a time; one watcher
+  (`watch.lock`); a task left In progress by a stopped watcher gets an
+  "Interrupted" note on the next start. Woken by realtime on `sync_rows`
+  (`SupabaseRemote.changes`, then 2s for the phone's pushes to land),
+  polled each minute anyway. Tried end to end on the local stack: answered
+  within 10s of the add, by the model named.
 
 ## Linux
 
@@ -914,7 +920,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 364 tests, all passing; keep it so. `supabase test db` — 33.
+`flutter test` — 365 tests, all passing; keep it so. `supabase test db` — 33.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

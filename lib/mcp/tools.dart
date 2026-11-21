@@ -260,6 +260,7 @@ class Caldo {
     }
     if (!t.repeat.isNone) out.writeln('Repeats: ${describeRepeat(t.repeat)}');
     out.writeln('Reminder: ${_reminder(t)}');
+    if (t.claude != null) out.writeln('Handed to Claude: ${t.claude}');
     if (t.subtasks.isNotEmpty) {
       out.writeln('Checklist:');
       for (final (i, s) in t.subtasks.indexed) {
@@ -611,6 +612,16 @@ class Caldo {
           ? task.copyWith(clearRemindBefore: true)
           : task.copyWith(remindBefore: lead < 0 ? Task.silent : lead);
     }
+    if (args.containsKey('claude')) {
+      final model = args['claude'];
+      if (model == null || model == 'none') {
+        task = task.copyWith(clearClaude: true);
+      } else if (ClaudeModels.all.contains(model)) {
+        task = task.copyWith(claude: model as String);
+      } else {
+        throw Refusal('claude is ${ClaudeModels.all.join(', ')} or none.');
+      }
+    }
     if (args['checklist'] case final List steps) {
       task = task.copyWith(
         subtasks: [
@@ -734,6 +745,7 @@ class Caldo {
       if (t.subtasks.isNotEmpty)
         'checklist ${t.subtasksDone}/${t.subtasks.length}',
       if (t.stage == Stage.inProgress) 'in progress',
+      if (t.claude != null) 'for Claude',
       if (t.notes.isNotEmpty) 'has notes',
       if (t.attachments.isNotEmpty) '${t.attachments.length} attached',
     ];
@@ -894,6 +906,14 @@ class Caldo {
       'description':
           'Minutes before its time it is announced; all-day tasks '
           'count whole days (1440). -1 never; null follows Settings.',
+    },
+    'claude': {
+      'type': ['string', 'null'],
+      'enum': [...ClaudeModels.all, 'none', null],
+      'description':
+          'Hands the task to Claude on the user\'s computer with this '
+          'model (caldo-mcp watch does it once due, and writes the answer '
+          'into the notes); none takes it back.',
     },
     'checklist': {
       'type': 'array',

@@ -559,6 +559,8 @@ class S {
   String get remindDayBefore => _word('remindDayBefore');
   String get reminderLabel => _word('reminderLabel');
   String get noReminder => _word('noReminder');
+  String get claudeLabel => _word('claudeLabel');
+  String get claudeNone => _word('claudeNone');
   String get sectionPriority => _word('sectionPriority');
   String priorityName(Priority priority) => _word('priority.${priority.name}');
   String get sectionColour => _word('sectionColour');

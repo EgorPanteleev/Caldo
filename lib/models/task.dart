@@ -262,6 +262,16 @@ enum Priority {
       : Priority.values[index];
 }
 
+/// The models a task can be handed to ([Task.claude]), by the names
+/// `claude --model` takes, which stand for the latest of each.
+abstract final class ClaudeModels {
+  static const all = ['opus', 'sonnet', 'haiku', 'fable'];
+
+  /// How a model is written: its name, which no language translates.
+  static String name(String model) =>
+      model.isEmpty ? model : model[0].toUpperCase() + model.substring(1);
+}
+
 /// Where a task stands on the board: not begun, under way, or finished.
 /// Only the middle one is stored ([Task.startedAt]); the other two are
 /// whether the task is done.
@@ -428,6 +438,12 @@ class Task {
   /// remember.
   final int? duration;
 
+  /// The Claude model the task is handed to on the user's computer, by
+  /// the name `claude --model` takes ([ClaudeModels]), or null for one kept
+  /// to oneself. `caldo-mcp watch` takes such a task up once it is due and
+  /// not started, and writes the answer into its notes.
+  final String? claude;
+
   /// [remindBefore] for a task that is never announced.
   static const silent = -1;
 
@@ -451,6 +467,7 @@ class Task {
     this.snoozedUntil,
     this.startedAt,
     this.duration,
+    this.claude,
   });
 
   /// When a timed task with a length ends, or null.
@@ -590,6 +607,8 @@ class Task {
     bool clearStartedAt = false,
     int? duration,
     bool clearDuration = false,
+    String? claude,
+    bool clearClaude = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -615,6 +634,7 @@ class Task {
           : (snoozedUntil ?? this.snoozedUntil),
       startedAt: clearStartedAt ? null : (startedAt ?? this.startedAt),
       duration: clearDuration ? null : (duration ?? this.duration),
+      claude: clearClaude ? null : (claude ?? this.claude),
     );
   }
 
@@ -639,6 +659,7 @@ class Task {
       'snoozed_until': snoozedUntil,
       'started_at': startedAt,
       'duration': duration,
+      'claude': claude,
     };
   }
 
@@ -666,6 +687,7 @@ class Task {
       snoozedUntil: map['snoozed_until'] as int?,
       startedAt: map['started_at'] as int?,
       duration: map['duration'] as int?,
+      claude: map['claude'] as String?,
     );
   }
 

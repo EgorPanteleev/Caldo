@@ -6,17 +6,20 @@ import '../models/task.dart';
 import 'book.dart';
 import 'tools.dart';
 
-/// What Claude is asked to do for one task, and where.
+/// What Claude is asked to do for one task, where, and by which model.
 class Errand {
   final String prompt;
 
   /// The folder Claude works in.
   final String dir;
 
+  /// The model the task names ([Task.claude]).
+  final String model;
+
   /// The session to carry on, for a task handed back after an answer.
   final String? resume;
 
-  const Errand(this.prompt, this.dir, {this.resume});
+  const Errand(this.prompt, this.dir, this.model, {this.resume});
 }
 
 /// What came back from Claude.
@@ -28,12 +31,7 @@ class Answer {
   /// The tools Claude was not let use, as it named them.
   final List<String> refused;
 
-  const Answer(
-    this.ok,
-    this.text, {
-    this.session,
-    this.refused = const [],
-  });
+  const Answer(this.ok, this.text, {this.session, this.refused = const []});
 }
 
 /// Runs `claude -p` on an errand, nobody at the keys: what it may do
@@ -42,13 +40,11 @@ class Answer {
 class ClaudeCli {
   final String command;
   final String permissionMode;
-  final String? model;
   final Duration timeout;
 
   const ClaudeCli({
     this.command = 'claude',
     this.permissionMode = 'auto',
-    this.model,
     this.timeout = const Duration(minutes: 30),
   });
 
@@ -59,7 +55,8 @@ class ClaudeCli {
       'json',
       '--permission-mode',
       permissionMode,
-      if (model != null) ...['--model', model!],
+      '--model',
+      errand.model,
       if (errand.resume != null) ...['--resume', errand.resume!],
     ], workingDirectory: errand.dir);
     // On stdin rather than as an argument: a task's notes may be long.
@@ -145,20 +142,18 @@ class WatchState {
   }
 }
 
-/// Hands Claude the tasks put in one group, a group of the user's own
-/// choosing ("Claude"), and writes what it did back into them.
+/// Hands Claude the tasks the app has handed to a model ([Task.claude]),
+/// and writes what it did back into them.
 ///
-/// The board says how each stands, so the phone shows it without anything
-/// new in the app: a task waiting in the group is Not started; taken up it
-/// goes In progress; answered it is ticked off with the answer in its
-/// notes. One that could not be done stays In progress with the reason, and
+/// The board says how each stands, so the phone shows it with nothing more
+/// in the app: a task handed over is Not started until taken up; then In
+/// progress; answered, it is ticked off with the answer in its notes. One that could not be done stays In progress with the reason, and
 /// moved back to Not started — a note added, say — it is taken up again,
 /// in the same Claude session, which then has its earlier work in mind.
 /// A task with a date waits for its day (or its time), so an errand can be
 /// set for later, and a repeating one comes back each round.
 class Watcher {
   final Caldo caldo;
-  final String groupName;
   final Future<Answer> Function(Errand errand) hand;
   final WatchState state;
 
@@ -175,7 +170,6 @@ class Watcher {
     required this.hand,
     required this.state,
     required this.dir,
-    this.groupName = 'Claude',
     void Function(String line)? log,
     DateTime Function()? now,
   }) : log = log ?? print,
@@ -184,24 +178,13 @@ class Watcher {
   /// Most of an answer that the notes take; the rest stays in the session.
   static const _longest = 6000;
 
-  var _missing = false;
-
-  Group? get _group {
-    final want = groupName.toLowerCase();
-    return caldo.book.groups
-        .where((g) => g.name.trim().toLowerCase() == want)
-        .firstOrNull;
-  }
-
   /// The tasks waiting for Claude, earliest due first.
   List<Held> get waiting {
-    final group = _group;
-    if (group == null) return const [];
     final now = _now();
     final today = DateTime(now.year, now.month, now.day);
     return [
       for (final h in caldo.book.tasks)
-        if (h.group == group.uuid &&
+        if (h.task.claude != null &&
             h.task.stage == Stage.notStarted &&
             _isDue(h.task, now, today))
           h,
@@ -270,21 +253,10 @@ class Watcher {
   /// Pulls, and works through every task waiting; how many there were.
   Future<int> once() async {
     await caldo.refresh();
-    if (_group == null) {
-      if (!_missing) {
-        log(
-          'No group named "$groupName" yet: make one in Caldo and put tasks '
-          'in it for Claude.',
-        );
-      }
-      _missing = true;
-      return 0;
-    }
-    _missing = false;
     var done = 0;
     // One at a time, read again after each: the last may have taken long,
     // and what is waiting may have changed meanwhile.
-    for (var next = waiting.firstOrNull; next != null; ) {
+    for (var next = waiting.firstOrNull; next != null;) {
       await _work(next);
       done++;
       await caldo.refresh();
@@ -304,7 +276,8 @@ class Watcher {
     state
       ..running = h.uuid
       ..save();
-    log('[${h.id}] ${h.task.title}: handed to Claude');
+    final model = h.task.claude!;
+    log('[${h.id}] ${h.task.title}: handed to Claude ($model)');
 
     final where = _dirOf(h.task.notes);
     final last = state.sessions[h.uuid];
@@ -314,14 +287,14 @@ class Watcher {
         answer = Answer(false, 'There is no folder $where on this computer.');
       } else if (last != null && last.dir == where && h.task.repeat.isNone) {
         answer = await hand(
-          Errand(_againPrompt(h.task), where, resume: last.session),
+          Errand(_againPrompt(h.task), where, model, resume: last.session),
         );
         // A session gone from this computer: begun again from the task.
         if (!answer.ok && answer.session == null) {
-          answer = await hand(Errand(_prompt(h.task), where));
+          answer = await hand(Errand(_prompt(h.task), where, model));
         }
       } else {
-        answer = await hand(Errand(_prompt(h.task), where));
+        answer = await hand(Errand(_prompt(h.task), where, model));
       }
     } catch (e) {
       answer = Answer(false, 'Claude could not be started: $e');
@@ -399,8 +372,7 @@ class Watcher {
   String _prompt(Task t) {
     final out = StringBuffer(
       'This task was handed to you from Caldo, the user\'s calendar and '
-      'to-do app, by putting it in its "$groupName" group. Nobody is '
-      'watching this session and no one can answer questions: do the task '
+      'to-do app. Nobody is watching this session and no one can answer questions: do the task '
       'yourself, here on the user\'s computer. If something you need is '
       'missing, or a step is risky or can\'t be undone, stop there and say '
       'what is needed instead.\n\n'

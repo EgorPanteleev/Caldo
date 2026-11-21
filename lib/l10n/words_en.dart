@@ -193,6 +193,8 @@ const Map<String, Object> en = {
   'remindDayBefore': "Remind the day before",
   'reminderLabel': "Reminder",
   'noReminder': "No reminder",
+  'claudeLabel': "Claude",
+  'claudeNone': "Don't send",
   'sectionPriority': "PRIORITY",
   'priority.none': "None",
   'priority.low': "Low",

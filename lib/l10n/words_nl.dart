@@ -208,6 +208,8 @@ const Map<String, Object> nl = {
   'remindDayBefore': "Herinneren de dag ervoor",
   'reminderLabel': "Herinnering",
   'noReminder': "Geen herinnering",
+  'claudeLabel': "Claude",
+  'claudeNone': "Niet versturen",
   'sectionPriority': "PRIORITEIT",
   'priority.none': "Geen",
   'priority.low': "Laag",

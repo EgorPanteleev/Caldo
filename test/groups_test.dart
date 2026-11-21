@@ -194,6 +194,75 @@ void main() {
     });
   });
 
+  testWidgets('the open field hands a task to a Claude model, or none', (
+    tester,
+  ) async {
+    late TaskProvider provider;
+    await tester.runAsync(() async {
+      provider = TaskProvider();
+      await provider.loadLists();
+    });
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    final filed = <String?>[];
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: Scaffold(
+            resizeToAvoidBottomInset: false,
+            body: SelectionScope(
+              child: UndoScope(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: QuickAddBar(
+                    date: DateTime.now(),
+                    controller: controller,
+                    onSubmit: (_, _, claude) => filed.add(claude),
+                    onFullForm: () {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    // Offered with one group too, where there is no group chip beside it.
+    expect(find.byKey(quickAddGroupsKey), findsNothing);
+    expect(find.byKey(quickAddClaudeKey), findsOneWidget);
+
+    await tester.tap(find.byKey(quickAddClaudeKey));
+    await tester.pumpAndSettle();
+    expect(find.text("Don't send"), findsOneWidget);
+    await tester.tap(find.text('Opus'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(quickAddClaudeKey),
+        matching: find.text('Opus'),
+      ),
+      findsOneWidget,
+    );
+    await tester.enterText(find.byType(TextField), 'Tidy the downloads');
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pumpAndSettle();
+
+    // The next task starts on none again.
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    expect(find.text('Opus'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'Laundry');
+    await tester.tap(find.byKey(quickAddButtonKey));
+    await tester.pumpAndSettle();
+    expect(filed, ['opus', null]);
+  });
+
   testWidgets('with every group on show, the open field offers the groups '
       'to file into', (tester) async {
     late TaskProvider provider;
@@ -221,7 +290,7 @@ void main() {
                   child: QuickAddBar(
                     date: DateTime.now(),
                     controller: controller,
-                    onSubmit: (group, _) => filed.add(group),
+                    onSubmit: (group, _, _) => filed.add(group),
                     onFullForm: () {},
                   ),
                 ),

@@ -91,6 +91,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
 
   /// Minutes ahead the task is announced; null follows Settings.
   int? _remindBefore;
+  String? _claude;
 
   /// The checklist as it is being edited, and the field that adds to it.
   final List<_Draft> _steps = [];
@@ -152,6 +153,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     _priority = task?.priority ?? Priority.none;
     _repeat = task?.repeat ?? Repeat.none;
     _remindBefore = task?.remindBefore;
+    _claude = task?.claude;
     for (final step in task?.subtasks ?? const <Subtask>[]) {
       _steps.add(_Draft(step.title, done: step.done, onEdit: _typed));
     }
@@ -330,6 +332,24 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     setState(() => _duration = minutes);
   }
 
+  /// Which Claude model the task is handed to, if any. "" stands for none
+  /// in the sheet, which gives null back for "put away".
+  Future<void> _pickClaude() async {
+    final s = S.of(context);
+    final picked = await choose<String>(
+      context,
+      title: s.claudeLabel,
+      selected: _claude ?? '',
+      options: [
+        Option('', s.claudeNone),
+        for (final m in ClaudeModels.all) Option(m, ClaudeModels.name(m)),
+      ],
+    );
+    if (picked == null || picked == (_claude ?? '')) return;
+    _touched();
+    setState(() => _claude = picked.isEmpty ? null : picked);
+  }
+
   Future<void> _pickRepeat() async {
     final date = _date;
     if (date == null) return;
@@ -372,6 +392,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           attachments: List.of(_attachments),
           remindBefore: _remindBefore,
           duration: _time == null ? null : _duration,
+          claude: _claude,
         ),
       );
     } else {
@@ -409,6 +430,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           clearSortOrder: dayMoved,
           duration: _time == null ? null : _duration,
           clearDuration: _time == null || _duration == null,
+          claude: _claude,
+          clearClaude: _claude == null,
         ),
       );
     }
@@ -676,6 +699,24 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                   _touched();
                                   setState(() => _remindBefore = v);
                                 },
+                              ),
+                              const SizedBox(height: 12),
+                              _FieldTile(
+                                key: claudeFieldKey,
+                                icon: _claude == null
+                                    ? Icons.auto_awesome_outlined
+                                    : Icons.auto_awesome,
+                                label: s.claudeLabel,
+                                value: _claude == null
+                                    ? s.claudeNone
+                                    : ClaudeModels.name(_claude!),
+                                onTap: _pickClaude,
+                                onClear: _claude == null
+                                    ? null
+                                    : () {
+                                        _touched();
+                                        setState(() => _claude = null);
+                                      },
                               ),
                               const SizedBox(height: 22),
                               Text(
@@ -1163,6 +1204,9 @@ class _ReminderField extends StatelessWidget {
 
 /// The form's reminder row.
 const reminderFieldKey = Key('reminder-field');
+
+/// The form's row handing the task to Claude.
+const claudeFieldKey = Key('claude-field');
 
 /// A row of priority chips — a segmented control that wraps instead of
 /// clipping its labels on narrow screens.
