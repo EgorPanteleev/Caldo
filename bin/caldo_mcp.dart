@@ -67,7 +67,17 @@ Future<int> _login(SessionFile file, List<String> args) async {
     server = args[at + 1].replaceAll(RegExp(r'/+$'), '');
   }
   stdout.write('Caldo name: ');
-  final name = stdin.readLineSync()?.trim() ?? '';
+  final read = stdin.readLineSync();
+  if (read == null) {
+    // No input behind it at all: Claude Code's `!`, which has no keyboard,
+    // and where a password typed would end up in the conversation.
+    stdout.writeln();
+    stderr.writeln(
+      'caldo-mcp login asks for a password: run it in a terminal of its own.',
+    );
+    return 1;
+  }
+  final name = read.trim();
   stdout.write('Password: ');
   final password = _hidden();
   stdout.writeln();
