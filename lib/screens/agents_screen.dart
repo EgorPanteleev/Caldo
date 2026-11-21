@@ -338,10 +338,27 @@ class _TermFont {
     await prefs.setDouble(_key, size);
   }
 
+  /// Room either side of the text.
+  static const side = 10.0;
+
+  /// JetBrains Mono, bundled: Android's own monospace is wide-set and thin.
+  /// What it hasn't got comes from Term Symbols (Claude's ⏵ and ⎿ are in
+  /// no font Android has), then the system's.
+  static TerminalStyle style(double size) => TerminalStyle(
+    fontSize: size,
+    fontFamily: 'JetBrains Mono',
+    fontFamilyFallback: _fallback,
+  );
+
+  static final _fallback = [
+    'Term Symbols',
+    ...const TerminalStyle().fontFamilyFallback,
+  ];
+
   /// About how many columns and rows a terminal of [size] gets on [screen],
   /// for a chat started before its terminal has been laid out.
   static (int, int) fit(Size screen, double size) => (
-    ((screen.width - 16) / (size * 0.6)).floor(),
+    ((screen.width - 2 * side) / (size * 0.6)).floor(),
     ((screen.height - 220) / (size * 1.2)).floor(),
   );
 }
@@ -1115,12 +1132,17 @@ class _ChatScreenState extends State<ChatScreen> {
                   // An ended chat's text is made small enough for the width
                   // it was written at to fit; the view's size is only told
                   // to a live one.
-                  textStyle: TerminalStyle(
-                    fontSize: live || chat == null
+                  textStyle: _TermFont.style(
+                    live || chat == null
                         ? _font
-                        : _fitted(box.maxWidth - 12, chat.cols),
+                        : _fitted(box.maxWidth - 2 * _TermFont.side, chat.cols),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  padding: const EdgeInsets.fromLTRB(
+                    _TermFont.side,
+                    4,
+                    _TermFont.side,
+                    4,
+                  ),
                   // A key a time over the network is no way to type on a
                   // phone; the field below is. A desktop's keys go straight
                   // in.
@@ -1280,7 +1302,8 @@ class _Head extends StatelessWidget {
 
 /// The keys a phone's keyboard has not got, that an agent's terminal
 /// wants: Escape to interrupt Claude, Shift+Tab to change its mode, the
-/// arrows for its menus, Ctrl+C.
+/// arrows for its menus, Ctrl+C. All in one row the width of the screen,
+/// none scrolled out of reach.
 class _KeyRow extends StatelessWidget {
   final void Function(TerminalKey key, {bool shift, bool ctrl}) onKey;
 
@@ -1288,61 +1311,86 @@ class _KeyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final keys = <(String, VoidCallback)>[
-      ('esc', () => onKey(TerminalKey.escape)),
-      ('tab', () => onKey(TerminalKey.tab)),
-      ('⇧tab', () => onKey(TerminalKey.tab, shift: true)),
-      ('↑', () => onKey(TerminalKey.arrowUp)),
-      ('↓', () => onKey(TerminalKey.arrowDown)),
-      ('←', () => onKey(TerminalKey.arrowLeft)),
-      ('→', () => onKey(TerminalKey.arrowRight)),
-      ('^C', () => onKey(TerminalKey.keyC, ctrl: true)),
-      ('⏎', () => onKey(TerminalKey.enter)),
+    final keys = <(String?, IconData?, VoidCallback)>[
+      ('esc', null, () => onKey(TerminalKey.escape)),
+      ('tab', null, () => onKey(TerminalKey.tab)),
+      ('⇧tab', null, () => onKey(TerminalKey.tab, shift: true)),
+      (null, Icons.keyboard_arrow_up_rounded, () => onKey(TerminalKey.arrowUp)),
+      (
+        null,
+        Icons.keyboard_arrow_down_rounded,
+        () => onKey(TerminalKey.arrowDown),
+      ),
+      (
+        null,
+        Icons.keyboard_arrow_left_rounded,
+        () => onKey(TerminalKey.arrowLeft),
+      ),
+      (
+        null,
+        Icons.keyboard_arrow_right_rounded,
+        () => onKey(TerminalKey.arrowRight),
+      ),
+      ('^C', null, () => onKey(TerminalKey.keyC, ctrl: true)),
+      (null, Icons.keyboard_return_rounded, () => onKey(TerminalKey.enter)),
     ];
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        children: [
-          for (final (label, tap) in keys)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: _TermKey(label: label, onTap: tap),
+    return Align(
+      alignment: Alignment.centerLeft,
+      // On a desk the row would stretch into slabs.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+          child: SizedBox(
+            height: 34,
+            child: Row(
+              children: [
+                for (final (i, (label, icon, tap)) in keys.indexed) ...[
+                  if (i > 0) const SizedBox(width: 5),
+                  Expanded(
+                    child: _TermKey(label: label, icon: icon, onTap: tap),
+                  ),
+                ],
+              ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
 }
 
 class _TermKey extends StatelessWidget {
-  final String label;
+  final String? label;
+  final IconData? icon;
   final VoidCallback onTap;
 
-  const _TermKey({required this.label, required this.onTap});
+  const _TermKey({required this.onTap, this.label, this.icon});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Material(
-      color: p.field,
-      borderRadius: BorderRadius.circular(8),
+      color: p.panel,
+      borderRadius: BorderRadius.circular(9),
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(9),
         onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minWidth: 44),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: p.text,
-              fontSize: 13,
-              fontFamily: 'monospace',
-            ),
-          ),
+        child: Center(
+          child: icon != null
+              ? Icon(icon, size: 20, color: p.muted)
+              : FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label!,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: p.muted,
+                      fontSize: 12.5,
+                      fontFamily: 'JetBrains Mono',
+                    ),
+                  ),
+                ),
         ),
       ),
     );

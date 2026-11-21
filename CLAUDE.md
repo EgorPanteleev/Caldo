@@ -840,6 +840,11 @@ or my local machine". Tasks handed to a Claude model run as chats too.
   no way to type — so a field sends lines and a row gives Esc, Tab,
   Shift+Tab, arrows, ^C, Enter; a desktop's keys go straight in; size
   sent 400ms after it settles; text size in prefs `terminal_font`).
+  The terminal is set in bundled JetBrains Mono (`_TermFont.style`; the
+  no-ligature cut), falling back to `Term Symbols`, a cut of Adwaita
+  Mono holding what it lacks — Claude's ⏵ and ⎿ are in no Android font
+  and drew as boxes. The key row fits the width (no scrolling; ⏎ was cut
+  off), keys in the terminal's font.
   Nothing is read unless the tab or a chat is open (`Agents.watch`).
 - A chat restarted after the worker restarted is taken up again if its
   tmux session lives (`worker.json` keeps offsets and seqs); otherwise it

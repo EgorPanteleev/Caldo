@@ -106,6 +106,20 @@ flutter:
   assets:
     - assets/grain.png
 
+  # The agents' terminal. No-ligature cut: a terminal draws cell by cell.
+  fonts:
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoNL-Regular.ttf
+        - asset: assets/fonts/JetBrainsMonoNL-Bold.ttf
+          weight: 700
+    # Adwaita Mono cut (pyftsubset) to the symbols JetBrains Mono lacks
+    # in U+2190–21FF, 2300–23FF, 25A0–25FF, 2700–28FF, 29C0–29CF and
+    # 2B00–2BFF: Claude's ⏵ and ⎿ are in no font Android has.
+    - family: Term Symbols
+      fonts:
+        - asset: assets/fonts/TermSymbols.ttf
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
