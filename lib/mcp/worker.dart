@@ -10,6 +10,7 @@ import 'kept.dart';
 import 'remote.dart';
 import 'talk.dart';
 import 'terminal.dart';
+import 'usage.dart';
 import 'watch.dart';
 
 /// Who this worker is, kept beside the session so it is the same worker
@@ -1221,6 +1222,12 @@ class _Talker implements TalkSink {
   /// What a resumed Codex thread said after this, shown when it is up.
   int? _since;
 
+  /// What the chat has spent (`ChatUsage`), as last said; and the row's
+  /// copy of it, to be written.
+  Map<String, Object?>? _usage;
+  String? _usageSaid;
+  Timer? _keeping;
+
   _Talker._(
     this.worker,
     this.ask,
@@ -1228,7 +1235,8 @@ class _Talker implements TalkSink {
     this._seq, {
     required this.dir,
     this.session,
-  }) : _channel = worker._lineOf(ask.id);
+  }) : _channel = worker._lineOf(ask.id),
+       _usage = ask.usage == null ? null : ChatUsage.merged(ask.usage);
 
   /// A broadcast's own payload, whether or not it comes wrapped.
   static Map _payloadOf(Map message) =>
@@ -1339,6 +1347,7 @@ class _Talker implements TalkSink {
     talk = null;
     _forgetOffset();
     _piecing?.cancel();
+    if (_keeping != null) _keepUsage();
     await worker.remote.client.removeChannel(_channel);
   }
 
@@ -1461,7 +1470,42 @@ class _Talker implements TalkSink {
   }
 
   @override
+  void usage({
+    Map<String, Object?> set = const {},
+    Map<String, num> add = const {},
+  }) {
+    if (forgotten) return;
+    final now = ChatUsage.merged(_usage, set: set, add: add);
+    final said = jsonEncode(now);
+    if (said == _usageSaid) return;
+    _usage = now;
+    _usageSaid = said;
+    // Heard at once by an open chat; its row is for one opened later.
+    _broadcast('usage', now);
+    _keeping ??= Timer(const Duration(seconds: 20), _keepUsage);
+  }
+
+  /// The chat's figures written to its row: when a turn ends, or a while
+  /// into a long one. Not on every change: every write to a chat's row has
+  /// each app watching read the list of chats again.
+  void _keepUsage() {
+    _keeping?.cancel();
+    _keeping = null;
+    final usage = _usage;
+    if (usage == null || forgotten) return;
+    unawaited(
+      worker._guard(
+        () async => (await worker._db)
+            .from('chats')
+            .update({'usage': usage})
+            .eq('id', ask.id),
+      ),
+    );
+  }
+
+  @override
   void turnEnded(String answer, {bool failed = false}) {
+    if (_keeping != null) _keepUsage();
     final waiting = turn;
     turn = null;
     if (waiting != null && !waiting.isCompleted) {

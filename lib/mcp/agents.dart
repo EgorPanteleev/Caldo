@@ -288,6 +288,9 @@ class ChatAsk {
   /// `chat`, spoken to in messages, or `terminal`.
   final String mode;
 
+  /// What it has spent so far (`ChatUsage`), which its talk adds to.
+  final Map? usage;
+
   const ChatAsk({
     required this.id,
     required this.agent,
@@ -305,6 +308,7 @@ class ChatAsk {
     this.cols = 80,
     this.rows = 24,
     this.mode = 'terminal',
+    this.usage,
   });
 
   factory ChatAsk.fromJson(Map json) => ChatAsk(
@@ -324,6 +328,7 @@ class ChatAsk {
     cols: json['cols'] as int? ?? 80,
     rows: json['rows'] as int? ?? 24,
     mode: json['mode'] as String? ?? 'terminal',
+    usage: json['usage'] is Map ? json['usage'] as Map : null,
   );
 }
 

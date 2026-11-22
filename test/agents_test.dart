@@ -6,9 +6,11 @@ import 'package:caldo/mcp/agents.dart';
 import 'package:caldo/mcp/kept.dart';
 import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
+import 'package:caldo/mcp/usage.dart';
 import 'package:caldo/screens/agents_screen.dart';
 import 'package:caldo/services/agents.dart';
 import 'package:caldo/theme/app_theme.dart';
+import 'package:caldo/widgets/chat_usage.dart';
 import 'package:caldo/widgets/talk_view.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -43,6 +45,17 @@ class _Heard implements TalkSink {
 
   @override
   void turnEnded(String answer, {bool failed = false}) => this.answer = answer;
+
+  /// What the chat has spent, kept as the worker keeps it.
+  Map<String, Object?>? spent;
+
+  @override
+  void usage({
+    Map<String, Object?> set = const {},
+    Map<String, num> add = const {},
+  }) => spent = ChatUsage.merged(spent, set: set, add: add);
+
+  ChatUsage get counted => ChatUsage.of(spent)!;
 
   int? code;
 
@@ -260,6 +273,171 @@ void main() {
       expect(heard.states.last, 'idle');
       talk.answer('ask:7', 'always');
       expect(heard.items['ask:7']!.$2['answer'], 'always');
+    });
+
+    test("counts what Claude's turns spend, its context and its limits", () {
+      final heard = _Heard();
+      final talk = ClaudeTalk(claude, ask, heard, dir: '/tmp');
+      Map<String, Object?> result(double cost, int input, int output) => {
+        'type': 'result',
+        'subtype': 'success',
+        'duration_ms': 1000,
+        // A result's totals are its program's, from its start.
+        'total_cost_usd': cost,
+        'modelUsage': {
+          'claude-opus-5-5': {
+            'inputTokens': input,
+            'outputTokens': output,
+            'cacheReadInputTokens': input * 10,
+            'cacheCreationInputTokens': 5,
+            'contextWindow': 200000,
+          },
+        },
+      };
+      for (final line in [
+        {
+          'type': 'system',
+          'subtype': 'init',
+          'session_id': 's1',
+          'model': 'claude-opus-5-5',
+        },
+        {
+          'type': 'stream_event',
+          'parent_tool_use_id': null,
+          'event': {
+            'type': 'message_delta',
+            'usage': {
+              'input_tokens': 2,
+              'cache_creation_input_tokens': 1000,
+              'cache_read_input_tokens': 49000,
+              'output_tokens': 300,
+            },
+          },
+        },
+        // A helper's request is its own context, not the chat's.
+        {
+          'type': 'stream_event',
+          'parent_tool_use_id': 'toolu_1',
+          'event': {
+            'type': 'message_delta',
+            'usage': {'input_tokens': 90000, 'output_tokens': 1},
+          },
+        },
+        {
+          'type': 'rate_limit_event',
+          'rate_limit_info': {
+            'status': 'allowed',
+            'unifiedWindows': {
+              'five_hour': {'utilization': 0.41, 'resetsAt': 1795341600},
+              'seven_day': {'utilization': 0.14, 'resetsAt': 1795374000},
+            },
+          },
+        },
+        result(0.25, 10, 100),
+        result(0.40, 30, 150),
+      ]) {
+        talk.take(line);
+      }
+      final used = heard.counted;
+      expect(used.model, 'claude-opus-5-5');
+      expect(used.context, 50302);
+      expect(used.window, 200000);
+      expect(used.filled, closeTo(0.2515, 0.0001));
+      expect(used.turns, 2);
+      expect(used.working, const Duration(seconds: 2));
+      expect(used.cost, closeTo(0.40, 1e-9));
+      expect(used.input, 30);
+      expect(used.output, 150);
+      expect(used.cacheRead, 300);
+      expect(used.cacheWrite, 5);
+      expect([for (final l in used.limits) l.name], ['five_hour', 'seven_day']);
+      expect(used.limits.first.used, 0.41);
+      expect(used.limits.first.span, 300);
+      expect(
+        used.limits.first.resets,
+        DateTime.fromMillisecondsSinceEpoch(1795341600 * 1000),
+      );
+
+      // Its program started again counts from nothing; the chat goes on.
+      final again = ClaudeTalk(claude, ask, heard, dir: '/tmp');
+      again.take(result(0.10, 4, 6));
+      expect(heard.counted.cost, closeTo(0.50, 1e-9));
+      expect(heard.counted.input, 34);
+      expect(heard.counted.turns, 3);
+    });
+
+    test("counts what Codex's thread spends, once each", () {
+      final heard = _Heard();
+      final talk = CodexTalk(
+        const ChatAsk(id: 'c', agent: 'codex'),
+        heard,
+        dir: '/tmp',
+      );
+      Map<String, Object?> tokens(int total, int last) => {
+        'method': 'thread/tokenUsage/updated',
+        'params': {
+          'tokenUsage': {
+            'total': {
+              'totalTokens': total,
+              'inputTokens': total - 10,
+              'cachedInputTokens': (total - 10) ~/ 2,
+              'outputTokens': 10,
+            },
+            'last': {
+              'totalTokens': last,
+              'inputTokens': last - 10,
+              'cachedInputTokens': 0,
+              'outputTokens': 10,
+            },
+            'modelContextWindow': 272000,
+          },
+        },
+      };
+      for (final line in [
+        {
+          'method': 'turn/started',
+          'params': {
+            'turn': {'id': 't1'},
+          },
+        },
+        // A resumed thread's total holds its past: only its last is new.
+        tokens(5010, 1010),
+        // Said again as the limits change: nothing new.
+        tokens(5010, 1010),
+        tokens(7010, 2010),
+        {
+          'method': 'account/rateLimits/updated',
+          'params': {
+            'rateLimits': {
+              'primary': {
+                'usedPercent': 12,
+                'windowDurationMins': 300,
+                'resetsAt': 1795341600,
+              },
+              'secondary': {'usedPercent': 3, 'windowDurationMins': 10080},
+            },
+          },
+        },
+        {
+          'method': 'turn/completed',
+          'params': {
+            'turn': {'id': 't1', 'status': 'completed'},
+          },
+        },
+      ]) {
+        talk.take(line);
+      }
+      final used = heard.counted;
+      expect(used.turns, 1);
+      expect(used.context, 2010);
+      expect(used.window, 272000);
+      // 1000 taken in at first, then 2000 more, half of those cached.
+      expect(used.input + used.cacheRead, 3000);
+      expect(used.cacheRead, 1000);
+      expect(used.output, 10);
+      expect(used.cost, isNull);
+      expect([for (final l in used.limits) l.used], [0.12, 0.03]);
+      expect([for (final l in used.limits) l.span], [300, 10080]);
     });
 
     test("finds Claude's transcript of a session", () {
@@ -854,6 +1032,65 @@ void main() {
         Agents.instance.rules = const [];
         await pump(tester, code, const RulesScreen());
         expect(find.text(s.noRules), findsOneWidget);
+      });
+
+      testWidgets("shows a chat's usage in ${S.names[code]}", (tester) async {
+        final usage = ChatUsage.of({
+          'model': 'claude-opus-5-5[1m]',
+          'context': 812345,
+          'window': 1000000,
+          'input': 1234,
+          'output': 98765,
+          'cacheRead': 12345678,
+          'cacheWrite': 234567,
+          'cost': 12.3456,
+          'turns': 42,
+          'working': 3723000,
+          'limits': [
+            limitRow('five_hour', 0.91, resets: 1795341600),
+            limitRow('seven_day', 0.14, resets: 1795374000),
+            limitRow('seven_day_opus', 0.5),
+          ],
+          'limited': 'allowed_warning',
+          'limitsAt': DateTime.now().millisecondsSinceEpoch,
+        })!;
+        final changes = ValueNotifier(0);
+        addTearDown(changes.dispose);
+        await pump(
+          tester,
+          code,
+          Scaffold(
+            body: Builder(
+              builder: (context) => Column(
+                children: [
+                  ChatUsageStrip(
+                    usage: usage,
+                    onTap: () => showChatUsage(
+                      context,
+                      changes: changes,
+                      read: () => usage,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        final s = S.forCode(code);
+        expect(find.byType(ChatUsageStrip), findsOneWidget);
+        await tester.tap(find.byType(ChatUsageStrip));
+        await tester.pumpAndSettle();
+        expect(find.text(s.usageTitle), findsOneWidget);
+        expect(find.text('81%'), findsOneWidget);
+        expect(find.text('91%'), findsOneWidget);
+        expect(find.text(s.usageLimitNear), findsOneWidget);
+        expect(find.textContaining('Opus'), findsWidgets);
+        await tester.scrollUntilVisible(
+          find.text(r'$12.35'),
+          100,
+          scrollable: find.byType(Scrollable).last,
+        );
+        expect(find.text('42'), findsOneWidget);
       });
 
       testWidgets('draws a chat in ${S.names[code]}', (tester) async {

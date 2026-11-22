@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'agents.dart';
 import 'kept.dart';
+import 'usage.dart';
 
 /// Where a [Talk] puts what its agent says, in one shape for every agent:
 /// the app draws a chat from these and nothing else.
@@ -19,6 +21,13 @@ abstract class TalkSink {
   /// `running`, `asking` or `idle`, with a line to say why.
   void stands(String state, {String? note});
   void inSession(String id);
+
+  /// What the chat has spent and where it stands (`ChatUsage.merged`):
+  /// [set] as it is now, [add] what a turn or a request added.
+  void usage({
+    Map<String, Object?> set = const {},
+    Map<String, num> add = const {},
+  });
 
   /// A turn done: its last words, for a task waiting on them.
   void turnEnded(String answer, {bool failed = false});
@@ -149,6 +158,11 @@ class _Replay implements TalkSink {
   void delta(String id, String text) {}
   @override
   void inSession(String id) {}
+  @override
+  void usage({
+    Map<String, Object?> set = const {},
+    Map<String, num> add = const {},
+  }) {}
   @override
   void turnEnded(String answer, {bool failed = false}) {}
   @override
@@ -281,14 +295,21 @@ class ClaudeTalk extends Talk {
       case 'system':
         if (line['subtype'] == 'init' && line['session_id'] is String) {
           sink.inSession(line['session_id'] as String);
+          if (line['model'] case final String model) {
+            _model = model;
+            sink.usage(set: {'model': model});
+          }
         } else if (line['subtype'] == 'status' &&
             line['status'] == 'requesting') {
           sink.stands(_asks.isEmpty ? 'running' : 'asking');
         }
       case 'stream_event':
-        _piece(line['event'] as Map? ?? const {});
+        final event = line['event'] as Map? ?? const {};
+        if (line['parent_tool_use_id'] == null) _filled(event);
+        _piece(event);
       case 'assistant':
         final message = line['message'] as Map? ?? const {};
+        if (line['parent_tool_use_id'] == null) _filled(message);
         _onMessage('${message['id']}');
         for (final block in message['content'] as List? ?? const []) {
           _block(block as Map);
@@ -311,7 +332,10 @@ class ClaudeTalk extends Talk {
         }
       case 'control_request':
         _request(line);
+      case 'rate_limit_event':
+        _limits(line['rate_limit_info'] as Map? ?? const {});
       case 'result':
+        _spent(line);
         final failed = line['is_error'] == true;
         final said = line['result'] is String ? line['result'] as String : '';
         if (failed && line['subtype'] != 'success') {
@@ -328,6 +352,108 @@ class ClaudeTalk extends Talk {
         sink.turnEnded(said.isNotEmpty ? said : _last, failed: failed);
         sink.stands('idle');
     }
+  }
+
+  /// The model as Claude names it, its cost so far and each model's
+  /// tokens so far, as the last result said: a result says the program's
+  /// totals, and the chat is told what each adds.
+  String? _model;
+  double _cost = 0;
+  final _counted = <String, Map>{};
+
+  /// How full the context is, from a request's usage: what it took in,
+  /// read from the cache or wrote to it, and what it gave out. Said by the
+  /// message as it starts, as it ends and whole; a helper's (a line with a
+  /// `parent_tool_use_id`) is its own context, not the chat's.
+  void _filled(Map event) {
+    final usage =
+        event['usage'] ?? (event['message'] as Map?)?['usage'] as Object?;
+    if (usage is! Map) return;
+    var sum = 0;
+    for (final key in const [
+      'input_tokens',
+      'cache_creation_input_tokens',
+      'cache_read_input_tokens',
+      'output_tokens',
+    ]) {
+      if (usage[key] case final num n) sum += n.round();
+    }
+    if (sum > 0) sink.usage(set: {'context': sum});
+  }
+
+  /// The account's limits: each window's share used and when it starts
+  /// again, as one comes after every request.
+  void _limits(Map info) {
+    final windows = info['unifiedWindows'];
+    final limits = <Map<String, Object?>>[];
+    if (windows is Map) {
+      for (final MapEntry(:key, :value) in windows.entries) {
+        if (value is Map && value['utilization'] is num) {
+          limits.add(
+            limitRow(
+              '$key',
+              value['utilization'] as num,
+              resets: value['resetsAt'] as num?,
+            ),
+          );
+        }
+      }
+    } else if (info['utilization'] is num && info['rateLimitType'] is String) {
+      limits.add(
+        limitRow(
+          info['rateLimitType'] as String,
+          info['utilization'] as num,
+          resets: info['resetsAt'] as num?,
+        ),
+      );
+    }
+    sink.usage(
+      set: {
+        if (limits.isNotEmpty) 'limits': limits,
+        if (limits.isNotEmpty)
+          'limitsAt': DateTime.now().millisecondsSinceEpoch,
+        'limited': info['status'],
+      },
+    );
+  }
+
+  /// A turn's figures: its time, and what its result's totals add to the
+  /// last one's — helpers' models among them, as the cost counts them.
+  void _spent(Map line) {
+    final add = <String, num>{'turns': 1};
+    if (line['duration_ms'] case final num ms) add['working'] = ms;
+    if (line['total_cost_usd'] case final num total) {
+      add['cost'] = max(0, total - _cost);
+      _cost = total.toDouble();
+    }
+    num? window;
+    final models = line['modelUsage'];
+    if (models is Map) {
+      for (final MapEntry(key: name, value: now) in models.entries) {
+        if (now is! Map) continue;
+        final had = _counted['$name'] ?? const {};
+        for (final (theirs, ours) in const [
+          ('inputTokens', 'input'),
+          ('outputTokens', 'output'),
+          ('cacheReadInputTokens', 'cacheRead'),
+          ('cacheCreationInputTokens', 'cacheWrite'),
+        ]) {
+          if (now[theirs] case final num n) {
+            final before = had[theirs] is num ? had[theirs] as num : 0;
+            add[ours] = (add[ours] ?? 0) + max(0, n - before);
+          }
+        }
+        _counted['$name'] = now;
+        final model = _model;
+        final ours =
+            model != null &&
+            ('$name'.startsWith(model) || model.startsWith('$name'));
+        if (now['contextWindow'] case final num w when ours || window == null) {
+          window = w;
+        }
+      }
+    }
+    sink.usage(set: {'window': window}, add: add);
   }
 
   /// Claude's own commands and its notes to itself, as a transcript keeps
@@ -594,6 +720,8 @@ class CodexTalk extends Talk {
       }
     }
     result ??= await _call('thread/start', settings);
+    final model = result['model'] ?? ask.model;
+    if (model is String) sink.usage(set: {'model': model});
     final thread = result['thread'] as Map? ?? const {};
     _thread = thread['id'] as String?;
     if (_thread != null) sink.inSession(_thread!);
@@ -705,6 +833,7 @@ class CodexTalk extends Talk {
     switch (method) {
       case 'turn/started':
         _turn = (params['turn'] as Map?)?['id'] as String?;
+        _began = DateTime.now();
         sink.stands('running');
       case 'item/started':
         _started(params['item'] as Map? ?? const {});
@@ -722,6 +851,15 @@ class CodexTalk extends Talk {
           });
         }
         _turn = null;
+        final began = _began;
+        _began = null;
+        sink.usage(
+          add: {
+            'turns': 1,
+            if (began != null)
+              'working': DateTime.now().difference(began).inMilliseconds,
+          },
+        );
         sink.turnEnded(_last, failed: failed);
         sink.stands('idle');
       case 'error' when params['willRetry'] != true:
@@ -731,7 +869,65 @@ class CodexTalk extends Talk {
         });
       case 'thread/compacted':
         sink.item('c${_next++}', 'note', {'text': 'Context compacted.'});
+      case 'thread/tokenUsage/updated':
+        _tokens(params['tokenUsage'] as Map? ?? const {});
+      case 'account/rateLimits/updated':
+        _limits(params['rateLimits'] as Map? ?? const {});
     }
+  }
+
+  /// When the turn under way began, for how long it worked.
+  DateTime? _began;
+
+  /// The thread's tokens as last said, to tell what each saying adds.
+  Map? _total;
+
+  /// The thread's tokens: its total, the last request's, and how many its
+  /// model holds. Said again with nothing new (as limits change), so what
+  /// is added is how far the total went on; the first said by a program,
+  /// whose total may hold a resumed thread's past, adds only its last.
+  /// Codex counts the cached part in what was taken in.
+  void _tokens(Map usage) {
+    final total = usage['total'], last = usage['last'];
+    if (total is! Map) return;
+    num of(Map? m, String key) => m?[key] is num ? m![key] as num : 0;
+    final had = _total;
+    final from = had == null && last is Map ? last : total;
+    num added(String key) =>
+        had == null ? of(from, key) : max(0, of(total, key) - of(had, key));
+    _total = total;
+    final cached = added('cachedInputTokens');
+    sink.usage(
+      set: {
+        if (last is Map) 'context': of(last, 'totalTokens'),
+        'window': usage['modelContextWindow'],
+      },
+      add: {
+        'input': max(0, added('inputTokens') - cached),
+        'cacheRead': cached,
+        'output': added('outputTokens'),
+      },
+    );
+  }
+
+  /// The account's limits: a short window and a long one, each a percent
+  /// used and when it starts again.
+  void _limits(Map limits) {
+    final rows = [
+      for (final name in const ['primary', 'secondary'])
+        if (limits[name] case final Map window
+            when window['usedPercent'] is num)
+          limitRow(
+            name,
+            (window['usedPercent'] as num) / 100,
+            resets: window['resetsAt'] as num?,
+            minutes: window['windowDurationMins'] as num?,
+          ),
+    ];
+    if (rows.isEmpty) return;
+    sink.usage(
+      set: {'limits': rows, 'limitsAt': DateTime.now().millisecondsSinceEpoch},
+    );
   }
 
   void _started(Map item) {
