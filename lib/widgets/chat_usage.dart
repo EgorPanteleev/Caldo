@@ -75,6 +75,53 @@ class ChatUsageStrip extends StatelessWidget {
   }
 }
 
+/// A chat's figures in the list, so one can be read without opening it,
+/// running or stopped: how full its context is and what it cost. The
+/// account's limits are not the chat's own, and are left to the strip.
+class ChatUsageBrief extends StatelessWidget {
+  final ChatUsage usage;
+
+  const ChatUsageBrief({super.key, required this.usage});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = AppTheme.of(context);
+    final filled = usage.filled;
+    final context_ = usage.context;
+    final cost = usage.cost;
+    final text = [
+      if (filled != null)
+        s.usageContextShort(_percent(filled))
+      else if (context_ != null)
+        s.usageContextShort(_tokens(context_)),
+      if (cost != null && cost > 0) _dollars(cost),
+      if (usage.turns > 0) s.usageTurns(usage.turns),
+    ].join('  ·  ');
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Row(
+      children: [
+        if (filled != null) ...[
+          SizedBox(width: 22, child: _Meter(filled, height: 3)),
+          const SizedBox(width: 8),
+        ],
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: filled == null ? p.faint : _near(p, filled) ?? p.faint,
+              fontSize: 12,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// The whole of a chat's figures in a sheet, kept up while it is open:
 /// [read] is asked again whenever [changes] says so.
 Future<void> showChatUsage(

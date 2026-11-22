@@ -1563,6 +1563,37 @@ void main() {
         expect(find.text('42'), findsOneWidget);
       });
 
+      testWidgets("lists a chat's usage in ${S.names[code]}", (tester) async {
+        final usage = ChatUsage.of({
+          'context': 812345,
+          'window': 1000000,
+          'cost': 12.3456,
+          'turns': 42,
+          'limits': [limitRow('five_hour', 0.91)],
+        })!;
+        await pump(
+          tester,
+          code,
+          Scaffold(
+            body: Center(
+              child: SizedBox(width: 240, child: ChatUsageBrief(usage: usage)),
+            ),
+          ),
+        );
+        final s = S.forCode(code);
+        final line = tester.widget<Text>(
+          find.descendant(
+            of: find.byType(ChatUsageBrief),
+            matching: find.byType(Text),
+          ),
+        );
+        expect(line.data, contains(s.usageContextShort('81%')));
+        expect(line.data, contains(r'$12.35'));
+        expect(line.data, contains(s.usageTurns(42)));
+        // The account's limits are the strip's, not a chat's.
+        expect(line.data, isNot(contains('91%')));
+      });
+
       testWidgets('draws a chat in ${S.names[code]}', (tester) async {
         final feed = TalkFeed.held('c', [
           const ChatItem(

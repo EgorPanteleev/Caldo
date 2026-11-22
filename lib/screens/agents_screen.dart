@@ -12,6 +12,7 @@ import 'package:xterm/xterm.dart';
 import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../mcp/agents.dart' show sizeWord;
+import '../mcp/usage.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart';
@@ -309,6 +310,11 @@ class _ChatRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: p.muted, fontSize: 12.5),
                     ),
+                    if (chat.usage case final usage? when !usage.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: ChatUsageBrief(usage: usage),
+                      ),
                     if (chat.note case final note? when note.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 3),
@@ -1750,24 +1756,9 @@ class _ChatScreenState extends State<ChatScreen> {
               asChat: talks ? asChat : null,
               onView: (chat) => setState(() => _asChat = chat),
             ),
-            if (asChat && talk != null)
-              ValueListenableBuilder(
-                valueListenable: talk.usage,
-                builder: (context, heard, _) {
-                  final usage = heard ?? chat.usage;
-                  if (usage == null || usage.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  return ChatUsageStrip(
-                    usage: usage,
-                    onTap: () => showChatUsage(
-                      context,
-                      changes: Listenable.merge([_agents, talk.usage]),
-                      read: () => talk.usage.value ?? _chat?.usage,
-                    ),
-                  );
-                },
-              ),
+            // On either side, and once it has stopped: what a chat spent
+            // is still worth reading in its terminal, or after it ended.
+            if (chat != null) _usage(chat, talk),
             Expanded(
               child: asChat && talk != null
                   ? ValueListenableBuilder(
@@ -1849,6 +1840,28 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// The chat's figures as last heard: broadcast while it runs, else as
+  /// its row keeps them. Nothing for a chat that has none (a shell).
+  Widget _usage(Chat chat, TalkFeed? talk) {
+    Widget strip(ChatUsage? usage) => usage == null || usage.isEmpty
+        ? const SizedBox.shrink()
+        : ChatUsageStrip(
+            usage: usage,
+            onTap: () => showChatUsage(
+              context,
+              changes: talk == null
+                  ? _agents
+                  : Listenable.merge([_agents, talk.usage]),
+              read: () => talk?.usage.value ?? _chat?.usage,
+            ),
+          );
+    if (talk == null) return strip(chat.usage);
+    return ValueListenableBuilder(
+      valueListenable: talk.usage,
+      builder: (context, heard, _) => strip(heard ?? chat.usage),
     );
   }
 
