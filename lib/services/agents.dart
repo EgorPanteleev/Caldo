@@ -457,33 +457,40 @@ class Agents extends ChangeNotifier {
     int rows = 24,
     bool inChat = false,
   }) async {
-    final row = await _client!
-        .from('chats')
-        .insert({
-          'mode': inChat ? 'chat' : 'terminal',
-          'worker_id': worker,
-          'agent': agent,
-          'title': title,
-          'model': model,
-          'effort': effort,
-          'dir': dir,
-          'permission': permission,
-          'plugins': plugins,
-          'skills': skills,
-          // Left out when none, so a server without the column still
-          // starts a chat.
-          if (rules.isNotEmpty)
-            'rules': [
-              for (final r in rules) {'name': r.name, 'body': r.body},
-            ],
-          'prompt': prompt,
-          // The worker titles the chat in it, not in the message's.
-          'language': S.current.code,
-          'cols': cols.clamp(10, 500),
-          'rows': rows.clamp(5, 300),
-        })
-        .select()
-        .single();
+    final made = {
+      'mode': inChat ? 'chat' : 'terminal',
+      'worker_id': worker,
+      'agent': agent,
+      'title': title,
+      'model': model,
+      'effort': effort,
+      'dir': dir,
+      'permission': permission,
+      'plugins': plugins,
+      'skills': skills,
+      // Left out when none, so a server without the column still
+      // starts a chat.
+      if (rules.isNotEmpty)
+        'rules': [
+          for (final r in rules) {'name': r.name, 'body': r.body},
+        ],
+      'prompt': prompt,
+      // The worker titles the chat in it, not in the message's.
+      'language': S.current.code,
+      'cols': cols.clamp(10, 500),
+      'rows': rows.clamp(5, 300),
+    };
+    Future<Map<String, dynamic>> insert(Map<String, Object?> fields) =>
+        _client!.from('chats').insert(fields).select().single();
+    Map<String, dynamic> row;
+    try {
+      row = await insert(made);
+    } on PostgrestException catch (e) {
+      // A server without the column yet (PostgREST's "no such column")
+      // still starts the chat, titled in the message's language.
+      if (e.code != 'PGRST204' || !e.message.contains('language')) rethrow;
+      row = await insert({...made}..remove('language'));
+    }
     final chat = Chat.fromJson(row);
     chats = [chat, ...chats];
     notifyListeners();
