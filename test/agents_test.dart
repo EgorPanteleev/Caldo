@@ -47,8 +47,22 @@ class _Heard implements TalkSink {
   @override
   void inSession(String id) => session = id;
 
+  /// Whether the last turn was refused for the account's limit, and when
+  /// that was said to be lifted.
+  bool limited = false;
+  DateTime? resets;
+
   @override
-  void turnEnded(String answer, {bool failed = false}) => this.answer = answer;
+  void turnEnded(
+    String answer, {
+    bool failed = false,
+    bool limited = false,
+    DateTime? resets,
+  }) {
+    this.answer = answer;
+    this.limited = limited;
+    this.resets = resets;
+  }
 
   /// What the chat has spent, kept as the worker keeps it.
   Map<String, Object?>? spent;
@@ -442,6 +456,88 @@ void main() {
       expect(used.cost, isNull);
       expect([for (final l in used.limits) l.used], [0.12, 0.03]);
       expect([for (final l in used.limits) l.span], [300, 10080]);
+    });
+
+    test("tells a turn Claude's limit refused, and when it is lifted", () {
+      final heard = _Heard();
+      final talk = ClaudeTalk(claude, ask, heard, dir: '/tmp');
+      for (final line in [
+        {
+          'type': 'rate_limit_event',
+          'rate_limit_info': {
+            'status': 'rejected',
+            'resetsAt': 1795380000,
+            'rateLimitType': 'five_hour',
+            'unifiedWindows': {
+              'five_hour': {'utilization': 1.0, 'resetsAt': 1795380000},
+              'seven_day': {'utilization': 0.4, 'resetsAt': 1795374000},
+            },
+          },
+        },
+        {
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'error': 'rate_limit',
+          'message': {
+            'id': 'm1',
+            'content': [
+              {'type': 'text', 'text': "You've hit your limit · resets 11pm"},
+            ],
+          },
+        },
+        {
+          'type': 'result',
+          'subtype': 'success',
+          'is_error': true,
+          'result': "You've hit your limit · resets 11pm",
+        },
+      ]) {
+        talk.take(line);
+      }
+      expect(heard.limited, isTrue);
+      expect(heard.resets, DateTime.fromMillisecondsSinceEpoch(1795380000000));
+
+      // The next turn, gone through, is not.
+      talk.take({'type': 'result', 'subtype': 'success', 'result': 'Done.'});
+      expect(heard.limited, isFalse);
+      expect(heard.resets, isNull);
+    });
+
+    test("tells a turn Codex's limit refused, and when it is lifted", () {
+      final heard = _Heard();
+      final talk = CodexTalk(
+        const ChatAsk(id: 'c', agent: 'codex'),
+        heard,
+        dir: '/tmp',
+      );
+      for (final line in [
+        {
+          'method': 'account/rateLimits/updated',
+          'params': {
+            'rateLimits': {
+              'primary': {'usedPercent': 100, 'resetsAt': 1795341600},
+              'secondary': {'usedPercent': 30, 'resetsAt': 1795374000},
+            },
+          },
+        },
+        {
+          'method': 'turn/completed',
+          'params': {
+            'turn': {
+              'id': 't1',
+              'status': 'failed',
+              'error': {
+                'message': "You've hit your usage limit.",
+                'codexErrorInfo': 'usageLimitExceeded',
+              },
+            },
+          },
+        },
+      ]) {
+        talk.take(line);
+      }
+      expect(heard.limited, isTrue);
+      expect(heard.resets, DateTime.fromMillisecondsSinceEpoch(1795341600000));
     });
 
     test("finds Claude's transcript of a session", () {
