@@ -1197,7 +1197,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 445 tests, all passing; keep it so. `supabase test db` — 59.
+`flutter test` — 447 tests, all passing; keep it so. `supabase test db` — 59.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

@@ -570,10 +570,19 @@ class Worker {
   /// agent is told where each is. One not taken down is told as such.
   Future<List<Given>> _fetch(String chat, Object? files) async {
     if (files is! List || files.isEmpty) return const [];
-    final db = await _db;
-    final bucket = db.storage.from('chat-files');
-    final user = db.auth.currentUser?.id;
-    final given = tmux.givenOf(chat);
+    // Offline, or the session not renewed: the files are told as not
+    // fetched and the words still go. Thrown, they would be lost, and in
+    // a terminal every line after them too (`typing` stays failed).
+    SupabaseClient? db;
+    String? given;
+    try {
+      db = await _db;
+      given = tmux.givenOf(chat);
+    } catch (e) {
+      log('[${_short(chat)}] could not take its files down: $e');
+    }
+    final bucket = db?.storage.from('chat-files');
+    final user = db?.auth.currentUser?.id;
     final out = <Given>[];
     for (final f in files.whereType<Map>()) {
       final key = '${f['key'] ?? ''}';
@@ -588,7 +597,9 @@ class Worker {
           .replaceAll(RegExp(r'[/\\\x00]'), '_')
           .replaceFirst(RegExp(r'^\.+'), '');
       String? path;
-      if (user != null &&
+      if (bucket != null &&
+          given != null &&
+          user != null &&
           parts.length == 2 &&
           parts.first == chat &&
           RegExp(r'^[\w-]+$').hasMatch(parts.last)) {
