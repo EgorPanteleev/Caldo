@@ -896,6 +896,22 @@ and Codex, the terminal side by side.
   Start again → `--resume`), UserPromptSubmit/PostToolUse → running,
   Notification → asking, Stop → idle, its `last_assistant_message` the
   task's answer. Each hook appends its JSON to `<chat>.events`.
+- **Rules** (asked as "a storage of rules, which i can edit from the
+  app, set for each chat", 2026-11-22): standing instructions, a name and
+  words, in a server-only `agent_rules` table (`…_agent_rules.sql`),
+  edited under Agents › Rules (`RulesScreen`, `RuleScreen`,
+  `agent_rules.dart`, a `part` of the agents screen) and chosen on the
+  new chat's form (kept in `agents_last`). A chat keeps a copy of their
+  words (`chats.rules`, `[{name, body}]`), so the worker reads them from
+  the chat alone and a rule changed later doesn't change what a chat was
+  told. Written out by `rulesText`; Claude gets them in
+  `--append-system-prompt` after the skills' sentence (one flag), Codex as
+  `developerInstructions` in its app server and `-c
+  developer_instructions=` in its terminal, an `agents.json` agent through
+  a `{rules}` blank. The form offers them only to an agent that takes them
+  (`AgentSpec.takesRules`, sent as `rules`), so not to a shell, nor to any
+  agent of a worker not reinstalled since. The app leaves `rules` out of
+  the insert when none are chosen. Errands from tasks take none.
 - **The watcher's errands are chats** (`Worker.errand`, the `hand` the
   `Watcher` is given when tmux is installed; `ClaudeCli` still without
   it): Claude in messages in the task's folder, the answer its first
@@ -1084,7 +1100,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 407 tests, all passing; keep it so. `supabase test db` — 46.
+`flutter test` — 411 tests, all passing; keep it so. `supabase test db` — 49.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
