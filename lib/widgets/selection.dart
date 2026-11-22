@@ -6,6 +6,8 @@ import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart';
+import '../screens/agents_screen.dart' show NewChatScreen;
+import '../services/agents.dart';
 import '../theme/app_theme.dart';
 import 'date_time_pickers.dart' show showAppDatePicker, showAppSheet;
 import 'groups.dart';
@@ -313,7 +315,7 @@ const selectionBarKey = Key('selection-bar');
 /// The field's own pill, at the field's own size: a cross that puts
 /// everything down, how many are picked out, and what can be done with
 /// them — another day, another group, ticked off (or back, when every one
-/// is done already), deleted. Neutral, as the controls are; Delete wears
+/// is done already), sent to agents a chat each, deleted. Neutral, as the controls are; Delete wears
 /// the red it wears on the form.
 class _SelectionBar extends StatelessWidget {
   final Selection selection;
@@ -357,6 +359,17 @@ class _SelectionBar extends StatelessWidget {
     final tasks = _tasks(context);
     selection.clear();
     await context.read<TaskProvider>().setAllDone(tasks, done: done);
+  }
+
+  /// A chat for each, on the agent and computer chosen on the form; put
+  /// down once they are started, kept if the form is left.
+  Future<void> _sendToAgents(BuildContext context) async {
+    final tasks = _tasks(context);
+    if (tasks.isEmpty) return selection.clear();
+    final started = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => NewChatScreen(tasks: tasks)),
+    );
+    if (started == true) selection.clear();
   }
 
   Future<void> _delete(BuildContext context) async {
@@ -446,6 +459,13 @@ class _SelectionBar extends StatelessWidget {
                 allDone ? s.markNotDone : s.markDone,
                 () => _setDone(context, !allDone),
               ),
+              // Agents run through the account, so only once signed in.
+              if (Agents.instance.signedIn)
+                action(
+                  Icons.terminal_rounded,
+                  s.sendToAgents,
+                  () => _sendToAgents(context),
+                ),
               action(
                 Icons.delete_outline,
                 s.delete,

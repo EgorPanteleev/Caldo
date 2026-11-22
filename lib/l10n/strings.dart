@@ -297,6 +297,11 @@ class S {
   String get chatTitle => _word('chatTitle');
   String get chatPrompt => _word('chatPrompt');
   String get chatStart => _word('chatStart');
+  String get sendToAgents => _word('sendToAgents');
+  String get chatForEach => _word('chatForEach');
+  String get chatForEachHint => _word('chatForEachHint');
+  String chatStartEach(int n) => _count('chatStartEach', n);
+  String chatsStarted(int n) => _count('chatsStarted', n);
   String get chatDefault => _word('chatDefault');
   String get chatOffline => _word('chatOffline');
   String get chatOther => _word('chatOther');

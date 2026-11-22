@@ -467,6 +467,12 @@ const Map<String, Object> kk = {
   'chatTitle': "Атауы",
   'chatPrompt': "Алғашқы хабар",
   'chatStart': "Бастау",
+  'sendToAgents': "Агенттерге жіберу",
+  'chatForEach': "Алдымен әрқайсысына айту",
+  'chatForEachHint':
+      "Міндетті емес: әр чатқа оның тапсырмасынан бұрын айтылады",
+  'chatStartEach': ["{n} чатты бастау"],
+  'chatsStarted': ["{n} чат басталды"],
   'chatDefault': "Әдепкі",
   'chatOffline': "желіде жоқ",
   'chatOther': "Басқа…",

@@ -243,7 +243,8 @@ them will be noticed.
   `moveAllToDay/moveAllToGroup/setAllDone/removeAll`): taps toggle while
   anything is picked; picked cards get a lifted colour rim
   (`foregroundDecoration`) and an outer glow. The add row becomes a bar: Move
-  to day, Move to group, Mark done, Delete (asks). One selection across
+  to day, Move to group, Mark done, Send to agents (signed in only; see
+  Agents), Delete (asks). One selection across
   scopes; Back, group change and screen change put it down. Not on the board.
   `ClipRect` only while leaving, or it clips the glow.
 - **Swipe left on Schedule puts off** (`PutOff`, `offerUndo`,
@@ -1015,6 +1016,21 @@ and Codex, the terminal side by side.
   turn's `result` (or `--timeout`, after which it goes on in its chat);
   handed back, the same chat carries on with `--resume`. The task form has "Open its
   chat"; the list marks task chats.
+- **Tasks picked out on Schedule or the calendar can be sent to agents, a
+  chat each** (asked for, 2026-11-22: "each of the task must spawn own
+  agent … user must specify which worker, model, effort"):
+  `NewChatScreen(tasks:)`, one form for all — computer, agent, model,
+  effort, permissions, folder, plugins, skills, rules — and an optional
+  "Tell each first" said before each task. Each chat is titled by its
+  task (so not named by Haiku), told `taskMessage` (title, due, notes,
+  checklist) and kept as its task's (`chats.task_uuid`), so the form's
+  "Open its chat" shows for it too (`_findChat`). Only agents that take a
+  first message, and not the shell, which would run a task's words as
+  commands. One task opens its chat; more go back with a count. A Start
+  that fails part way goes on with the rest the next time (`_sent`). The
+  task itself is left as it was: nothing is written back to its notes,
+  unlike the watcher's errands. Tried on the local stack with a stand-in
+  agent from `agents.json` (two from Schedule, one from the calendar).
 - **The app**: `AgentsScreen` (list; long press/right-click deletes),
   `NewChatScreen` (last choices kept in prefs `agents_last`),
   `ChatScreen` (Chat/Terminal switch for Claude and Codex; the send
@@ -1197,7 +1213,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 447 tests, all passing; keep it so. `supabase test db` — 59.
+`flutter test` — 460 tests, all passing; keep it so. `supabase test db` — 59.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

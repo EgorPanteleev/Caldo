@@ -7,6 +7,8 @@ import 'package:caldo/mcp/kept.dart';
 import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/mcp/usage.dart';
+import 'package:caldo/models/task.dart';
+import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/agents_screen.dart';
 import 'package:caldo/services/agents.dart';
 import 'package:caldo/theme/app_theme.dart';
@@ -16,6 +18,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xterm/xterm.dart';
 
@@ -1034,6 +1037,29 @@ void main() {
     expect(ended.add('\x1b[?1049hhi\x1b[?1049l'), '\x1b[?1049hhi');
   });
 
+  test("a task's chat is told what is written, then the task", () {
+    final task = Task(
+      listId: 1,
+      title: 'Tidy the downloads',
+      notes: 'Keep the PDFs.',
+      dueAt: DateTime(2026, 11, 23).millisecondsSinceEpoch,
+      createdAt: 0,
+      subtasks: const [Subtask('Sort', done: true), Subtask('Delete')],
+    );
+    final told = taskMessage(task, '  Be careful.  ');
+    expect(
+      told,
+      startsWith('Be careful.\n\nTask from Caldo: Tidy the downloads\n'),
+    );
+    expect(told, contains('Due: '));
+    expect(told, contains('Notes:\nKeep the PDFs.'));
+    expect(told, endsWith('Checklist:\n- [x] Sort\n- [ ] Delete'));
+    expect(
+      taskMessage(Task(listId: 1, title: 'Call', createdAt: 0), ''),
+      'Task from Caldo: Call',
+    );
+  });
+
   group('the tab', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
     tearDown(() {
@@ -1123,6 +1149,66 @@ void main() {
         Agents.instance.rules = const [];
         await pump(tester, code, const RulesScreen());
         expect(find.text(s.noRules), findsOneWidget);
+      });
+
+      testWidgets('sends tasks on in ${S.names[code]}', (tester) async {
+        final s = S.forCode(code);
+        Agents.instance.workers = [
+          AgentWorker(
+            id: 'w',
+            name: 'desk',
+            home: '/home/someone',
+            seenAt: DateTime.now(),
+            dirs: const ['/home/someone'],
+            agents: const [
+              AgentKind(
+                id: 'claude',
+                label: 'Claude',
+                models: ['opus', 'sonnet'],
+                efforts: ['low', 'high'],
+              ),
+              // It would run a task's words as commands.
+              AgentKind(id: 'shell', label: 'Shell', prompt: 'type'),
+              // Told nothing first, so no use for a task.
+              AgentKind(id: 'repl', label: 'Repl', prompt: 'none'),
+            ],
+          ),
+        ];
+        final provider = TaskProvider();
+        addTearDown(provider.dispose);
+        await pump(
+          tester,
+          code,
+          ChangeNotifierProvider.value(
+            value: provider,
+            child: const NewChatScreen(
+              tasks: [
+                Task(
+                  id: 1,
+                  listId: 1,
+                  title: 'Tidy the downloads',
+                  createdAt: 0,
+                ),
+                Task(id: 2, listId: 1, title: 'Read the logs', createdAt: 0),
+              ],
+            ),
+          ),
+        );
+        expect(find.text(s.sendToAgents), findsOneWidget);
+        expect(find.text('Tidy the downloads'), findsOneWidget);
+        expect(find.text('Read the logs'), findsOneWidget);
+        expect(find.text('Claude'), findsOneWidget);
+        expect(find.text('Shell'), findsNothing);
+        expect(find.text('Repl'), findsNothing);
+        // Each chat is titled by its task.
+        expect(find.text(s.chatTitle.toUpperCase()), findsNothing);
+        final list = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(
+          find.text(s.chatStartEach(2)),
+          300,
+          scrollable: list,
+        );
+        expect(find.text(s.chatForEach.toUpperCase()), findsOneWidget);
       });
 
       testWidgets("shows a chat's usage in ${S.names[code]}", (tester) async {
