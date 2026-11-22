@@ -50,6 +50,32 @@ void main() {
     },
   );
 
+  test('tasks sent to agents are marked and put in progress', () async {
+    final provider = await seedProvider();
+    await provider.toggleDone(await taskNamed('Someday idea'));
+    final ship = await taskNamed('Ship');
+    final idea = await taskNamed('Someday idea');
+    expect(idea.done, isTrue);
+
+    await provider.sentToAgents({ship: 'Opus', idea: 'Codex · gpt-5'});
+
+    final shipAfter = await taskNamed('Ship');
+    expect(shipAfter.agent, 'Opus');
+    expect(shipAfter.stage, Stage.inProgress);
+    // Done, it is opened again: an agent is working on it.
+    final ideaAfter = await taskNamed('Someday idea');
+    expect(ideaAfter.agent, 'Codex · gpt-5');
+    expect(ideaAfter.stage, Stage.inProgress);
+    // Nothing the watcher takes a task up by.
+    expect(shipAfter.claude, isNull);
+
+    // Sent again, one already in progress keeps its start.
+    await provider.sentToAgents({shipAfter: 'Sonnet'});
+    final again = await taskNamed('Ship');
+    expect(again.agent, 'Sonnet');
+    expect(again.startedAt, shipAfter.startedAt);
+  });
+
   test('high priority leads a day nobody has arranged', () async {
     final provider = TaskProvider();
     await provider.loadLists();

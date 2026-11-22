@@ -19,7 +19,7 @@ class AppDatabase {
   factory AppDatabase.named(String name) => AppDatabase._(name);
 
   final String _dbName;
-  static const _dbVersion = 14;
+  static const _dbVersion = 15;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -82,7 +82,8 @@ class AppDatabase {
             snoozed_until INTEGER,
             started_at INTEGER,
             duration INTEGER,
-            claude TEXT
+            claude TEXT,
+            agent TEXT
           )
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
@@ -178,6 +179,10 @@ class AppDatabase {
         if (oldVersion < 14) {
           // v13 -> a task can be handed to Claude, with the model to use.
           await db.execute('ALTER TABLE $_tasks ADD COLUMN claude TEXT');
+        }
+        if (oldVersion < 15) {
+          // v14 -> what a task was sent to from Schedule or the calendar.
+          await db.execute('ALTER TABLE $_tasks ADD COLUMN agent TEXT');
         }
       },
     );

@@ -501,6 +501,12 @@ const Map<String, Object> uk = {
   'chatTitle': "Назва",
   'chatPrompt': "Перше повідомлення",
   'chatStart': "Почати",
+  'sendToAgents': "Надіслати агентам",
+  'chatForEach': "Спершу сказати кожному",
+  'chatForEachHint':
+      "Необов’язково: кажеться кожному чату перед його завданням",
+  'chatStartEach': ["Почати {n} чат", "Почати {n} чати", "Почати {n} чатів"],
+  'chatsStarted': ["Почато {n} чат", "Почато {n} чати", "Почато {n} чатів"],
   'chatDefault': "Типово",
   'chatOffline': "не в мережі",
   'chatOther': "Інша…",

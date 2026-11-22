@@ -348,9 +348,10 @@ class TaskCard extends StatelessWidget {
                                       color: p.muted,
                                     ),
                                   ],
-                                  if (task.claude case final model?) ...[
+                                  if (ClaudeMark.of(task)
+                                      case final label?) ...[
                                     const SizedBox(width: 8),
-                                    ClaudeMark(model: model, color: p.muted),
+                                    ClaudeMark(label: label, color: p.muted),
                                   ],
                                   if (count != null) ...[
                                     const SizedBox(width: 10),
@@ -640,12 +641,19 @@ const _leave = Duration(milliseconds: 280);
 /// screen would otherwise show it as one more open task. Jira's status
 /// lozenge, in Jira's blue for it: small capitals on a tint of their own
 /// colour, so it reads as a status rather than as the task's colour.
-/// A card's word that the task is handed to Claude, and to which model.
+/// A card's word that the task is handed to Claude, and to which model —
+/// or sent to an agent, and to which.
 class ClaudeMark extends StatelessWidget {
-  final String model;
+  final String label;
   final Color color;
 
-  const ClaudeMark({super.key, required this.model, required this.color});
+  const ClaudeMark({super.key, required this.label, required this.color});
+
+  /// What [task]'s mark says, if it has one: the watcher's model first.
+  static String? of(Task task) => switch (task.claude) {
+    final model? => ClaudeModels.name(model),
+    null => task.agent,
+  };
 
   @override
   Widget build(BuildContext context) => Row(
@@ -654,11 +662,7 @@ class ClaudeMark extends StatelessWidget {
     children: [
       Icon(Icons.auto_awesome, size: 13, color: color),
       const SizedBox(width: 3),
-      Text(
-        ClaudeModels.name(model),
-        maxLines: 1,
-        style: TextStyle(color: color, fontSize: 12.5),
-      ),
+      Text(label, maxLines: 1, style: TextStyle(color: color, fontSize: 12.5)),
     ],
   );
 }

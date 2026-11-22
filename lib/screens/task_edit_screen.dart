@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -96,6 +97,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
   int? _remindBefore;
   String? _claude;
 
+  /// The chat the task was sent to from Schedule or the calendar, if it
+  /// was: looked for as the form opens, since nothing on the task says so.
+  String? _chat;
+
   /// The checklist as it is being edited, and the field that adds to it.
   final List<_Draft> _steps = [];
   final _newStep = TextEditingController();
@@ -182,6 +187,16 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         task?.listId ??
         widget.listId ??
         context.read<TaskProvider>().groupForNew;
+    if (task?.id != null && Agents.instance.signedIn) {
+      unawaited(_findChat(task!.id!));
+    }
+  }
+
+  Future<void> _findChat(int id) async {
+    final uuid = await AppDatabase.instance.taskUuid(id);
+    if (uuid == null) return;
+    final chat = await Agents.instance.chatOfTask(uuid).catchError((_) => null);
+    if (chat != null && mounted) setState(() => _chat = chat);
   }
 
   @override
@@ -342,8 +357,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     if (id == null) return;
     final uuid = await AppDatabase.instance.taskUuid(id);
     final chat = uuid == null
-        ? null
-        : await Agents.instance.chatOfTask(uuid).catchError((_) => null);
+        ? _chat
+        : await Agents.instance.chatOfTask(uuid).catchError((_) => _chat);
     if (!mounted) return;
     if (chat == null) {
       ScaffoldMessenger.of(
@@ -738,9 +753,11 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                         setState(() => _claude = null);
                                       },
                               ),
-                              // Handed over already: its chat, to watch it
-                              // or say more.
-                              if (widget.task?.claude != null &&
+                              // Handed over already, or sent to an agent:
+                              // its chat, to watch it or say more.
+                              if ((widget.task?.claude != null ||
+                                      widget.task?.agent != null ||
+                                      _chat != null) &&
                                   Agents.instance.signedIn) ...[
                                 const SizedBox(height: 12),
                                 _FieldTile(

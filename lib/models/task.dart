@@ -444,6 +444,12 @@ class Task {
   /// not started, and writes the answer into its notes.
   final String? claude;
 
+  /// What the task was sent to from Schedule or the calendar, as its card
+  /// names it — "Opus", "Codex · gpt-5" — or null. Only a mark: the chat
+  /// is the agent's, and nothing takes the task up by it, as the watcher
+  /// does by [claude].
+  final String? agent;
+
   /// [remindBefore] for a task that is never announced.
   static const silent = -1;
 
@@ -468,6 +474,7 @@ class Task {
     this.startedAt,
     this.duration,
     this.claude,
+    this.agent,
   });
 
   /// When a timed task with a length ends, or null.
@@ -609,6 +616,8 @@ class Task {
     bool clearDuration = false,
     String? claude,
     bool clearClaude = false,
+    String? agent,
+    bool clearAgent = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -635,6 +644,7 @@ class Task {
       startedAt: clearStartedAt ? null : (startedAt ?? this.startedAt),
       duration: clearDuration ? null : (duration ?? this.duration),
       claude: clearClaude ? null : (claude ?? this.claude),
+      agent: clearAgent ? null : (agent ?? this.agent),
     );
   }
 
@@ -660,6 +670,7 @@ class Task {
       'started_at': startedAt,
       'duration': duration,
       'claude': claude,
+      'agent': agent,
     };
   }
 
@@ -688,6 +699,7 @@ class Task {
       startedAt: map['started_at'] as int?,
       duration: map['duration'] as int?,
       claude: map['claude'] as String?,
+      agent: map['agent'] as String?,
     );
   }
 

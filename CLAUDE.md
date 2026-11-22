@@ -27,7 +27,7 @@ the GitHub release check/download and Supabase (Cloud for now).
 lib/
   data/holidays.dart       public holidays, computed on device
   l10n/                    strings.dart (S) + words_*.dart, a table per language
-  db/database.dart         schema v14 (+ migrations); db/sync_store.dart
+  db/database.dart         schema v15 (+ migrations); db/sync_store.dart
   models/                  task (Repeat, Priority), task_list (ListStyle,
                            colorOfTask), completion, secret, special_day
   providers/               task, settings, events, vault
@@ -204,7 +204,8 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
 - **Selection** (`Selection`, `SelectionScope`, `SelectionSlot`,
   `moveAllToDay/moveAllToGroup/setAllDone/removeAll`): taps toggle while
   any is picked; lifted colour rim (`foregroundDecoration`) and glow. The
-  add row becomes Move to day / Move to group / Mark done / Delete (asks).
+  add row becomes Move to day / Move to group / Mark done / Send to agents
+  (signed in only; see Agents) / Delete (asks).
   One selection across scopes; Back, group change, screen change put it
   down. Not on the board. `ClipRect` only while leaving.
 - **Swipe left on Schedule puts off** (`PutOff`, `offerUndo`,
@@ -752,6 +753,21 @@ the app, a terminal beside them; anything else a terminal.
   answer its first turn's `result` (or `--timeout`, then it goes on in its
   chat); handed back, the same chat resumes. The form has "Open its chat";
   the list marks task chats.
+- **Tasks picked out on Schedule or the calendar can be sent to agents, a
+  chat each** (asked for, 2026-11-22: "each of the task must spawn own
+  agent … user must specify which worker, model, effort"):
+  `NewChatScreen(tasks:)`, one form for all, and an optional "Tell each
+  first" said before each task. Each chat is titled by its task (not named
+  by Haiku), told `taskMessage` (title, due, notes, checklist) and kept as
+  its task's (`chats.task_uuid`), so "Open its chat" shows for it too
+  (`_findChat`). Only agents that take a first message, never the shell.
+  One task opens its chat; more go back with a count. A Start that fails
+  part way goes on with the rest next time (`_sent`). Each task sent is put
+  In progress and marked with what it went to: `Task.agent`, schema v15,
+  synced, a label (`agentMark`: "Opus", "Codex · gpt-5"), worn as the
+  watcher's tasks wear theirs (`ClaudeMark.of`). A mark only, apart from
+  `Task.claude` on purpose: the watcher would run a task by its label.
+  Nothing is written back to the notes.
 - **The app**: `AgentsScreen` (long press/right-click deletes),
   `NewChatScreen` (prefs `agents_last`), `ChatScreen` (Chat/Terminal
   switch; Send stops a running turn when the field is empty; the terminal
@@ -905,7 +921,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 447 tests, all passing; keep it so. `supabase test db` — 59.
+`flutter test` — 462 tests, all passing; keep it so. `supabase test db` — 59.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

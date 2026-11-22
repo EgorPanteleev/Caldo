@@ -461,6 +461,7 @@ class Agents extends ChangeNotifier {
     List<String> skills = const [],
     List<AgentRule> rules = const [],
     String prompt = '',
+    String? task,
     int cols = 80,
     int rows = 24,
     bool inChat = false,
@@ -483,6 +484,9 @@ class Agents extends ChangeNotifier {
           for (final r in rules) {'name': r.name, 'body': r.body},
         ],
       'prompt': prompt,
+      // A task sent from Schedule or the calendar: the list marks the
+      // chat as its task's, and the task's form opens it.
+      'task_uuid': ?task,
       // The worker titles the chat in it, not in the message's.
       'language': S.current.code,
       'cols': cols.clamp(10, 500),

@@ -5,12 +5,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xterm/xterm.dart';
 
+import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../mcp/agents.dart' show sizeWord;
 import '../models/task.dart';
+import '../models/task_list.dart';
+import '../providers/task_provider.dart';
 import '../services/account.dart';
 import '../services/agents.dart';
 import '../services/attachments.dart';
@@ -387,9 +391,15 @@ class _TermFont {
 }
 
 /// The choices for a new chat, and the last ones made, which the next
-/// starts from.
+/// starts from. Given [tasks], it starts one chat for each of them instead,
+/// all on the same computer with the same agent, model and effort, each
+/// told its own task as its first message and kept as that task's chat.
 class NewChatScreen extends StatefulWidget {
-  const NewChatScreen({super.key});
+  /// Tasks picked out on Schedule or the calendar to be sent on; empty for
+  /// a chat of one's own.
+  final List<Task> tasks;
+
+  const NewChatScreen({super.key, this.tasks = const []});
 
   @override
   State<NewChatScreen> createState() => _NewChatScreenState();
@@ -416,6 +426,16 @@ class _NewChatScreenState extends State<NewChatScreen> {
   final Set<String> _rules = {};
   bool _starting = false;
 
+  /// The last form's choices, until there is a worker to apply them to:
+  /// opened from a task, the workers may not have been read yet.
+  Map? _last;
+
+  bool get _forTasks => widget.tasks.isNotEmpty;
+
+  /// The tasks whose chats have started, by id: a second Start after one
+  /// failed goes on with the rest rather than starting these again.
+  final Set<int> _sent = {};
+
   @override
   void initState() {
     super.initState();
@@ -441,36 +461,38 @@ class _NewChatScreenState extends State<NewChatScreen> {
       if (_worker == null || _agents.worker(_worker) == null) {
         _pickWorker(null);
       }
+      _applyLast();
     });
   }
 
   Future<void> _restore() async {
-    Map last;
     try {
       final prefs = await SharedPreferences.getInstance();
-      last = jsonDecode(prefs.getString(_lastKey) ?? '{}') as Map;
+      _last = jsonDecode(prefs.getString(_lastKey) ?? '{}') as Map;
     } catch (_) {
       return;
     }
-    if (!mounted) return;
-    setState(() {
-      if (_agents.worker(last['worker'] as String?) != null) {
-        _pickWorker(last['worker'] as String);
-      }
-      final kind = _kinds.where((a) => a.id == last['agent']).firstOrNull;
-      if (kind != null) _pickAgent(kind);
-      if (_kind?.id == last['agent']) {
-        _model = last['model'] as String?;
-        _effort = last['effort'] as String?;
-        _permission = last['permission'] as String?;
-      }
-      if (last['worker'] == _worker && last['dir'] is String) {
-        _dir.text = last['dir'] as String;
-      }
-      _rules.addAll([
-        for (final id in last['rules'] as List? ?? const []) '$id',
-      ]);
-    });
+    if (mounted) setState(_applyLast);
+  }
+
+  void _applyLast() {
+    final last = _last;
+    if (last == null || _agents.workers.isEmpty) return;
+    _last = null;
+    if (_agents.worker(last['worker'] as String?) != null) {
+      _pickWorker(last['worker'] as String);
+    }
+    final kind = _kinds.where((a) => a.id == last['agent']).firstOrNull;
+    if (kind != null) _pickAgent(kind);
+    if (_kind?.id == last['agent']) {
+      _model = last['model'] as String?;
+      _effort = last['effort'] as String?;
+      _permission = last['permission'] as String?;
+    }
+    if (last['worker'] == _worker && last['dir'] is String) {
+      _dir.text = last['dir'] as String;
+    }
+    _rules.addAll([for (final id in last['rules'] as List? ?? const []) '$id']);
   }
 
   Future<void> _remember() async {
@@ -492,7 +514,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   AgentWorker? get _w => _agents.worker(_worker);
-  List<AgentKind> get _kinds => _w?.agents ?? const [];
+
+  /// What the worker runs; for tasks, only what takes a first message —
+  /// and not the shell, which would run a task's words as commands.
+  List<AgentKind> get _kinds => [
+    for (final a in _w?.agents ?? const <AgentKind>[])
+      if (!_forTasks || (a.prompt != 'none' && a.id != 'shell')) a,
+  ];
   AgentKind? get _kind => _kinds.where((a) => a.id == _agent).firstOrNull;
 
   /// The worker [id], or the first one there; its first agent, and its
@@ -563,6 +591,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final font = await _TermFont.read();
     if (!mounted) return;
     final (cols, rows) = _TermFont.fit(MediaQuery.sizeOf(context), font);
+    if (_forTasks) return _startEach(kind, worker, cols, rows);
     final plugins = _plugins;
     final rules = _picked;
     try {
@@ -598,6 +627,80 @@ class _NewChatScreenState extends State<NewChatScreen> {
     }
   }
 
+  /// A chat for each task, one after another, each with the form's
+  /// choices: told what is written here (or the rules' openings), then its
+  /// task. One task opens its chat; more go back to where they were sent
+  /// from, the chats under Agents.
+  Future<void> _startEach(
+    AgentKind kind,
+    String worker,
+    int cols,
+    int rows,
+  ) async {
+    final s = S.of(context);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final plugins = _plugins;
+    final rules = _picked;
+    final said = firstMessage(_prompt.text, rules);
+    final provider = context.read<TaskProvider>();
+    final mark = agentMark(kind, _model);
+    // Each task as it is now, not as it was picked out.
+    final marked = <Task, String>{};
+    Chat? last;
+    try {
+      for (final task in widget.tasks) {
+        if (_sent.contains(task.id)) continue;
+        final uuid = await AppDatabase.instance.taskUuid(task.id!);
+        last = await _agents.start(
+          worker: worker,
+          agent: kind.id,
+          title: task.title.trim(),
+          model: _model,
+          effort: _effort,
+          dir: _dir.text.trim().isEmpty ? null : _dir.text.trim(),
+          permission: _permission,
+          plugins: plugins == null || setEquals(plugins, {...kind.pluginsOn})
+              ? null
+              : plugins.toList(),
+          skills: _skills.toList(),
+          rules: rules,
+          prompt: taskMessage(task, said),
+          task: uuid,
+          cols: cols,
+          rows: rows,
+          inChat: kind.talks,
+        );
+        _sent.add(task.id!);
+        marked[provider.taskById(task.id!) ?? task] = mark;
+      }
+    } catch (e) {
+      unawaited(provider.sentToAgents(marked));
+      // Those started stay started; Start again goes on with the rest.
+      if (!mounted) return;
+      setState(() => _starting = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text('${s.chatsStarted(_sent.length)} · $e')),
+      );
+      return;
+    }
+    unawaited(provider.sentToAgents(marked));
+    unawaited(_remember());
+    if (!mounted) return;
+    if (widget.tasks.length == 1 && last != null) {
+      final id = last.id;
+      await navigator.pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => ChatScreen(chat: id)),
+        result: true,
+      );
+      return;
+    }
+    navigator.pop(true);
+    messenger.showSnackBar(
+      SnackBar(content: Text(s.chatsStarted(_sent.length))),
+    );
+  }
+
   bool _chosen(AgentRule rule) => _rules.contains(rule.id);
 
   /// The chosen rules, if the agent takes rules at all.
@@ -618,7 +721,12 @@ class _NewChatScreenState extends State<NewChatScreen> {
         maintainBottomViewPadding: true,
         child: Column(
           children: [
-            DeskColumn(child: ScreenHeader(title: s.newChat, showBack: true)),
+            DeskColumn(
+              child: ScreenHeader(
+                title: _forTasks ? s.sendToAgents : s.newChat,
+                showBack: true,
+              ),
+            ),
             Expanded(
               child: DeskGutter(
                 builder: (context, gutter) => ListView(
@@ -629,7 +737,18 @@ class _NewChatScreenState extends State<NewChatScreen> {
                     24 + KeyboardGap.of(context),
                   ),
                   children: [
-                    _Section(s.chatWorker),
+                    if (_forTasks) ...[
+                      _Section(s.tasks),
+                      _TaskLines(tasks: widget.tasks),
+                    ],
+                    if (_agents.loaded && _agents.workers.isEmpty) ...[
+                      _Section(s.agentsNoWorker),
+                      Text(
+                        s.agentsNoWorkerHint,
+                        style: TextStyle(color: p.muted, fontSize: 14),
+                      ),
+                    ],
+                    if (_agents.workers.isNotEmpty) _Section(s.chatWorker),
                     _Picks(
                       children: [
                         for (final worker in _agents.workers)
@@ -647,7 +766,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                       _Section(s.chatAgent),
                       _Picks(
                         children: [
-                          for (final a in w.agents)
+                          for (final a in _kinds)
                             _Pick(
                               label: a.label,
                               selected: a.id == _agent,
@@ -798,15 +917,22 @@ class _NewChatScreenState extends State<NewChatScreen> {
                           ],
                         ),
                       ],
-                      _Section(s.chatTitle),
-                      _Field(controller: _title),
+                      // Each chat is titled by its task.
+                      if (!_forTasks) ...[
+                        _Section(s.chatTitle),
+                        _Field(controller: _title),
+                      ],
                       if (kind.prompt != 'none') ...[
-                        _Section(s.chatPrompt),
+                        _Section(_forTasks ? s.chatForEach : s.chatPrompt),
                         // What the chosen rules begin with, if nothing is
                         // written here.
                         _Field(
                           controller: _prompt,
-                          hint: firstMessage('', _picked),
+                          hint: firstMessage('', _picked).isNotEmpty
+                              ? firstMessage('', _picked)
+                              : _forTasks
+                              ? s.chatForEachHint
+                              : null,
                           lines: 6,
                         ),
                       ],
@@ -815,7 +941,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
                         height: 48,
                         child: FilledButton(
                           onPressed: _starting ? null : _start,
-                          child: Text(s.chatStart),
+                          child: Text(
+                            _forTasks
+                                ? s.chatStartEach(
+                                    widget.tasks.length - _sent.length,
+                                  )
+                                : s.chatStart,
+                          ),
                         ),
                       ),
                     ],
@@ -826,6 +958,85 @@ class _NewChatScreenState extends State<NewChatScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// What a task sent to [kind] is marked with on its card: the model as
+/// the watcher's tasks name it for Claude, else the agent and its model.
+String agentMark(AgentKind kind, String? model) => switch ((kind.id, model)) {
+  ('claude', final m?) => ClaudeModels.name(m),
+  (_, final m?) => '${kind.label} · $m',
+  _ => kind.label,
+};
+
+/// What a task's chat is told first: [said] on the form for every one,
+/// then the task as its card holds it — title, when it is due, notes and
+/// checklist.
+String taskMessage(Task task, String said) {
+  final out = StringBuffer();
+  if (said.trim().isNotEmpty) out.write('${said.trim()}\n\n');
+  out.writeln('Task from Caldo: ${task.title.trim()}');
+  final due = task.due;
+  if (due != null) {
+    out.writeln(
+      'Due: ${Dates.longDay(due)}${task.hasTime ? ', ${Dates.time(due)}' : ''}',
+    );
+  }
+  if (task.notes.trim().isNotEmpty) out.write('Notes:\n${task.notes.trim()}\n');
+  if (task.subtasks.isNotEmpty) {
+    out.writeln('Checklist:');
+    for (final step in task.subtasks) {
+      out.writeln('- [${step.done ? 'x' : ' '}] ${step.title}');
+    }
+  }
+  return out.toString().trim();
+}
+
+/// The tasks a form is sending on, a line each in their own colour, as
+/// the day sheet's dense cards name them.
+class _TaskLines extends StatelessWidget {
+  final List<Task> tasks;
+
+  const _TaskLines({required this.tasks});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final provider = context.read<TaskProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final task in tasks)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: colorOfTask(
+                      task,
+                      provider.listById(task.listId),
+                      fallback: AppTheme.accentOf(context).color,
+                    ),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: p.text, fontSize: 14.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
