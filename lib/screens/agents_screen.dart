@@ -1768,8 +1768,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         working:
                             chat.inChat &&
                             (heard ?? chat.state.name) == 'running',
-                        onAnswer: (item, choice) =>
-                            _agents.answer(widget.chat, item, choice),
+                        onAnswer: (item, choice, answers) => _agents.answer(
+                          widget.chat,
+                          item,
+                          choice,
+                          answers: answers,
+                        ),
                       ),
                     )
                   : talks && chat.inChat

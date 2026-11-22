@@ -630,6 +630,17 @@ the app, a terminal beside them; anything else a terminal.
   never run here). Both emit the same items (`TalkSink`): user, text,
   thinking, tool (one line; opened, detail and output cut at 4000), ask,
   note. Shell and `agents.json` agents are terminals only.
+- **Claude's AskUserQuestion is answered, not allowed** (asked as "ask
+  question in chat mode works bad", 2026-11-22): it comes as a
+  `can_use_tool` request in every permission mode; allowed as it came,
+  Claude heard nothing was chosen. The ask item carries the questions
+  (`questionsOf`), drawn as options to tap, one or any, plus Other…
+  (`_Questions`); Answer sends `updatedInput` with `answers` by each
+  question's words, several joined with ", " (`claudeVerdict`; tried on
+  Claude itself). The app writes `answer <item> <json>` (`answerOf`); a
+  worker from before reads that as no item and lets it be; Allow from an
+  app from before is told to Claude as "ask in plain words". No tool
+  line for it: the question is its record. Codex has nothing like it here.
 - **One program holds a session at a time** (`chats.mode`): the head's
   Chat/Terminal switch shows either side; the side not holding it offers
   the move (`chat_in` `mode`). To the terminal: resumed in tmux (`claude
@@ -950,7 +961,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 476 tests, all passing; keep it so. `supabase test db` — 60.
+`flutter test` — 504 tests, all passing; keep it so. `supabase test db` — 60.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

@@ -98,8 +98,13 @@ abstract class Talk {
   /// for it, so the words it showed at once are these.
   void say(String text, {String? id, List<Given> files = const []});
 
-  /// [choice] is `allow`, `always` or `deny`.
-  void answer(String ask, String choice);
+  /// [choice] is `allow`, `always` or `deny`; or `answer` to questions
+  /// asked of the user, [answers] by each question's words.
+  void answer(
+    String ask,
+    String choice, {
+    Map<String, String> answers = const {},
+  });
   void interrupt();
   Future<void> close();
 
@@ -267,27 +272,29 @@ class ClaudeTalk extends Talk {
   }
 
   @override
-  void answer(String id, String choice) {
+  void answer(
+    String id,
+    String choice, {
+    Map<String, String> answers = const {},
+  }) {
     final request = _asks.remove(id);
     if (request == null) return;
     final body = request['body'] as Map<String, Object?>;
-    sink.item(id, 'ask', {...body, 'answer': choice});
-    final asked = request['request'] as Map;
-    final allow = choice != 'deny';
+    sink.item(id, 'ask', {
+      ...body,
+      'answer': choice,
+      if (answers.isNotEmpty) 'answers': answers,
+    });
     _write({
       'type': 'control_response',
       'response': {
         'subtype': 'success',
         'request_id': request['id'],
-        'response': allow
-            ? {
-                'behavior': 'allow',
-                'updatedInput': asked['input'] ?? const {},
-                if (choice == 'always' &&
-                    asked['permission_suggestions'] is List)
-                  'updatedPermissions': asked['permission_suggestions'],
-              }
-            : {'behavior': 'deny', 'message': 'The user said no.'},
+        'response': claudeVerdict(
+          request['request'] as Map,
+          choice,
+          answers: answers,
+        ),
       },
     });
     sink.stands(_asks.isEmpty ? 'running' : 'asking');
@@ -313,6 +320,10 @@ class ClaudeTalk extends Talk {
   String? _streaming;
   String _last = '';
   final _tools = <String, Map<String, Object?>>{};
+
+  /// AskUserQuestion's calls: their question, with its answers, is their
+  /// record in the chat, so no tool line says them again.
+  final _asking = <String>{};
 
   void _onMessage(String id) {
     if (id == _message) return;
@@ -572,6 +583,10 @@ class ClaudeTalk extends Talk {
         final id = '${block['id']}';
         final name = '${block['name']}';
         final input = block['input'] as Map? ?? const {};
+        if (questionsOf(name, input) != null) {
+          _asking.add(id);
+          return;
+        }
         final body = _tools[id] = {
           'name': name,
           'line': toolLine(name, input),
@@ -584,6 +599,7 @@ class ClaudeTalk extends Talk {
 
   void _toolDone(Map block) {
     final id = '${block['tool_use_id']}';
+    if (_asking.remove(id)) return;
     final body = {
       ...?_tools.remove(id),
       'output': clip(_textOf(block['content'])),
@@ -613,15 +629,22 @@ class ClaudeTalk extends Talk {
     final name = '${request['tool_name']}';
     final input = request['input'] as Map? ?? const {};
     final suggestions = request['permission_suggestions'];
+    final questions = questionsOf(name, input);
     final body = <String, Object?>{
       'tool': name,
-      'line': toolLine(name, input),
-      'detail': toolDetail(name, input),
-      'choices': [
-        'allow',
-        if (suggestions is List && suggestions.isNotEmpty) 'always',
-        'deny',
-      ],
+      if (questions != null) ...{
+        'line': questions.map((q) => q['question']).join(' · '),
+        'questions': questions,
+        'choices': const ['answer', 'deny'],
+      } else ...{
+        'line': toolLine(name, input),
+        'detail': toolDetail(name, input),
+        'choices': [
+          'allow',
+          if (suggestions is List && suggestions.isNotEmpty) 'always',
+          'deny',
+        ],
+      },
     };
     final id = 'ask:$rid';
     _asks[id] = {'id': rid, 'request': request, 'body': body};
@@ -640,6 +663,70 @@ String _textOf(Object? content) {
     ].join('\n');
   }
   return content == null ? '' : '$content';
+}
+
+/// The questions Claude asks the user through AskUserQuestion, each
+/// `question`, `header`, `options` (`label`, `description`) and
+/// `multiSelect`; null for any other tool. It comes as a question of
+/// permission like the rest, but what it waits for is the answers, not a
+/// yes: allowed as it came, Claude is told nothing was chosen.
+List<Map<String, Object?>>? questionsOf(String tool, Map input) {
+  final asked = input['questions'];
+  if (tool != 'AskUserQuestion' || asked is! List) return null;
+  final questions = [
+    for (final q in asked.whereType<Map>())
+      if ('${q['question'] ?? ''}'.trim().isNotEmpty)
+        {
+          'question': '${q['question']}'.trim(),
+          'header': '${q['header'] ?? ''}'.trim(),
+          'multiSelect': q['multiSelect'] == true,
+          'options': [
+            for (final o in (q['options'] as List? ?? const []))
+              if (o is Map && '${o['label'] ?? ''}'.trim().isNotEmpty)
+                {
+                  'label': '${o['label']}'.trim(),
+                  'description': '${o['description'] ?? ''}'.trim(),
+                },
+          ],
+        },
+  ];
+  return questions.isEmpty ? null : questions;
+}
+
+/// What Claude is told of its question of permission [request] given
+/// [choice]: to AskUserQuestion, the [answers] by each question's words,
+/// several choices of one joined with ", " (as Claude's own terminal does).
+Map<String, Object?> claudeVerdict(
+  Map request,
+  String choice, {
+  Map<String, String> answers = const {},
+}) {
+  final input = request['input'] as Map? ?? const {};
+  if (questionsOf('${request['tool_name']}', input) != null) {
+    if (choice == 'answer' && answers.isNotEmpty) {
+      return {
+        'behavior': 'allow',
+        'updatedInput': {...input, 'answers': answers},
+      };
+    }
+    return {
+      'behavior': 'deny',
+      'message': choice == 'deny'
+          ? 'The user chose not to answer.'
+          // An app from before questions were drawn has only Allow.
+          : 'The user could not answer these questions here; ask them in '
+                'plain words instead.',
+    };
+  }
+  if (choice == 'deny') {
+    return {'behavior': 'deny', 'message': 'The user said no.'};
+  }
+  return {
+    'behavior': 'allow',
+    'updatedInput': input,
+    if (choice == 'always' && request['permission_suggestions'] is List)
+      'updatedPermissions': request['permission_suggestions'],
+  };
 }
 
 /// A tool's output is cut to this: the chat shows what it did, the agent
@@ -850,7 +937,11 @@ class CodexTalk extends Talk {
   }
 
   @override
-  void answer(String id, String choice) {
+  void answer(
+    String id,
+    String choice, {
+    Map<String, String> answers = const {},
+  }) {
     final asked = _asks.remove(id);
     if (asked == null) return;
     sink.item(id, 'ask', {...asked.body, 'answer': choice});

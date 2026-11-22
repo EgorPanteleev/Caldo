@@ -7,6 +7,7 @@ import 'package:caldo/mcp/kept.dart';
 import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/mcp/usage.dart';
+import 'package:caldo/mcp/worker.dart' show answerOf;
 import 'package:caldo/models/task.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/agents_screen.dart';
@@ -291,6 +292,126 @@ void main() {
       expect(heard.states.last, 'idle');
       talk.answer('ask:7', 'always');
       expect(heard.items['ask:7']!.$2['answer'], 'always');
+    });
+
+    test(
+      "draws Claude's AskUserQuestion as questions and says the answers",
+      () {
+        final heard = _Heard();
+        final talk = ClaudeTalk(claude, ask, heard, dir: '/tmp');
+        final input = {
+          'questions': [
+            {
+              'question': 'Which colour?',
+              'header': 'Colour',
+              'options': [
+                {'label': 'Red', 'description': 'Warm'},
+                {'label': 'Blue', 'description': 'Cool'},
+              ],
+              'multiSelect': false,
+            },
+            {
+              'question': 'Which fruits?',
+              'header': 'Fruits',
+              'options': [
+                {'label': 'Apple', 'description': ''},
+                {'label': 'Plum', 'description': ''},
+              ],
+              'multiSelect': true,
+            },
+          ],
+        };
+        final request = {
+          'subtype': 'can_use_tool',
+          'tool_name': 'AskUserQuestion',
+          'input': input,
+        };
+        for (final line in [
+          {'type': 'system', 'subtype': 'init', 'session_id': 's1'},
+          {
+            'type': 'assistant',
+            'message': {
+              'id': 'm1',
+              'content': [
+                {
+                  'type': 'tool_use',
+                  'id': 't1',
+                  'name': 'AskUserQuestion',
+                  'input': input,
+                },
+              ],
+            },
+          },
+          {'type': 'control_request', 'request_id': 'r1', 'request': request},
+          {
+            'type': 'user',
+            'message': {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'tool_result',
+                  'tool_use_id': 't1',
+                  'content': 'The user answered…',
+                },
+              ],
+            },
+          },
+        ]) {
+          talk.take(line);
+        }
+        // The question is its record; no tool line says it again.
+        expect(heard.order, ['ask:r1']);
+        final body = heard.items['ask:r1']!.$2;
+        expect(body['choices'], ['answer', 'deny']);
+        expect((body['questions'] as List).length, 2);
+        expect(heard.states.last, 'asking');
+
+        const answers = {
+          'Which colour?': 'Blue',
+          'Which fruits?': 'Apple, Plum',
+        };
+        talk.answer('ask:r1', 'answer', answers: answers);
+        expect(heard.items['ask:r1']!.$2['answers'], answers);
+        expect(heard.states.last, 'running');
+
+        // What Claude is told, as tried on Claude 2.1: the answers by
+        // each question's words, beside the questions.
+        expect(claudeVerdict(request, 'answer', answers: answers), {
+          'behavior': 'allow',
+          'updatedInput': {...input, 'answers': answers},
+        });
+        expect(claudeVerdict(request, 'deny')['behavior'], 'deny');
+        // An app with only Allow can't answer; Claude is told so, not
+        // that nothing was chosen.
+        expect(claudeVerdict(request, 'allow')['behavior'], 'deny');
+        // Other tools are as they were.
+        expect(
+          claudeVerdict({
+            'tool_name': 'Bash',
+            'input': {'command': 'ls'},
+          }, 'allow'),
+          {
+            'behavior': 'allow',
+            'updatedInput': {'command': 'ls'},
+          },
+        );
+      },
+    );
+
+    test('reads an answer as the app writes it, old or new', () {
+      var (item, choice, answers) = answerOf('allow ask:r1');
+      expect((item, choice), ('ask:r1', 'allow'));
+      expect(answers, isEmpty);
+      (item, choice, answers) = answerOf(
+        'answer ask:r1 ${jsonEncode({'Which one?': 'A, B c'})}',
+      );
+      expect((item, choice), ('ask:r1', 'answer'));
+      expect(answers, {'Which one?': 'A, B c'});
+      (item, choice, answers) = answerOf('answer ask:r1 {"cut');
+      expect((item, choice), ('ask:r1', 'answer'));
+      expect(answers, isEmpty);
+      expect(answerOf('allow').$1, isNull);
+      expect(answerOf(null).$1, isNull);
     });
 
     test("counts what Claude's turns spend, its context and its limits", () {
@@ -1594,6 +1715,83 @@ void main() {
         expect(line.data, isNot(contains('91%')));
       });
 
+      testWidgets('asks questions in ${S.names[code]}', (tester) async {
+        final feed = TalkFeed.held('c', [
+          const ChatItem(
+            id: 'ask:r1',
+            seq: 0,
+            kind: 'ask',
+            body: {
+              'tool': 'AskUserQuestion',
+              'line': 'Which colour should the badge be?',
+              'choices': ['answer', 'deny'],
+              'questions': [
+                {
+                  'question': 'Which colour should the badge be?',
+                  'header': 'Colour',
+                  'multiSelect': false,
+                  'options': [
+                    {
+                      'label': 'Red, like the Sunday numbers',
+                      'description':
+                          'The one signal colour the calendar already has',
+                    },
+                    {'label': 'Grey', 'description': ''},
+                  ],
+                },
+                {
+                  'question': 'Where should it show?',
+                  'header': 'Places',
+                  'multiSelect': true,
+                  'options': [
+                    {'label': 'Schedule', 'description': ''},
+                    {'label': 'Calendar', 'description': ''},
+                    {'label': 'Widget', 'description': ''},
+                  ],
+                },
+              ],
+            },
+          ),
+        ]);
+        addTearDown(feed.dispose);
+        final said = <(String, String, Map<String, String>)>[];
+        await pump(
+          tester,
+          code,
+          Scaffold(
+            body: TalkView(
+              feed: feed,
+              working: false,
+              onAnswer: (item, choice, answers) =>
+                  said.add((item, choice, answers)),
+            ),
+          ),
+        );
+        final s = S.forCode(code);
+        Finder answer() => find.widgetWithText(FilledButton, s.chatAnswer);
+        // Not until every question has an answer.
+        expect(tester.widget<FilledButton>(answer()).onPressed, isNull);
+        await tester.tap(find.text('Grey'));
+        await tester.tap(find.text('Red, like the Sunday numbers'));
+        await tester.tap(find.text('Widget'));
+        await tester.tap(find.text('Schedule'));
+        await tester.pump();
+        expect(tester.widget<FilledButton>(answer()).onPressed, isNotNull);
+        // Words of one's own, after the options picked.
+        await tester.tap(find.text(s.chatOther).last);
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'Board too');
+        await tester.tap(find.text(s.save));
+        await tester.pumpAndSettle();
+        await tester.tap(answer());
+        expect(said, hasLength(1));
+        expect((said.single.$1, said.single.$2), ('ask:r1', 'answer'));
+        expect(said.single.$3, {
+          'Which colour should the badge be?': 'Red, like the Sunday numbers',
+          'Where should it show?': 'Schedule, Widget, Board too',
+        });
+      });
+
       testWidgets('draws a chat in ${S.names[code]}', (tester) async {
         final feed = TalkFeed.held('c', [
           const ChatItem(
@@ -1665,7 +1863,7 @@ void main() {
           tester,
           code,
           Scaffold(
-            body: TalkView(feed: feed, working: true, onAnswer: (_, _) {}),
+            body: TalkView(feed: feed, working: true, onAnswer: (_, _, _) {}),
           ),
         );
         final s = S.forCode(code);

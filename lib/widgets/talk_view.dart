@@ -21,7 +21,11 @@ class TalkView extends StatefulWidget {
 
   /// Whether a turn is under way, for the line at the foot that says so.
   final bool working;
-  final void Function(String item, String choice) onAnswer;
+
+  /// A question answered: [answers] by each question's words, for those
+  /// asked of the user.
+  final void Function(String item, String choice, Map<String, String> answers)
+  onAnswer;
 
   /// Room left at the top and foot of the list.
   final EdgeInsets padding;
@@ -177,9 +181,14 @@ class _TalkViewState extends State<TalkView> {
           open: _open.contains(item.id),
           onTap: () => _toggle(item.id),
         ),
+        'ask' when item.body['questions'] is List => _Questions(
+          body: item.body,
+          onAnswer: (choice, answers) =>
+              widget.onAnswer(item.id, choice, answers),
+        ),
         'ask' => _Ask(
           body: item.body,
-          onAnswer: (choice) => widget.onAnswer(item.id, choice),
+          onAnswer: (choice) => widget.onAnswer(item.id, choice, const {}),
         ),
         _ => _Note(text: item.text, error: item.body['error'] == true),
       },
@@ -602,6 +611,353 @@ class _Ask extends StatelessWidget {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Questions the agent asks the user (Claude's AskUserQuestion): each
+/// with its options to tap, one or any, and Other… for words of one's
+/// own; Answer once every question has one. Answered, what was said.
+class _Questions extends StatefulWidget {
+  final Map<String, dynamic> body;
+  final void Function(String choice, Map<String, String> answers) onAnswer;
+
+  const _Questions({required this.body, required this.onAnswer});
+
+  @override
+  State<_Questions> createState() => _QuestionsState();
+}
+
+class _QuestionsState extends State<_Questions> {
+  /// Options picked, and words typed, by each question's place.
+  final _picked = <int, Set<String>>{};
+  final _typed = <int, String>{};
+
+  List<Map> get _questions => [
+    for (final q in widget.body['questions'] as List? ?? const [])
+      if (q is Map) q,
+  ];
+
+  static List<Map> _options(Map q) => [
+    for (final o in q['options'] as List? ?? const [])
+      if (o is Map) o,
+  ];
+
+  /// What is said to question [i]: the options picked in their own order,
+  /// then the words typed; several joined as Claude's terminal joins them.
+  String _answerOf(int i) {
+    final picked = _picked[i] ?? const {};
+    return [
+      for (final o in _options(_questions[i]))
+        if (picked.contains('${o['label']}')) '${o['label']}',
+      if ((_typed[i] ?? '').trim().isNotEmpty) _typed[i]!.trim(),
+    ].join(', ');
+  }
+
+  void _pick(int i, String label) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      final picked = _picked.putIfAbsent(i, () => {});
+      if (_questions[i]['multiSelect'] == true) {
+        if (!picked.remove(label)) picked.add(label);
+      } else {
+        // One answer: an option takes the place of words typed.
+        _typed.remove(i);
+        picked
+          ..clear()
+          ..add(label);
+      }
+    });
+  }
+
+  Future<void> _other(int i) async {
+    final got = await showDialog<String>(
+      context: context,
+      builder: (ctx) => _OtherAnswer(
+        question: '${_questions[i]['question']}',
+        typed: _typed[i] ?? '',
+      ),
+    );
+    if (got == null || !mounted) return;
+    setState(() {
+      if (got.trim().isEmpty) {
+        _typed.remove(i);
+      } else {
+        _typed[i] = got.trim();
+        // One answer: words typed take the place of an option.
+        if (_questions[i]['multiSelect'] != true) _picked.remove(i);
+      }
+    });
+  }
+
+  void _say(String choice) {
+    HapticFeedback.selectionClick();
+    widget.onAnswer(choice, {
+      if (choice == 'answer')
+        for (var i = 0; i < _questions.length; i++)
+          '${_questions[i]['question']}': _answerOf(i),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = AppTheme.of(context);
+    final questions = _questions;
+    final answer = widget.body['answer'] as String?;
+    final answers = widget.body['answers'] as Map? ?? const {};
+    final ready = [
+      for (var i = 0; i < questions.length; i++) _answerOf(i),
+    ].every((a) => a.isNotEmpty);
+
+    Widget question(int i) {
+      final q = questions[i];
+      final header = '${q['header'] ?? ''}';
+      final many = q['multiSelect'] == true;
+      final picked = _picked[i] ?? const {};
+      final typed = _typed[i];
+      final said = answers['${q['question']}'];
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (header.isNotEmpty || (many && answer == null))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text(
+                [
+                  if (header.isNotEmpty) header.toUpperCase(),
+                  if (many && answer == null) s.chatPickAny,
+                ].join(' · '),
+                style: TextStyle(
+                  color: p.faint,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ),
+          Text(
+            '${q['question']}',
+            style: TextStyle(
+              color: p.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (answer != null)
+            Text(
+              said == null || '$said'.isEmpty ? s.chatNotAnswered : '$said',
+              style: TextStyle(
+                color: said == null ? p.faint : p.muted,
+                fontSize: 13.5,
+                height: 1.35,
+              ),
+            )
+          else ...[
+            for (final o in _options(q))
+              _Option(
+                label: '${o['label']}',
+                description: '${o['description'] ?? ''}',
+                many: many,
+                picked: picked.contains('${o['label']}'),
+                onTap: () => _pick(i, '${o['label']}'),
+              ),
+            _Option(
+              label: typed ?? s.chatOther,
+              description: '',
+              many: many,
+              picked: typed != null,
+              onTap: () => _other(i),
+            ),
+          ],
+        ],
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: answer == null
+              ? AppColors.overdue.withValues(alpha: 0.6)
+              : p.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < questions.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            question(i),
+          ],
+          if (answer == null) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                OutlinedButton(
+                  onPressed: () => _say('deny'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: p.text,
+                    side: BorderSide(color: p.border),
+                  ),
+                  child: Text(s.chatSkip),
+                ),
+                FilledButton(
+                  onPressed: ready ? () => _say('answer') : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: p.text,
+                    foregroundColor: p.bg,
+                    disabledBackgroundColor: p.border,
+                    disabledForegroundColor: p.faint,
+                  ),
+                  child: Text(s.chatAnswer),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Words of one's own for a question; its field kept until the dialog
+/// has gone, as it is drawn while it fades.
+class _OtherAnswer extends StatefulWidget {
+  final String question;
+  final String typed;
+
+  const _OtherAnswer({required this.question, required this.typed});
+
+  @override
+  State<_OtherAnswer> createState() => _OtherAnswerState();
+}
+
+class _OtherAnswerState extends State<_OtherAnswer> {
+  late final _field = TextEditingController(text: widget.typed);
+
+  @override
+  void dispose() {
+    _field.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return AlertDialog(
+      title: Text(widget.question),
+      content: TextField(
+        controller: _field,
+        autofocus: true,
+        minLines: 1,
+        maxLines: 5,
+        decoration: InputDecoration(hintText: s.chatOtherHint),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(s.cancel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _field.text),
+          child: Text(s.save),
+        ),
+      ],
+    );
+  }
+}
+
+/// One of a question's options: a round mark for one answer, a square
+/// for any, filled when picked; its description under it.
+class _Option extends StatelessWidget {
+  final String label;
+  final String description;
+  final bool many;
+  final bool picked;
+  final VoidCallback onTap;
+
+  const _Option({
+    required this.label,
+    required this.description,
+    required this.many,
+    required this.picked,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: picked ? p.panelHi : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: picked ? p.muted : p.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 9, 12, 9),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    many
+                        ? (picked
+                              ? Icons.check_box_rounded
+                              : Icons.check_box_outline_blank_rounded)
+                        : (picked
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_unchecked_rounded),
+                    size: 18,
+                    color: picked ? p.text : p.faint,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: p.text,
+                          fontSize: 13.5,
+                          height: 1.35,
+                        ),
+                      ),
+                      if (description.isNotEmpty && description != label)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            description,
+                            style: TextStyle(
+                              color: p.faint,
+                              fontSize: 12,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
