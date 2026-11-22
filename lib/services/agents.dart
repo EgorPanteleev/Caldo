@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -603,9 +604,20 @@ class Agents extends ChangeNotifier {
 
   Future<void> again(String chat) => _in(chat, 'start');
 
-  /// [choice] — `allow`, `always` or `deny` — for the question [item].
-  Future<void> answer(String chat, String item, String choice) =>
-      _in(chat, 'answer', data: '$choice $item');
+  /// [choice] — `allow`, `always` or `deny`, or `answer` with [answers]
+  /// by each question's words — for the question [item].
+  Future<void> answer(
+    String chat,
+    String item,
+    String choice, {
+    Map<String, String> answers = const {},
+  }) => _in(
+    chat,
+    'answer',
+    data: answers.isEmpty
+        ? '$choice $item'
+        : '$choice $item ${jsonEncode(answers)}',
+  );
 
   /// The turn under way cut short; the chat stays.
   Future<void> interrupt(String chat) => _in(chat, 'interrupt');

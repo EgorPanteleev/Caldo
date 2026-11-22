@@ -329,6 +329,11 @@ class S {
   String get chatAllowed => _word('chatAllowed');
   String get chatAlwaysAllowed => _word('chatAlwaysAllowed');
   String get chatDenied => _word('chatDenied');
+  String get chatAnswer => _word('chatAnswer');
+  String get chatSkip => _word('chatSkip');
+  String get chatOtherHint => _word('chatOtherHint');
+  String get chatNotAnswered => _word('chatNotAnswered');
+  String get chatPickAny => _word('chatPickAny');
   String get chatThinking => _word('chatThinking');
   String get chatWorking => _word('chatWorking');
   String get chatInterrupt => _word('chatInterrupt');

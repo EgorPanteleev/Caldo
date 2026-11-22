@@ -504,12 +504,8 @@ class Worker {
           );
         });
       case 'answer' when talker != null:
-        // "<choice> <item>".
-        final data = row['data'] as String? ?? '';
-        final cut = data.indexOf(' ');
-        if (cut > 0) {
-          talker.answer(data.substring(cut + 1), data.substring(0, cut));
-        }
+        final (item, choice, answers) = answerOf(row['data'] as String?);
+        if (item != null) talker.answer(item, choice, answers: answers);
       case 'interrupt' when talker != null:
         talker.interrupt();
       case 'stop' when talker != null:
@@ -1437,7 +1433,11 @@ class _Talker implements TalkSink {
     talk!.say(text, id: id, files: files);
   }
 
-  void answer(String item, String choice) => talk?.answer(item, choice);
+  void answer(
+    String item,
+    String choice, {
+    Map<String, String> answers = const {},
+  }) => talk?.answer(item, choice, answers: answers);
 
   void interrupt() => talk?.interrupt();
 
@@ -1634,3 +1634,29 @@ class _Talker implements TalkSink {
 }
 
 String _short(String id) => id.substring(0, 8);
+
+/// An answer as the app writes it: "choice item", and after them, to
+/// questions asked of the user, the answers as JSON by each question's
+/// words. An app from before answers were sent writes the first two only,
+/// and a worker from before reads the item as all after the first space,
+/// which then names no question and is let be.
+(String?, String, Map<String, String>) answerOf(String? data) {
+  final parts = (data ?? '').split(' ');
+  if (parts.length < 2 || parts[0].isEmpty || parts[1].isEmpty) {
+    return (null, '', const {});
+  }
+  var answers = const <String, String>{};
+  if (parts.length > 2) {
+    try {
+      final json = jsonDecode(parts.skip(2).join(' '));
+      if (json is Map) {
+        answers = {
+          for (final MapEntry(:key, :value) in json.entries) '$key': '$value',
+        };
+      }
+    } on FormatException {
+      // Cut short: no answers, which Claude is told.
+    }
+  }
+  return (parts[1], parts[0], answers);
+}
