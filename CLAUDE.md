@@ -2,23 +2,24 @@
 
 A calendar + to-do app for Android, and for Linux (a wide window gets a
 desktop layout; a narrow one is the phone's app). Flutter, local-first
-storage. Private repo `github.com/EgorPanteleev/Caldo`. Modelled on its
-sibling **Dicty** (`/home/igor/dev/src/Dicty`) — same stack and theme; look
-there first for style and structure questions.
+storage. Repo `github.com/EgorPanteleev/Caldo`. Modelled on its sibling
+**Dicty** (`/home/igor/dev/src/Dicty`) — same stack and theme; look there
+first for style and structure questions.
 
-The full history behind each decision below (what was tried, measured and
-rejected) is in the git history of this file, before the commit that
-shortened it. Look there before reopening one.
+These notes are kept short: what was tried, measured and rejected behind
+each decision is in this file's git history (`git log -p CLAUDE.md`; the
+long version is the parent of "Shorten the working notes"). Look there
+before reopening a decision. Every decision below was asked for or fixed
+after being seen on a device; reverting one will be noticed.
 
 ## Stack
 
 Flutter 3.38.6 / Dart 3.10.7. `provider`, `sqflite` (`sqflite_common_ffi` on
 Linux and in tests), `shared_preferences`, `intl`,
 `flutter_local_notifications` + `timezone` + `flutter_timezone`. Platform
-font. `path_provider_linux`, `file_selector_linux` on the desktop. The
-home-screen widget is native (`TodayWidget.kt`, plain `RemoteViews`). The
-network is used only for the GitHub release check/download and Supabase sync
-(Supabase Cloud for now).
+font. `path_provider_linux`, `file_selector_linux` on the desktop. Native
+home-screen widget (`TodayWidget.kt`, plain `RemoteViews`). Network only for
+the GitHub release check/download and Supabase (Cloud for now).
 
 ## Layout
 
@@ -41,10 +42,9 @@ lib/
   utils/                   dates.dart (every date/time string), platform.dart
   widgets/                 month_grid, task_card, day_sheet, day_hours,
                            quick_add_bar, keys_carry, tick_off, selection,
-                           put_off, carry, desk, … (see the directory)
-  mcp/                     the MCP server's: book, remote, tools, protocol,
-                           watch; the worker's: worker, agents, talk,
-                           terminal
+                           put_off, carry, desk, …
+  mcp/                     MCP server: book, remote, tools, protocol, watch;
+                           worker: worker, agents, talk, kept, usage, terminal
 bin/caldo_mcp.dart         the MCP server and watcher (plain Dart);
                            tool/mcp/install.sh, tool/mcp/watch.sh
 ```
@@ -53,1147 +53,855 @@ Android: `MainActivity.kt` (refresh rate, keyboard, updates, widget
 launches, calendars, backups), `PhoneEvents.kt`, `Attachments.kt`,
 `TodayWidget.kt` + `TodayWidgetRuns.kt`, `CaldoApplication.kt`,
 `LauncherIcon.kt`, `SelfUpdate.kt`, `ReminderCover.kt`, `DailySync.kt`,
-`Vault.kt`, `ScreenRecord.kt`, `KeysCarry.kt`.
-Linux: `linux/` is Flutter's GTK runner plus the window
-(`runner/my_application.cc`), `sqlite_shim.cc`, icon + desktop entry,
-`install.sh`. No channels on Linux.
-Icon: SVG in `assets/icon/src`, rendered by `tool/make_icon.sh`
-(`rsvg-convert`); PNGs checked in.
+`Vault.kt`, `ScreenRecord.kt`, `KeysCarry.kt`. Linux: Flutter's GTK runner
+plus the window (`runner/my_application.cc`), `sqlite_shim.cc`, icon,
+desktop entry, `install.sh`; no channels. Icon: SVG in `assets/icon/src`,
+rendered by `tool/make_icon.sh`; PNGs checked in.
 
-Seven destinations: **Schedule, Calendar, Board, Done, Vault, Agents,
-Settings**, in five tabs: **Tasks** (Schedule, Board, Done), Calendar, Vault,
-Agents, Settings. Any of the first six can be hidden; Settings can't.
+Seven destinations — **Schedule, Calendar, Board, Done, Vault, Agents,
+Settings** — in five tabs: **Tasks** (Schedule, Board, Done), Calendar,
+Vault, Agents, Settings. Any of the first six can be hidden; Settings can't.
 
-**Lists are "groups"; there are no list screens.** Groups surface through a
-chip row and a sheet only. `openList`, `GradientIconButton`, `SelectionBar`
-stay deleted. Tests find a task by name with `taskNamed`
-(`test/support/test_db.dart`).
+**Lists are "groups"; there are no list screens** — only a chip row and a
+sheet. `openList`, `GradientIconButton`, `SelectionBar` stay deleted. Tests
+find a task by name with `taskNamed` (`test/support/test_db.dart`).
 
 ## Decisions worth keeping
 
-All asked for explicitly or fixed after being seen on a device. Reverting
-them will be noticed.
-
 ### Calendar grid
 
-- **Three states on one `AnimationController` in `[-1, 1]`**: -1 week, 0
-  compact month, +1 opened month with titles. Drag anywhere on the grid, the
-  strip under it, or the day bar. A tap on the strip steps one state and
-  turns around at either end.
-- **A drag a fifth of the way commits; one drag moves one state at most**
-  (`_dragBy` clamps). **The snap is a glide, not a spring** (`_Glide`): a
-  cubic starting at the finger's speed, 460ms for a full step (half for a
-  short remainder), no overshoot. A flick sets the start speed (capped at 3×
-  average) but not the duration. Springs were tried and crept/overshot; to
-  slow it, lengthen `_snap`.
-- **Day numbers sit at a fixed offset from the cell top** in every state
-  (so the first week never moves). Centred-then-sliding was built and asked
-  back.
-- **Tasks are lines under the number, not dots**; holidays first, in green.
-- **Opened day chips**: title takes up to two lines, measured with
-  `TextPainter` (round the height up). Overflowing the width fades; overflowing
-  the height is cut at the line (`didExceedMaxLines`) — a fade there slices the
-  last line in half. Chips are inked, not painted (`dayChipColour`, colour
-  mixed into the ground, ordinary text colour). Keep them tight
-  (`_inset`/`_gap`); corners 3; `+N more` left-aligned.
-- **Collapsing to the week slides rows past a shrinking window**; rows keep
-  their month height, each is carried from its month place to its week
-  place, and the week row is a fifth taller (`MonthLayout.weekScale`).
-  Shrinking rows, and holding the week still, were both rejected.
-- **Week rules fade in only in the last quarter of opening** (`weekRuleAlpha`).
-- **The month is laid out once and only moved while changing state**
-  (`MonthGrid.animation`, `_RenderRows`): rows laid out at opened height,
-  clipped, each a repaint boundary; outline and week rules drawn by the
-  render object. Cells keep 1.4pt inset. The month pager is outside the
-  `AnimatedBuilder`.
-- **Keep the drag cheap**: `Holidays.around` and chip heights are cached; the
-  day pager is the `AnimatedBuilder`'s `child`. Look there first if it feels
-  rough.
-- **Today is a tight, near-square badge** in the colour the number would
-  have (red Sunday, light otherwise; black/ground text). Selected day is a
-  thin neutral outline. No accent on either. Badge text is centred on digits
-  (`Alignment(0, 0.2)`, `height: 1`).
+- **Three states on one `AnimationController` in `[-1, 1]`**: week, compact
+  month, opened month with titles. Drag on the grid, the strip under it or
+  the day bar; a tap on the strip steps one state, turning at either end.
+- **A fifth of the way commits; one drag moves one state at most**
+  (`_dragBy`). **The snap is a glide, not a spring** (`_Glide`: cubic from
+  the finger's speed, 460ms a full step, no overshoot; a flick sets start
+  speed, capped 3×, not duration). Springs crept and overshot.
+- **Day numbers at a fixed offset from the cell top** in every state.
+- **Tasks are lines under the number, not dots**; holidays first, green.
+- **Opened day chips**: title up to two lines measured with `TextPainter`
+  (height rounded up); width overflow fades, height overflow is cut at the
+  line (`didExceedMaxLines`). Inked, not painted (`dayChipColour`), ordinary
+  text colour, tight (`_inset`/`_gap`), corners 3, `+N more` left.
+- **Collapsing to the week slides rows past a shrinking window**: rows keep
+  month height, each carried to its week place; the week row is a fifth
+  taller (`MonthLayout.weekScale`). Week rules fade in only in the last
+  quarter of opening (`weekRuleAlpha`).
+- **The month is laid out once and only moved** (`MonthGrid.animation`,
+  `_RenderRows`): rows at opened height, clipped, each a repaint boundary;
+  outline and rules drawn by the render object; cells 1.4pt inset; the
+  month pager outside the `AnimatedBuilder`.
+- **Keep the drag cheap**: `Holidays.around` and chip heights cached; the
+  day pager is the `AnimatedBuilder`'s `child`.
+- **Today: tight near-square badge** in the number's colour (red Sunday,
+  else light; ground text), text centred on digits (`Alignment(0, 0.2)`,
+  `height: 1`). Selected day: thin neutral outline. No accent on either.
 - **All day numbers semibold**, tightened (`letterSpacing`,
-  `proportionalFigures`). **Only Sundays are red**; holidays don't recolour.
-- **Header**: controls row on top (Search, Today), month name alone
-  below, `Sep` centred, year only if not current. No chevrons on the phone.
-  Today's button shows today's date on a page.
-- **Grid on the ground, day panel a raised grey** (`calendar` vs `panel`); the day bar takes the
-  panel's grey.
+  `proportionalFigures`). **Only Sundays are red.**
+- **Header**: controls (Search, Today) on top, month name alone below,
+  centred, year only if not current, no chevrons on the phone. Today's
+  button shows today's date.
+- **Grid on the ground, day panel raised grey** (`calendar` vs `panel`);
+  the day bar takes the panel's grey.
 
 ### Calendar pagers and day panel
 
-- **Days below the grid are a pager, one page per day.** Within a grid's span
-  (`_passThrough`, 42) a pick slides through the days between; further away it
-  is brought in as the next page (`_dayAnchor`, `_heldPage`). Pagers ignore
-  pages an animation passes through (`_driving`); `_onMonthPageChanged` still
-  owes the header a `setState`.
+- **Days below the grid are a pager, a page a day.** Within 42 days
+  (`_passThrough`) a pick slides through; further, it comes in as the next
+  page (`_dayAnchor`, `_heldPage`). Pagers ignore pages an animation passes
+  (`_driving`); `_onMonthPageChanged` still owes the header a `setState`.
 - **In the week, a sideways swipe turns a week** (`_weekController`,
-  `_weekShown`): a second pager over the month's, keeps the weekday, cuts
-  (doesn't slide) the day panel. The month pager takes over off the week and
-  during a carry.
-- **Picking a day in the opened month opens a bottom sheet** (`day_sheet`),
-  sized to the day up to 56%, dense one-line cards (`TaskCard.dense`), no own
-  overlay (`DragWithin.overlay`), lifted by `KeyboardGap`. Drag down to close.
-- **Hours view** (`DayHours`, `SettingsProvider.dayAsHours`, `_ViewSwitch` in
-  the day bar): untimed items across the top, then a midnight-to-midnight
-  timeline, blocks side by side when overlapping, red now-line. Re-placed when
-  contents change until the user scrolls. Day sheet stays a list.
-- **Day bar names its day and holds the list/hours switch only.**
+  `_weekShown`), keeps the weekday, cuts the day panel. The month pager
+  takes over off the week and during a carry.
+- **A pick in the opened month opens a bottom sheet** (`day_sheet`): sized
+  to the day up to 56%, dense cards (`TaskCard.dense`), no own overlay
+  (`DragWithin.overlay`), lifted by `KeyboardGap`, drag down to close.
+- **Hours view** (`DayHours`, `SettingsProvider.dayAsHours`, `_ViewSwitch`):
+  untimed items on top, midnight-to-midnight timeline, overlaps side by
+  side, red now-line, re-placed on change until the user scrolls. The day
+  sheet stays a list. The day bar holds only the day's name and the switch.
 - **The day's list scrolls only in the week state** (`_HeldScrollPhysics`,
-  `_listHeld`); otherwise every drag drives the grid. A drag that scrolled the
-  list never opens the month (`_listScrolled`). An empty day has no list; the
-  whole panel takes the drag (`EmptyState.scrolls`).
+  `_listHeld`); otherwise drags drive the grid. A drag that scrolled the
+  list never opens the month (`_listScrolled`). An empty day has no list
+  (`EmptyState.scrolls`).
 
 ### Tasks and cards
 
-- **Timed tasks may have an end** (`Task.duration`, minutes, schema v8),
-  same day only, written "15:00 – 16:30".
-- **Cards are frosted glass** (asked for from mock-ups, 2026-11-19): 30%
-  of the task's colour (`TaskCard.ink`), translucent over the ground they
-  stand on, a 1.5pt rim of the colour at 56% (the tick's square outlined the same), and a frost of fine grain,
-  one sharp pixel per screen pixel, about 3.4% white varying 1.5%
-  (`CardPane`, `assets/grain.png` from `tool/make_grain.py`,
-  unfiltered). The pane is its own `Decoration`: the grain is an
-  `ImageShader` filling the card's shape, one draw — as a `BoxDecoration`
-  image it clipped and tiled every card each frame, and lerping it
-  (tick, pick) blended through a `saveLayer` per card. 22% under an even 8% veil (the mock-up's "soft grain" as
-  Chrome drew it) read as greyish; ink, grain and frost were picked from
-  pictures. A coarser grain
-  (2.11.37), a blurred one and a soft, bleeding rim (2.11.38) read as
-  noise. Deeper ink alone read as a muddy slab. Done keeps 9.45% ink
-  and a faint rim (18%), no frost. Holidays and phone events wear the same pane
-  (`TaskCard.paneOf`). Ink, rim and frost have Debug sliders. Timed tasks
-  use the same card (no separate row form).
-- **A task may carry its own colour** (`Task.styleId`), else its group's.
-  Always resolve through `colorOfTask`. Moving group on the form resets to the
-  group colour.
+- **Timed tasks may have an end** (`Task.duration`, minutes), same day
+  only, "15:00 – 16:30".
+- **Cards are frosted glass** (`CardPane`, its own `Decoration`): 30% of
+  the task's colour (`TaskCard.ink`), a 1.5pt rim at 56% (tick square
+  outlined alike), a frost of one-pixel grain ~3.4% white ±1.5%
+  (`assets/grain.png` from `tool/make_grain.py`, unfiltered, one
+  `ImageShader` draw — a `BoxDecoration` image tiled every frame and lerped
+  through a `saveLayer`). Coarser, blurred or bleeding grain read as noise;
+  deeper ink as mud. Done: 9.45% ink, rim 18%, no frost. Holidays and
+  phone events wear the same pane (`TaskCard.paneOf`); timed tasks use the
+  same card. Debug sliders for ink, rim, frost.
+- **A task may carry its own colour** (`Task.styleId`), else its group's;
+  always resolve through `colorOfTask`. Moving group on the form resets it.
 - **Palette: sixteen presets plus made colours** (`ListStyle.presets`,
-  `ColourSelector`, `showCustomColourSheet`; hue strip + five tones, stored as
-  `#RRGGBB` in `style_id`; six recent in `customColours`). The first eight ids
-  are the old ones; `ListStyle.freeFor` offers those first.
+  `ColourSelector`, `showCustomColourSheet`; `#RRGGBB` in `style_id`; six
+  recent in `customColours`). First eight ids are the old ones
+  (`ListStyle.freeFor`).
 - **Ticking off** (`CheckMark`, `TaskProvider.settle/linger/leave/hold`,
-  `TaskCard.ticking/leaving`): tick drawn at once (240ms), crossed out 250ms
-  later, then a card that leaves its run (done overdue, rolling repeat, hidden
-  completed) fades over 280ms; otherwise it holds 150ms and slides to the end
-  of its day (`SlideIntoPlace`, 260ms). Schedule and Calendar must behave
-  identically (grouping is made once per load, not in a getter).
+  `TaskCard.ticking/leaving`): tick at once (240ms), crossed out 250ms
+  later; a card that leaves its run fades 280ms, else holds 150ms and
+  slides to the end of its day (`SlideIntoPlace`, 260ms). Schedule and
+  Calendar behave identically (grouping made once per load, not in a
+  getter).
 - **A tick doesn't rebuild screens; only the read-back does**
   (`TaskProvider.ticked`, `shown`, `AsShown`). Settings and the tab bar
   `select` single values.
 - **`SlideIntoPlace` slides by (screen, task id)**, noting positions in
-  content space on `TaskProvider.rearranging`, and finds the move in paint
-  (`_RenderSlide`) so the first frame doesn't jump.
-- **Undo for four seconds** (`tickOff`, `_UndoBar`, `UndoScope`, `UndoSlot`,
-  `TaskProvider.restore` — writes the old task back, never re-ticks). Takes the
-  add row's place at its size; the field stays in the tree beneath. Countdown
-  is a gradient across the whole bar (`_Countdown`); holding pauses it. Can be
-  brushed off sideways/down (`UndoSlot._away` reveals the row). Only Undo is
-  in the accent (`_UndoButton`, `_UndoArrow`); no rings, lines or chips.
-- **Done tasks sort after open ones, in tick order** (`completed_at`), hand
-  order beneath that. **High priority leads an unarranged day.** **Hand
-  placement (`sort_order`, null until dragged) is read before the date** in
-  the database's `_order`.
-- **A repeating task ticked late rolls on to today or later** (`Task._nextRound`).
-- **Repeat is a rule** (`Repeat`, `RepeatUnit`, `showRepeatSheet`): every N
-  units, weekdays, month day or last day, end by date or count (`left`,
-  `rolled`; `rollsOn` false on the last round). Old five rules keep their
-  stored names; richer ones are an RRULE-like string. Pieces joined by " · ".
-- **Checklist** (`Subtask`, JSON in the task row, schema v4) so Undo and
-  roll-on carry it. Card shows a "☑ 2/5" pill that opens steps under the
-  title. **Open steps hold back the card's first tick** (`_WithChecklist._tick`
-  shakes and opens them); other tick paths don't. Search filters the JSON in
-  Dart.
-- **Attachments** (`Attachment`, JSON column, schema v10, `Attachments`,
-  `Attachments.kt`, `AttachmentsField`): Photo (photo picker, images only),
-  Camera, File; copied into `files/attachments/<uuid>/<name>`; >100MB refused;
-  opened through a `FileProvider` for that directory only. Nothing deletes a
-  copy when a task drops it; `Attachments.sweep` on start removes unreferenced
-  copies older than an hour. No camera permission declared, on purpose.
+  content space (`TaskProvider.rearranging`), finding the move in paint
+  (`_RenderSlide`).
+- **Undo for four seconds** (`tickOff`, `_UndoBar`, `UndoScope`,
+  `UndoSlot`, `TaskProvider.restore` writes the old task back, never
+  re-ticks): takes the add row's place at its size, field kept beneath;
+  countdown a gradient across the bar (`_Countdown`), paused by holding;
+  brushed off sideways/down (`UndoSlot._away`). Only Undo in the accent;
+  no rings, lines or chips.
+- **Order**: done after open, in tick order (`completed_at`); high priority
+  leads an unarranged day; **hand placement (`sort_order`, null until
+  dragged) is read before the date** (`_order`).
+- **A repeating task ticked late rolls on to today or later**
+  (`Task._nextRound`). **Repeat is a rule** (`Repeat`, `RepeatUnit`,
+  `showRepeatSheet`): every N units, weekdays, month day or last day, end
+  by date or count (`left`, `rolled`; `rollsOn` false on the last). Old
+  five rules keep their names; richer ones are an RRULE-like string.
+- **Checklist** (`Subtask`, JSON in the task row) so Undo and roll-on carry
+  it; "☑ 2/5" pill opens steps. **Open steps hold back the card's first
+  tick** (`_WithChecklist._tick` shakes and opens them); other tick paths
+  don't. Search filters the JSON in Dart.
+- **Attachments** (`Attachment` JSON, `Attachments`, `Attachments.kt`,
+  `AttachmentsField`): Photo (picker, images only), Camera, File; copied to
+  `files/attachments/<uuid>/<name>`; >100MB refused; opened through a
+  `FileProvider` for that directory only. `Attachments.sweep` on start
+  removes unreferenced copies older than an hour. No camera permission, on
+  purpose.
 - **Holidays are not tasks**: computed, read-only, country from locale or
   Settings.
-- **Special days** (asked for: birthdays and other yearly days;
-  `SpecialDay`, schema v13 `special_days`, synced and backed up like the
-  rest; a backup from before leaves them be): a month, a day, a year only
-  if known (then "turns 30" / "5 years", `S.specialLine`), a kind
-  (birthday, anniversary, other — icon and starting colour), a colour,
-  remind on the day. They ride the holidays' path as a `Holiday` with
-  `special` set (`TaskProvider.daysAround` merges them into
-  `Holidays.around`, cached): after the public ones, in their own
-  colour, on the grid, day panel, day sheet, hours view and Schedule —
-  where a day with only a special day on it still shows
-  (`specialDaysBetween`). A tap on the card opens `showSpecialDaySheet`
-  (day/month/year wheels, `DayWheels`, "—" past this year for no year).
-  Listed and added in Settings › Calendar › Special days. Feb 29 falls on
-  the 28th. Read at start (`TaskProvider.start`), after a sync or restore,
-  and on their own changes — not on every agenda read (a tick), which
-  also kept `screens_test`'s 80ms drains in time. Alarms: id
-  `Reminders.specialBase` + id, all-day hour, no buttons, not full
-  screen. Not on the home-screen widget.
-- **"Show completed" applies everywhere a run is drawn**
-  (`TaskProvider.setShowCompleted` via `ChangeNotifierProxyProvider`); the
-  full lists (`allUpcomingByDay`) keep them.
+- **Special days** (`SpecialDay`, `special_days`, synced and backed up):
+  month, day, optional year ("turns 30", `S.specialLine`), kind (birthday,
+  anniversary, other), colour, remind on the day. They ride the holidays'
+  path as a `Holiday` with `special` set (`TaskProvider.daysAround`, cached)
+  after the public ones, everywhere holidays show; Schedule shows a day
+  holding only one (`specialDaysBetween`). Card tap opens
+  `showSpecialDaySheet` (`DayWheels`, "—" for no year). Listed in Settings ›
+  Calendar › Special days. Feb 29 falls on the 28th. Read at start, after a
+  sync or restore, and on their own changes — not on every agenda read.
+  Alarms: id `Reminders.specialBase` + id, all-day hour, no buttons, not
+  full screen. Not on the widget.
+- **"Show completed" applies wherever a run is drawn**
+  (`TaskProvider.setShowCompleted`); `allUpcomingByDay` keeps them.
 - **In-progress tasks show `InProgressBadge` on every card.**
 
 ### Moving, selecting, putting off
 
-- **Long press picks a card up** (no drag handles). Held and released within
-  18pt, it is picked out instead (`Selection.lifted`).
+- **Long press picks a card up** (no handles); released within 18pt it is
+  selected instead (`Selection.lifted`).
 - **Selection** (`Selection`, `SelectionScope`, `SelectionSlot`,
   `moveAllToDay/moveAllToGroup/setAllDone/removeAll`): taps toggle while
-  anything is picked; picked cards get a lifted colour rim
-  (`foregroundDecoration`) and an outer glow. The add row becomes a bar: Move
-  to day, Move to group, Mark done, Delete (asks). One selection across
-  scopes; Back, group change and screen change put it down. Not on the board.
-  `ClipRect` only while leaving, or it clips the glow.
+  any is picked; lifted colour rim (`foregroundDecoration`) and glow. The
+  add row becomes Move to day / Move to group / Mark done / Delete (asks).
+  One selection across scopes; Back, group change, screen change put it
+  down. Not on the board. `ClipRect` only while leaving.
 - **Swipe left on Schedule puts off** (`PutOff`, `offerUndo`,
-  `TaskProvider.putBack`): part way shows Next day / Pick day; past 55% or a
-  fling does Next day (tomorrow, or the day after its own if later). Undo via
-  `putBack`. Not for done cards or during selection. Schedule only.
+  `TaskProvider.putBack`): part way shows Next day / Pick day; past 55% or
+  a fling does Next day. Not done cards, not during selection.
 - **Carrying a card to another day moves it** (`Carry`, `CarryArea`,
-  `CarryMark`, `moveToDay`), keeping its time, clearing `sort_order`. On
-  Schedule drop in any run except Overdue. On the calendar, over the month
-  the card becomes a free-moving day-sized tile (`_ShrinkingCard`,
-  `Carry.shrinkTo`, `_AtFinger`, rounded 14, light rim) — it doesn't snap to
-  cells; the outline says which day. Holding at a side turns the month
-  (`_watchEdges`, `_turn`, 600ms then 900ms) with side tabs (`_EdgeHints`,
-  neutral). The drop is done by a `Listener` that calls `cancelReorder`. Grid
-  and carry share one `MonthLayout`. Holidays can't be moved or displaced.
-- **A carried card is penned in the screen it can drop on** (`DragWithin`,
-  `_KeepInside`), held against the edge, not clipped; pens anchor to
-  undraggable rows; keys belong to the state. **It's the card alone**
-  (`liftedCard`): painted in the ground colour in its own corners, a little
-  scale, no `Material` slab.
-- **Schedule is a heading + reorderable sliver per run** (`_RunOfDays`, `_Run`),
-  as is the calendar's day panel; slivers so it stays one lazy scroll.
+  `CarryMark`, `moveToDay`), keeping its time, clearing `sort_order`.
+  Schedule: drop in any run but Overdue. Calendar: over the month it is a
+  free day-sized tile (`_ShrinkingCard`, `Carry.shrinkTo`, `_AtFinger`,
+  rounded 14, light rim), not snapped; the outline names the day; holding
+  at a side turns the month (`_watchEdges`, `_turn`, 600ms then 900ms) with
+  neutral tabs (`_EdgeHints`). Dropped by a `Listener` calling
+  `cancelReorder`. Grid and carry share one `MonthLayout`. Holidays can't
+  be moved.
+- **A carried card is penned in its screen** (`DragWithin`, `_KeepInside`),
+  held at the edge, not clipped; pens anchor to undraggable rows; keys
+  belong to the state. **It's the card alone** (`liftedCard`): ground
+  colour in its own corners, slight scale, no `Material` slab.
+- **Schedule is a heading + reorderable sliver per run** (`_RunOfDays`,
+  `_Run`), as is the day panel — one lazy scroll.
 
 ### Schedule, Search, Done, Board
 
-- **Schedule is a running order of days**: plain dates, same filled cards,
-  holidays among them. Badges for words (`Today` pill + date; Overdue red; No
-  date). Header has Search and Today (scrolls home).
-- **Search** lays results out like Schedule (Overdue, upcoming, No date, then
-  past latest first); ticks work as anywhere.
+- **Schedule is a running order of days**: plain dates, same cards,
+  holidays among them; `Today` pill, Overdue red, No date. Header: Search,
+  Today.
+- **Search** lays results out like Schedule (Overdue, upcoming, No date,
+  past latest first).
 - **Lists are re-read when the date changes** (`TaskProvider.catchUp`, on
   resume and at midnight).
-- **Done is a log of ticks** (`completions`, schema v6, `AppDatabase.complete`
-  / `untick` — every tick path goes through these). Three figures and seven
-  bars, neutral; reads only while shown.
-- **Board**: Not started / In progress (`started_at`, schema v7) / Done
-  (`BoardScreen`, `Stage`, `moveToStage`, `Task.toStage`). Drawn like Jira:
-  grey lanes, small-caps headers with counts, flat neutral cards (not
-  inked), colour square, group lozenge, date lozenge (red when past),
-  chevrons for priority; key hidden (`BoardCard.showKey`). A lane is most of
-  the screen (`laneFraction`), snapping to three places (`_LaneSnap`), all
-  lanes kept built. Pick-up after 300ms; carried card stays at its size
-  (`_Lifted`), square, not tilted; outer 18% (`_Board.edge`) turns at once,
-  then every 900ms. No move button, no bottom drop bar. Plus in header.
+- **Done is a log of ticks** (`completions`; every tick path goes through
+  `AppDatabase.complete`/`untick`). Three figures, seven bars, neutral;
+  reads only while shown.
+- **Board**: Not started / In progress (`started_at`) / Done (`BoardScreen`,
+  `Stage`, `moveToStage`, `Task.toStage`), drawn like Jira: grey lanes,
+  small-caps headers with counts, flat neutral cards, colour square, group
+  and date lozenges (red when past), priority chevrons, no key
+  (`BoardCard.showKey`). A lane is most of the screen (`laneFraction`),
+  snapping to three places (`_LaneSnap`), all built. Pick-up after 300ms,
+  carried at size (`_Lifted`), not tilted; outer 18% (`_Board.edge`) turns
+  at once, then every 900ms. No move button, no drop bar. Plus in header.
 
 ### Groups
 
 - **One group per task; Schedule and Calendar can show one group**
-  (`GroupChips`, `TaskProvider.showGroup`). Tags were built and removed. Chip
-  row (All, groups, plus) always shown; long press carries a chip to reorder
-  (`lists.sort_order`, schema v9), released in place opens it to edit. A
-  carried chip stands on `GroupChips.ground`. On Schedule the row is part
-  of the glass head (`GroupChipsOnGlass`, `GlassTop`) and stands on the
-  full blur, as the title does, and the glass ends square at its foot
-  (`GlassTop.fade` 0): a strip fading out below it, over the room above
-  the first day's heading, was asked off (2026-11-19). **The chips are solid**, the chosen one the field's
-  grey, the rest the ground with a hairline (`onGlass`): see-through
-  chips and chips each a blur of their own were both asked back. A
-  frosted strip behind the row alone was asked off; the whole top on
-  glass was asked for after.
+  (`GroupChips`, `TaskProvider.showGroup`). Tags were removed. Chip row
+  (All, groups, plus) always shown; long press carries a chip to reorder
+  (`lists.sort_order`), released in place opens it to edit; carried on
+  `GroupChips.ground`. On Schedule the row is part of the glass head
+  (`GroupChipsOnGlass`, `GlassTop`, `GlassTop.fade` 0, glass ends square).
+  **Chips are solid**: chosen one the field's grey, the rest the ground
+  with a hairline (`onGlass`).
 - **Default group is the oldest** (`TaskList.oldest`), never deletable;
   deleting another moves its tasks there.
-- With a group chosen: only its tasks, no phone events, holidays stay, new
-  tasks go into it; not stored. Alarms, widget and overdue dot use full lists
-  (`allOverdue`, `allUpcomingByDay`). **A group's colour is its tasks' colour**
-  (`_taskColourToGroup` migrated the old setting).
-- **The open add field offers groups**: one chip on its
-  second row opening a list above it (`_GroupButton`, `_Popup` — an
-  `OverlayPortal`, not a route, inside a `TextFieldTapRegion`, so the
-  keyboard stays), reset each opening to the group on show (`groupForNew`),
-  else the default. Shown with a group chosen too (asked for; it was All
-  only).
+- With a group chosen: its tasks only, no phone events, holidays stay, new
+  tasks go into it; not stored. Alarms, widget and overdue dot use full
+  lists (`allOverdue`, `allUpcomingByDay`). **A group's colour is its
+  tasks' colour.**
+- **The open add field offers groups**: a chip on its second row opening a
+  list above it (`_GroupButton`, `_Popup` — an `OverlayPortal` inside a
+  `TextFieldTapRegion`, so the keyboard stays), reset each opening to the
+  shown group (`groupForNew`), else the default.
 
 ### Shell, navigation
 
-- **Start screen is a setting** (`AppScreen`), read in `main` before the first
-  frame, never waiting for `SettingsProvider.load` (it may show a permission
-  dialog). The shell takes it once.
-- **Hidden screens** (`hiddenScreens`): never all five; start falls back to the
-  first visible but the choice is kept (`startScreen`). Overdue dot is on
-  Tasks, or Calendar if Schedule is hidden. Hidden screens still build.
-- **Five tabs, no menu.** Six read as "overwhelmed"; four was asked for,
-  then Agents as "a separate tab" (2026-11-21).
-  Schedule, Board and Done are views under one **Tasks** tab (`taskViews`,
-  `TaskViews`, `_tasksTab`), which reopens the view last shown (`_lastView`).
-  Their headers write all three names, the current one lit, the others
-  dimmed and tappable (`ViewTitles`, `ScreenHeader.view`) — no extra row.
-  One view left: a plain title. The side menu (hamburger, blurred screen)
-  and the Settings switch for it were removed; their history is in git.
-- **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light rim,
-  23pt in from the sides (`BarRoom.tabsSide`), icon over name, neutral grey
-  pill slides to the current tab (240ms), names shrink not cut. Floats over
-  the screens, a little frosted (blur 17, fill at 60%), on `_BarGround`:
-  the add field's strip in the bar's own grey (`p.panelHi`, asked for;
-  from clear at the bar room's top to 80% at the foot), run on under the gesture bar (`below`, the shell's Stack
-  unclipped) so it doesn't stop on a line — on Android 14 the system's
-  own bar is opaque below the app, so the emulator still shows one. It
-  was a blur from nothing to 1.5 (asked off for the tint);
-  `FadingBlur` (`shaders/fading_blur.frag`, still under `GlassTop`: one pass blurring each row by its own amount,
-  up and down only; given screen coordinates, and on GLES a flipped
-  texture). On Impeller a second backdrop pass reads the screen as it was,
-  not the first pass's output (side by side, nested or composed), so a
-  pass across never showed; at 1.5 one direction can't be told from two,
-  but large it smears type into streaks. Masking a blur with a
-  `ShaderMask` draws nothing. **Every backdrop filter costs a read of the
-  screen and passes of its own**: 2.11.14 (sixteen bands here, seventeen
-  in the head, a blur per chip) dropped frames; measure with
-  `showPerformanceOverlay` on a profile build before adding one. The head's bands
-  and its `FadingBlur` share one `BackdropGroup` (`_Glass`), as do the bar
-  and the plus (`_TabBar`). To see what the GPU pays, run the emulator
-  with `-gpu swiftshader_indirect`: scrolling Schedule took 127ms a
-  frame there with the glass, 68 without the head's, 21 without any
-  blur; grouping made it ~110. Two bands instead of four didn't measure
-  faster; none left an edge across the title. **Every screen runs on
-  under it** (the shell no longer pads pages): scrolls end with
-  `BarRoom.of(context)` of room; Schedule and the calendar rest their
-  field over their foot with one widget (`FieldInBarRoom`), standing on a
-  light strip of the ground while the keys are up. The calendar sizes its grid to
-  what the bar leaves; its day panel is taller by the room, opening, the
-  month's black runs on under the bar and pushes the day off the screen
-  (a grey band under the opened month, and a black cover fading over the
-  day's foot, were both asked off). **Screens not on show are under
-  `TickerMode` off** (`_behind`): the `IndexedStack` kept them ticking,
-  and the unvisited Vault's spinner held the app at 60fps, 27% of a core,
-  from start. Back goes to the start screen before leaving
-  (`Selection.anyActive` first). Tasks' icon is drawn (`_TasksGlyph`): a
-  short checklist, a purple tick over a ring, each with a line — chosen
-  from mock-ups. The tick is the bar's one colour, asked for, dimmer
-  unlit; lit, the rest only brightens (a filled ring would read as
-  ticked). Two rows of boxes and dashes came first and looked cramped; a
-  purple outline looked bad; a clipboard and a box with a breakout tick
-  were redone.
+- **Start screen is a setting** (`AppScreen`), read in `main` before the
+  first frame, never waiting for `SettingsProvider.load`.
+- **Hidden screens** (`hiddenScreens`): never all; start falls back to the
+  first visible, the choice kept. Overdue dot on Tasks, or Calendar if
+  Schedule is hidden. Hidden screens still build.
+- **Five tabs, no menu.** Schedule, Board, Done are views under **Tasks**
+  (`taskViews`, `TaskViews`, `_tasksTab`, reopens `_lastView`); headers
+  write all three names, the current lit, others dimmed and tappable
+  (`ViewTitles`, `ScreenHeader.view`). One view left: a plain title. The
+  side menu was removed.
+- **The bar** (`_TabBar`, `_Tab`, `BarRoom`): floating pill, 1.4pt light
+  rim, 23pt from the sides (`BarRoom.tabsSide`), icon over name, neutral
+  grey pill slides to the current tab (240ms), names shrink not cut.
+  Frosted (blur 17, fill 60%) on `_BarGround`: the bar's grey (`p.panelHi`)
+  from clear to 80% at the foot, run on under the gesture bar (`below`).
+- **Backdrop filters are expensive**: each reads the screen and adds
+  passes; measure with `showPerformanceOverlay` on a profile build (or the
+  emulator with `-gpu swiftshader_indirect`) before adding one. Impeller's
+  second backdrop pass reads the original screen, not the first pass's
+  output; a `ShaderMask` over a blur draws nothing. `FadingBlur`
+  (`shaders/fading_blur.frag`, screen coordinates, flipped on GLES) blurs
+  each row by its own amount. The head's bands and its `FadingBlur` share
+  one `BackdropGroup` (`_Glass`), as do the bar and plus.
+- **Every screen runs on under the bar**: scrolls end with
+  `BarRoom.of(context)`; Schedule and the calendar rest their field over
+  their foot (`FieldInBarRoom`). The calendar sizes its grid to what the bar
+  leaves; opening, the month runs on under the bar and pushes the day off.
+- **Screens not on show are under `TickerMode` off** (`_behind`), or their
+  tickers hold the app at 60fps.
+- Back goes to the start screen before leaving (`Selection.anyActive`
+  first). Tasks' icon is drawn (`_TasksGlyph`): checklist, purple tick over
+  a ring — the bar's one colour, dimmer unlit.
 - **Every screen's top is glass over what scrolls under it** (`GlassTop`,
-  `HeadRoom`, `widgets/glass.dart`): Schedule, Done, Vault and Settings run
-  up under the status bar and their head (Settings' title is pinned now);
-  the head stands on blur 17 under the ground at 65%, the blur thinning to
-  none over the head's foot third (`GlassTop.leadOf`, 16–44pt — 24 showed
-  a line across the cards, 44 left Settings' title over sharp rows): four
-  bands of plain blur from 2 to 17 (`GradedBlur`, one `BackdropGroup`),
-  then a `FadingBlur` from 2 to none, since bands show their edges where
-  type is still readable. Scrolling Schedule on the emulator, raster time
-  was 16.4ms a frame before the glass, 19.0 (max 30) in 2.11.14, 3.2 now. Taps
-  on the head stay on it. Scrolls start with `HeadRoom.of(context)`, as
-  they end with `BarRoom`'s. The shell's `SafeArea` leaves the top to the
-  screens; Board and the calendar take it back themselves (nothing scrolls
-  under their heads); a banner takes the status bar's room in their place
-  at once. The wide layout keeps the head above the body.
+  `HeadRoom`, `widgets/glass.dart`): Schedule, Done, Vault, Settings run up
+  under the status bar; the head on blur 17 under the ground at 65%,
+  thinning over its foot (`GlassTop.leadOf`, 16–44pt): four `GradedBlur`
+  bands 2–17 then a `FadingBlur` to none. Scrolls start with
+  `HeadRoom.of(context)`. The shell's `SafeArea` leaves the top to the
+  screens; Board and the calendar take it themselves. The wide layout keeps
+  the head above the body.
 - **While the keys are up the bar is drawn at alpha 1/255, not left out**
-  (`_WhileKeyboardDown._faint`): left out, the frame that brought its
-  blurs back took 23–30ms to draw on the Galaxy at the end of every
-  closing (2.11.22–2.11.30).
-- **With the bar, a 56pt round plus floats above its right end** (`_AddButton`,
-  `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`), only on Schedule and
-  Calendar. Tap opens the field (which lives in the bar's room while the
-  keyboard is up, the bar hidden); hold opens the full form. Undo and
-  selection take the bar's place; `withdrawUndo` on screen change.
-- **Settings is six pages** (`_Page`; Screens, General, Appearance, Calendar,
-  Tasks, Reminders, plus Sync and Backup; About on the list), each a panel of
-  rows like the phone's settings (`_Group`, `_Row`, `_SwitchRow`, `choose`):
-  icon, name, value underneath; tap flips or opens a choice sheet. Clear
-  completed is the one red row.
+  (`_WhileKeyboardDown._faint`): bringing its blurs back cost a long frame.
+- **A 56pt round plus floats above the bar's right end** on Schedule and
+  Calendar (`_AddButton`, `BarFoot`, `_WhileWriting`, `_WhileKeyboardDown`):
+  tap opens the field, hold the full form. Undo and selection take the
+  bar's place; `withdrawUndo` on screen change.
+- **Settings is pages** (`_Page`: Screens, General, Appearance, Calendar,
+  Tasks, Reminders, Sync, Backup; About on the list), rows like the phone's
+  settings (`_Group`, `_Row`, `_SwitchRow`, `choose`). Clear completed is
+  the one red row.
 
 ### Keyboard and the add field (read before touching)
 
 - **Nothing moves when the keyboard does**: no `Scaffold` resizes;
-  `SafeArea(maintainBottomViewPadding, top: false)` in the shell; `KeyboardGap` subtracts
-  the kept strip.
-- **The quick-add bar is attached to the keyboard** (`KeyboardLift` translates
-  it, same frame, nothing else). **Do not put a curve, spring or cap back.**
-- **In the bar's room, Android carries the field on the keys itself**
+  `SafeArea(maintainBottomViewPadding, top: false)` in the shell;
+  `KeyboardGap` subtracts the kept strip.
+- **The quick-add bar is attached to the keyboard** (`KeyboardLift`
+  translates it, same frame). **No curve, spring or cap.**
+- **In the bar's room, Android carries the field on the keys**
   (`KeysCarry`, `KeysCarry.kt`, `CarriedField`, `FieldCarry`): Flutter's
-  surface and the keyboard's window reach the screen a frame apart as
-  often as together, so no timing in Dart glued it (2.11.22–2.11.31, the
-  clock below, had the numbers within 2pt and the field still visibly off).
-  Dart sends a picture of the field (`toImageSync` of a repaint boundary,
-  raw RGBA) whenever it changes while up on the keys, with where it rests;
-  a view over Flutter's draws it at the top of the
-  keys from `onProgress`, which Android applies with the keys' own move.
+  surface and the IME window reach the screen a frame apart as often as
+  not, so no Dart timing glues them. Dart sends a picture of the field
+  (`toImageSync`, raw RGBA) whenever it changes while up, with where it
+  rests; a native view draws it at the keys' top from `onProgress`.
   `onPrepare` puts it up and tells Dart (`carry`); Dart leaves its copy
-  undrawn (`KeyboardGap.carried`), draws it again at rest and says `drawn`,
-  and the picture goes three frames later (same place, so no seam). Closing,
-  it is put by three frames after the field reaches the foot (`park`) —
-  the keys take ~120ms more through the strip, and the bar is back by then.
-  The plus first draws the field open at rest and pictures it
-  (`FieldCarry.raise`, `KeyboardGap.raising`, ~37ms on the emulator), then
-  asks for the keys; so in the bar's room the tools row does not grow in.
-  A filing tick `drop`s the picture (the field goes at once). Recordings
-  take the display's strip over the picture while it shows (`covers`).
-  Everything else on the keys (day sheet, form, a slide with no picture)
-  still rides the clock below.
-- **Keyboard height is the larger of Flutter's `viewInsets` and Android's
-  own report** (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the
-  display bottom minus what lies below the window. Don't try to correct
-  `viewInsets` arithmetically — its meaning changes mid-slide.
-- **In a slide the field is read off the slide's own clock at the vsync
-  each frame starts at** (`MainActivity.clockOf`, `_Slide`,
-  `KeyboardGap.take`): Android sends where the slide was at which vsync,
-  the frame period, its length and its curve (once); Dart reads it at
-  `currentSystemFrameTimeStamp` less a period — that stamp is the vsync
-  the frame is *shown* at, and read there (2.11.29) the field went up a
-  frame ahead, a card showing under it. Reports only correct the clock: a
-  report lands 0.2–1.1ms after Flutter's frame for its vsync has begun, so
-  following reports as they land (2.11.28 and before 2.11.23) put the
-  field a frame behind. A report at fraction 0 is taken to start a
-  frame later (2.11.29 took it as the start: 57pt up with the keys at 20;
-  2.11.30 held: 15–20pt under them for a frame). A slide with no curve (the
-  swipe back) is carried on from its last two reports (`_Trail`), at most
-  1.5 frames. Lead per direction, 0 as shipped, in Settings › Debug ›
-  Keyboard (`Tweaks.keysLeadOpen/Close`). On the emulator the field trails
-  by about a frame (its pipeline is deeper); judge on the phone. Line a
-  recording's `reach` up against `insets` (`viewInsets` + the 15pt strip,
-  which is Android's report for the frame it is logged in) rather than
-  measuring the video; judge by eye on a day with tasks.
-- **Edge-to-edge is read from the content view's insets, never its height**
-  (`MainActivity.contentNav`).
+  undrawn (`KeyboardGap.carried`), draws again at rest, says `drawn`; the
+  picture goes three frames later. Closing, it goes three frames after the
+  field reaches the foot (`park`). The plus first draws the field open and
+  pictures it (`FieldCarry.raise`, `KeyboardGap.raising`), then asks for
+  the keys. A filing tick `drop`s the picture. Recordings take the
+  display's strip over it (`covers`). Everything else on the keys rides
+  the clock below.
+- **Keyboard height is the larger of `viewInsets` and Android's report**
+  (`KeyboardGap.of`, `MainActivity`): `Type.ime()` from the display bottom
+  minus what lies below the window. Don't correct `viewInsets`
+  arithmetically — its meaning changes mid-slide.
+- **In a slide the field is read off the slide's own clock**
+  (`MainActivity.clockOf`, `_Slide`, `KeyboardGap.take`): Android sends the
+  slide's position at a vsync, the frame period, length and curve; Dart
+  reads it at `currentSystemFrameTimeStamp` less a period (that stamp is
+  the vsync the frame is shown at). Reports only correct the clock
+  (following them lands a frame behind); a report at fraction 0 is taken to
+  start a frame later. A slide with no curve is carried on from its last
+  two reports (`_Trail`, ≤1.5 frames). Leads in Settings › Debug ›
+  Keyboard (`Tweaks.keysLeadOpen/Close`, 0 shipped). Judge on the phone;
+  the emulator trails a frame. Line a recording's `reach` up against
+  `insets`.
+- **Edge-to-edge is read from the content view's insets, never its
+  height** (`MainActivity.contentNav`).
 - **A tick on an empty field behaves like cancel** (`QuickAddBar._submit`):
-  keyboard goes, focus stays, so the next opening doesn't start the IME
-  connection from scratch (that opening was the one that misplaced the bar).
-- **Only `KeyboardLift`, `KeyboardRoom`, `QuickAddBar`'s frame and `FieldInBarRoom` read the inset** (and `CarriedField`, after the frame, for where the field rests).
+  keyboard goes, focus stays, so the next opening keeps its IME connection.
+- **Only `KeyboardLift`, `KeyboardRoom`, `QuickAddBar`'s frame,
+  `FieldInBarRoom` (and `CarriedField`, after the frame) read the inset.**
 - **Long-press the Settings title for keyboard numbers**
   (`KeyboardGap.showNumbers`, `KeyboardNumbers`). Debug, English only.
-- **In the bar's room the field stands on a light strip**: up on the keys
-  it had a band of the ground under it (4pt above, 12pt at the sides, 8pt
-  below) and a 48pt fade above; that strip was asked off (2026-11-18),
-  then asked blurred 0→1.5 (the bar's `FadingBlur`), then asked not blurry
-  but "transparent from 100 to 80", then "to 40", in the field's grey
-  (`p.field`, asked for; it was `p.bg`), across the field's own room
-  only: clear at the field's top edge, 80% at the keys (60% let the dates
-  under it read clearly; 75% came between), showing beside
-  and under the field. It reached up over the screen above the field
-  (24pt, then 64pt) until a marked screenshot showed that was never
-  meant. A plain tint, so it is in the
-  picture Android carries (`CarriedField.above`) and rides the keys with
-  the field. Without the bar (`foot == 0`, Schedule's `!overBar`) the field
-  still has its ground and fade, following what is under it
-  (`_groundUnderField`, `_fadeStrength`, `_overGrid`; `GroundFade`, 48pt,
-  smoothstep). Schedule pads its end with `KeyboardRoom`.
-- **Field and its button are filled `AppPalette.field` with the bar's rim**
-  (`BarRoom.rim`); focus shows only the caret. **Quick-add button: plus →
-  tick when open**, plain, not gradient. Plus opens the full form.
-- **Open with the keys up, the field is two rows** (asked for): title on
-  top; under it a plus that attaches (Photo/Camera/File, `_AttachButton`,
-  a paperclip once something is), the group chip, and the tick at the right
-  end in place of the button beside it. Keys down (Back), it folds back to
-  one row with its button. After a picker the keyboard is asked back once
-  Caldo is resumed (`_whenInFront`); asked at once, Android drops it.
+- **In the bar's room the field stands on a plain tint** of `p.field`,
+  across the field's own room only: clear at its top, 80% at the keys;
+  part of the carried picture (`CarriedField.above`). Without the bar
+  (`foot == 0`) the field has its ground and fade from what is under it
+  (`_groundUnderField`, `_fadeStrength`, `_overGrid`; `GroundFade`, 48pt).
+  Schedule pads its end with `KeyboardRoom`.
+- **Field and its button are filled `AppPalette.field` with the bar's
+  rim** (`BarRoom.rim`); focus shows only the caret. Plus → tick when open,
+  plain. Plus opens the full form.
+- **Open with the keys up, the field is two rows**: title; then attach
+  (`_AttachButton`, a paperclip once something is), the group chip, the ✦
+  chip, the tick at the right. Keys down, it folds to one row. After a
+  picker the keyboard is asked back once resumed (`_whenInFront`).
 
 ### Forms and pickers
 
-- **Date/time pickers are our own sheets** (month grid, wheels); no Material
-  dialog or dial.
-- **Clock wheels**: no band behind the middle — a `ShaderMask` carries full
-  strength in one row's height, a third outside (applied to pixels, not per
-  number). The touched wheel turns accent on pointer down, white on up.
-  `diameterRatio: 100`.
-- **One clock everywhere, chosen in Settings** (`Dates.time`/`Dates.clock`
-  with `h24`; `MediaQuery.alwaysUse24HourFormatOf`; `Dates.use24Hour` for
+- **Date/time pickers are our own sheets** (month grid, wheels); no
+  Material dialog or dial.
+- **Clock wheels**: no band behind the middle — a `ShaderMask` gives full
+  strength one row high, a third outside. The touched wheel turns accent on
+  pointer down, white on up. `diameterRatio: 100`.
+- **One clock everywhere, chosen in Settings** (`Dates.time`/`Dates.clock`,
+  `h24`; `MediaQuery.alwaysUse24HourFormatOf`; `Dates.use24Hour` for
   notifications; `Reminders.refresh` on change).
-- **Task form**: back arrow hides once anything is touched; Cancel/Save pinned
-  at the foot over `GroundFade`, riding `KeyboardLift`; `KeyboardRoom` below
-  the list, `_reveal` keeps fields clear of the fade. Save/Cancel dismiss the
-  keyboard.
-- **Sheet actions are two plain words, Cancel and Save, drawn towards the
+- **Task form**: back arrow hides once anything is touched; Cancel/Save
+  pinned at the foot over `GroundFade`, riding `KeyboardLift`;
+  `KeyboardRoom` below the list, `_reveal` keeps fields clear. Save/Cancel
+  dismiss the keyboard.
+- **Sheet actions are two plain words, Cancel and Save, towards the
   middle.**
 - **Reminder lead** (`Task.remindBefore`, `reminderLead`, `_ReminderField`,
   `Dates.lead`, `dayLeads`): null follows Settings, `Task.silent` never;
-  all-day tasks take whole days only. A row opening a choice sheet, not a
-  dropdown.
+  all-day tasks whole days only; a row opening a choice sheet.
 
 ### Look
 
 - **Platform font**, not Inter/google_fonts.
-- **Near-black ground (`#111112`), not true black** (asked off as too stark),
-  shared by the calendar, widget, reminder cover and system bars
-  (`_barsOn`); neutral greys (no blue tint); raised greys lifted with it.
-- **Controls are neutral; accent is rare**: switches, Undo, update banner, a
+- **Near-black ground (`#111112`), not true black**, shared by calendar,
+  widget, reminder cover and system bars (`_barsOn`); neutral greys.
+- **Controls are neutral; accent is rare**: switches, Undo, update banner,
   touched clock wheel, colour pickers. Tasks wear their own colour.
-- **Settings › Debug, an admin's only** (`Tweaks`, `theme/tweaks.dart`,
-  `settings_debug.dart`, a `part` of the settings screen; English only):
-  every `AppPalette` colour per theme, the accent's three, the four signals
-  (`AppColors.danger/overdue/weekend/holiday` are getters for it) and card,
-  done-card and day-chip ink as multipliers. Shown live while a colour is
-  picked, kept on Save; in force only while its switch is on; device-only
-  (prefs `debug_tweaks`, not in backups); signing out turns it off. Copy
-  changes hands them over as JSON to be built in. Keyboard numbers have a
-  switch there too. Native surfaces (widget, reminder cover) don't follow.
-- **Performance numbers** (`PerfHud`, `widgets/perf_hud.dart`, over
-  everything in `MaterialApp.builder`; switches on the Debug page, not
-  stored): fps against the display's rate, frames over budget, running
-  tickers, build/raster avg/max (engine timings, batched ~1s, so over the
-  last 2s), CPU of the process and of the UI and raster threads from
-  `/proc` (UI is the main thread where Flutter merged them), RSS, free
-  memory, GPU and temperature only where sysfs lets an app read them (not
-  the emulator). Draggable; starts above the bar, since Flutter's own
-  graphs (`showPerformanceOverlay`, the second switch) take the top. While
-  Debug mode is off both rows are greyed and do nothing, but keep their place
-  (`PerfHud.graphsDrawn`). Idle
-  should read 1 fps and 0 tickers. On the emulator raster time includes
-  waiting on the swap (~16.6ms while drawing every frame, ~5 idle).
-- **Recording to send on, of Caldo and its keyboard only** (Debug ›
-  Recording; `Recording`, `RecordingOverlay`, `ScreenRecord.kt` +
-  `RecordService`; Android only, greyed with Debug mode off). Asked to
-  record this app and nothing else, then for the keyboard in it. The app
-  is `PixelCopy` of Flutter's `SurfaceView`; the keyboard, a system
-  window, comes only from MediaProjection (whole display:
-  `createConfigForDefaultDisplay`; consent each time; a
-  `mediaProjection` foreground service with a Stop notification), mirrored
-  at video size into an `ImageReader`, and only the IME inset's strip of
-  it is laid over the app's copy (during a slide the keyboard's full
-  height, `MainActivity.keysSliding`: the insets are the slide's end, so a
-  closing's keys vanished from the video at once), only while Caldo has
-  window focus — so
-  status bar, notifications, the shade and other apps never reach the
-  video. Composed on a `lockHardwareCanvas` of a MediaCodec input
-  surface, muxed to MP4, ≤1280 long side, ≤30fps, no sound, at most 5
-  min, one kept in `cache/recordings`. Frames only after Dart pings
-  `drew` (a persistent frame callback), or a screen change with the
-  keys up, and for 80ms after, so idle costs nothing. Whole-screen
-  capture (the first build) and app-only without keys (the second) were
-  both asked off. Back out of the app ends the recording and keeps it.
-  Beside it a `.log.jsonl` on the video's clock (`t` ms;
-  `System.nanoTime` at start = Dart's `Timeline.now` = pointer and frame
-  timestamps; pts rebased to the start), buffered and written each
-  second and on leaving view: touches, every frame's build/raster, the
-  HUD's numbers each second, insets, routes, lifecycle, errors,
-  `debugPrint`, marks. While recording: a ring under each finger and a
-  draggable badge (time, flag = mark, stop). **Button on every screen**
-  (a Debug switch, prefs `record_button`, not in backups; shown only with
-  Debug mode on): the badge stays as a red dot while idle and starts a
-  recording from anywhere; right edge at 42% height, grows leftwards,
-  dragged place kept for the run; no timer while idle. Stop opens the
-  share sheet (`FileProvider` serves `recordings/` too). Read one with
-  `tool/recording.py <log> [--frames s…] [--slow N] [--between a b]`; on
-  the emulator a tap's first video frame came 10ms after its logged
-  time, ~20–25 copies a second; the keys' strip can run a frame ahead of
-  the field while they slide.
+- **Settings › Debug, admins only** (`Tweaks`, `theme/tweaks.dart`,
+  `settings_debug.dart`, a `part` of settings; English only): every
+  `AppPalette` colour per theme, the accent's three, the four signals
+  (`AppColors.danger/overdue/weekend/holiday` are getters for it), card,
+  done-card and chip ink as multipliers. Live while picked, kept on Save,
+  in force only while its switch is on; device-only (prefs `debug_tweaks`,
+  not backed up); signing out turns it off. Copy hands them over as JSON.
+  Native surfaces don't follow.
+- **Performance numbers** (`PerfHud`, over everything in
+  `MaterialApp.builder`; Debug switches, not stored): fps against the
+  display's rate, frames over budget, tickers, build/raster avg/max
+  (engine timings, ~1s batches), CPU of process/UI/raster threads from
+  `/proc`, RSS, free memory, GPU and temperature where sysfs allows.
+  Draggable, starts above the bar. Greyed while Debug mode is off
+  (`PerfHud.graphsDrawn`). Idle should read 1 fps and 0 tickers.
+- **Recording of Caldo and its keyboard only** (Debug › Recording;
+  `Recording`, `RecordingOverlay`, `ScreenRecord.kt` + `RecordService`;
+  Android only). The app is `PixelCopy` of Flutter's `SurfaceView`; the
+  keyboard comes from MediaProjection (whole display, consent each time, a
+  `mediaProjection` foreground service with Stop), and only the IME's
+  strip of it (its full height while sliding, `MainActivity.keysSliding`)
+  is laid over the app's copy, only while Caldo has focus — nothing else
+  of the screen reaches the video. MediaCodec, MP4, ≤1280, ≤30fps, no
+  sound, ≤5 min, one kept in `cache/recordings`. Frames only after Dart
+  pings `drew`, and 80ms after. A `.log.jsonl` on the video's clock (`t`
+  ms; `Timeline.now`): touches, frame timings, HUD numbers, insets,
+  routes, lifecycle, errors, `debugPrint`, marks. Rings under fingers, a
+  draggable badge (time, mark, stop). A record button on every screen
+  (prefs `record_button`, Debug mode only): red dot at the right edge,
+  42% height. Back out ends and keeps the recording; Stop shares it
+  (`FileProvider` serves `recordings/`). Read with `tool/recording.py <log>
+  [--frames s…] [--slow N] [--between a b]`.
 
 ### Reminders
 
 - **Alarms are rebuilt from the agenda in `TaskProvider.loadTasks`**
   (`services/reminders.dart`): first sync of a run resets all, later ones
-  diff (`Reminders._standing`), after the lists are on screen. All-day at the
-  Settings hour (default 9), timed at their time.
-- **Changing a reminder setting re-sets standing alarms** (`Reminders.configure`).
-- **Reminders no-op until `init`** (called only from `main`) — keeps tests quiet.
-- **Permission asked on first run** from `SettingsProvider.load`. Exact alarms
-  (`USE_EXACT_ALARM`), inexact fallback.
-- **Buttons: Done, Snooze 15 min, Dismiss** (`Reminders.done/snoozes/dismissed`,
-  `onReminderAction`); the hour's snooze is on the full-screen page only.
+  diff (`Reminders._standing`), after the lists are on screen. All-day at
+  the Settings hour (default 9), timed at their time. A setting change
+  re-sets standing alarms (`Reminders.configure`).
+- **Reminders no-op until `init`** (only from `main`) — keeps tests quiet.
+- **Permission asked on first run** from `SettingsProvider.load`. Exact
+  alarms (`USE_EXACT_ALARM`), inexact fallback.
+- **Buttons: Done, Snooze 15 min, Dismiss** (`Reminders.done/snoozes/
+  dismissed`, `onReminderAction`); the hour's snooze on the full-screen
+  page only.
 - **Full-screen only when locked** (`fullScreenIntent`, `ReminderCover.kt`,
-  `MainActivity.wakeFor`): native, opaque, glow in the task's colour,
-  `RenderEffect` blur. Must stay opaque; don't hide Flutter's view under it.
-  Switch on the Reminders page; `_FullScreenBanner` if not allowed. Try it
-  with `am start -n com.igor.caldo/.MainActivity -a SELECT_NOTIFICATION --ei
-  notificationId 999 --es payload '{"title":…}'` on a locked emulator.
+  `MainActivity.wakeFor`): native, opaque (keep it so; don't hide
+  Flutter's view under it), glow in the task's colour, `RenderEffect`
+  blur. Switch on the Reminders page; `_FullScreenBanner` if not allowed.
+  Try: `am start -n com.igor.caldo/.MainActivity -a SELECT_NOTIFICATION
+  --ei notificationId 999 --es payload '{"title":…}'` on a locked emulator.
 - **Buttons are handled on the plugin's isolate** (`Background._change`):
-  write, `Reminders.reset` for that task only (never a full sync), redraw
-  widget, ping the app via `IsolateNameServer` (`Background.listen`). Snooze
-  is stored (`snoozed_until`, schema v5). Alarms cover the overdue run too.
+  write, `Reminders.reset` for that task only, redraw widget, ping the app
+  (`IsolateNameServer`, `Background.listen`). Snooze stored
+  (`snoozed_until`). Alarms cover the overdue run.
   **`ActionBroadcastReceiver` is declared in the manifest by hand.**
 
 ### Home-screen widget
 
-- **It is Schedule in small** (`TodayWidget.kt`, `TodayWidgetRuns.kt`): runs,
-  inked cards, working tick, tap opens the form, plus opens a new task;
-  always dark; looks like the app (not a calendar widget).
-- Reads a copy of the agenda (`TodayWidget.publish`) and sorts against today
-  at draw time. **Nobody tells it to redraw**: `CaldoApplication` listens to
-  the preferences. Ticks run Dart on one process-wide engine (`Headless`,
+- **It is Schedule in small** (`TodayWidget.kt`, `TodayWidgetRuns.kt`):
+  runs, inked cards, working tick, tap opens the form, plus a new task;
+  always dark.
+- Reads a copy of the agenda (`TodayWidget.publish`), sorted at draw time.
+  **Nobody tells it to redraw**: `CaldoApplication` listens to the
+  preferences. Ticks run Dart on one process-wide engine (`Headless`,
   `widgetMain`).
-- **Android 12+**: each tick is a real `CheckBox` with an `animated-selector`
-  per swatch (`layout-v31/widget_task_<swatch>.xml`, generated by
+- **Android 12+**: each tick a real `CheckBox` with an `animated-selector`
+  per swatch (`layout-v31/widget_task_<swatch>.xml`, from
   `tool/make_widget_ticks.py` — rerun after changing a swatch);
-  `saveEnabled="false"` (2.3.3 ticked every task without it). The page is one
-  frame (`layout/widget_page.xml`) of stable-keyed views placed by top margins
-  — never stacked — inside a one-row inline `ListView` for scrolling
-  (`RemoteCollectionItems`; no `RemoteViewsService`). Heights measured in
-  process (`fit`), cached; at most 60 cards (`MOST`).
-- **A tick plays as in the app** (`TodayWidget.tick`): `SETTLE` 490ms, `HOLD`
-  150ms, slide 260ms via `stateListAnimator`/`translationY`
-  (`animator/widget_*.xml`), leaving cards fade (`widget_leave.xml`). Moves
-  are computed from `TodayWidget.last`; Dart writes only after the card has
-  gone; `Background.toggle(done:)` writes the box's state.
+  `saveEnabled="false"` (without it every task ticked). The page is one
+  frame (`layout/widget_page.xml`) of stable-keyed views placed by top
+  margins, never stacked, in a one-row inline `ListView`
+  (`RemoteCollectionItems`). Heights measured in process (`fit`), cached;
+  ≤60 cards (`MOST`).
+- **A tick plays as in the app** (`TodayWidget.tick`): `SETTLE` 490ms,
+  `HOLD` 150ms, slide 260ms (`stateListAnimator`/`translationY`,
+  `animator/widget_*.xml`), leaving cards fade. Moves from
+  `TodayWidget.last`; Dart writes after the card has gone;
+  `Background.toggle(done:)` writes the box's state.
 - **Phone events show too** (`PhoneEvents.kt`, `layout/widget_event.xml`),
-  read by the widget itself; whether shown rides on the copy
-  (`SettingsProvider.storedEvents`). Event keys start at 1e9.
-- **Its cards are the app's glass** (asked as "improve the widget",
-  2026-11-21): ink 30%/9.45% done, a 1.5dp rim at 56%/17.6%
-  (`widget_rim`, a stroke shape tinted from code — its clear `<solid>` is
-  load-bearing, a filter fills a shape without one), the grain at 0.0682
-  (`widget_grain`: `assets/grain.png` copied to `drawable-nodpi`, tiled,
-  unfiltered, inside a 1dp `layer-list` item with gravity fill — the bare
-  tile's 256px held every card that tall), clipped by the card's
-  `clipToOutline` on `widget_pane`. Tick squares outlined like the rim.
-  Pane alphas play on `stateListAnimator`s as the ink's do. Measured on
-  the emulator within a step of the app's card. No grain before Android
-  12 (nothing clips it there). If the app's card numbers change, change
-  `animator/widget_{ink,rim,grain}.xml`, `INK`/`RIM` and
+  read by the widget; keys from 1e9; shown per `SettingsProvider.storedEvents`.
+- **Its cards are the app's glass**: ink 30%/9.45% done, 1.5dp rim at
+  56%/17.6% (`widget_rim`, tinted from code; its clear `<solid>` is
+  load-bearing), grain at 0.0682 (`widget_grain`, tiled, unfiltered, in a
+  1dp `layer-list` item, gravity fill), clipped by `clipToOutline` on
+  `widget_pane`; no grain before Android 12. If the app's card numbers
+  change, change `animator/widget_{ink,rim,grain}.xml`, `INK`/`RIM` and
   `make_widget_ticks.py`'s `RIM`.
 - **It wakes itself when the clock changes what it shows**
-  (`TodayWidget.wake`, `TodayWidgetRuns.nextLate`): at midnight, or when a
-  task of today's comes due (its time turns red, from its own minute as
-  `Task.isOverdue` does). Booked on every drawing, exact where allowed,
-  non-waking.
+  (`TodayWidget.wake`, `TodayWidgetRuns.nextLate`): midnight, or a task of
+  today's coming due. Exact where allowed, non-waking.
 
-### Phone calendars, language, updates, backup, sync
+### Phone calendars, language, updates, backup
 
 - **Phone events sit beside tasks like holidays** (`EventsProvider`,
   `DeviceCalendars`, `EventCard`, `caldo/calendars`): opt-in, read-only,
-  calendars stored as excluded ones. All-day events read in UTC
-  (`events_test.dart` passes under `TZ=America/Los_Angeles`). Screens read the
-  provider as nullable.
-- **Twelve languages** (`S`, `l10n/strings.dart`, `words_*.dart` tables;
-  missing keys fall back to English; `l10n_test.dart` checks keys and
-  `{blanks}`). Plural rule per family. `S.of(context)` on screens,
-  `S.current` elsewhere (`SettingsProvider.prime` on isolates). English keeps
-  its fixed patterns; others use `intl` skeletons, full month headers,
-  capitalised. Kotlin side uses `getBestDateTimePattern` and
-  `values-xx/strings.xml`. `l10n_screens_test.dart` draws key screens in every
-  language. Unreviewed translations.
+  calendars stored as excluded ones; all-day events read in UTC
+  (`events_test.dart` passes under `TZ=America/Los_Angeles`). Screens read
+  the provider as nullable.
+- **Twelve languages** (`S`, `l10n/strings.dart`, `words_*.dart`; missing
+  keys fall back to English; `l10n_test.dart` checks keys and `{blanks}`).
+  Plural rule per family. `S.of(context)` on screens, `S.current`
+  elsewhere (`SettingsProvider.prime` on isolates). English keeps fixed
+  patterns; others use `intl` skeletons, capitalised. Kotlin uses
+  `getBestDateTimePattern` and `values-xx/strings.xml`.
+  `l10n_screens_test.dart` draws key screens in every language.
 - **Updates** (`services/updates.dart`, `widgets/update_banner.dart`,
-  `caldo/updates`, `SelfUpdate.kt`): GitHub's recent releases vs installed
-  (dotted-number compare, `Updates.pick`); the newest is offered with every
-  skipped release's notes. Banner: version, a line, Later + filled Update;
-  a tap opens What's new (`showUpdateSheet`, notes drawn from their
-  `New:`/`- ` lines). Looked for on start and on every resume, at most
-  once a minute (`Updates.look`). **Later** hides it and stops looking
-  until the app restarts; Settings › About keeps an "is out" row meanwhile.
-  **A release whose notes hold `<!-- priority: high -->` is urgent**: it
-  takes the navigator's place in `MaterialApp.builder` (`UpdateWall`: notes,
-  Update, no Later; Back leaves the app) until installed, even after Later
-  on another. Kept in prefs (`updateUrgent`) so it bars from the next start
-  offline too; dropped when GitHub answers with nothing newer.
-  Banner downloads the ABI's APK and installs through Caldo's own
-  `PackageInstaller` session (keeps full-screen permission, no prompt on
-  12+); ends on the home screen with an `UpdateDone` notification since
-  Android won't relaunch it. The repo is public so no token is needed. No
-  `taskAffinity=""` (it caused two Caldos). Nothing checks until
-  `Updates.enable`. To test: `adb root`, install a lower-labelled build, drop
-  the target as `cache/updates/Caldo-<latest>.apk` (chowned).
+  `caldo/updates`, `SelfUpdate.kt`): GitHub's releases vs installed
+  (`Updates.pick`), the newest offered with every skipped release's notes.
+  Banner: version, Later + Update; tap opens What's new
+  (`showUpdateSheet`, `New:`/`- ` lines). Looked for on start and resume,
+  at most once a minute (`Updates.look`). **Later** stops looking until
+  restart; Settings › About keeps an "is out" row. **Notes holding
+  `<!-- priority: high -->` make it urgent**: `UpdateWall` takes the
+  navigator's place until installed (no Later; Back leaves), kept in prefs
+  (`updateUrgent`), dropped when GitHub has nothing newer. Installs the
+  ABI's APK through Caldo's own `PackageInstaller` session; ends on the
+  home screen with an `UpdateDone` notification. The repo is public, so no
+  token. No `taskAffinity=""` (it
+  made two Caldos). Nothing checks until `Updates.enable`. To test: `adb
+  root`, install a lower build, drop the target as
+  `cache/updates/Caldo-<latest>.apk` (chowned).
 - **Backup** (`Backup`, `AppDatabase.dump/replaceAll`,
   `SettingsProvider.exported/restore`, `caldo/backup`): JSON of raw rows +
-  schema version (newer refused), one transaction, settings included except
-  phone calendars, ≤64MB, restore previews what the file holds. **Auto backup**
-  (`Backup.autoIfDue`) to a persisted folder (`ACTION_OPEN_DOCUMENT_TREE`) on
-  open/resume when due, keeps the last seven `caldo-auto-*` files only.
-- **Sync groundwork** (schema v11, `AppDatabase._addSync`): every row has
-  `uuid`, `updated_at`, `dirty`; deletions go to `tombstones`. **Integer ids
-  stay** (alarms, widget, screens use them). **Triggers stamp, not writes**;
-  suppressed while `sync_state.applying`. One `defaultListUuid` everywhere.
-- **A round pushes then pulls** (`Sync`, `SyncStore`); a pulled row loses to a
-  newer local change; rows are marked sent only as sent; cursor written with
-  the rows. A different account marks everything dirty. Tested with
-  `FakeServer` and `AppDatabase.named` (`sync_test.dart`).
-- **The server is Supabase Cloud's free tier for now** (project
-  `eqgczddzmvmczwcgbenr`, URL and publishable key built into `Account`); the
-  user's VPS has 2GB, too little for the stack. A device can still be
-  pointed at a local Supabase in Settings (it then uses the local demo key);
-  cleartext is allowed only to local addresses
-  (`res/xml/network_security.xml`). Plain `supabase` package, not
-  `supabase_flutter`. Session in preferences, renewed without holding up
-  the first frame. Rounds on open, resume, `Sync.soon` (2s after any
-  read-back), realtime, every 5 min.
-- **A round twice a day with the app closed** (`DailySync.kt`, WorkManager,
-  booked while signed in via `caldo/sync`). Run by whichever engine holds
-  the session: the app's if it lives (asked over `caldo/sync`), else the
-  widget's `Headless` (`Background.sync`, `Account.syncOnce`: reloads
-  preferences, holds the session for the one round only) — two engines
-  renewing one session spend its refresh token twice, and Supabase ends it.
-  Pulled tasks get their alarms one by one (`SyncStore.touchedTasks`,
-  `Reminders.reset`), never a full re-set. Not on Linux. To try it, move
-  the emulator's clock 13h on (`adb root`) and `cmd jobscheduler run -f -n
-  androidx.work.systemjobscheduler com.igor.caldo <id>`: WorkManager won't
-  run a periodic job early even when forced.
-- **Sign-in is a username and a password; accounts are made only by
-  invite** (`Account.signIn`/`join`, `showSignInSheet`/`showJoinSheet`,
-  `supabase/migrations/…_invites.sql`). Codes by email were first, but the
-  free tier will not send our template through its own mail, and the user
-  set no mail server up. A name is kept as `name@caldo.invalid`
-  (`Account.loginOf`/`nameIn`) — `.invalid` can never receive mail. Auth's
-  `before_user_created` hook refuses any new account without an unused
-  invite; a trigger on `auth.users` spends it (and rolls back a second
-  account in a race). Only rows in `public.admins` may `make_invite()`;
-  they get **Invite someone** in Settings (`Account.admin`, asked at
-  sign-in and before every round until yes, so a grant shows without a
-  restart). An invite is
-  one account, no expiry, sent as `caldo://invite/<code>` (claimed in the
-  manifest, handed over on the widget's launch channel; Flutter's deep
-  linking is off) — on Linux the code is pasted into Join. No password
-  reset: an admin does it from the dashboard.
+  schema version (newer refused), one transaction, settings but not phone
+  calendars, ≤64MB, restore previews. **Auto backup** (`Backup.autoIfDue`)
+  to a persisted folder on open/resume when due, last seven
+  `caldo-auto-*` kept.
+
+### Sync
+
+- **Groundwork** (`AppDatabase._addSync`): every row has `uuid`,
+  `updated_at`, `dirty`; deletions go to `tombstones`. **Integer ids stay**
+  (alarms, widget, screens). **Triggers stamp, not writes**; suppressed
+  while `sync_state.applying`. One `defaultListUuid`.
+- **A round pushes then pulls** (`Sync`, `SyncStore`); a pulled row loses
+  to a newer local change; rows marked sent only as sent; cursor written
+  with the rows; another account marks everything dirty. Tested with
+  `FakeServer`, `AppDatabase.named` (`sync_test.dart`).
+- **Server: Supabase Cloud free tier** (project `eqgczddzmvmczwcgbenr`,
+  URL and publishable key in `Account`); a device can be pointed at a
+  local Supabase in Settings (demo key); cleartext only to local addresses
+  (`res/xml/network_security.xml`). Plain `supabase` package. Session in
+  preferences, renewed without holding the first frame. Rounds on open,
+  resume, `Sync.soon` (2s after a read-back), realtime, every 5 min.
+- **A round twice a day with the app closed** (`DailySync.kt`,
+  WorkManager, booked over `caldo/sync`), run by whichever engine holds
+  the session — the app's if alive, else the widget's `Headless`
+  (`Background.sync`, `Account.syncOnce`): two engines renewing one
+  session spend its refresh token twice and Supabase ends it. Pulled tasks
+  get alarms one by one (`SyncStore.touchedTasks`). Not on Linux. To try:
+  move the emulator clock 13h on (`adb root`), `cmd jobscheduler run -f -n
+  androidx.work.systemjobscheduler com.igor.caldo <id>`.
+- **Sign-in is a username and password; accounts by invite only**
+  (`Account.signIn`/`join`, `showSignInSheet`/`showJoinSheet`,
+  `…_invites.sql`). A name is kept as `name@caldo.invalid`
+  (`Account.loginOf`/`nameIn`). Auth's `before_user_created` hook refuses
+  an account without an unused invite; a trigger spends it. Rows in
+  `public.admins` may `make_invite()` (Invite someone in Settings;
+  `Account.admin`, asked at sign-in and each round until yes). One
+  account per invite, no expiry, sent as `caldo://invite/<code>` (handed
+  over on the widget's launch channel; Flutter deep linking off); pasted
+  into Join on Linux. No password reset but by an admin.
 - **All-day tasks travel as a day** (`SyncStore._toDay`/`_fromDay`); timed
-  tasks as instants.
-- **Attachment files travel after the rows** (`FileSync.carry`, `FileStore`,
-  `Account._Files`, bucket `attachments`, `…_attachments.sql`): a pass after
-  each round, apart from it (`Sync._carry`, `Sync.carried`), compares the
-  server's list with the files named here — up what is missing there, down
-  what is missing here (`.part`, then renamed). No local record of what was
-  sent. Key is the copy's folder uuid under `<user id>/`; a file named any
-  other way is ignored (`FileSync.keyOf`, guards paths from other devices).
-  Over 50MB stays on its device. A file no task names leaves the server a
-  day after it was put there. Deleting the account removes the files first
-  (Storage won't let SQL delete them).
+  ones as instants.
+- **Attachment files travel after the rows** (`FileSync.carry`,
+  `FileStore`, `Account._Files`, bucket `attachments`): a pass after each
+  round (`Sync._carry`) compares the server's list with the files named
+  here, up what is missing there, down what is missing here (`.part`, then
+  renamed). Key is the copy's folder uuid under `<user id>/`; others are
+  ignored (`FileSync.keyOf`). >50MB stays put. A file no task names leaves
+  the server a day later. Deleting the account removes the files first.
 
 ### Vault
 
-Asked for as "secrets storage, ciphered, opened by fingerprint or PIN";
-chosen: inside Caldo, synced end-to-end encrypted, fingerprint with a
+Secrets inside Caldo, synced end-to-end encrypted, fingerprint with a
 master password behind it.
 
-- **Two layers of key** (`VaultProvider`, `Sealing`): a random 32-byte vault
-  key seals every secret (AES-256-GCM, fresh nonce, the row's uuid bound in
-  as associated data); the master password (Argon2id, `Kdf.strong` 64 MiB
-  ×3, ~1s on the emulator, on an isolate) seals the vault key. The setting
-  is stored per key, so it can be raised later. A new password re-wraps
-  the same key; nothing else changes on any device. pointycastle, pure
-  Dart, so phone and desktop seal alike.
-- **Tables `vault_keys` and `secrets`** (schema v12, `_addVault`, stamped by
-  the same triggers via `_stamp`). Everything typed, the name included, is
-  inside one box (`Secret.seal`). Synced and backed up as they are; a
-  backup from before v12 leaves the vault alone (`_vaultTables`).
+- **Two layers of key** (`VaultProvider`, `Sealing`): a random 32-byte
+  vault key seals each secret (AES-256-GCM, fresh nonce, row uuid as
+  associated data); the master password (Argon2id, `Kdf.strong` 64 MiB ×3,
+  on an isolate) seals the vault key, setting stored per key. A new
+  password re-wraps the same key. pointycastle, pure Dart.
+- **Tables `vault_keys` and `secrets`** (`_addVault`, stamped via
+  `_stamp`); everything typed, the name too, in one box (`Secret.seal`).
+  Synced and backed up as is; a backup from before leaves the vault alone
+  (`_vaultTables`).
 - **Two vaults made apart become one**: unlocking opens every key the
-  password opens and moves secrets to the oldest (`_merge`); a key under a
-  different password waits (`sealedElsewhere`, a row that opens
-  `showOtherPassword`) and is merged into the key already open. Signed in
-  with no vault, the screen syncs first (`looking`) so a second isn't made.
-- **Fingerprint** (`Vault.kt`, `caldo/vault`): Android's own
-  `BiometricPrompt` (not AndroidX — Flutter's activity isn't a
-  FragmentActivity), API 28+. A Keystore AES key, auth per use, fingerprint
-  or (11+) the phone's PIN, invalidated by a new enrolment ("gone" → back to
-  the password). It seals a copy of the vault key kept in preferences
-  (`vault_finger`, never exported or synced); `proof` checks it is still
-  this vault's. Asked for by itself when the screen comes on show locked.
-- **Locks after the app is away `lockAfter` minutes** (default 1; 0 = at
-  once); the prompt's own pause (`asking`) doesn't count. `FLAG_SECURE`
-  only while the vault is open *and* on show — screenshots of the open
-  vault on the emulator are black on purpose; look at it on Linux.
+  password opens and moves secrets to the oldest (`_merge`); a key under
+  another password waits (`sealedElsewhere`, `showOtherPassword`). Signed
+  in with no vault, the screen syncs first (`looking`).
+- **Fingerprint** (`Vault.kt`, `caldo/vault`): Android's `BiometricPrompt`
+  (not AndroidX — Flutter's activity isn't a FragmentActivity), API 28+. A
+  Keystore AES key, auth per use, invalidated by new enrolment ("gone" →
+  password). It seals a copy of the vault key in prefs (`vault_finger`,
+  never exported or synced); `proof` checks it is this vault's. Asked for
+  when the screen comes on show locked.
+- **Locks after `lockAfter` minutes away** (default 1; 0 = at once); the
+  prompt's pause (`asking`) doesn't count. `FLAG_SECURE` only while open
+  and on show — emulator screenshots of it are black on purpose; look on
+  Linux.
 - **Copy** marks the clip sensitive and takes it back after 30s if still
-  ours (`VaultDevice.copy/clearCopied`, re-asked on resume since Android
-  hides the clipboard from the background).
-- Forgot the password: Delete vault on the locked page (tombstones reach
-  every device). No recovery, by design.
+  ours (`VaultDevice.copy/clearCopied`, re-asked on resume).
+- Forgot the password: Delete vault on the locked page. No recovery.
 
 ### Agents
 
-Asked for (2026-11-21) as "a separate tab, like chats": create a chat,
-choose model, effort, folder, plugins, skills and the computer (worker), see
-a terminal and write in it — and "it should also work for other AIs, Codex
-or my local machine". Tasks handed to a Claude model run as chats too.
-Then (same day): "i cant scroll terminal and its looks bad … for codex it
-will be different … must work fast" — chosen: a chat of its own for Claude
-and Codex, the terminal side by side.
+A tab of chats with agents on the user's computers (workers): model,
+effort, folder, plugins, skills, rules; Claude and Codex as chats drawn by
+the app, a terminal beside them; anything else a terminal.
 
-- **Claude and Codex are chats, drawn by the app** (`Talk`,
-  `lib/mcp/talk.dart`; `TalkView`, `MarkdownText`): Claude as `claude -p
+- **Claude and Codex are chats drawn by the app** (`Talk`,
+  `lib/mcp/talk.dart`; `TalkView`, `MarkdownText`). Claude: `claude -p
   --input-format stream-json --output-format stream-json --verbose
-  --include-partial-messages --permission-prompt-tool stdio` (one process
-  for many turns; a permission question comes as a `can_use_tool`
-  control request, answered allow/deny, "always" passing its
-  `permission_suggestions` back); Codex as `codex app-server` (JSON-RPC:
-  `thread/start|resume`, `turn/start`, approvals as server requests
-  answered accept/acceptForSession/decline; written from its
-  `generate-ts` types, never run here — no OpenAI login on this machine).
-  Both put out the same items (`TalkSink`): user, text, thinking, tool
-  (one line: name + command/file; opened, its detail and output, cut at
-  4000), ask (buttons until answered), note. Shell and `agents.json`
-  agents stay terminals only. A chat is in its chat or its terminal
-  (`chats.mode`), one program holding the session at a time: the head's
-  Chat/Terminal switch shows either side, and the side not holding it
-  offers the move (`chat_in` `mode`). To the terminal, the session is
-  resumed in tmux (`claude --resume`, `codex resume`); back, what was said
-  there is read from Claude's transcript after the move's time
-  (`claudeTranscript`, `WorkerState.marks`) or from Codex's resumed thread.
-- **Fast because live things go by broadcast** on the chat's private
-  channel `chat:<id>` (RLS on `realtime.messages`): measured locally, a
-  row reaches a listener in 36–460ms (Postgres changes are polled), a
-  broadcast in 1–5ms. The worker broadcasts answer pieces (every 40ms),
-  each item and the state, and keeps items as `chat_items` rows (upserted
-  by id, the durable record); the app broadcasts its input and also
-  inserts it into `chat_in` with the same `key`, which the worker takes
-  once (`Worker._keys`). The user's words show at once (`TalkFeed.said`,
-  id `u<key>`, replaced by the worker's item of that id). A broadcast
-  payload is copied before sending: the client writes `type`/`event` into
-  the map, and a row queued with it was refused. Locally a new chat was up
-  in ~0.1–0.5s and the user's words came back in ~10ms; the first word is
-  the model's own ~1.8s.
-- **A chat's program outlives the worker** (asked as "after reinstalling
-  it my chats on the phone always die", 2026-11-22): `claude -p` and
-  `codex app-server` were the worker's children on pipes, so every
-  reinstall or restart ended them mid-turn. Now each runs detached
-  (`Kept`, `lib/mcp/kept.dart`) behind a shell that holds its input, a
-  named pipe, open read-write (so it never reads an end while no worker
-  writes); output, errors, pids and exit status are files beside the
-  terminals' (`~/.cache/caldo/chats/<chat>.talk.*`), and what the worker
-  writes is kept too (`.written`). The worker reads the output every 30ms
-  and saves how far each second (`worker.json` `talks`); one started again
-  reads what was handed on again unheard (`Talk.takeUp`, `_Replay`) to
-  rebuild open questions and tools — `.written` says which questions were
-  answered — and goes on live from there; the chat's state stays the
-  row's, as a turn begins with what was written, not with output. Items
-  keep their seq (`_Talker.make` reads them all). Codex's call and note
-  ids go on from the clock after a takeover. Dart can't append to a pipe
-  (it seeks): opened `FileMode.write`. Tried on the local stack with a
-  stand-in `claude`: one program carried a chat through four worker
-  restarts, killed and stopped, mid-turn and between. A program killed
-  with the session (logout, reboot) is noted "ended from outside"; the
-  next message resumes its session.
-- **A terminal goes by broadcast too** (asked as "console rendering is too
-  slow", 2026-11-21): typed keys and lines go on `chat:<id>` beside their
-  row, and the worker broadcasts what it reads every 50ms (`_castOut`,
-  event `out`) as well as the `chat_out` rows, which stay the record. A
-  piece names its run (`life`), its row's `seq` and `start` and its own
-  `at`, places in the worker's run of output, so `TermOrder` draws each
-  stretch once from whichever brings it first; a snapshot or a new run
-  forgets the places, and rows are drawn whole until a piece places them
-  again. A key typed came back drawn in ~50ms on the local stack, against
-  ~800ms by rows both ways. The app holds one channel per chat for both
-  feeds (`Agents._hold`): of two joins to one topic from one socket the
-  server keeps the later. xterm tells a theme and a text style apart by
-  identity and lays every letter out again for a new one, so the screen
-  keeps both (`_theme`, `_TermFont.style`) — it rebuilds each frame of the
-  keyboard's slide.
-- **A chat's usage shows under its head** (asked as "see the usage,
-  other stats in chat mode", 2026-11-22; `ChatUsage`,
-  `lib/mcp/usage.dart`; `ChatUsageStrip`, `showChatUsage`): context
-  filled, the account's limits, cost; a tap opens the whole (tokens in,
-  out, cache read/written, turns, time working, model). A talk reports
-  figures as they are (`set`: model, context, window, limits) or as
-  added (`add`: tokens, cost, turns, time), and the worker sums the adds
-  into the chat's totals (`_Talker.usage`), as a program's own totals
-  start again with each program. Measured on Claude 2.1.302:
-  `total_cost_usd`, `modelUsage` and `duration_api_ms` are the
-  program's running totals, `usage`, `duration_ms` and `num_turns` the
-  turn's own; so cost and tokens are told as what each result's totals
-  add to the last's. Context is the last main request's in + cache +
-  out (a helper's, with `parent_tool_use_id`, is not the chat's).
-  Limits from `rate_limit_event`'s `unifiedWindows` (utilization 0–1);
-  Codex's from `account/rateLimits/updated` (percent), its tokens from
-  `thread/tokenUsage/updated` — the first of a program adds only its
-  `last` (a resumed thread's total holds its past), later ones how far
-  the total went. Broadcast (`usage`) on every change; written to
-  `chats.usage` (`…_chat_usage.sql`) only at a turn's end or 20s into
-  a long one, as every write to a chat's row has each app read the list
-  again. Red only from 95%; from 80% just brighter. Turns taken in the
-  terminal aren't counted (the transcript has no results).
+  --include-partial-messages --permission-prompt-tool stdio`, one process
+  for many turns; permission questions come as `can_use_tool` control
+  requests (allow/deny; "always" passes `permission_suggestions` back).
+  Codex: `codex app-server` (JSON-RPC `thread/start|resume`, `turn/start`,
+  approvals as server requests; written from its `generate-ts` types,
+  never run here). Both emit the same items (`TalkSink`): user, text,
+  thinking, tool (one line; opened, detail and output cut at 4000), ask,
+  note. Shell and `agents.json` agents are terminals only.
+- **One program holds a session at a time** (`chats.mode`): the head's
+  Chat/Terminal switch shows either side; the side not holding it offers
+  the move (`chat_in` `mode`). To the terminal: resumed in tmux (`claude
+  --resume`, `codex resume`); back: what was said there is read from
+  Claude's transcript after the move (`claudeTranscript`,
+  `WorkerState.marks`) or Codex's resumed thread.
+- **Live things go by broadcast** on the chat's private channel
+  `chat:<id>` (RLS on `realtime.messages`; a broadcast lands in 1–5ms, a
+  row in 36–460ms). The worker broadcasts answer pieces (every 40ms),
+  items and state, and keeps items as `chat_items` rows (upserted by id);
+  the app broadcasts its input and inserts it into `chat_in` with the same
+  `key`, taken once (`Worker._keys`). The user's words show at once
+  (`TalkFeed.said`, id `u<key>`). Copy a broadcast payload before sending:
+  the client writes `type`/`event` into the map.
+- **A chat's program outlives the worker** (`Kept`, `lib/mcp/kept.dart`):
+  detached behind a shell holding its input, a named pipe, open read-write;
+  output, errors, pids, exit status and what was written (`.written`) are
+  files under `~/.cache/caldo/chats/<chat>.talk.*`. The worker reads output
+  every 30ms and saves offsets each second (`worker.json` `talks`); a new
+  worker re-reads what was unheard (`Talk.takeUp`, `_Replay`) to rebuild
+  open questions and tools, then goes on live. Items keep their seq. Dart
+  can't append to a pipe: open it `FileMode.write`. A program killed with
+  the session is noted "ended from outside"; the next message resumes.
+- **Terminals go by broadcast too**: keys and lines on `chat:<id>` beside
+  their row; the worker broadcasts output every 50ms (`_castOut`, `out`)
+  as well as `chat_out` rows (the record). Pieces name their run (`life`),
+  row `seq`/`start` and `at`, so `TermOrder` draws each stretch once. One
+  channel per chat for both feeds (`Agents._hold`): of two joins to one
+  topic from one socket the server keeps the later. xterm tells themes and
+  styles apart by identity, so the screen keeps both (`_theme`,
+  `_TermFont.style`).
+- **Usage under the chat's head** (`ChatUsage`, `lib/mcp/usage.dart`;
+  `ChatUsageStrip`, `showChatUsage`): context filled, account limits,
+  cost; a tap opens tokens, turns, time, model. A talk reports figures as
+  they are (`set`) or as added (`add`); the worker sums adds into the
+  chat's totals (`_Talker.usage`), since a program's totals restart with
+  it. Claude's `total_cost_usd`, `modelUsage`, `duration_api_ms` are the
+  program's running totals; `usage`, `duration_ms`, `num_turns` the
+  turn's. Context is the last main request's in + cache + out (not a
+  helper's, with `parent_tool_use_id`). Limits from `rate_limit_event`'s
+  `unifiedWindows`; Codex's from `account/rateLimits/updated`, tokens from
+  `thread/tokenUsage/updated` (the first adds only `last`). Broadcast on
+  change; written to `chats.usage` only at a turn's end or 20s into a long
+  one (every row write has each app re-read the list). Red from 95%,
+  brighter from 80%. Terminal turns aren't counted.
 - **The chat list is one forward list that follows the foot** while the
-  reader is there (`_follow`, a few frames as a lazy list learns its
-  length); new words are added below, so a reader scrolled up is left
-  alone. An anchor with older items growing upwards was tried first and
-  scrolled a fresh chat's top into blank space.
-- **A swipe over the terminal is sent as the wheel** (`TermSwipe`): in
-  the alternate screen (Claude's, Codex's) xterm.dart drops a touch drag
-  entirely, which is why it could not be scrolled; a notch a line, arrows
-  if the program has not asked for the mouse; it only listens, so the
-  ordinary screen's history and a desk's selection are xterm's. xterm.dart
-  4.0 numbers the wheel 68–71 (Shift+wheel); `TermSwipe.wheelFixed` sets
-  it to 64–67 on the way out, or Claude ignores it. A snapshot restores the
-  program's modes (mouse, bracketed paste, cursor keys, cursor;
-  `Tmux.modes`): from a picture alone the app's terminal forgot Claude
-  wanted the mouse.
-- **A real terminal, not a transcript**: each terminal is a program in a tmux
-  session on the worker (`Tmux`, `tmux -L caldo -f /dev/null`, session
-  `c<uuid without dashes>`), its raw output piped to a file
-  (`pipe-pane -O`) and read on by the worker every 50ms; keys go in as
-  bytes (`send-keys -H`). A typed line is pasted (`paste-buffer -p`,
-  bracketed if asked) and Enter sent 150ms later — Claude takes text and
-  Enter in one write as a paste with a new line. The program waits on a
-  flag file until the pipe is in place, or Claude's first screen is lost.
-  tmux answers the program's terminal queries; the app's xterm must not
-  (`_drawing` drops what xterm says while drawing; replaying history would
-  type its answers into the agent). `TermCleaner` strips `ESC [ <>=…`
-  requests (Claude's `ESC[>4;2m` read as underline + faint by xterm.dart).
+  reader is there (`_follow`); a reader scrolled up is left alone.
+- **A swipe over the terminal is sent as the wheel** (`TermSwipe`):
+  xterm.dart drops touch drags in the alternate screen; a notch a line,
+  arrows if the program hasn't asked for the mouse. xterm.dart 4.0 numbers
+  the wheel 68–71; `TermSwipe.wheelFixed` makes it 64–67. A snapshot
+  restores the program's modes (`Tmux.modes`).
+- **A real terminal**: a program in a tmux session on the worker (`Tmux`,
+  `tmux -L caldo -f /dev/null`, session `c<uuid without dashes>`), raw
+  output piped to a file (`pipe-pane -O`), read every 50ms; keys as bytes
+  (`send-keys -H`). A typed line is pasted (`paste-buffer -p`) and Enter
+  sent 150ms later (Claude takes both in one write as a paste). The
+  program waits on a flag file until the pipe is in place. tmux answers
+  terminal queries; the app's xterm must not (`_drawing`). `TermCleaner`
+  strips `ESC [ <>=…` requests.
 - **Server-only tables, not synced rows** (`…_agents.sql`): `workers`
-  (heartbeat every 30s; online if seen < 90s; agents, plugins, skills,
-  folders it offers), `chats` (state new → running/asking/idle →
-  ended/failed, note, size, Claude's session), `chat_out` (output pieces,
-  at most every 200ms per chat; a snapshot (`capture-pane -e`) after 300
-  pieces once quiet, and everything before the previous snapshot deleted;
-  the app reads from the latest snapshot on, skips later ones), `chat_in`
-  (keys, line, size, stop, start, answer, interrupt, mode; the worker
-  applies realtime's payload at once, polls every 15s, deletes what it
-  took), `chat_items` (`…_agent_chats.sql`; a chat's items by id, in
-  `seq`). RLS: own rows only, input and output only on own chats.
+  (heartbeat 30s, online if seen <90s, what it offers), `chats` (state new
+  → running/asking/idle → ended/failed, note, size, session), `chat_out`
+  (pieces ≤ every 200ms; a `capture-pane -e` snapshot after 300 pieces
+  once quiet, older rows deleted; the app reads from the latest snapshot),
+  `chat_in` (keys, line, size, stop, start, answer, interrupt, mode;
+  realtime payload applied at once, polled every 15s, deleted once taken),
+  `chat_items`. RLS: own rows only.
 - **What a worker can run** (`AgentBook`): Claude and Codex if on the
-  PATH, a shell always, and anything in `~/.config/caldo/mcp/agents.json`
-  (`{"llama": {"label": …, "command": ["llama-cli", ["-m", "{model}"],
-  "{prompt}"], "models": […], "prompt": "arg|type|none"}}`; a list is
-  dropped whole when a blank in it is empty). Claude's command is built in
-  code (`launchOf`): `--model --effort --permission-mode --resume -n`,
-  `--settings` with its hooks and, only if the chat changed them,
-  `enabledPlugins`; chosen skills go in `--append-system-prompt`.
-  Plugins from `installed_plugins.json`, skills from `~/.claude/skills`
-  and each plugin's `skills/`, folders from `~/.claude.json`'s projects.
+  PATH, a shell, and `~/.config/caldo/mcp/agents.json` (`{"llama":
+  {"label": …, "command": ["llama-cli", ["-m", "{model}"], "{prompt}"],
+  "models": […], "prompt": "arg|type|none"}}`; a list with an empty blank
+  is dropped). Claude's command is built in `launchOf`: `--model --effort
+  --permission-mode --resume -n`, `--settings` with its hooks and, only if
+  changed, `enabledPlugins`; skills in `--append-system-prompt`. Plugins
+  from `installed_plugins.json`, skills from `~/.claude/skills` and
+  plugins' `skills/`, folders from `~/.claude.json`'s projects.
 - **Claude's hooks say how it stands**: SessionStart (session kept for
-  Start again → `--resume`), UserPromptSubmit/PostToolUse → running,
-  Notification → asking, Stop → idle, its `last_assistant_message` the
-  task's answer. Each hook appends its JSON to `<chat>.events`.
-- **Rules** (asked as "a storage of rules, which i can edit from the
-  app, set for each chat", 2026-11-22): standing instructions, a name and
-  words, in a server-only `agent_rules` table (`…_agent_rules.sql`),
-  edited under Agents › Rules (`RulesScreen`, `RuleScreen`,
-  `agent_rules.dart`, a `part` of the agents screen) and chosen on the
-  new chat's form (kept in `agents_last`). A chat keeps a copy of their
-  words (`chats.rules`, `[{name, body}]`), so the worker reads them from
-  the chat alone and a rule changed later doesn't change what a chat was
-  told. Written out by `rulesText`; Claude gets them in
-  `--append-system-prompt` after the skills' sentence (one flag), Codex as
-  `developerInstructions` in its app server and `-c
-  developer_instructions=` in its terminal, an `agents.json` agent through
-  a `{rules}` blank. The form offers them only to an agent that takes them
-  (`AgentSpec.takesRules`, sent as `rules`), so not to a shell, nor to any
-  agent of a worker not reinstalled since. The app leaves `rules` out of
-  the insert when none are chosen. Errands from tasks take none.
-  A rule may also say what a chat begins with (`agent_rules.opening`,
-  `…_rule_opening.sql`; asked as "after starting a chat I need to write
-  something to start it", 2026-11-22): left without a first message on
-  the form, the chat is started with the chosen rules' openings
-  (`firstMessage`), shown as the field's hint. The app alone reads it, so
-  no worker reinstall.
-- **A chat names itself from its first message** (asked as "like claude
-  app do", 2026-11-22; `Worker._name`, `nameChat`): the worker asks Haiku
-  (`namingArgs`: no tools, settings, MCP or session, run in the temp dir
-  so no CLAUDE.md is read) for three to six words, and writes
-  `chats.title` only while it is still empty — a title typed on the form
-  wins. Written in the app's language (asked for), which the app puts on
-  the chat it makes (`chats.language`, `…_chat_language.sql`; left out
-  again if the server lacks the column); a chat without one (the
-  watcher's, an older app's, or read by a worker not reinstalled since)
-  gets the message's. Asked for plain text, Haiku answered the message or
-  wrote "Заголовок: …"; the title comes as structured output
-  (`--json-schema`), the message inside `<message>` tags. ~2.7s, ~$0.0002
-  a chat. Once per chat per worker run; not for a shell, nor a line
-  starting `/`; none without Claude on the worker (the list then shows the
-  first line, as before).
-- **A message can be left for later** (asked as "postpone my messages
-  in chat", 2026-11-22): hold Send (right-click on a desk) for In 30
-  minutes / an hour / 3 hours / Tomorrow 9:00 / a day and time. Kept in
-  a server-only `chat_later` table (`…_chat_later.sql`), not `chat_in`,
-  which a worker empties as it reads — one from before would have said
-  them at once or dropped them. The worker says each when due
-  (`Worker._sayLater`, a timer to the next, woken on its own realtime
-  channel), deleting the row first so one taken back meanwhile is not
-  said; one for a chat not running waits for Start again. Waiting ones
-  are listed over the field (`LaterList`): tap for Send now / Edit /
-  Delete. Offered only by a worker that says it (`AgentKind.later`), so
-  not until it is reinstalled. Works for chat and terminal alike.
-- **Photos and files go with a message** (asked as "i cant attach photo
-  or file in chat", 2026-11-22): a plus before the field (Photo / Camera /
-  File, `Attachments.pick`), chips over it, ≤50MB each. Sending puts each
-  copy in a private `chat-files` bucket (`…_chat_files.sql`) under
-  `<user>/<chat>/<uuid>` — keyed by the copy's folder, since Storage takes
-  no Cyrillic in a key — and only then the line, naming them in
-  `chat_in.files` ([{key, name, mime, size}]); nothing is sent if the
-  upload fails. The worker takes each down to `<chat>.files/<uuid>/<name>`
-  beside the terminals' files (`Worker._fetch`, the name kept from leaving
-  the folder), deletes it from the bucket, and tells the agent the paths
-  (`withFiles`) — paths, not bytes, so Claude's own Read shrinks a large
-  photo, and a terminal is told the same as a chat. Claude gets the folder
-  as `--add-dir=<dir>` (joined by `=`: the flag is variadic and took the
-  first message for a folder). A message's lines are said in turn
-  (`_inTurn`), so one typed while files come down doesn't go first. The
-  user's item keeps the names (`files`), shown in the bubble. Offered only
-  by a worker that says it (`AgentKind.files`); not with Send later. A
-  chat deleted takes its folder and any files left in the bucket. Tried
-  on the local stack (Cyrillic name, a missing file, a `../` name, the
-  terminal) and one Haiku turn: it read the photo with no question asked.
-- **The watcher's errands are chats** (`Worker.errand`, the `hand` the
-  `Watcher` is given when tmux is installed; `ClaudeCli` still without
-  it): Claude in messages in the task's folder, the answer its first
-  turn's `result` (or `--timeout`, after which it goes on in its chat);
-  handed back, the same chat carries on with `--resume`. The task form has "Open its
-  chat"; the list marks task chats.
-- **The app**: `AgentsScreen` (list; long press/right-click deletes),
-  `NewChatScreen` (last choices kept in prefs `agents_last`),
-  `ChatScreen` (Chat/Terminal switch for Claude and Codex; the send
-  button stops a turn while one runs and the field is empty; the
-  terminal: xterm 4, `readOnly` on the phone — a key per round trip is
-  no way to type — so a field sends lines and a row gives Esc, Tab,
-  Shift+Tab, arrows, ^C, Enter; a desktop's keys go straight in; size
-  sent 400ms after it settles; text size in prefs `terminal_font`).
-  The terminal is set in bundled JetBrains Mono (`_TermFont.style`; the
-  no-ligature cut), falling back to `Term Symbols`, a cut of Adwaita
-  Mono holding what it lacks — Claude's ⏵ and ⎿ are in no Android font
-  and drew as boxes. The key row fits the width (no scrolling; ⏎ was cut
-  off), keys in the terminal's font.
-  Nothing is read unless the tab or a chat is open (`Agents.watch`).
-- A terminal chat is taken up again after the worker restarted if its
-  tmux session lives (`worker.json` keeps offsets and seqs); otherwise it
-  is marked ended. A chat in its chat waits idle and resumes its session
-  with the next message. Attach on the computer with `tmux -L caldo attach -t
-  c<id>` (copied from the chat's menu).
-- **Testing it costs real Claude turns** on the account; the shell agent
-  doesn't. Try a worker against the local stack from a script that builds
-  `Worker` with `Tmux(socket: 'caldoe2e')` — never the user's `caldo`
-  socket, where their real watcher's chats live. A test worker signed into an account whose tasks were synced
-  from the emulator took up an old "Tidy the downloads" task at once —
-  look for tasks with `claude` set before starting one.
+  `--resume`), UserPromptSubmit/PostToolUse → running, Notification →
+  asking, Stop → idle (`last_assistant_message` is a task's answer); each
+  appends its JSON to `<chat>.events`.
+- **Rules**: standing instructions (name, words, optional `opening`) in a
+  server-only `agent_rules` table, edited under Agents › Rules
+  (`RulesScreen`, `RuleScreen`, `agent_rules.dart`) and chosen on the new
+  chat's form (kept in `agents_last`). A chat keeps a copy of their words
+  (`chats.rules`, `[{name, body}]`), so later edits don't change it.
+  Written by `rulesText`: Claude in `--append-system-prompt` after the
+  skills' sentence, Codex as `developerInstructions` / `-c
+  developer_instructions=`, `agents.json` agents through `{rules}`.
+  Offered only to agents that take them (`AgentSpec.takesRules`); `rules`
+  left out of the insert when none. A chat left without a first message
+  starts with the chosen rules' openings (`firstMessage`, shown as the
+  hint; app only). Errands take none.
+- **A chat names itself from its first message** (`Worker._name`,
+  `nameChat`): Haiku (`namingArgs`: no tools, settings, MCP or session, in
+  the temp dir) gives three to six words as structured output
+  (`--json-schema`, message in `<message>` tags — asked for plain text it
+  answered the message), in the app's language (`chats.language`, else the
+  message's). Written only while `chats.title` is empty. Once per chat per
+  worker run; not for a shell or a `/` line.
+- **A message can be left for later** (hold Send, right-click on a desk):
+  30 min / 1h / 3h / Tomorrow 9:00 / a day and time, in a server-only
+  `chat_later` table (not `chat_in`, which a worker empties). The worker
+  says each when due (`Worker._sayLater`), deleting the row first; one for
+  a stopped chat waits for Start again. Listed over the field
+  (`LaterList`: Send now / Edit / Delete). Only from workers that say so
+  (`AgentKind.later`).
+- **Photos and files go with a message**: plus before the field
+  (`Attachments.pick`), chips over it, ≤50MB each, uploaded to a private
+  `chat-files` bucket under `<user>/<chat>/<uuid>` (Storage takes no
+  Cyrillic keys) before the line names them (`chat_in.files`); nothing
+  sent if an upload fails. The worker takes each to
+  `<chat>.files/<uuid>/<name>` (`Worker._fetch`, name kept inside the
+  folder), deletes it from the bucket, and tells the agent the paths
+  (`withFiles`). Claude gets `--add-dir=<dir>` (with `=`: the flag is
+  variadic). A message's lines are said in turn (`_inTurn`). Only from
+  workers that say so (`AgentKind.files`); not with Send later. Deleting a
+  chat takes its folder and bucket files.
+- **The watcher's errands are chats** (`Worker.errand`, when tmux is
+  installed; `ClaudeCli` without it): Claude in the task's folder, the
+  answer its first turn's `result` (or `--timeout`, then it goes on in its
+  chat); handed back, the same chat resumes. The form has "Open its chat";
+  the list marks task chats.
+- **The app**: `AgentsScreen` (long press/right-click deletes),
+  `NewChatScreen` (prefs `agents_last`), `ChatScreen` (Chat/Terminal
+  switch; Send stops a running turn when the field is empty; the terminal
+  is xterm 4, `readOnly` on the phone, with a line field and a key row —
+  Esc, Tab, Shift+Tab, arrows, ^C, Enter — fitting the width; a desktop's
+  keys go straight in; size sent 400ms after it settles; text size in
+  `terminal_font`). Bundled JetBrains Mono (no-ligature cut), falling back
+  to `Term Symbols` (from Adwaita Mono) for ⏵ ⎿ and others no Android font
+  has. Nothing is read unless the tab or a chat is open (`Agents.watch`).
+- After a worker restart a terminal is taken up if its tmux session lives
+  (`worker.json` offsets and seqs), else marked ended. Attach with `tmux -L
+  caldo attach -t c<id>` (in the chat's menu).
+- **Testing costs real Claude turns**; the shell agent doesn't. Test a
+  worker against the local stack with `Tmux(socket: 'caldoe2e')` — never
+  the user's `caldo` socket. Look for tasks with `claude` set first: a
+  test worker takes them up at once.
 
 ### Android platform bits
 
-- **Launcher icon** (`LauncherIcon.kt`, two `activity-alias`es): on Samsung the
-  free-standing page on transparent; elsewhere the filled page. Switched in
-  `MainActivity.onStop` (`leftForGood`) — not `onCreate` or
-  `onUserLeaveHint`, which close the task. The application's own icon is the
-  free page (Samsung draws that).
-- **Ask for the fastest display mode at the current resolution** (`MainActivity`).
+- **Launcher icon** (`LauncherIcon.kt`, two `activity-alias`es): Samsung
+  gets the free-standing page, others the filled one; switched in
+  `MainActivity.onStop` (`leftForGood`), not `onCreate` or
+  `onUserLeaveHint`, which close the task.
+- **Ask for the fastest display mode at the current resolution.**
 
 ## The MCP server
 
-Asked for so an assistant can read and change the tasks (2026-11-21); the
-watcher below came next; a "Hand to Claude" action in the app was talked
-over after it.
+So an assistant can read and change the tasks.
 
-- **It is one more device on the sync server**, not a reader of a local
-  database: it signs in as the user and goes through `sync_push`/`sync_pull`
-  (`Remote`, `SupabaseRemote`), so the phone hears within seconds and sets
-  its own alarms. Each tool pulls first (`Caldo.refresh`); the account is
-  held in memory (`Book`), never written ahead of the server.
+- **It is one more device on the sync server**: signs in as the user and
+  goes through `sync_push`/`sync_pull` (`Remote`, `SupabaseRemote`), so the
+  phone hears within seconds. Each tool pulls first (`Caldo.refresh`); the
+  account is held in memory (`Book`).
 - **It ticks with the app's model**: `models/task.dart` is Flutter-free
-  (`package:meta`, no `setEquals`) so `Task.completed`, `toStage` and
-  `Repeat` run there as in the app. Keep it so; `task_list.dart` and
-  `special_day.dart` still import Material and are not used there. Server
-  address and login naming are in `services/caldo_server.dart` for the same
-  reason.
-- **An edit sends only the fields it changed** (`Caldo._diff`; the server
-  lays them over the row), stamped past the row's own, and is read back: a
-  loss to another device's edit is reported, not claimed done.
+  (`package:meta`, no `setEquals`) so `Task.completed`, `toStage`, `Repeat`
+  run there. Keep it so; `task_list.dart` and `special_day.dart` import
+  Material and aren't used there. Server address and login naming live in
+  `services/caldo_server.dart` for the same reason.
+- **An edit sends only the changed fields** (`Caldo._diff`), stamped past
+  the row's own, and is read back: a loss to another device is reported.
 - **The session, not the password, is kept** (`caldo-mcp login`,
-  `~/.config/caldo/mcp/session.json`, 600), renewed by hand only under a
-  file lock, the file read first (`SessionFile`, `ready`): every Claude
-  session runs its own server, and a refresh token spent twice ends the
-  session. Five servers starting on an expired token made one refresh.
+  `~/.config/caldo/mcp/session.json`, 600), renewed only under a file lock,
+  file read first (`SessionFile`, `ready`): every Claude session runs its
+  own server, and a refresh token spent twice ends the session.
   `recoverSession` won't renew with `autoRefreshToken` off; it signs out.
-- **The vault is out of reach on purpose**, and so are groups' creation and
-  attachments' files.
-- Ids are the first 8 characters of the uuid. Times are this computer's.
+- **Out of reach on purpose**: the vault, creating groups, attachment
+  files. Ids are the uuid's first 8 characters; times are this computer's.
 - **Install**: `tool/mcp/install.sh` → a kernel snapshot run by Flutter's
-  Dart (`dart compile exe` refuses packages with build hooks; sqlite3 has
-  one), `~/.local/bin/caldo-mcp`. Rerun after changing `lib/mcp` or the
-  models. `caldo-mcp call <tool> '<json>'` runs one from a shell;
-  `XDG_CONFIG_HOME` points it at another session (tried on the local stack
-  with an account made by the admin API).
-- **The watcher** (`caldo-mcp watch`, `lib/mcp/watch.dart`; a systemd user
+  Dart (`dart compile exe` refuses sqlite3's build hooks),
+  `~/.local/bin/caldo-mcp`. Rerun after changing `lib/mcp` or the models.
+  `caldo-mcp call <tool> '<json>'` runs one; `XDG_CONFIG_HOME` points it
+  at another session.
+- **The watcher** (`caldo-mcp watch`, `lib/mcp/watch.dart`; systemd user
   service `caldo-watch` from `tool/mcp/watch.sh`, options passed through,
-  the installing shell's PATH baked in; rerun both scripts after changing
-  it): asked for so tasks can be sent from the app to Claude on the PC.
-  **A task is sent by naming a model on it** (`Task.claude`, schema v14:
-  opus, sonnet, haiku or fable, `ClaudeModels`; null keeps it), from a ✦
-  chip beside the add field's group chip (`_ClaudeButton`, back to none
-  each opening), a row in the form, or the MCP tools' `claude`; the card
-  shows `ClaudeMark`. A "Claude" group was built first and asked off: no
-  separate group. The board says how it stands: Not started waits, In
-  progress while Claude works on it — as a chat in the Agents tab where
-  tmux is installed (see Agents), else `claude -p --model <it>` (prompt
-  on stdin, `--output-format json`); `--permission-mode auto` by
-  default — then the
-  answer is appended to the notes ("— Claude, d.mm hh:mm —", cut at 6000)
-  and it is ticked as the app ticks. Not done (an error, a timeout, a
-  folder not there) stays In progress with the reason and the tools
-  refused; moved back to Not started it runs again, resuming its session
-  (`watch.json` beside the session keeps task → session and folder; not
-  for repeating tasks, which run afresh each round). A dated task waits
-  for its day or time. `in: ~/folder` in the notes picks where Claude
-  works, else `--dir` (home). One task at a time; one watcher
-  (`watch.lock`); a task left In progress by a stopped watcher gets an
-  "Interrupted" note on the next start. Woken by realtime on `sync_rows`
-  (`SupabaseRemote.changes`, then 2s for the phone's pushes to land),
-  polled each minute anyway. Tried end to end on the local stack: answered
-  within 10s of the add, by the model named.
+  PATH baked in; rerun both scripts after changing it). **A task is sent
+  by naming a model on it** (`Task.claude`, schema v14: opus, sonnet, haiku
+  or fable, `ClaudeModels`): a ✦ chip by the add field's group chip
+  (`_ClaudeButton`, reset each opening), a form row, or the tools'
+  `claude`; the card shows `ClaudeMark`. No "Claude" group. The board says
+  how it stands: Not started waits; In progress while Claude works (a chat
+  where tmux is installed, else `claude -p --model <it>`, prompt on stdin,
+  `--output-format json`, `--permission-mode auto` by default); then the
+  answer goes into the notes ("— Claude, d.mm hh:mm —", cut at 6000) and
+  it is ticked. A failure stays In progress with the reason; moved back to
+  Not started it runs again, resuming its session (`watch.json`; not for
+  repeating tasks). A dated task waits for its time. `in: ~/folder` in the
+  notes picks the folder, else `--dir` (home). One task at a time, one
+  watcher (`watch.lock`); a task left by a stopped watcher gets
+  "Interrupted". Woken by realtime on `sync_rows`, then 2s; polled each
+  minute.
 
 ## Linux
 
-Two layouts on a desktop: **≥900pt wide is a desktop program**, narrower is
-the phone app in a window. **Neither has been seen by the user on their own
-desk** — their first word outranks this section.
+**≥900pt wide is a desktop program**, narrower is the phone app in a
+window. **The user hasn't seen either on their own desk** — their first
+word outranks this section.
 
-- **`onDesktop` asks Flutter, not `dart:io`** (`utils/platform.dart`); tests
-  run as Android. Desktop tests use
+- **`onDesktop` asks Flutter, not `dart:io`** (`utils/platform.dart`);
+  tests run as Android; desktop tests use
   `TargetPlatformVariant.only(TargetPlatform.linux)`.
 - **Services do desktop work in Dart** (`Desktop`, `if (onDesktop)` in
-  `Attachments`, `Backup`, `Updates`, `Reminders`); GTK dialogs, `xdg-open`.
-  Tested in `desktop_test.dart`.
-- Data under `~/.local/share/com.igor.caldo`; downloads in
+  `Attachments`, `Backup`, `Updates`, `Reminders`): GTK dialogs,
+  `xdg-open`. Tested in `desktop_test.dart`.
+- Data in `~/.local/share/com.igor.caldo`; downloads in
   `~/.cache/com.igor.caldo`.
-- **Name the Linux plugin halves directly** in `pubspec.yaml` (keeps Android
-  halves and `jni` out of the APK).
-- **System SQLite** (`hooks: user_defines: sqlite3: source: system`); after
-  changing it, delete `build/native_assets/android`. `linux/sqlite_shim.cc`
-  provides `libsqlite3.so` beside the program, linking `libsqlite3.so.0` —
-  never a bundled copy.
-- **Reminders fire only while the app is open** (`Reminders._alarms`, `_arm`,
-  `_announce`; a timer re-checks every ≤30s). Buttons: Done and snoozes.
-  **`Background._prepare` does nothing on desktop** — re-registering plugins
-  broke every reminder after the first.
-- **"Keys up" means an add field has focus** (`KeyboardGap.writing`). Enter on
-  empty or Escape lets go.
-- **Escape is Back** (`_EscapeGoesBack`).
+- **Name the Linux plugin halves directly** in `pubspec.yaml` (keeps
+  Android halves and `jni` out of the APK).
+- **System SQLite** (`hooks: user_defines: sqlite3: source: system`; after
+  changing it delete `build/native_assets/android`); `linux/sqlite_shim.cc`
+  provides `libsqlite3.so` linking `libsqlite3.so.0`, never a bundled copy.
+- **Reminders fire only while the app is open** (`Reminders._alarms`,
+  `_arm`, `_announce`, re-checked every ≤30s); Done and snoozes.
+  **`Background._prepare` does nothing on desktop** — re-registering
+  plugins broke every reminder after the first.
+- **"Keys up" means an add field has focus** (`KeyboardGap.writing`);
+  Enter on empty or Escape lets go. **Escape is Back** (`_EscapeGoesBack`).
 - **Narrow layout**: mouse drags scroll like a finger, no scrollbars
-  (`DesktopScrolling`); wheel over the grid turns a month/week a notch at a
-  time (`_onWheel`); group chips use long press (`buildDefaultDragHandles:
-  false`); theme states phone density. 640–900 wide keeps the phone column in
-  the middle (`PhoneWide`, left in the tree switched off when wide).
-- **Window** (`my_application.cc`): reopens at the closed size (first time
-  1240×780, min 340×560), saved in `window` on `delete-event`; single
-  instance; dark title bar.
-- **Not on desktop**: home widget, phone calendars, full-screen reminder,
-  camera, keyboard numbers, the vault's fingerprint. Five phrases have `…Desktop` variants.
-- **Install**: `linux/install.sh` → `~/.local/opt/caldo`, `~/.local/bin/caldo`,
-  entry `com.igor.caldo.desktop`.
-- **Self-update** (`Desktop.replaceWith`) from `Caldo-linux-x64.tar.gz` when a
-  release carries it; unpack beside, swap by name, relaunch after a second. If
-  unwritable, open the release page. Version comes from `pubspec.yaml`
-  (`--build-name` doesn't reach `version.json`).
+  (`DesktopScrolling`); the wheel over the grid turns a notch at a time
+  (`_onWheel`); chips use long press (`buildDefaultDragHandles: false`);
+  phone density. 640–900 wide keeps the phone column centred (`PhoneWide`,
+  left in the tree when wide).
+- **Window** (`my_application.cc`): reopens at its closed size (first
+  1240×780, min 340×560), saved on `delete-event`; single instance; dark
+  title bar.
+- **Not on desktop**: widget, phone calendars, full-screen reminder,
+  camera, keyboard numbers, fingerprint. Five phrases have `…Desktop`
+  variants.
+- **Install**: `linux/install.sh` → `~/.local/opt/caldo`,
+  `~/.local/bin/caldo`, entry `com.igor.caldo.desktop`.
+- **Self-update** (`Desktop.replaceWith`) from `Caldo-linux-x64.tar.gz`
+  when a release carries it: unpack beside, swap by name, relaunch; if
+  unwritable, open the release page. Version from `pubspec.yaml`.
 
 ### The wide layout
 
 Sidebar, each screen drawn for its width, task form as a right panel.
 
 - **`Desk.wideOf(context)` is the one question** (`widgets/desk.dart`,
-  `DeskScope` in `MaterialApp.builder`; `Desk.isWide` without subscribing).
-  Wide-layout tests pump `CaldoApp` (`desk_test.dart`, `pumpApp`).
-- **Layout only switches with nothing open** (`DeskScope.observer`); screens
-  sit under `GlobalKey`s (`_pages`) so state moves across.
-- **Sidebar** (`DeskSidebar`): New task, Search, four screens with overdue
+  `DeskScope` in `MaterialApp.builder`; `Desk.isWide` without
+  subscribing). Tests pump `CaldoApp` (`desk_test.dart`, `pumpApp`).
+- **Layout only switches with nothing open** (`DeskScope.observer`);
+  screens under `GlobalKey`s (`_pages`).
+- **Sidebar** (`DeskSidebar`): New task, Search, screens with overdue
   count, groups as a list (click shows, drag reorders, right-click/pencil
   edits), Settings at the foot. No chip rows.
 - **Form panel** (`TaskPanel`, `DeskFormPanel`, `openTaskForm`,
-  `TaskEditScreen.inPanel`): screens padded by its width unless that leaves
-  <420. With changes it doesn't give way, it nudges (`_Nudged`); "changes"
-  means differing words (`_typed`, `_wordsDiffer`). Escape closes it, in two
-  presses if a field holds the caret with something typed (`_escapeForm`).
-- **Calendar**: one state (`_buildWide`), month opened full height, day panel
-  384 wide on the right (the form's width), arrows + Today over the month.
-  `MonthSizes.desk` at ≥72pt per day. Titles click to open and drag to move
-  (`_TaskTitle`, `_DropDay`, `MouseDraggable`); carry tile capped 150×64.
+  `TaskEditScreen.inPanel`): screens padded by its width unless <420
+  remains. With changes (`_typed`, `_wordsDiffer`) it doesn't give way, it
+  nudges (`_Nudged`). Escape closes it, twice if a field holds typed text
+  (`_escapeForm`).
+- **Calendar**: one state (`_buildWide`), month opened full height, day
+  panel 384 wide on the right, arrows + Today over the month;
+  `MonthSizes.desk` at ≥72pt a day. Titles click to open and drag to move
+  (`_TaskTitle`, `_DropDay`, `MouseDraggable`); carry tile ≤150×64.
 - **Schedule/Done**: 760 column, lists span the window (`DeskColumn`,
-  `DeskGutter`). Titles at one height (`ScreenHeader`, 48).
+  `DeskGutter`); titles at one height (`ScreenHeader`, 48).
 - **Board**: three lanes at once down to 200 each (`_Board.wideFraction`).
-- **Settings**: list beside page (`_entries`, `_page`); no "Switch screens with".
-- **Sheets become centred dialogs** (`showAppSheet`; `PickerSheet` on phone);
-  **Search is a panel from the top** (`openSearch`).
-- **Mouse**: drag picks up at once after 6pt (`pickUpListener`,
+- **Settings**: list beside page (`_entries`, `_page`).
+- **Sheets are centred dialogs** (`showAppSheet`; `PickerSheet` on the
+  phone); **Search is a panel from the top** (`openSearch`).
+- **Mouse**: drag picks up after 6pt (`pickUpListener`,
   `MouseDragRecognizer`), no drag-scroll (`WideScrolling`); Ctrl+click
-  selects; right-click opens `showTaskMenu` (put-off lives there,
+  selects; right-click opens `showTaskMenu` (put-off is there,
   `PutOff.move`).
-- **Keys** (`DeskKeys`, a `Focus` above the navigator, `DeskActions`): Ctrl+N,
-  Ctrl+F/K, Ctrl+1–6; calendar arrows, PgUp/PgDn, Home/T. Only Escape while a
-  dialog is open; arrows pass through to fields.
+- **Keys** (`DeskKeys`, a `Focus` above the navigator, `DeskActions`):
+  Ctrl+N, Ctrl+F/K, Ctrl+1–6; calendar arrows, PgUp/PgDn, Home/T. Only
+  Escape while a dialog is open; arrows pass through to fields.
 - **Typed times** (`parseClock`): "9", "930", "9:30 pm".
-- **Never first-use a `late final` `AnimationController` in `dispose`**; make
-  it in `initState` (form panel, `UndoSlot`, `SelectionSlot`).
+- **Never first-use a `late final` `AnimationController` in `dispose`**;
+  make it in `initState` (form panel, `UndoSlot`, `SelectionSlot`).
 
 ## Tests
 
@@ -1205,23 +913,22 @@ Sidebar, each screen drawn for its width, task form as a right panel.
   `tester.runAsync`; for UI-triggered writes use a capturing provider
   (`_CapturingProvider` in `screens_test.dart`) or poll inside `runAsync`.
 - Screens are pumped at phone sizes so overflows fail — intentional.
-- The test font draws em squares: assert layout invariants, not glyph widths.
+- The test font draws em squares: assert layout, not glyph widths.
 - Exported keys: `monthTitleKey`, `calendarHandleKey`, `daySheetKey`,
-  `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`,
-  `deskSidebarKey`, `deskFormKey`, `deskNewTaskKey`.
-- "A Timer is still pending" after a test usually means the `dispose`
-  animation fault above.
+  `searchFieldKey`, `screenTitleKey`, `taskCardTickKey`, `deskSidebarKey`,
+  `deskFormKey`, `deskNewTaskKey`.
+- "A Timer is still pending" usually means the `dispose` fault above.
 - `TaskPanel` is app-wide: wide-layout tests close it in `tearDown`.
 
 ## Building
 
 Load-bearing for reminders: **desugaring** in `app/build.gradle.kts`, the
-**action receiver**, the **two scheduled receivers and three permissions** in
-the manifest, and **`res/raw/keep.xml`** (keeps the notification icon from
-R8).
+**action receiver**, the **two scheduled receivers and three permissions**
+in the manifest, and **`res/raw/keep.xml`** (keeps the notification icon
+from R8).
 
-`android/gradle.properties` is capped on purpose (`-Xmx2G`, four workers, 1G
-Kotlin daemon) — 13GB machine; do not raise. Stop the daemon afterwards:
+`android/gradle.properties` is capped on purpose (`-Xmx2G`, four workers,
+1G Kotlin daemon; 13GB machine) — don't raise. Stop the daemon after:
 
 ```sh
 flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
@@ -1229,43 +936,38 @@ flutter build apk --release --split-per-abi --target-platform android-arm,androi
 ```
 
 **Signing**: `~/keys/caldo-release.jks` via `android/key.properties` (both
-outside git; the original debug key). Lose them and no update installs over
-Caldo again — keep copies off this machine. A release build without
-`key.properties` fails on purpose.
+outside git). Lose them and no update installs over Caldo again. A release
+build without `key.properties` fails on purpose.
 
-**Release only when asked.** Commit each change, but don't bump, build or
-publish unprompted (the in-app updater ships whatever is latest). A release
-means both `release/` (`Caldo-arm64.apk`, `Caldo-armv7.apk`,
+**Release only when asked.** Commit each change; don't bump, build or
+publish unprompted (the updater ships whatever is latest). A release is
+both `release/` (`Caldo-arm64.apk`, `Caldo-armv7.apk`,
 `Caldo-universal.apk`) and `gh release create vX.Y.Z release/*.apk` from the
-latest commit. An update users must not put off carries
-`<!-- priority: high -->` in its notes (`--notes`); add it only when asked.
-`tool/package_linux.sh` adds `Caldo-linux-x64.tar.gz`; whether a
-release carries it is the user's call.
+latest commit. `<!-- priority: high -->` in the notes only when asked.
+`tool/package_linux.sh` adds `Caldo-linux-x64.tar.gz`; whether a release
+carries it is the user's call.
 
-Linux: `flutter build linux --release` → `build/linux/x64/release/bundle`.
-Needs SQLite headers (`pkg-config sqlite3`).
+Linux: `flutter build linux --release` → `build/linux/x64/release/bundle`;
+needs SQLite headers (`pkg-config sqlite3`).
 
 ## Running on the emulator
 
-`ANDROID_SDK_ROOT` in the shell points at `/opt/android-sdk`, which has no
-emulator; use `~/Android/Sdk`:
+The shell's `ANDROID_SDK_ROOT` (`/opt/android-sdk`) has no emulator; use
+`~/Android/Sdk`:
 
 ```sh
 SD=~/Android/Sdk
 ANDROID_SDK_ROOT=$SD ANDROID_HOME=$SD $SD/emulator/emulator -avd pixel_api34 &
 adb install -r build/app/outputs/flutter-apk/app-release.apk
-adb shell monkey -p com.igor.caldo -c android.intent.category.LAUNCHER 1
-# (monkey may send Home, which switches LauncherIcon; use
-#  am start -a android.intent.action.MAIN -n com.igor.caldo/.LauncherFree to avoid)
+adb shell am start -a android.intent.action.MAIN -n com.igor.caldo/.LauncherFree
 adb exec-out screencap -p > shot.png
 ```
 
-**The emulator always runs the latest commit**: after every change, build a
-release APK (no version bump) and `adb install -r` it. Judge changes by eye
-from a screenshot before saying they work. Screen is 1080×1920 at **dpr
-2.625** (411×731). `input text` can't send Cyrillic.
-
-**Long press can't be done with `input swipe`**; use motion events:
+(`monkey` may send Home, which switches `LauncherIcon`.) **The emulator
+always runs the latest commit**: after every change build a release APK (no
+bump) and install it. Judge by eye from a screenshot before saying it works.
+Screen 1080×1920 at **dpr 2.625** (411×731). `input text` can't send
+Cyrillic. **Long press needs motion events**, not `input swipe`:
 
 ```sh
 adb shell input motionevent DOWN 540 880
@@ -1274,18 +976,12 @@ for y in 840 760 680 600; do adb shell input motionevent MOVE 540 $y; done
 adb shell input motionevent UP 540 600
 ```
 
-Not bugs:
-
-- ANRs under load are usually host starvation (Gradle + emulator).
-- A loaded host drops frames, which looks like a detached keyboard bar. Judge
-  keyboard-riding UI on a **release** build, on a quiet machine, against the
-  committed build as a control. Frame lag scales with speed; a wrong number is
-  off by the same amount at every speed.
-- Debug builds draw at half rate here; never judge motion on them.
-- The emulator's keyboard does slide (~270ms, sixteen steps); down is one lump.
-- First month opening after a cold start is slow on the emulator (GL warm-up);
-  nothing in the grid causes it. Measure on a phone, over several cold starts.
-- `screenrecord` drops frames: it shows a movement's shape, not smoothness.
+Not bugs: ANRs under load (host starvation); a loaded host drops frames,
+which looks like a detached keyboard bar — judge keyboard UI on a quiet
+machine against the committed build; debug builds draw at half rate; the
+emulator's keyboard slides up (~270ms) but drops down in one lump; the
+first month opening after a cold start is slow (GL warm-up);
+`screenrecord` drops frames.
 
 ## Running the sync server
 
@@ -1297,22 +993,21 @@ supabase test db
 supabase stop          # holds 2-3GB
 ```
 
-API `http://127.0.0.1:54321` (emulator: `10.0.2.2:54321`), dashboard :54323,
-Mailpit :54324. If docker access fails, `newgrp docker`.
+API `http://127.0.0.1:54321` (emulator: `10.0.2.2:54321`), dashboard
+:54323, Mailpit :54324. If docker access fails, `newgrp docker`.
 
 **The cloud project** is linked (`supabase/.temp`): `supabase db push
 --remote` applies migrations. **Never `config push` the repo's
-`config.toml`**: it is the local stack's (site URL, a 1s mail interval,
-pool sizes). Push a file declaring only what is meant, with `--workdir` on
-a scratch directory; undeclared settings are left alone. `supabase db query
---remote` writes to the live database, so ask the user first; `--read-only`
-needs no asking. An admin is made with `insert into public.admins select id
-from auth.users where email = '<name>@caldo.invalid'`.
+`config.toml`** (it is the local stack's): push a file declaring only what
+is meant, with `--workdir` on a scratch directory. `supabase db query
+--remote` writes to the live database — ask first; `--read-only` needs no
+asking. Make an admin with `insert into public.admins select id from
+auth.users where email = '<name>@caldo.invalid'`.
 
 ## Running on Linux
 
-`tool/desktop/try.sh` runs the build on its own Xvfb display (`:99`) with its
-own home and session bus; `--stop` ends it.
+`tool/desktop/try.sh` runs the build on its own Xvfb display (`:99`), home
+and session bus; `--stop` ends it.
 
 ```sh
 flutter build linux --release
@@ -1325,15 +1020,13 @@ python tool/desktop/x.py resize 480 780
 ```
 
 `notifd.py` stands in for the notification server (`notifd.log`; write a
-button key to `press` to press it). To try a reminder: stop the app, insert a
-task a minute ahead with `sqlite3` (`due_at` ms, `has_time` 1), restart. Close
-the window with `WM_DELETE_WINDOW` to test size saving.
-
-Not bugs: a drag that pauses >40ms before release isn't a fling; GTK's file
-dialog may drop the second typed character (type "/" and wait); the save
-dialog selects the name without ".json"; clicking a file row opens it (kill
-that program by pid after checking its `DISPLAY`). **Never `pkill -f` a
-pattern the killing command itself contains.**
+button key to `press`). To try a reminder: stop the app, insert a task a
+minute ahead with `sqlite3` (`due_at` ms, `has_time` 1), restart. Close with
+`WM_DELETE_WINDOW` to test size saving. Not bugs: a drag pausing >40ms
+before release isn't a fling; GTK's file dialog may drop the second typed
+character; the save dialog selects the name without ".json"; clicking a
+file row opens it. **Never `pkill -f` a pattern the killing command itself
+contains.**
 
 ## Conventions
 
@@ -1341,15 +1034,16 @@ pattern the killing command itself contains.**
 - Commit messages are prose: what changed and why. End with the
   `Co-Authored-By` line.
 - `flutter analyze` clean before every commit.
+- Keep these notes short: a decision, its code names, and the one reason
+  that stops it being undone. The story goes in the commit message.
 
 ## Known gaps
 
 - Linux: reminders need Caldo open; a clicked notification can't raise the
-  window; no scrollbars in the wide layout; x64 only. Undo's brush-off is
-  measured against the window. `caldo://` links open nothing on Linux.
-- No password reset for a forgotten password but by hand, and a free
-  Supabase project pauses after about a week with no requests.
-- Backups carry attachment records, not files; on a new phone they come
-  down only if a synced device sent them. Files over 50MB never sync.
-- Holiday names are in each country's language (English-speaking countries
-  and Canada in English).
+  window; no scrollbars in the wide layout; x64 only; Undo's brush-off is
+  measured against the window; `caldo://` links open nothing.
+- No password reset but by hand; a free Supabase project pauses after
+  about a week without requests.
+- Backups carry attachment records, not files; files over 50MB never sync.
+- Holiday names are in each country's language (English-speaking
+  countries and Canada in English).
