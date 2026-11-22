@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/mcp/agents.dart';
+import 'package:caldo/mcp/kept.dart';
 import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/screens/agents_screen.dart';
@@ -43,8 +44,18 @@ class _Heard implements TalkSink {
   @override
   void turnEnded(String answer, {bool failed = false}) => this.answer = answer;
 
+  int? code;
+
   @override
-  void exited(int code, String why) {}
+  void exited(int code, String why) => this.code = code;
+}
+
+/// Waits, a little at a time, until [done].
+Future<void> _until(bool Function() done) async {
+  for (var i = 0; i < 200 && !done(); i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+  expect(done(), isTrue);
 }
 
 void main() {
@@ -446,6 +457,105 @@ void main() {
       expect(text, contains('clean-code'));
       expect(text, contains('## Tests\n\nRun them first.'));
       expect(text, isNot(contains('Empty')));
+    });
+  });
+
+  group("a chat's program", () {
+    const claude = AgentSpec(
+      id: 'claude',
+      label: 'Claude',
+      command: ['claude'],
+    );
+    late Directory dir;
+    late String base;
+    setUp(() {
+      dir = Directory.systemTemp.createTempSync('kept');
+      base = '${dir.path}/c.talk';
+    });
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('lives on without its writer, and is read on by another', () async {
+      final kept = await Kept.start(base, [
+        'sh',
+        '-c',
+        r'while read l; do echo "$l"; done',
+      ], cwd: dir.path);
+      // A worker that wrote and went: its end of the pipe closed.
+      File('$base.in').openSync(mode: FileMode.write)
+        ..writeStringSync('one\n')
+        ..closeSync();
+      final out = File('$base.out');
+      await _until(() => out.readAsStringSync() == 'one\n');
+
+      final again = Kept.find(base, out.lengthSync())!;
+      final heard = <String>[];
+      again.listen(heard.add, (_, _) {});
+      again.write('two');
+      await _until(() => heard.isNotEmpty);
+      expect(heard, ['two']);
+      expect(again.written(), ['two']);
+
+      await kept.stop();
+      expect(File('$base.pid').existsSync(), isFalse);
+    });
+
+    test('is taken up where the last worker left it', () async {
+      String line(Map json) => '${jsonEncode(json)}\n';
+      Map ask(String id) => {
+        'type': 'control_request',
+        'request_id': id,
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': 'Bash',
+          'input': {'command': 'ls'},
+        },
+      };
+      final before = [
+        line({'type': 'system', 'subtype': 'init', 'session_id': 's1'}),
+        line(ask('r1')),
+        line(ask('r2')),
+      ].join();
+      File('$base.out').writeAsStringSync(
+        before +
+            line({
+              'type': 'result',
+              'subtype': 'success',
+              'result': 'Done.',
+              'is_error': false,
+            }),
+      );
+      // r1 was answered by the last worker; r2 still waits.
+      File('$base.written').writeAsStringSync(
+        line({
+          'type': 'control_response',
+          'response': {'subtype': 'success', 'request_id': 'r1'},
+        }),
+      );
+      // Ended while no worker was there.
+      File('$base.pid').writeAsStringSync('999999999 999999999');
+      File('$base.code').writeAsStringSync('0');
+
+      final heard = _Heard();
+      final talk = ClaudeTalk(
+        claude,
+        const ChatAsk(id: 'c', agent: 'claude'),
+        heard,
+        dir: dir.path,
+      )..takeUp(Kept.find(base, utf8.encode(before).length)!);
+      // What was handed on before is not said again.
+      expect(heard.items, isEmpty);
+      expect(heard.states, isEmpty);
+      // The question answered then is not open; the one waiting is.
+      talk
+        ..answer('ask:r1', 'allow')
+        ..answer('ask:r2', 'allow');
+      expect(heard.items.keys, ['ask:r2']);
+
+      await _until(() => heard.code != null);
+      expect(heard.code, 0);
+      expect(heard.answer, 'Done.');
+      expect(heard.states.last, 'idle');
+      expect(File('$base.out').existsSync(), isFalse);
     });
   });
 

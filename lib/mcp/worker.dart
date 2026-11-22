@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:supabase/supabase.dart';
 
 import 'agents.dart';
+import 'kept.dart';
 import 'remote.dart';
 import 'talk.dart';
 import 'terminal.dart';
@@ -27,6 +28,10 @@ class WorkerState {
   /// there is read back into the chat from its transcript on the way back.
   final Map<String, int> marks = {};
 
+  /// Per chat spoken to in messages: how far into its program's output has
+  /// been handed on, for a worker started again to read on from.
+  final Map<String, int> talks = {};
+
   WorkerState(this.file) {
     try {
       final json = jsonDecode(file.readAsStringSync()) as Map;
@@ -37,6 +42,7 @@ class WorkerState {
         chats[key as String] = (value as Map).cast<String, int>();
       }
       marks.addAll((json['marks'] as Map? ?? const {}).cast<String, int>());
+      talks.addAll((json['talks'] as Map? ?? const {}).cast<String, int>());
     } catch (_) {
       id = _uuid();
     }
@@ -46,7 +52,13 @@ class WorkerState {
     file.parent.createSync(recursive: true);
     final next = File('${file.path}.next')
       ..writeAsStringSync(
-        jsonEncode({'id': id, 'name': name, 'chats': chats, 'marks': marks}),
+        jsonEncode({
+          'id': id,
+          'name': name,
+          'chats': chats,
+          'marks': marks,
+          'talks': talks,
+        }),
       );
     next.renameSync(file.path);
   }
@@ -241,14 +253,19 @@ class Worker {
     for (final row in mine) {
       final ask = ChatAsk.fromJson(row);
       if (ask.mode == 'chat') {
-        // Its program went with the worker; its session is taken up again
-        // with the next message.
         final spec = _specOf(ask.agent);
         if (spec == null) {
           await _set(ask.id, 'ended', 'There is no ${ask.agent} on $name.');
           continue;
         }
-        _talks[ask.id] = await _Talker.make(this, ask, spec);
+        final talker = _talks[ask.id] = await _Talker.make(this, ask, spec)
+          ..state = row['state'] as String;
+        if (talker.takeUp()) {
+          log('[${_short(ask.id)}] taken up again (chat)');
+          continue;
+        }
+        // Its program is gone (or was the last worker's child, and went
+        // with it): its session is taken up again with the next message.
         if (row['state'] != 'idle') {
           await _set(
             ask.id,
@@ -864,8 +881,18 @@ class Worker {
     }
   }
 
-  /// Once a second: chats whose program ended, and snapshots due.
+  /// Once a second: chats whose program ended, snapshots due, and how far
+  /// each chat's program has been read.
   Future<void> _check() async {
+    var read = false;
+    for (final MapEntry(key: chat, value: talker) in _talks.entries) {
+      final offset = talker.talk?.offset;
+      if (offset != null && state.talks[chat] != offset) {
+        state.talks[chat] = offset;
+        read = true;
+      }
+    }
+    if (read && _live.isEmpty) state.save();
     if (_live.isEmpty) return;
     final panes = await tmux.panes();
     var changed = false;
@@ -1128,20 +1155,45 @@ class _Talker implements TalkSink {
     String? dir,
   }) async {
     final db = await worker._db;
-    final last = await db
+    // Each item's place, so one said again — a tool's output come after
+    // the worker started again — keeps it rather than going to the end.
+    final items = await db
         .from('chat_items')
-        .select('seq')
-        .eq('chat_id', ask.id)
-        .order('seq', ascending: false)
-        .limit(1);
+        .select('id, seq')
+        .eq('chat_id', ask.id);
+    final seqs = {for (final i in items) i['id'] as String: i['seq'] as int};
     return _Talker._(
-      worker,
-      ask,
-      spec,
-      last.isEmpty ? 0 : (last.first['seq'] as int) + 1,
-      dir: dir ?? worker._expand(ask.dir ?? worker.home),
-      session: session ?? ask.session,
-    )..turn = worker._waiting[ask.id];
+        worker,
+        ask,
+        spec,
+        seqs.values.fold(-1, max) + 1,
+        dir: dir ?? worker._expand(ask.dir ?? worker.home),
+        session: session ?? ask.session,
+      )
+      .._seqs.addAll(seqs)
+      ..turn = worker._waiting[ask.id];
+  }
+
+  /// Where its program's files are kept, beside the terminals'.
+  String get _files => '${worker.tmux.dir}/${ask.id}.talk';
+
+  /// Its program gone: nothing to read on from.
+  void _forgetOffset() {
+    if (worker.state.talks.remove(ask.id) != null) worker.state.save();
+  }
+
+  /// Its program as the worker before this one left it, taken up again if
+  /// there is one: true if there was.
+  bool takeUp() {
+    final offset = worker.state.talks[ask.id];
+    // Read from its start, unheard, if where the last worker got to was
+    // never saved: what was said is on the server already.
+    final kept = Kept.find(_files, offset ?? 1 << 62);
+    if (kept == null) return false;
+    final made = Talk.of(spec, ask, this, dir);
+    if (made == null) return false;
+    talk = made..takeUp(kept, session: session);
+    return true;
   }
 
   /// Its program started, if it is not up: carrying on its session. Asked
@@ -1164,7 +1216,10 @@ class _Talker implements TalkSink {
     _closing = false;
     talk = made;
     try {
-      await made.start(resume: resumable(spec, worker.home, dir, session));
+      await made.start(
+        files: _files,
+        resume: resumable(spec, worker.home, dir, session),
+      );
     } catch (e) {
       talk = null;
       await made.close();
@@ -1186,6 +1241,7 @@ class _Talker implements TalkSink {
     _closing = true;
     await talk?.close();
     talk = null;
+    _forgetOffset();
     _piecing?.cancel();
     await worker.remote.client.removeChannel(_channel);
   }
@@ -1320,6 +1376,7 @@ class _Talker implements TalkSink {
   @override
   void exited(int code, String why) {
     talk = null;
+    _forgetOffset();
     if (_closing || forgotten) return;
     // Ended by itself: the chat waits to be taken up again with the next
     // message, unless it never began.

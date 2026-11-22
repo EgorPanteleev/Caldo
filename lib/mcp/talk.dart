@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'agents.dart';
+import 'kept.dart';
 
 /// Where a [Talk] puts what its agent says, in one shape for every agent:
 /// the app draws a chat from these and nothing else.
@@ -30,15 +31,52 @@ abstract class TalkSink {
 /// and drawn by the app as a chat that scrolls like one.
 abstract class Talk {
   final ChatAsk ask;
-  final TalkSink sink;
+  final TalkSink _sink;
 
   /// The folder it works in.
   final String dir;
 
-  Talk(this.ask, this.sink, {required this.dir});
+  Talk(this.ask, TalkSink sink, {required this.dir}) : _sink = sink;
 
-  /// Starts its program; with [resume], carrying on that session.
-  Future<void> start({String? resume});
+  /// Where what it says goes: the worker — or nowhere, while what a worker
+  /// before this one handed on is read again ([takeUp]).
+  TalkSink get sink => _replay ?? _sink;
+  _Replay? _replay;
+
+  /// Starts its program, its files at [files]; with [resume], carrying on
+  /// that session.
+  Future<void> start({required String files, String? resume});
+
+  /// One line of what its program says.
+  void take(Map line);
+
+  /// One line written to its program, read again in [takeUp]: what it
+  /// shows that its output does not, such as a question answered.
+  void _wrote(Map line) {}
+
+  /// Its program as a worker before this one left it, running or ended
+  /// meanwhile: what that worker handed on is read again unheard, with
+  /// what it wrote, to know what is open (a question waiting, a tool under
+  /// way), and the rest goes on as it comes. How the chat stands is the
+  /// row's, which that worker kept: its output alone does not say a turn
+  /// began, as a turn begins with what was written.
+  void takeUp(Kept kept, {String? session}) {
+    _replay = const _Replay();
+    kept.before().forEach(_line);
+    for (final line in kept.written()) {
+      try {
+        _wrote(jsonDecode(line) as Map);
+      } on FormatException {
+        // Cut short as it was written.
+      }
+    }
+    _replay = null;
+    _takenUp(session);
+    _follow(kept);
+  }
+
+  /// What a program taken up needs beyond its output: [session], its own.
+  void _takenUp(String? session) {}
 
   /// [text] said by the user; [id], the app's own for it, so the words it
   /// showed at once are these.
@@ -57,65 +95,64 @@ abstract class Talk {
         _ => null,
       };
 
-  Process? _process;
-  final _err = <String>[];
-  bool _closing = false;
+  /// Its program, run apart from the worker so it outlives it.
+  Kept? _kept;
 
-  Future<void> _run(List<String> argv, void Function(Map) onLine) async {
-    final process = _process = await Process.start(
-      argv.first,
-      argv.sublist(1),
-      workingDirectory: dir,
-    );
-    process.stdout
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .transform(const LineSplitter())
-        .listen((line) {
-          if (line.trim().isEmpty) return;
-          try {
-            onLine(jsonDecode(line) as Map);
-          } on FormatException {
-            // Not ours: a line some tool printed past the protocol.
-          }
-        });
-    process.stderr
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .transform(const LineSplitter())
-        .listen((line) {
-          // The last few, to say why it ended if it ends badly.
-          _err.add(line);
-          if (_err.length > 6) _err.removeAt(0);
-        });
-    unawaited(
-      process.exitCode.then((code) {
-        if (_process == process) _process = null;
-        sink.exited(code, _closing ? '' : _err.join('\n').trim());
-      }),
-    );
+  /// How far into its program's output has been handed on: kept by the
+  /// worker, for one started again to read on from.
+  int? get offset => _kept?.offset;
+
+  Future<void> _run(String files, List<String> argv) async =>
+      _follow(await Kept.start(files, argv, cwd: dir));
+
+  void _follow(Kept kept) {
+    _kept = kept;
+    kept.listen(_line, (code, why) {
+      if (_kept == kept) _kept = null;
+      Kept.clear(kept.base);
+      _sink.exited(code, why.trim());
+    });
   }
 
-  void _write(Map<String, Object?> message) {
+  void _line(String line) {
+    if (line.trim().isEmpty) return;
     try {
-      _process?.stdin.writeln(jsonEncode(message));
-    } catch (_) {
-      // Its pipe gone: the exit says so.
+      take(jsonDecode(line) as Map);
+    } on FormatException {
+      // Not ours: a line some tool printed past the protocol.
     }
   }
 
-  bool get running => _process != null;
+  void _write(Map<String, Object?> message) {
+    // Read again, it was answered when it was said.
+    if (_replay != null) return;
+    _kept?.write(jsonEncode(message));
+  }
 
   Future<void> _stop() async {
-    final process = _process;
-    if (process == null) return;
-    _closing = true;
-    try {
-      await process.stdin.close();
-    } catch (_) {}
-    final ended = await process.exitCode
-        .then((_) => true)
-        .timeout(const Duration(seconds: 3), onTimeout: () => false);
-    if (!ended) process.kill();
+    final kept = _kept;
+    _kept = null;
+    await kept?.stop();
   }
+}
+
+/// Where a talk's words go while what was handed on before is read again:
+/// nowhere.
+class _Replay implements TalkSink {
+  const _Replay();
+
+  @override
+  void stands(String state, {String? note}) {}
+  @override
+  void item(String id, String kind, Map<String, Object?> body) {}
+  @override
+  void delta(String id, String text) {}
+  @override
+  void inSession(String id) {}
+  @override
+  void turnEnded(String answer, {bool failed = false}) {}
+  @override
+  void exited(int code, String why) {}
 }
 
 /// Claude Code with `--input-format stream-json --output-format
@@ -146,8 +183,8 @@ class ClaudeTalk extends Talk {
   ];
 
   @override
-  Future<void> start({String? resume}) async {
-    await _run(argv(spec, ask, resume: resume), take);
+  Future<void> start({required String files, String? resume}) async {
+    await _run(files, argv(spec, ask, resume: resume));
     _write({
       'type': 'control_request',
       'request_id': 'init',
@@ -172,6 +209,14 @@ class ClaudeTalk extends Talk {
   }
 
   final _asks = <String, Map>{};
+
+  @override
+  void _wrote(Map line) {
+    final response = line['response'];
+    if (line['type'] == 'control_response' && response is Map) {
+      _asks.remove('ask:${response['request_id']}');
+    }
+  }
 
   @override
   void answer(String id, String choice) {
@@ -230,6 +275,7 @@ class ClaudeTalk extends Talk {
 
   /// One line of Claude's output — or of a session's transcript, which
   /// holds the same messages, read after the chat was in its terminal.
+  @override
   void take(Map line) {
     switch (line['type']) {
       case 'system':
@@ -504,8 +550,23 @@ class CodexTalk extends Talk {
   };
 
   @override
-  Future<void> start({String? resume}) async {
-    await _run(['codex', 'app-server'], take);
+  void _wrote(Map line) {
+    if (line['method'] == null && line['result'] != null) {
+      _asks.removeWhere((_, asked) => asked.id == line['id']);
+    }
+  }
+
+  @override
+  void _takenUp(String? session) {
+    _thread ??= session;
+    // Past every id the worker before used, for its calls and its notes:
+    // a note under one it used would be written over that one.
+    _next = DateTime.now().microsecondsSinceEpoch;
+  }
+
+  @override
+  Future<void> start({required String files, String? resume}) async {
+    await _run(files, ['codex', 'app-server']);
     await _call('initialize', {
       'clientInfo': {'name': 'caldo', 'title': 'Caldo', 'version': '1'},
       'capabilities': null,
@@ -621,6 +682,7 @@ class CodexTalk extends Talk {
   /// question asked about it.
   final _changes = <String, String>{};
 
+  @override
   void take(Map line) {
     final method = line['method'] as String?;
     final id = line['id'];

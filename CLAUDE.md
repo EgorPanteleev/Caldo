@@ -829,6 +829,27 @@ and Codex, the terminal side by side.
   the map, and a row queued with it was refused. Locally a new chat was up
   in ~0.1–0.5s and the user's words came back in ~10ms; the first word is
   the model's own ~1.8s.
+- **A chat's program outlives the worker** (asked as "after reinstalling
+  it my chats on the phone always die", 2026-11-22): `claude -p` and
+  `codex app-server` were the worker's children on pipes, so every
+  reinstall or restart ended them mid-turn. Now each runs detached
+  (`Kept`, `lib/mcp/kept.dart`) behind a shell that holds its input, a
+  named pipe, open read-write (so it never reads an end while no worker
+  writes); output, errors, pids and exit status are files beside the
+  terminals' (`~/.cache/caldo/chats/<chat>.talk.*`), and what the worker
+  writes is kept too (`.written`). The worker reads the output every 30ms
+  and saves how far each second (`worker.json` `talks`); one started again
+  reads what was handed on again unheard (`Talk.takeUp`, `_Replay`) to
+  rebuild open questions and tools — `.written` says which questions were
+  answered — and goes on live from there; the chat's state stays the
+  row's, as a turn begins with what was written, not with output. Items
+  keep their seq (`_Talker.make` reads them all). Codex's call and note
+  ids go on from the clock after a takeover. Dart can't append to a pipe
+  (it seeks): opened `FileMode.write`. Tried on the local stack with a
+  stand-in `claude`: one program carried a chat through four worker
+  restarts, killed and stopped, mid-turn and between. A program killed
+  with the session (logout, reboot) is noted "ended from outside"; the
+  next message resumes its session.
 - **A terminal goes by broadcast too** (asked as "console rendering is too
   slow", 2026-11-21): typed keys and lines go on `chat:<id>` beside their
   row, and the worker broadcasts what it reads every 50ms (`_castOut`,
@@ -1100,7 +1121,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 411 tests, all passing; keep it so. `supabase test db` — 49.
+`flutter test` — 413 tests, all passing; keep it so. `supabase test db` — 49.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
