@@ -28,6 +28,9 @@ class AgentKind {
   /// Whether the rules chosen for a chat reach it.
   final bool rules;
 
+  /// Whether its worker says messages left for later.
+  final bool later;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -40,6 +43,7 @@ class AgentKind {
     this.prompt = 'arg',
     this.talks = false,
     this.rules = false,
+    this.later = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -54,6 +58,7 @@ class AgentKind {
     prompt: json['prompt'] as String? ?? 'arg',
     talks: json['talks'] == true,
     rules: json['rules'] == true,
+    later: json['later'] == true,
   );
 }
 
@@ -111,6 +116,23 @@ class AgentWorker {
 }
 
 enum ChatState { asked, running, asking, idle, ended, failed }
+
+/// A message left for a chat to be told at [at]: kept on the server until
+/// the chat's worker says it, so it goes while the phone is away.
+@immutable
+class LaterLine {
+  final int id;
+  final String text;
+  final DateTime at;
+
+  const LaterLine({required this.id, required this.text, required this.at});
+
+  factory LaterLine.fromJson(Map json) => LaterLine(
+    id: json['id'] as int,
+    text: json['data'] as String? ?? '',
+    at: DateTime.parse(json['send_at'] as String).toLocal(),
+  );
+}
 
 @immutable
 class Chat {
@@ -435,6 +457,41 @@ class Agents extends ChangeNotifier {
   /// there at once as well as kept.
   Future<void> line(String chat, String text, {TalkFeed? over}) =>
       _in(chat, 'line', data: text, over: over);
+
+  /// [text] left for [chat]'s worker to say at [at].
+  Future<LaterLine> later(String chat, String text, DateTime at) async {
+    final row = await _client!
+        .from('chat_later')
+        .insert({
+          'chat_id': chat,
+          'data': text,
+          'send_at': at.toUtc().toIso8601String(),
+          'key': _key(),
+        })
+        .select('id, data, send_at')
+        .single();
+    return LaterLine.fromJson(row);
+  }
+
+  /// What is left for [chat] and not yet said, soonest first.
+  Future<List<LaterLine>> laterOf(String chat) async {
+    final rows = await _client!
+        .from('chat_later')
+        .select('id, data, send_at')
+        .eq('chat_id', chat)
+        .order('send_at', ascending: true);
+    return [for (final row in rows) LaterLine.fromJson(row)];
+  }
+
+  /// [line] taken back; false if the worker has said it already.
+  Future<bool> takeBack(LaterLine line) async {
+    final gone = await _client!
+        .from('chat_later')
+        .delete()
+        .eq('id', line.id)
+        .select('id');
+    return gone.isNotEmpty;
+  }
 
   Future<void> resize(String chat, int cols, int rows) =>
       _in(chat, 'size', cols: cols.clamp(10, 500), rows: rows.clamp(5, 300));

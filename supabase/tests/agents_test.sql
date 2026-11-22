@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(16);
+select plan(19);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -49,6 +49,11 @@ select lives_ok(
   $$insert into public.agent_rules (name, body) values
     ('Tests', 'Run the tests before saying it is done.')$$,
   'a rule is written');
+select lives_ok(
+  $$insert into public.chat_later (chat_id, data, send_at, key) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Go on.', now() + interval '1 hour',
+     'k1')$$,
+  'a message is kept to be said later');
 reset role;
 
 select pg_temp.act_as('22222222-2222-4222-8222-222222222222');
@@ -80,6 +85,14 @@ select throws_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'x', 1, 'text',
      '22222222-2222-4222-8222-222222222222')$$,
   '42501', null, 'nor puts words in its mouth');
+select is(
+  (select count(*)::int from public.chat_later), 0,
+  'nor sees what it will be told later');
+select throws_ok(
+  $$insert into public.chat_later (chat_id, data, send_at, key, user_id) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'rm -rf ~', now(), 'k2',
+     '22222222-2222-4222-8222-222222222222')$$,
+  '42501', null, 'nor leaves it a message');
 reset role;
 
 select * from finish();
