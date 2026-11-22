@@ -610,6 +610,71 @@ void main() {
     });
   });
 
+  group("a chat's title", () {
+    String said(Object? title, {bool error = false}) => jsonEncode({
+      'type': 'result',
+      'is_error': error,
+      'result': 'not this',
+      'structured_output': {'title': title},
+    });
+
+    test('is the structured title, tidied', () {
+      expect(
+        titleIn(said('Gradle build running out of memory')),
+        'Gradle build running out of memory',
+      );
+      expect(
+        titleIn(said('"Падение приложения."\nmore')),
+        'Падение приложения',
+      );
+      expect(titleIn(said('**Poem about cats**')), 'Poem about cats');
+      final long = titleIn(said('word ' * 30))!;
+      expect(long.length, lessThanOrEqualTo(60));
+      expect(long, endsWith('word'));
+    });
+
+    test('is none when Claude gave none', () {
+      expect(titleIn(said('  ')), isNull);
+      expect(titleIn(said(null)), isNull);
+      expect(titleIn(said('Fine', error: true)), isNull);
+      expect(titleIn('{"result": "Fine"}'), isNull);
+      expect(titleIn('claude: not logged in'), isNull);
+    });
+
+    test('is asked of Haiku with the message shown, not addressed', () {
+      expect(namingArgs, containsAllInOrder(['--model', 'haiku']));
+      expect(namingArgs, contains('--no-session-persistence'));
+      expect(namingArgs, containsAllInOrder(['--tools', '']));
+      final shown = namingInput('  help me ${'x' * 3000}');
+      expect(shown, contains('<message>\nhelp me x'));
+      expect(shown.length, lessThan(2100));
+    });
+
+    test("comes from Claude's own program", () async {
+      final dir = Directory.systemTemp.createTempSync('naming');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final claude = File('${dir.path}/claude')
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          'cat > "${dir.path}/in"\n'
+          'printf \'{"structured_output":{"title":"Asked by %s"}}\' "\$3"\n',
+        );
+      Process.runSync('chmod', ['+x', claude.path]);
+      expect(
+        await nameChat('Tidy the repo', command: claude.path),
+        'Asked by haiku',
+      );
+      expect(
+        File('${dir.path}/in').readAsStringSync(),
+        contains('Tidy the repo'),
+      );
+
+      File('${dir.path}/fails').writeAsStringSync('#!/bin/sh\nexit 1\n');
+      Process.runSync('chmod', ['+x', '${dir.path}/fails']);
+      expect(await nameChat('Tidy', command: '${dir.path}/fails'), isNull);
+    });
+  });
+
   group("a terminal's output", () {
     late StringBuffer drawn;
     late TermOrder order;

@@ -432,6 +432,7 @@ class Worker {
     final talker = _talks[chat];
     switch (row['kind']) {
       case 'line' when talker != null:
+        _name(talker.ask, row['data'] as String? ?? '');
         await talker.say(
           row['data'] as String? ?? '',
           id: key is String ? 'u$key' : null,
@@ -478,6 +479,7 @@ class Worker {
         live.typing = live.typing.then((_) => tmux.keys(chat, bytes));
       case 'line' when live != null:
         final text = row['data'] as String? ?? '';
+        _name(live.ask, text);
         live.typing = live.typing.then((_) => tmux.line(chat, text));
     }
   }
@@ -541,6 +543,7 @@ class Worker {
     live.state = spec.isClaude && first.isEmpty ? 'idle' : 'running';
     await _set(ask.id, live.state, null);
     log('[${_short(ask.id)}] ${spec.label} in $dir');
+    _name(ask, first);
     if (spec.prompt == 'type' && first.isNotEmpty) {
       live.typing = Future<void>.delayed(
         const Duration(milliseconds: 600),
@@ -613,6 +616,7 @@ class Worker {
     final first = prompt ?? (resume != null ? '' : ask.prompt);
     log('[${_short(ask.id)}] ${spec.label} in $dir (chat)');
     if (first.isNotEmpty) {
+      _name(ask, first);
       await talker.say(first);
     } else {
       await _set(ask.id, 'idle', null);
@@ -697,6 +701,37 @@ class Worker {
         .order('seq', ascending: false)
         .limit(1);
     return last.isEmpty ? 0 : (last.first['seq'] as int) + 1;
+  }
+
+  /// The chats named while this worker runs, or being named: each once.
+  final _named = <String>{};
+
+  /// [ask] named from [said], the first thing it was told, as Claude's own
+  /// app names its chats — unless it has a title, is a shell (a command
+  /// says nothing of what the chat is for), or there is no Claude here to
+  /// name it. The title goes in only while the chat still has none.
+  void _name(ChatAsk ask, String said) {
+    final text = said.trim();
+    if (ask.title.isNotEmpty || ask.agent == 'shell') return;
+    if (_named.contains(ask.id)) return;
+    // A command to Claude's terminal, `/model` say: the next line may say.
+    if (text.isEmpty || text.startsWith('/')) return;
+    // Read once a chat: the book reads Claude's plugins and skills anew.
+    final claude = _specOf('claude');
+    _named.add(ask.id);
+    if (claude == null) return;
+    unawaited(
+      _guard(() async {
+        final title = await nameChat(text, command: '${claude.command.first}');
+        if (title == null) return;
+        final db = await _db;
+        await db
+            .from('chats')
+            .update({'title': title})
+            .eq('id', ask.id)
+            .eq('title', '');
+      }),
+    );
   }
 
   Future<void> _set(String chat, String to, String? note) async {
