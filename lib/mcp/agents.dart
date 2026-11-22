@@ -78,6 +78,9 @@ class AgentSpec {
     'later': true,
     // It takes files sent with a message down from `chat-files`.
     'files': true,
+    // It starts a chat's program again when its settings are changed
+    // (`chat_in` `settings`).
+    'settings': true,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part
@@ -341,6 +344,27 @@ class ChatAsk {
 }
 
 String? _blank(Object? s) => s is String && s.trim().isNotEmpty ? s : null;
+
+/// What changed between [was] and [now], a chat's settings, as the note
+/// the chat shows where it changed; null if nothing its program is
+/// started with did.
+String? settingsChanged(ChatAsk was, ChatAsk now) {
+  String named(String? v) => v ?? 'default';
+  bool same(List<String>? a, List<String>? b) =>
+      a == null || b == null ? a == b : a.join('\n') == b.join('\n');
+  final parts = [
+    if (was.model != now.model) 'model ${named(now.model)}',
+    if (was.effort != now.effort) 'effort ${named(now.effort)}',
+    if (was.permission != now.permission)
+      'permissions ${named(now.permission)}',
+    if (!same(was.plugins, now.plugins)) 'plugins',
+    if (!same(was.skills, now.skills))
+      now.skills.isEmpty ? 'no skills' : 'skills ${now.skills.join(', ')}',
+    if (was.rules != now.rules) now.rules == null ? 'no rules' : 'rules',
+  ];
+  if (parts.isEmpty) return null;
+  return 'Settings changed: ${parts.join(', ')}.';
+}
 
 /// A chat's rules, `[{name, body}]` as the app keeps them on it, written
 /// out as one text: each under its name, the empty ones left out.

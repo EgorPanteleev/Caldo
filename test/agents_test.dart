@@ -965,6 +965,85 @@ void main() {
     });
   });
 
+  group("a chat's settings", () {
+    test('are read back as the chat keeps them', () {
+      final chat = Chat.fromJson({
+        'id': 'c',
+        'agent': 'claude',
+        'updated_at': '2026-11-22T10:00:00Z',
+        'model': 'opus',
+        'plugins': ['a@b'],
+        'skills': ['clean-code'],
+        'rules': [
+          {'name': 'Brief', 'body': 'Be brief.'},
+          'not a rule',
+        ],
+      });
+      expect(chat.plugins, ['a@b']);
+      expect(chat.skills, ['clean-code']);
+      expect(chat.rules, [(name: 'Brief', body: 'Be brief.')]);
+      final plain = Chat.fromJson({
+        'id': 'c',
+        'agent': 'shell',
+        'updated_at': '2026-11-22T10:00:00Z',
+      });
+      expect(plain.plugins, isNull);
+      expect(plain.rules, isEmpty);
+      expect(
+        AgentKind.fromJson({'id': 'claude', 'settings': true}).settings,
+        isTrue,
+      );
+      expect(AgentKind.fromJson({'id': 'claude'}).settings, isFalse);
+    });
+
+    test('changed are said in the chat, once each', () {
+      final was = ChatAsk.fromJson({
+        'id': 'c',
+        'agent': 'claude',
+        'model': 'opus',
+        'effort': 'high',
+        'skills': ['clean-code'],
+        'rules': [
+          {'name': 'Brief', 'body': 'Be brief.'},
+        ],
+      });
+      expect(settingsChanged(was, was), isNull);
+      // The title and the size are not what it runs with.
+      expect(
+        settingsChanged(
+          was,
+          ChatAsk.fromJson({
+            'id': 'c',
+            'agent': 'claude',
+            'title': 'New',
+            'cols': 120,
+            'model': 'opus',
+            'effort': 'high',
+            'skills': ['clean-code'],
+            'rules': [
+              {'name': 'Brief', 'body': 'Be brief.'},
+            ],
+          }),
+        ),
+        isNull,
+      );
+      expect(
+        settingsChanged(
+          was,
+          ChatAsk.fromJson({
+            'id': 'c',
+            'agent': 'claude',
+            'model': 'sonnet',
+            'permission': 'plan',
+            'plugins': ['a@b'],
+          }),
+        ),
+        'Settings changed: model sonnet, effort default, permissions plan, '
+        'plugins, no skills, no rules.',
+      );
+    });
+  });
+
   group("a chat's title", () {
     String said(Object? title, {bool error = false}) => jsonEncode({
       'type': 'result',
@@ -1320,6 +1399,109 @@ void main() {
           scrollable: list,
         );
         expect(find.text(s.chatForEach.toUpperCase()), findsOneWidget);
+      });
+
+      testWidgets("shows a chat's settings in ${S.names[code]}", (
+        tester,
+      ) async {
+        final s = S.forCode(code);
+        AgentWorker worker({required bool settings}) => AgentWorker(
+          id: 'w',
+          name: 'a-rather-long-computer-name',
+          home: '/home/someone',
+          seenAt: DateTime.now(),
+          dirs: const ['/home/someone'],
+          agents: [
+            AgentKind(
+              id: 'claude',
+              label: 'Claude',
+              models: const ['fable', 'opus', 'sonnet', 'haiku'],
+              efforts: const ['low', 'medium', 'high', 'xhigh', 'max'],
+              permissions: const ['auto', 'manual', 'acceptEdits', 'plan'],
+              plugins: const ['clangd-lsp@claude-plugins-official'],
+              skills: const ['clean-code'],
+              rules: true,
+              settings: settings,
+            ),
+          ],
+        );
+        Agents.instance.workers = [worker(settings: true)];
+        Agents.instance.rules = const [
+          AgentRule(id: 'r', name: 'Brief', body: 'Be brief, as now.'),
+        ];
+        Agents.instance.chats = [
+          Chat(
+            id: 'c',
+            workerId: 'w',
+            agent: 'claude',
+            title: 'Tidy the repo',
+            model: 'my-own-model',
+            effort: 'high',
+            dir: '/home/someone/dev/src/Caldo',
+            permission: 'plan',
+            skills: const ['gone-skill'],
+            rules: const [
+              (name: 'Brief', body: 'Be brief.'),
+              (name: 'Old rule', body: 'Since deleted.'),
+            ],
+            state: ChatState.idle,
+            updatedAt: DateTime.now(),
+            inChat: true,
+          ),
+        ];
+        addTearDown(() => Agents.instance.chats = const []);
+        // Opened over the chat, as its menu does.
+        await pump(
+          tester,
+          code,
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const ChatSettingsScreen(chat: 'c'),
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        expect(find.text(s.chatSettings), findsOneWidget);
+        expect(find.text('a-rather-long-computer-name'), findsOneWidget);
+        expect(find.text('~/dev/src/Caldo'), findsOneWidget);
+        expect(find.text('Tidy the repo'), findsOneWidget);
+        // A model written in shows as its own choice.
+        expect(find.text('my-own-model'), findsOneWidget);
+        final list = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(
+          find.text('Old rule'),
+          300,
+          scrollable: list,
+        );
+        // Kept, and a skill the worker no longer offers, so it can go.
+        expect(find.text('Brief'), findsOneWidget);
+        expect(find.text('gone-skill'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text(s.chatSettingsHint('Claude')),
+          100,
+          scrollable: list,
+        );
+        // Nothing changed: Save only goes back.
+        await tester.ensureVisible(find.text(s.save));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(s.save));
+        await tester.pumpAndSettle();
+        expect(find.byType(ChatSettingsScreen), findsNothing);
+
+        // A worker from before can't take them: said, not offered.
+        Agents.instance.workers = [worker(settings: false)];
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(s.chatSettingsOld('a-rather-long-computer-name')),
+          findsOneWidget,
+        );
       });
 
       testWidgets("shows a chat's usage in ${S.names[code]}", (tester) async {

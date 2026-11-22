@@ -120,6 +120,10 @@ class _Live {
   /// Completed with the first turn's end, for a task waiting on it.
   Completer<_Turn>? turn;
 
+  /// Its settings changed while it was at work: started again with them
+  /// once its turn is done.
+  bool retune = false;
+
   _Live(
     this.ask,
     this.spec, {
@@ -518,6 +522,8 @@ class Worker {
         await _set(chat, 'ended', null);
       case 'mode':
         await _move(chat, row['data'] as String? ?? '');
+      case 'settings':
+        await _retune(chat);
       case 'start' when live == null && talker == null:
         await _restart(chat);
       case 'start' when talker != null && talker.talk == null:
@@ -710,6 +716,45 @@ class Worker {
       return;
     }
     await _start(ask, resume: ask.agent == 'claude' ? ask.session : null);
+  }
+
+  /// [chat]'s settings changed in the app — its model, effort,
+  /// permissions, plugins, skills or rules: its program is started again
+  /// with them, carrying on its session. A chat's waits for the turn
+  /// under way and then for the next message; a terminal is started again
+  /// at once if idle, Claude's after its turn. A terminal with no session
+  /// to carry on (a shell, a Codex begun there) keeps what it has until it
+  /// is started again.
+  Future<void> _retune(String chat) async {
+    final db = await _db;
+    final row = await db
+        .from('chats')
+        .select()
+        .eq('id', chat)
+        .eq('worker_id', state.id)
+        .maybeSingle();
+    if (row == null) return;
+    final ask = ChatAsk.fromJson(row);
+    final talker = _talks[chat];
+    if (talker != null) {
+      await talker.retune(ask);
+      return;
+    }
+    final live = _live[chat];
+    if (live == null) return;
+    final session = live.session ?? ask.session;
+    if (session == null || !(live.spec.isClaude || live.spec.id == 'codex')) {
+      return;
+    }
+    if (live.spec.isClaude && live.state != 'idle') {
+      live.retune = true;
+      return;
+    }
+    if (_live[chat] != live) return;
+    _live.remove(chat);
+    await _putAway(chat, live);
+    log('[${_short(chat)}] started again with new settings');
+    await _start(ask, resume: session, prompt: '');
   }
 
   /// Where [ask] is to run, or null — the chat marked failed — if this
@@ -1018,6 +1063,10 @@ class Worker {
       live.state = to;
       unawaited(_guard(() => _set(chat, to!, note)));
     }
+    if (to == 'idle' && live.retune) {
+      live.retune = false;
+      unawaited(_guard(() => _retune(chat)));
+    }
   }
 
   Future<void> _send(String chat, _Live live) =>
@@ -1279,7 +1328,10 @@ class Worker {
 /// second, which a row would be too slow and too heavy for.
 class _Talker implements TalkSink {
   final Worker worker;
-  final ChatAsk ask;
+
+  /// The chat as last read: changed in the app, the next program is
+  /// started with it ([retune]).
+  ChatAsk ask;
   final AgentSpec spec;
   final String dir;
   Talk? talk;
@@ -1400,6 +1452,9 @@ class _Talker implements TalkSink {
   Future<void>? _waking;
 
   Future<void> _wake() async {
+    // One being put by for new settings is ended first: two programs on
+    // one session would both write to it.
+    await _sleeping;
     if (talk != null) return;
     final made = Talk.of(
       spec,
@@ -1435,6 +1490,54 @@ class _Talker implements TalkSink {
     if (text.trim().isEmpty && files.isEmpty) return;
     await wake();
     talk!.say(text, id: id, files: files);
+  }
+
+  /// [now], the chat's settings as changed in the app: its program is
+  /// put by — once the turn under way is done — and the next message
+  /// starts one with them, carrying on the session.
+  Future<void> retune(ChatAsk now) async {
+    final before = _before ?? ask;
+    ask = now;
+    // Only its title, say: its program runs on as it is.
+    if (settingsChanged(before, now) == null) {
+      _before = null;
+      _retuning = false;
+      return;
+    }
+    _before = before;
+    if (talk == null) {
+      _sayChanged();
+      return;
+    }
+    if (turn != null || state == 'running' || state == 'asking') {
+      _retuning = true;
+      return;
+    }
+    await _putBy();
+  }
+
+  /// What the program now put by was started with, while it finishes its
+  /// turn: the note says what changed from it, where it changed.
+  ChatAsk? _before;
+  bool _retuning = false;
+  Future<void>? _sleeping;
+
+  void _sayChanged() {
+    final before = _before;
+    _before = null;
+    final said = before == null ? null : settingsChanged(before, ask);
+    if (said == null) return;
+    item('s${DateTime.now().millisecondsSinceEpoch}', 'note', {'text': said});
+  }
+
+  Future<void> _putBy() {
+    _sayChanged();
+    final was = talk;
+    talk = null;
+    _forgetOffset();
+    if (was == null) return Future.value();
+    worker.log('[${_short(ask.id)}] put by for new settings');
+    return _sleeping = was.close().whenComplete(() => _sleeping = null);
   }
 
   void answer(String item, String choice) => talk?.answer(item, choice);
@@ -1615,6 +1718,12 @@ class _Talker implements TalkSink {
     turn = null;
     if (waiting != null && !waiting.isCompleted) {
       waiting.complete((answered: !failed, text: answer));
+    }
+    if (_retuning) {
+      _retuning = false;
+      // After the turn's last words are handed on: its program is ended
+      // once this returns.
+      scheduleMicrotask(() => unawaited(_putBy()));
     }
     if (limited) {
       unawaited(worker._guard(() => _carryOnAfter(resets)));
