@@ -619,6 +619,60 @@ void main() {
       expect(argv, ['claude', '--resume', 'session-1']);
     });
 
+    test('reads the files sent to it without asking, the message kept', () {
+      final argv = launchOf(
+        claude,
+        const ChatAsk(id: 'x', agent: 'claude', prompt: 'Look at this'),
+        given: '/tmp/x.files',
+      );
+      // Joined: the flag takes every word after it up to the next flag.
+      expect(argv, contains('--add-dir=/tmp/x.files'));
+      expect(argv.last, 'Look at this');
+      expect(
+        ClaudeTalk.argv(
+          claude,
+          const ChatAsk(id: 'x', agent: 'claude'),
+          given: '/tmp/x.files',
+        ),
+        contains('--add-dir=/tmp/x.files'),
+      );
+    });
+
+    test('is told where the files sent with a message are', () {
+      const files = [
+        Given(
+          path: '/tmp/x.files/1/photo.jpg',
+          name: 'photo.jpg',
+          mime: 'image/jpeg',
+          size: 2202010,
+        ),
+        Given(path: null, name: 'notes.txt', mime: 'text/plain'),
+      ];
+      final told = withFiles('What is this?', files);
+      expect(told, startsWith('What is this?\n\n'));
+      expect(told, contains('- /tmp/x.files/1/photo.jpg (image/jpeg, 2.1 MB)'));
+      expect(told, contains('- notes.txt: could not be fetched'));
+      expect(withFiles('Just words', const []), 'Just words');
+      expect(withFiles('  ', files), startsWith('[The user attached files'));
+
+      final heard = _Heard();
+      ClaudeTalk(
+        claude,
+        const ChatAsk(id: 'x', agent: 'claude'),
+        heard,
+        dir: '/tmp',
+      ).say('What is this?', id: 'u1', files: files);
+      // The chat shows the user's words and the files by their own names,
+      // not this computer's paths.
+      final (kind, body) = heard.items['u1']!;
+      expect(kind, 'user');
+      expect(body['text'], 'What is this?');
+      expect(body['files'], [
+        {'name': 'photo.jpg', 'mime': 'image/jpeg', 'size': 2202010},
+        {'name': 'notes.txt', 'mime': 'text/plain', 'size': 0},
+      ]);
+    });
+
     test('is told the skills and the rules in one appended prompt', () {
       final ask = ChatAsk.fromJson({
         'id': 'x',
@@ -1099,7 +1153,17 @@ void main() {
             id: 'u',
             seq: 0,
             kind: 'user',
-            body: {'text': 'How many files are there?'},
+            body: {
+              'text': 'How many files are there?',
+              'files': [
+                {
+                  'name': 'a photo with a rather long name of its own.jpg',
+                  'mime': 'image/jpeg',
+                  'size': 2202010,
+                },
+                {'name': 'notes.txt', 'mime': 'text/plain', 'size': 12},
+              ],
+            },
           ),
           const ChatItem(
             id: 't',
@@ -1169,6 +1233,18 @@ void main() {
         await tester.tap(find.text('Bash'));
         await tester.pump();
         expect(find.text('3'), findsWidgets);
+        // The files sent with the first message, by name, over its words.
+        await tester.scrollUntilVisible(
+          find.text('notes.txt'),
+          -200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(
+          tester.getTopLeft(find.text('notes.txt')).dy,
+          lessThan(
+            tester.getTopLeft(find.text('How many files are there?')).dy,
+          ),
+        );
       });
 
       testWidgets('lists what is left for later in ${S.names[code]}', (

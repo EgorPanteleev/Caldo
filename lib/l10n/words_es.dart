@@ -514,6 +514,10 @@ const Map<String, Object> es = {
   'chatLaterPick': "Elegir día y hora",
   'chatSendNow': "Enviar ahora",
   'chatLaterEdit': "Editar",
+  'chatAttachFiles': "Adjuntar",
+  'chatFileTooBig': "Más de 50 MB, no se puede enviar a un chat: {name}",
+  'chatFilesFailed':
+      "No se pudieron enviar los archivos. No se envió nada; inténtalo de nuevo.",
   'chatToTerminal': "Seguir en el terminal",
   'chatToChat': "Volver al chat",
   'chatInTerminalNow': "Este chat está ahora en su terminal.",

@@ -500,6 +500,10 @@ const Map<String, Object> tr = {
   'chatLaterPick': "Gün ve saat seç",
   'chatSendNow': "Şimdi gönder",
   'chatLaterEdit': "Düzenle",
+  'chatAttachFiles': "Ekle",
+  'chatFileTooBig': "50 MB'tan büyük, sohbete gönderilemez: {name}",
+  'chatFilesFailed':
+      "Dosyalar gönderilemedi. Hiçbir şey gönderilmedi; yeniden deneyin.",
   'chatToTerminal': "Terminalde sürdür",
   'chatToChat': "Sohbete dön",
   'chatInTerminalNow': "Bu sohbet şu an terminalinde.",

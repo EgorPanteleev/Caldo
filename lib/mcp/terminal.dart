@@ -28,6 +28,14 @@ class Tmux {
   String outOf(String chat) => '$dir/$chat.out';
   String eventsOf(String chat) => '$dir/$chat.events';
 
+  /// Where the files sent to [chat] are taken down to, made before its
+  /// program starts: Claude is told to read there without asking.
+  String givenOf(String chat) {
+    final given = '$dir/$chat.files';
+    Directory(given).createSync(recursive: true);
+    return given;
+  }
+
   /// Starts [argv] in [cwd] for [chat] at [cols]×[rows]. The program waits
   /// for a flag until the pipe is in place, or its first words — Claude's
   /// whole first screen — would go unread.
@@ -187,6 +195,12 @@ class Tmux {
     for (final (i, (_, mode)) in modes.indexed)
       if (i < flags.length) '\x1b[?$mode${flags[i] == '1' ? 'h' : 'l'}',
   ].join();
+
+  /// The files sent to a chat deleted: nothing will read them again.
+  void forgetGiven(String chat) {
+    final given = Directory('$dir/$chat.files');
+    if (given.existsSync()) given.deleteSync(recursive: true);
+  }
 
   /// A chat's files, once it is done with.
   void forget(String chat) {

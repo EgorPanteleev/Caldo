@@ -3,10 +3,13 @@ import 'dart:collection';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:supabase/supabase.dart';
 
 import '../mcp/usage.dart';
+import '../models/task.dart';
 import 'account.dart';
+import 'attachments.dart';
 
 /// One kind of agent a worker can run, as it says (`lib/mcp/agents.dart`).
 @immutable
@@ -32,6 +35,9 @@ class AgentKind {
   /// Whether its worker says messages left for later.
   final bool later;
 
+  /// Whether its worker takes files sent with a message.
+  final bool files;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -45,6 +51,7 @@ class AgentKind {
     this.talks = false,
     this.rules = false,
     this.later = false,
+    this.files = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -60,6 +67,7 @@ class AgentKind {
     talks: json['talks'] == true,
     rules: json['rules'] == true,
     later: json['later'] == true,
+    files: json['files'] == true,
   );
 }
 
@@ -462,9 +470,53 @@ class Agents extends ChangeNotifier {
   Future<void> keys(String chat, String data) => _in(chat, 'keys', data: data);
 
   /// A message: pasted, then Enter — or, to a chat [over] its feed, said
-  /// there at once as well as kept.
-  Future<void> line(String chat, String text, {TalkFeed? over}) =>
-      _in(chat, 'line', data: text, over: over);
+  /// there at once as well as kept. [files] go up first, and the message
+  /// only once they are there; if they cannot, nothing is sent.
+  Future<void> line(
+    String chat,
+    String text, {
+    TalkFeed? over,
+    List<Attachment> files = const [],
+  }) async =>
+      _in(chat, 'line', data: text, over: over, files: await _put(chat, files));
+
+  /// [files], copies on this device, put on the server for [chat]'s worker
+  /// to take down, and named as a message names them. Keyed by each
+  /// copy's own folder, a uuid: the server takes no other letters than
+  /// Latin in a key, and the name goes beside it.
+  Future<List<Map<String, Object?>>> _put(
+    String chat,
+    List<Attachment> files,
+  ) async {
+    if (files.isEmpty) return const [];
+    final client = _client!;
+    final user = client.auth.currentUser!.id;
+    final bucket = client.storage.from(chatFiles);
+    return [
+      for (final a in files)
+        if (Attachments.instance.fileOf(a) case final file?)
+          await bucket
+              .upload(
+                '$user/$chat/${p.dirname(a.file)}',
+                file,
+                fileOptions: FileOptions(contentType: a.mime, upsert: true),
+              )
+              .then(
+                (_) => {
+                  'key': '$chat/${p.dirname(a.file)}',
+                  'name': a.name,
+                  'mime': a.mime,
+                  'size': a.size,
+                },
+              ),
+    ];
+  }
+
+  /// The bucket the files sent to chats wait in for their workers.
+  static const chatFiles = 'chat-files';
+
+  /// The most a file sent to a chat may be: the bucket's own limit.
+  static const largestFile = 50 * 1024 * 1024;
 
   /// [text] left for [chat]'s worker to say at [at].
   Future<LaterLine> later(String chat, String text, DateTime at) async {
@@ -527,11 +579,26 @@ class Agents extends ChangeNotifier {
 
   Future<void> remove(String chat) async {
     await _client!.from('chats').delete().eq('id', chat);
+    unawaited(_unput(chat));
     chats = [
       for (final c in chats)
         if (c.id != chat) c,
     ];
     notifyListeners();
+  }
+
+  /// The files sent to [chat] and never taken down, gone with it.
+  Future<void> _unput(String chat) async {
+    try {
+      final client = _client!;
+      final folder = '${client.auth.currentUser!.id}/$chat';
+      final bucket = client.storage.from(chatFiles);
+      final left = await bucket.list(path: folder);
+      if (left.isEmpty) return;
+      await bucket.remove([for (final f in left) '$folder/${f.name}']);
+    } catch (_) {
+      // Offline, or a server without the bucket: they wait there.
+    }
   }
 
   /// Input for the program itself, which it waits on as it is typed.
@@ -549,12 +616,18 @@ class Agents extends ChangeNotifier {
     int? cols,
     int? rows,
     TalkFeed? over,
+    List<Map<String, Object?>> files = const [],
   }) async {
     final line = _lines[chat];
     final key = line != null && _typed.contains(kind) ? _key() : null;
     if (key != null) {
-      if (kind == 'line') over?.said(data ?? '', key);
-      line!.cast({'kind': kind, 'data': data, 'key': key});
+      if (kind == 'line') over?.said(data ?? '', key, files: files);
+      line!.cast({
+        'kind': kind,
+        'data': data,
+        'key': key,
+        if (files.isNotEmpty) 'files': files,
+      });
     }
     await _client!.from('chat_in').insert({
       'chat_id': chat,
@@ -563,6 +636,9 @@ class Agents extends ChangeNotifier {
       'cols': ?cols,
       'rows': ?rows,
       'key': ?key,
+      // Left out when none, so a server without the column still takes
+      // the rest.
+      if (files.isNotEmpty) 'files': files,
     });
   }
 
@@ -1049,14 +1125,25 @@ class TalkFeed extends ChangeNotifier {
 
   /// The user's words shown at once, before the worker has said them back;
   /// its item, when it comes by the same id, takes their place.
-  void said(String text, String key) {
-    if (text.trim().isEmpty) return;
+  void said(
+    String text,
+    String key, {
+    List<Map<String, Object?>> files = const [],
+  }) {
+    if (text.trim().isEmpty && files.isEmpty) return;
     _take([
       {
         'id': 'u$key',
         'seq': (items.isEmpty ? 0 : items.last.seq) + 1,
         'kind': 'user',
-        'body': {'text': text},
+        'body': {
+          'text': text,
+          if (files.isNotEmpty)
+            'files': [
+              for (final f in files)
+                {'name': f['name'], 'mime': f['mime'], 'size': f['size']},
+            ],
+        },
       },
     ]);
   }

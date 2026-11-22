@@ -9,8 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xterm/xterm.dart';
 
 import '../l10n/strings.dart';
+import '../mcp/agents.dart' show sizeWord;
+import '../models/task.dart';
 import '../services/account.dart';
 import '../services/agents.dart';
+import '../services/attachments.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -1117,6 +1120,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _send() {
+    if (_files.isNotEmpty) {
+      unawaited(_sendWithFiles());
+      return;
+    }
     final text = _input.text;
     if (text.trim().isEmpty && (_chat?.inChat ?? false)) return;
     _input.clear();
@@ -1130,23 +1137,124 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// Photos and files to go with the next message, copies on this device.
+  List<Attachment> _files = const [];
+
+  /// While they go up: the message goes once they are there.
+  bool _sending = false;
+
+  /// Whether the chat's worker takes files: one not reinstalled since
+  /// would say the words and leave the files on the server.
+  bool get _canAttach => _kindOf(_chat)?.files ?? false;
+
+  AgentKind? _kindOf(Chat? chat) => chat == null
+      ? null
+      : _agents
+            .worker(chat.workerId)
+            ?.agents
+            .where((a) => a.id == chat.agent)
+            .firstOrNull;
+
+  Future<void> _attach() async {
+    final s = S.of(context);
+    final from = await choose<AttachFrom>(
+      context,
+      title: s.chatAttachFiles,
+      selected: null,
+      options: [
+        Option(AttachFrom.photos, s.attachPhoto, icon: Icons.photo_outlined),
+        // A desktop has no camera app to hand a file to.
+        if (!onDesktop)
+          Option(
+            AttachFrom.camera,
+            s.attachCamera,
+            icon: Icons.photo_camera_outlined,
+          ),
+        Option(AttachFrom.files, s.attachFile, icon: Icons.attach_file),
+      ],
+    );
+    if (from == null || !mounted) return;
+    final picked = await Attachments.instance.pick(from);
+    if (!mounted) return;
+    final fits = [
+      for (final a in picked.attached)
+        if (a.size <= Agents.largestFile) a,
+    ];
+    final tooBig = [
+      ...picked.tooBig,
+      for (final a in picked.attached)
+        if (a.size > Agents.largestFile) a.name,
+    ];
+    for (final a in picked.attached) {
+      if (a.size > Agents.largestFile) _letGo(a);
+    }
+    setState(() => _files = [..._files, ...fits]);
+    if (tooBig.isNotEmpty) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text(s.chatFileTooBig(tooBig.join(', ')))),
+      );
+    }
+  }
+
+  void _unattach(Attachment a) {
+    setState(() => _files = [..._files]..remove(a));
+    _letGo(a);
+  }
+
+  /// [a]'s copy deleted, with the folder it was made in: it was the
+  /// chat's to send, not a task's to keep.
+  void _letGo(Attachment a) {
+    final folder = Attachments.instance.fileOf(a)?.parent;
+    if (folder == null) return;
+    unawaited(
+      folder.delete(recursive: true).then((_) {}, onError: (Object _) {}),
+    );
+  }
+
+  /// The message and its files: the files up first, the words and files
+  /// kept where they are until they have gone.
+  Future<void> _sendWithFiles() async {
+    if (_sending) return;
+    final files = _files;
+    final text = _input.text.trimRight();
+    final chat = _chat;
+    setState(() => _sending = true);
+    try {
+      await _agents.line(
+        widget.chat,
+        text,
+        over: chat != null && chat.inChat ? _talk : null,
+        files: files,
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _sending = false);
+        ScaffoldMessenger.maybeOf(
+          context,
+        )?.showSnackBar(SnackBar(content: Text(S.of(context).chatFilesFailed)));
+      }
+      return;
+    }
+    files.forEach(_letGo);
+    if (!mounted) return;
+    // Only what was sent is cleared: words typed meanwhile stay.
+    if (_input.text.trimRight() == text) _input.clear();
+    setState(() {
+      _sending = false;
+      _files = [
+        for (final a in _files)
+          if (!files.contains(a)) a,
+      ];
+    });
+  }
+
   /// Messages left for later and not yet said, soonest first.
   List<LaterLine> _later = const [];
   Timer? _laterCheck;
 
   /// Whether the chat's worker says messages left for later: one not
   /// reinstalled since would leave them unsaid.
-  bool get _canLater {
-    final chat = _chat;
-    if (chat == null) return false;
-    return _agents
-            .worker(chat.workerId)
-            ?.agents
-            .where((a) => a.id == chat.agent)
-            .firstOrNull
-            ?.later ??
-        false;
-  }
+  bool get _canLater => _kindOf(_chat)?.later ?? false;
 
   /// Read again a little after the next is due, when its worker has said
   /// it — and every so often after, while one due is still waiting (its
@@ -1491,10 +1599,15 @@ class _ChatScreenState extends State<ChatScreen> {
                       focus: _inputFocus,
                       hint: s.chatMessage,
                       onSend: _send,
-                      onLater: _canLater ? _sendLater : null,
+                      // Its files could not be put back to edit it.
+                      onLater: _canLater && _files.isEmpty ? _sendLater : null,
                       onStop: at == 'running' || at == 'asking'
                           ? () => _agents.interrupt(widget.chat)
                           : null,
+                      onAttach: _canAttach ? _attach : null,
+                      files: _files,
+                      sending: _sending,
+                      onUnattach: _unattach,
                     );
                   },
                 )
@@ -1508,7 +1621,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   focus: _inputFocus,
                   hint: s.chatMessage,
                   onSend: _send,
-                  onLater: _canLater ? _sendLater : null,
+                  onLater: _canLater && _files.isEmpty ? _sendLater : null,
+                  onAttach: _canAttach ? _attach : null,
+                  files: _files,
+                  sending: _sending,
+                  onUnattach: _unattach,
                 ),
               ] else
                 ?again,
@@ -1927,6 +2044,16 @@ class _InputRow extends StatelessWidget {
   /// left to be said later.
   final VoidCallback? onLater;
 
+  /// A plus before the field, offering a photo, the camera or a file;
+  /// none where the worker would not take them.
+  final VoidCallback? onAttach;
+
+  /// What goes with the next message, over the field; [sending] while it
+  /// goes up.
+  final List<Attachment> files;
+  final bool sending;
+  final ValueChanged<Attachment>? onUnattach;
+
   const _InputRow({
     required this.controller,
     required this.focus,
@@ -1934,16 +2061,28 @@ class _InputRow extends StatelessWidget {
     required this.onSend,
     this.onStop,
     this.onLater,
+    this.onAttach,
+    this.files = const [],
+    this.sending = false,
+    this.onUnattach,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          if (onAttach != null) ...[
+            _RoundButton(
+              icon: Icons.add_rounded,
+              tooltip: S.of(context).chatAttachFiles,
+              onTap: sending ? null : onAttach,
+            ),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: CallbackShortcuts(
               // Enter sends on a desktop; Shift+Enter is a new line.
@@ -1997,7 +2136,10 @@ class _InputRow extends StatelessWidget {
           ListenableBuilder(
             listenable: controller,
             builder: (context, _) {
-              final stop = onStop != null && controller.text.trim().isEmpty;
+              final stop =
+                  onStop != null &&
+                  controller.text.trim().isEmpty &&
+                  files.isEmpty;
               final later = onLater != null && controller.text.trim().isNotEmpty
                   ? () {
                       HapticFeedback.mediumImpact();
@@ -2014,15 +2156,27 @@ class _InputRow extends StatelessWidget {
                 ),
                 child: InkWell(
                   customBorder: const CircleBorder(),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    stop ? onStop!() : onSend();
-                  },
-                  onLongPress: later,
-                  onSecondaryTap: later,
+                  onTap: sending
+                      ? null
+                      : () {
+                          HapticFeedback.selectionClick();
+                          stop ? onStop!() : onSend();
+                        },
+                  onLongPress: sending ? null : later,
+                  onSecondaryTap: sending ? null : later,
                   child: SizedBox.square(
                     dimension: 44,
-                    child: stop
+                    child: sending
+                        ? Center(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: p.muted,
+                              ),
+                            ),
+                          )
+                        : stop
                         ? Tooltip(
                             message: S.of(context).chatInterrupt,
                             child: Icon(Icons.stop_rounded, color: p.text),
@@ -2036,7 +2190,156 @@ class _InputRow extends StatelessWidget {
         ],
       ),
     );
+    if (files.isEmpty) return row;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+            children: [
+              for (final a in files)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: _FileChip(
+                    file: a,
+                    onRemove: sending || onUnattach == null
+                        ? null
+                        : () => onUnattach!(a),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        row,
+      ],
+    );
   }
+}
+
+/// A round button beside the field, drawn as the send button is.
+class _RoundButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  const _RoundButton({required this.icon, required this.tooltip, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Material(
+      color: p.field,
+      shape: CircleBorder(
+        side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+      ),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onTap!();
+              },
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox.square(
+            dimension: 44,
+            child: Icon(icon, color: onTap == null ? p.muted : p.text),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A photo or file waiting to go with the message: a photo's own picture,
+/// else an icon; its name and size; × to leave it out.
+class _FileChip extends StatelessWidget {
+  final Attachment file;
+  final VoidCallback? onRemove;
+
+  const _FileChip({required this.file, this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final copy = Attachments.instance.fileOf(file);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 4, 2, 4),
+      decoration: BoxDecoration(
+        color: p.field,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox.square(
+              dimension: 32,
+              child: file.isImage && copy != null
+                  ? Image.file(
+                      copy,
+                      fit: BoxFit.cover,
+                      // A photo of several megabytes is drawn the size of
+                      // the chip, not decoded whole.
+                      cacheWidth: (32 * dpr).round(),
+                      errorBuilder: (_, _, _) => _icon(p),
+                    )
+                  : _icon(p),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  file.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: p.text, fontSize: 13),
+                ),
+                Text(
+                  sizeWord(file.size),
+                  maxLines: 1,
+                  style: TextStyle(color: p.muted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          SizedBox.square(
+            dimension: 32,
+            child: onRemove == null
+                ? null
+                : IconButton(
+                    padding: EdgeInsets.zero,
+                    iconSize: 16,
+                    tooltip: S.of(context).delete,
+                    onPressed: onRemove,
+                    icon: Icon(Icons.close_rounded, color: p.muted),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _icon(AppPalette p) => ColoredBox(
+    color: p.panelHi,
+    child: Icon(
+      file.isImage ? Icons.image_outlined : Icons.insert_drive_file_outlined,
+      size: 18,
+      color: p.muted,
+    ),
+  );
 }
 
 /// The messages left for later, over the field: when each goes and its

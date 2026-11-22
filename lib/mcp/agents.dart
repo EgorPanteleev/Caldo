@@ -76,6 +76,8 @@ class AgentSpec {
     // It says messages left for later (`chat_later`): an app offers
     // them only to a worker that does.
     'later': true,
+    // It takes files sent with a message down from `chat-files`.
+    'files': true,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part
@@ -353,13 +355,14 @@ String? rulesText(Object? rules) {
 /// The words that start [ask] with [spec]: Claude's built here, every other
 /// from its command line. With [resume], Claude takes up that session.
 /// [events] is the file Claude's hooks write to, so the worker hears when
-/// it is waiting.
+/// it is waiting; [given], where the files sent to the chat are kept.
 List<String> launchOf(
   AgentSpec spec,
   ChatAsk ask, {
   String? resume,
   String? prompt,
   String? events,
+  String? given,
 }) {
   final first = prompt ?? ask.prompt;
   if (spec.id == 'codex' && resume != null) {
@@ -390,6 +393,7 @@ List<String> launchOf(
       spec,
       ask,
       resume: resume,
+      given: given,
       settings: {
         if (events != null)
           'hooks': {
@@ -502,6 +506,7 @@ List<String> claudeChoices(
   AgentSpec spec,
   ChatAsk ask, {
   String? resume,
+  String? given,
   Map<String, Object?> settings = const {},
 }) {
   final all = {
@@ -517,6 +522,10 @@ List<String> claudeChoices(
     if (ask.title.isNotEmpty) ...['-n', ask.title],
     if (all.isNotEmpty) ...['--settings', jsonEncode(all)],
     if (_appended(ask) case final text?) ...['--append-system-prompt', text],
+    // The files sent to the chat, outside its folder, read without asking.
+    // Joined by `=`: the flag takes every word after it up to the next
+    // flag, and a first message would be taken for a folder.
+    if (given != null) '--add-dir=$given',
   ];
 }
 
@@ -544,3 +553,54 @@ const _hooks = [
 ];
 
 String _quoted(String s) => "'${s.replaceAll("'", r"'\''")}'";
+
+/// A file sent with a message, as the worker has it: taken down onto this
+/// computer at [path], or, if that failed, null.
+class Given {
+  final String? path;
+  final String name;
+  final String mime;
+  final int size;
+
+  const Given({
+    required this.path,
+    required this.name,
+    required this.mime,
+    this.size = 0,
+  });
+
+  /// As the chat shows it: the user's own name for it, not this computer's.
+  Map<String, Object?> toJson() => {'name': name, 'mime': mime, 'size': size};
+}
+
+/// What the agent is told for [text] sent with [files]: where each is on
+/// this computer, for it to read as it would any file. A path, not the
+/// file's bytes in the message, so a phone's photo of several megabytes is
+/// made small enough by the agent's own reading of images, and a terminal
+/// is told the same as a chat.
+String withFiles(String text, List<Given> files) {
+  if (files.isEmpty) return text;
+  final lines = [
+    for (final f in files)
+      f.path == null
+          ? '- ${f.name}: could not be fetched'
+          : '- ${f.path} (${f.mime}, ${sizeWord(f.size)})',
+  ];
+  final list =
+      '[The user attached ${files.length == 1 ? 'a file' : 'files'}, '
+      'saved on this computer:\n${lines.join('\n')}]';
+  return text.trim().isEmpty ? list : '$text\n\n$list';
+}
+
+/// A user item's body: the words, and the files as the app shows them.
+Map<String, Object?> saidBody(String text, List<Given> files) => {
+  'text': text,
+  if (files.isNotEmpty) 'files': [for (final f in files) f.toJson()],
+};
+
+/// "340 B", "12 KB", "2.1 MB".
+String sizeWord(int bytes) => bytes < 1024
+    ? '$bytes B'
+    : bytes < 1024 * 1024
+    ? '${(bytes / 1024).round()} KB'
+    : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';

@@ -87,22 +87,28 @@ abstract class Talk {
   /// What a program taken up needs beyond its output: [session], its own.
   void _takenUp(String? session) {}
 
-  /// [text] said by the user; [id], the app's own for it, so the words it
-  /// showed at once are these.
-  void say(String text, {String? id});
+  /// [text] said by the user, with [files] sent along; [id], the app's own
+  /// for it, so the words it showed at once are these.
+  void say(String text, {String? id, List<Given> files = const []});
 
   /// [choice] is `allow`, `always` or `deny`.
   void answer(String ask, String choice);
   void interrupt();
   Future<void> close();
 
-  /// The talk for [spec], or null for one only run in a terminal.
-  static Talk? of(AgentSpec spec, ChatAsk ask, TalkSink sink, String dir) =>
-      switch (spec.id) {
-        'claude' => ClaudeTalk(spec, ask, sink, dir: dir),
-        'codex' => CodexTalk(ask, sink, dir: dir),
-        _ => null,
-      };
+  /// The talk for [spec], or null for one only run in a terminal; [given]
+  /// is where the files sent to it are kept.
+  static Talk? of(
+    AgentSpec spec,
+    ChatAsk ask,
+    TalkSink sink,
+    String dir, {
+    String? given,
+  }) => switch (spec.id) {
+    'claude' => ClaudeTalk(spec, ask, sink, dir: dir, given: given),
+    'codex' => CodexTalk(ask, sink, dir: dir),
+    _ => null,
+  };
 
   /// Its program, run apart from the worker so it outlives it.
   Kept? _kept;
@@ -177,12 +183,26 @@ class ClaudeTalk extends Talk {
   /// Claude as this computer has it: its plugins, to say which are on.
   final AgentSpec spec;
 
-  ClaudeTalk(this.spec, super.ask, super.sink, {required super.dir});
+  /// Where the files sent to it are kept, read without asking.
+  final String? given;
+
+  ClaudeTalk(
+    this.spec,
+    super.ask,
+    super.sink, {
+    required super.dir,
+    this.given,
+  });
 
   /// The command for [ask], taking up [resume] if given; the same choices
   /// as its terminal's (`launchOf`), less the hooks: this talk is told how
   /// it stands in the messages themselves.
-  static List<String> argv(AgentSpec spec, ChatAsk ask, {String? resume}) => [
+  static List<String> argv(
+    AgentSpec spec,
+    ChatAsk ask, {
+    String? resume,
+    String? given,
+  }) => [
     'claude',
     '-p',
     '--input-format',
@@ -193,12 +213,12 @@ class ClaudeTalk extends Talk {
     '--include-partial-messages',
     '--permission-prompt-tool',
     'stdio',
-    ...claudeChoices(spec, ask, resume: resume),
+    ...claudeChoices(spec, ask, resume: resume, given: given),
   ];
 
   @override
   Future<void> start({required String files, String? resume}) async {
-    await _run(files, argv(spec, ask, resume: resume));
+    await _run(files, argv(spec, ask, resume: resume, given: given));
     _write({
       'type': 'control_request',
       'request_id': 'init',
@@ -209,14 +229,16 @@ class ClaudeTalk extends Talk {
   var _asked = 0;
 
   @override
-  void say(String text, {String? id}) {
-    sink.item(id ?? 'u${DateTime.now().microsecondsSinceEpoch}', 'user', {
-      'text': text,
-    });
+  void say(String text, {String? id, List<Given> files = const []}) {
+    sink.item(
+      id ?? 'u${DateTime.now().microsecondsSinceEpoch}',
+      'user',
+      saidBody(text, files),
+    );
     sink.stands('running');
     _write({
       'type': 'user',
-      'message': {'role': 'user', 'content': text},
+      'message': {'role': 'user', 'content': withFiles(text, files)},
       'parent_tool_use_id': null,
       'session_id': '',
     });
@@ -745,10 +767,12 @@ class CodexTalk extends Talk {
   }
 
   @override
-  void say(String text, {String? id}) {
-    sink.item(id ?? 'u${DateTime.now().microsecondsSinceEpoch}', 'user', {
-      'text': text,
-    });
+  void say(String text, {String? id, List<Given> files = const []}) {
+    sink.item(
+      id ?? 'u${DateTime.now().microsecondsSinceEpoch}',
+      'user',
+      saidBody(text, files),
+    );
     sink.stands('running');
     final thread = _thread;
     if (thread == null) return;
@@ -757,7 +781,11 @@ class CodexTalk extends Talk {
       _call('turn/start', {
         'threadId': thread,
         'input': [
-          {'type': 'text', 'text': text, 'text_elements': <Object>[]},
+          {
+            'type': 'text',
+            'text': withFiles(text, files),
+            'text_elements': <Object>[],
+          },
         ],
         'effort': ?ask.effort,
       }).catchError((Object e) {
