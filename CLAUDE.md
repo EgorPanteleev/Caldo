@@ -1269,21 +1269,33 @@ pattern the killing command itself contains.**
 
 ### Branches and pull requests
 
-Asked for (2026-11-21): every change goes to Egor as a pull request, and
-he accepts it or not.
+Asked for (2026-11-21): every change comes in as a pull request; none
+is committed to `master` directly. Then (2026-11-22): a reviewer session
+takes the pull requests in.
 
 - **Never commit to `master`.** Each feature or fix starts on its own
-  branch off an up-to-date `master` (`git pull`, then `feature/<short-name>`
-  or `fix/<short-name>`). Commit on it as the work goes.
+  branch off the server's `master`: `git fetch`, then `git switch -c
+  <short-name> origin/master`. Several sessions work at once, so work in
+  a worktree of your own (`git worktree add ../Caldo-<short-name> -b
+  <short-name> origin/master`, as `Caldo-titles` and `Caldo-usage` do),
+  not in the main checkout: switching or pulling there pulls the rug
+  out from under whoever is in it. Commit on the branch as the work goes.
 - **When it's done** — tests green, `flutter analyze` clean, seen on the
   emulator — push the branch and open a pull request against `master`
-  (`gh pr create`): what changed and why, how it was checked, anything
-  left open. End the description with the attribution line.
-- **Don't merge it yourself.** Egor merges or closes it. Changes he asks
-  for in review go on the same branch, and the same PR.
-- One branch, one change: unrelated work gets a branch of its own. Before
-  starting a new one, `git switch master && git pull`.
-- The emulator runs whichever branch is being worked on.
+  with `gh pr create --assignee EgorPanteleev` (gh is signed in as Egor,
+  so the PR is Egor's own and only assigning puts it in the queue): what
+  changed and why, how it was checked, anything left open. End the
+  description with the attribution line.
+- **Don't merge your own work.** The reviewer reads the PR, merges it
+  with current `master` and runs `flutter analyze` and `flutter test`
+  there. A small fault it fixes on the branch itself; anything more it
+  writes on the PR and waits, and the fixes go on the same branch and the
+  same PR. Accepted PRs go in by `gh pr merge --rebase` (history stays a
+  line of prose commits). Once the open ones are through, if any changed
+  the app, the reviewer makes one release from `master`.
+- One branch, one change: unrelated work gets a branch of its own.
+- The emulator runs whichever branch is being worked on; after merging,
+  the reviewer puts `master` back on it.
 
 ## Known gaps
 
