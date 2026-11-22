@@ -1157,12 +1157,11 @@ outside git; the original debug key). Lose them and no update installs over
 Caldo again — keep copies off this machine. A release build without
 `key.properties` fails on purpose.
 
-**Release only when asked.** Commit each change (on its branch, see
-Conventions), but don't bump, build or publish unprompted (the in-app
-updater ships whatever is latest). A release means both `release/`
-(`Caldo-arm64.apk`, `Caldo-armv7.apk`, `Caldo-universal.apk`) and `gh
-release create vX.Y.Z release/*.apk` from the latest commit on `master` —
-never from an unmerged branch. An update users must not put off carries
+**Release only when asked.** Commit each change, but don't bump, build or
+publish unprompted (the in-app updater ships whatever is latest). A release
+means both `release/` (`Caldo-arm64.apk`, `Caldo-armv7.apk`,
+`Caldo-universal.apk`) and `gh release create vX.Y.Z release/*.apk` from the
+latest commit. An update users must not put off carries
 `<!-- priority: high -->` in its notes (`--notes`); add it only when asked.
 `tool/package_linux.sh` adds `Caldo-linux-x64.tar.gz`; whether a
 release carries it is the user's call.
@@ -1266,36 +1265,6 @@ pattern the killing command itself contains.**
 - Commit messages are prose: what changed and why. End with the
   `Co-Authored-By` line.
 - `flutter analyze` clean before every commit.
-
-### Branches and pull requests
-
-Asked for (2026-11-21): every change comes in as a pull request; none
-is committed to `master` directly. Then (2026-11-22): a reviewer session
-takes the pull requests in.
-
-- **Never commit to `master`.** Each feature or fix starts on its own
-  branch off the server's `master`: `git fetch`, then `git switch -c
-  <short-name> origin/master`. Several sessions work at once, so work in
-  a worktree of your own (`git worktree add ../Caldo-<short-name> -b
-  <short-name> origin/master`, as `Caldo-titles` and `Caldo-usage` do),
-  not in the main checkout: switching or pulling there pulls the rug
-  out from under whoever is in it. Commit on the branch as the work goes.
-- **When it's done** — tests green, `flutter analyze` clean, seen on the
-  emulator — push the branch and open a pull request against `master`
-  with `gh pr create --assignee EgorPanteleev` (gh is signed in as Egor,
-  so the PR is Egor's own and only assigning puts it in the queue): what
-  changed and why, how it was checked, anything left open. End the
-  description with the attribution line.
-- **Don't merge your own work.** The reviewer reads the PR, merges it
-  with current `master` and runs `flutter analyze` and `flutter test`
-  there. A small fault it fixes on the branch itself; anything more it
-  writes on the PR and waits, and the fixes go on the same branch and the
-  same PR. Accepted PRs go in by `gh pr merge --rebase` (history stays a
-  line of prose commits). Once the open ones are through, if any changed
-  the app, the reviewer makes one release from `master`.
-- One branch, one change: unrelated work gets a branch of its own.
-- The emulator runs whichever branch is being worked on; after merging,
-  the reviewer puts `master` back on it.
 
 ## Known gaps
 
