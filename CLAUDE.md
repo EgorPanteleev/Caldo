@@ -737,6 +737,16 @@ the app, a terminal beside them; anything else a terminal.
   a stopped chat waits for Start again. Listed over the field
   (`LaterList`: Send now / Edit / Delete). Only from workers that say so
   (`AgentKind.later`).
+- **A chat stopped at the usage limit carries on by itself** (task
+  "automatically reset session after limit updated", 2026-11-22): Claude
+  marks the refused turn's stand-in message `error: "rate_limit"`, and
+  its last `rate_limit_event` (`rejected`) says `resetsAt`; Codex fails
+  the turn with `codexErrorInfo: usageLimitExceeded` (from its types,
+  unseen). The worker leaves "Carry on…" in `chat_later` (key `limit…`,
+  one a chat, moved if refused again) a minute after the reset, with a
+  note on the chat; none said, it tries each 15 min, three times. A turn
+  that goes through first takes it back (`_Talker._unbook`). Chat mode
+  only; a terminal's Claude is left alone.
 - **Photos and files go with a message**: plus before the field
   (`Attachments.pick`), chips over it, ≤50MB each, uploaded to a private
   `chat-files` bucket under `<user>/<chat>/<uuid>` (Storage takes no
