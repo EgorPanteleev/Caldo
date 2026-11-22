@@ -792,6 +792,29 @@ void main() {
   });
 
   group('rules', () {
+    test('start a chat left without a message with their openings', () {
+      const review = AgentRule(
+        id: 'r',
+        name: 'Reviewer',
+        body: 'Review the open PRs.',
+        opening: ' Begin the first round. ',
+      );
+      const brief = AgentRule(id: 'b', name: 'Brief', body: 'Be brief.');
+      const ship = AgentRule(id: 's', name: 'Ship', body: '', opening: 'Go');
+      expect(firstMessage('', [review]), 'Begin the first round.');
+      expect(firstMessage('  ', [brief]), '');
+      expect(
+        firstMessage('', [review, brief, ship]),
+        'Begin the first round.\n\nGo',
+      );
+      // What is written wins.
+      expect(firstMessage(' Look at #12 ', [review]), 'Look at #12');
+      expect(
+        AgentRule.fromJson({'id': 'x', 'name': 'n', 'body': 'b'}).opening,
+        '',
+      );
+    });
+
     test('none, or only empty ones, are no rules', () {
       expect(rulesText(null), isNull);
       expect(rulesText([]), isNull);
@@ -874,12 +897,26 @@ void main() {
     });
 
     test('is asked of Haiku with the message shown, not addressed', () {
-      expect(namingArgs, containsAllInOrder(['--model', 'haiku']));
-      expect(namingArgs, contains('--no-session-persistence'));
-      expect(namingArgs, containsAllInOrder(['--tools', '']));
+      final args = namingArgs();
+      expect(args, containsAllInOrder(['--model', 'haiku']));
+      expect(args, contains('--no-session-persistence'));
+      expect(args, containsAllInOrder(['--tools', '']));
+      expect(args.join(' '), contains('the language the message is written'));
       final shown = namingInput('  help me ${'x' * 3000}');
       expect(shown, contains('<message>\nhelp me x'));
       expect(shown.length, lessThan(2100));
+    });
+
+    test("is written in the app's language when the chat says it", () {
+      final ask = ChatAsk.fromJson({
+        'id': 'x',
+        'agent': 'claude',
+        'language': 'ru',
+      });
+      expect(ask.language, 'ru');
+      expect(namingArgs(ask.language).join(' '), contains('in Russian,'));
+      expect(namingArgs('xx').join(' '), contains('in xx,'));
+      expect(ChatAsk.fromJson({'id': 'x', 'agent': 'claude'}).language, isNull);
     });
 
     test("comes from Claude's own program", () async {

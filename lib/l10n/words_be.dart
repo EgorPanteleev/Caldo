@@ -489,6 +489,9 @@ const Map<String, Object> be = {
   'ruleName': "Назва",
   'ruleBody': "Правіла",
   'ruleBodyHint': "Што агент мусіць рабіць заўсёды або не рабіць ніколі",
+  'ruleOpening': "Пачынае чат словамі",
+  'ruleOpeningHint':
+      "Адпраўляецца першым, калі чат пачаты без паведамлення; пуста — чакае вашага",
   'deleteRuleQuestion': "Выдаліць гэта правіла?",
   'deleteRuleHint': "Чаты, пачатыя з ім, захаваюць яго.",
   'chatTitle': "Назва",

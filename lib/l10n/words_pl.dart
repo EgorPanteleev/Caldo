@@ -490,6 +490,9 @@ const Map<String, Object> pl = {
   'ruleName': "Nazwa",
   'ruleBody': "Zasada",
   'ruleBodyHint': "Co agent ma robić zawsze, a czego nigdy",
+  'ruleOpening': "Zaczyna czat od",
+  'ruleOpeningHint':
+      "Wysyłane jako pierwsze, gdy czat zaczyna się bez wiadomości; puste czeka na twoją",
   'deleteRuleQuestion': "Usunąć tę zasadę?",
   'deleteRuleHint': "Czaty rozpoczęte z nią ją zachowają.",
   'chatTitle': "Tytuł",

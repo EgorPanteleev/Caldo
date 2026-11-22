@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:supabase/supabase.dart';
 
+import '../l10n/strings.dart';
 import '../mcp/usage.dart';
 import '../models/task.dart';
 import 'account.dart';
@@ -79,13 +80,34 @@ class AgentRule {
   final String name;
   final String body;
 
-  const AgentRule({required this.id, required this.name, required this.body});
+  /// Said as a chat's first message when none is written on the form, so
+  /// a rule that holds the whole errand starts the chat by itself; empty
+  /// for most.
+  final String opening;
+
+  const AgentRule({
+    required this.id,
+    required this.name,
+    required this.body,
+    this.opening = '',
+  });
 
   factory AgentRule.fromJson(Map json) => AgentRule(
     id: json['id'] as String,
     name: json['name'] as String? ?? '',
     body: json['body'] as String? ?? '',
+    opening: json['opening'] as String? ?? '',
   );
+}
+
+/// A new chat's first message: what was [written], else the openings of
+/// the chosen [rules], one after another.
+String firstMessage(String written, Iterable<AgentRule> rules) {
+  if (written.trim().isNotEmpty) return written.trim();
+  return [
+    for (final r in rules)
+      if (r.opening.trim().isNotEmpty) r.opening.trim(),
+  ].join('\n\n');
 }
 
 /// A computer that runs agents: one running `caldo-mcp watch`.
@@ -380,8 +402,16 @@ class Agents extends ChangeNotifier {
     String? id,
     required String name,
     required String body,
+    String opening = '',
   }) async {
-    final fields = {'name': name, 'body': body};
+    final fields = {
+      'name': name,
+      'body': body,
+      // Left out unless there is or was one, so a server without the
+      // column still keeps rules that have none.
+      if (opening.isNotEmpty || (rule(id ?? '')?.opening ?? '').isNotEmpty)
+        'opening': opening,
+    };
     final query = id == null
         ? _client!.from('agent_rules').insert(fields)
         : _client!.from('agent_rules').update(fields).eq('id', id);
@@ -435,31 +465,40 @@ class Agents extends ChangeNotifier {
     int rows = 24,
     bool inChat = false,
   }) async {
-    final row = await _client!
-        .from('chats')
-        .insert({
-          'mode': inChat ? 'chat' : 'terminal',
-          'worker_id': worker,
-          'agent': agent,
-          'title': title,
-          'model': model,
-          'effort': effort,
-          'dir': dir,
-          'permission': permission,
-          'plugins': plugins,
-          'skills': skills,
-          // Left out when none, so a server without the column still
-          // starts a chat.
-          if (rules.isNotEmpty)
-            'rules': [
-              for (final r in rules) {'name': r.name, 'body': r.body},
-            ],
-          'prompt': prompt,
-          'cols': cols.clamp(10, 500),
-          'rows': rows.clamp(5, 300),
-        })
-        .select()
-        .single();
+    final made = {
+      'mode': inChat ? 'chat' : 'terminal',
+      'worker_id': worker,
+      'agent': agent,
+      'title': title,
+      'model': model,
+      'effort': effort,
+      'dir': dir,
+      'permission': permission,
+      'plugins': plugins,
+      'skills': skills,
+      // Left out when none, so a server without the column still
+      // starts a chat.
+      if (rules.isNotEmpty)
+        'rules': [
+          for (final r in rules) {'name': r.name, 'body': r.body},
+        ],
+      'prompt': prompt,
+      // The worker titles the chat in it, not in the message's.
+      'language': S.current.code,
+      'cols': cols.clamp(10, 500),
+      'rows': rows.clamp(5, 300),
+    };
+    Future<Map<String, dynamic>> insert(Map<String, Object?> fields) =>
+        _client!.from('chats').insert(fields).select().single();
+    Map<String, dynamic> row;
+    try {
+      row = await insert(made);
+    } on PostgrestException catch (e) {
+      // A server without the column yet (PostgREST's "no such column")
+      // still starts the chat, titled in the message's language.
+      if (e.code != 'PGRST204' || !e.message.contains('language')) rethrow;
+      row = await insert({...made}..remove('language'));
+    }
     final chat = Chat.fromJson(row);
     chats = [chat, ...chats];
     notifyListeners();

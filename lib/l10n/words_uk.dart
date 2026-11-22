@@ -493,6 +493,9 @@ const Map<String, Object> uk = {
   'ruleName': "Назва",
   'ruleBody': "Правило",
   'ruleBodyHint': "Що агент має робити завжди або не робити ніколи",
+  'ruleOpening': "Починає чат словами",
+  'ruleOpeningHint':
+      "Надсилається першим, якщо чат почато без повідомлення; порожньо — чекає вашого",
   'deleteRuleQuestion': "Видалити це правило?",
   'deleteRuleHint': "Чати, розпочаті з ним, збережуть його.",
   'chatTitle': "Назва",

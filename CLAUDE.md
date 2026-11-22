@@ -956,13 +956,23 @@ and Codex, the terminal side by side.
   (`AgentSpec.takesRules`, sent as `rules`), so not to a shell, nor to any
   agent of a worker not reinstalled since. The app leaves `rules` out of
   the insert when none are chosen. Errands from tasks take none.
+  A rule may also say what a chat begins with (`agent_rules.opening`,
+  `…_rule_opening.sql`; asked as "after starting a chat I need to write
+  something to start it", 2026-11-22): left without a first message on
+  the form, the chat is started with the chosen rules' openings
+  (`firstMessage`), shown as the field's hint. The app alone reads it, so
+  no worker reinstall.
 - **A chat names itself from its first message** (asked as "like claude
   app do", 2026-11-22; `Worker._name`, `nameChat`): the worker asks Haiku
   (`namingArgs`: no tools, settings, MCP or session, run in the temp dir
-  so no CLAUDE.md is read) for three to six words in the message's
-  language, and writes `chats.title` only while it is still empty — a
-  title typed on the form wins. Asked for plain text, Haiku answered the
-  message or wrote "Заголовок: …"; the title comes as structured output
+  so no CLAUDE.md is read) for three to six words, and writes
+  `chats.title` only while it is still empty — a title typed on the form
+  wins. Written in the app's language (asked for), which the app puts on
+  the chat it makes (`chats.language`, `…_chat_language.sql`; left out
+  again if the server lacks the column); a chat without one (the
+  watcher's, an older app's, or read by a worker not reinstalled since)
+  gets the message's. Asked for plain text, Haiku answered the message or
+  wrote "Заголовок: …"; the title comes as structured output
   (`--json-schema`), the message inside `<message>` tags. ~2.7s, ~$0.0002
   a chat. Once per chat per worker run; not for a shell, nor a line
   starting `/`; none without Claude on the worker (the list then shows the

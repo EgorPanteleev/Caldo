@@ -472,6 +472,9 @@ const Map<String, Object> fr = {
   'ruleName': "Nom",
   'ruleBody': "Règle",
   'ruleBodyHint': "Ce que l’agent doit toujours faire, ou ne jamais faire",
+  'ruleOpening': "Commence la discussion par",
+  'ruleOpeningHint':
+      "Dit en premier si une discussion commence sans message ; vide, elle attend le vôtre",
   'deleteRuleQuestion': "Supprimer cette règle ?",
   'deleteRuleHint': "Les chats lancés avec elle la gardent.",
   'chatTitle': "Titre",

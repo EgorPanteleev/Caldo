@@ -564,6 +564,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     if (!mounted) return;
     final (cols, rows) = _TermFont.fit(MediaQuery.sizeOf(context), font);
     final plugins = _plugins;
+    final rules = _picked;
     try {
       final chat = await _agents.start(
         worker: worker,
@@ -579,8 +580,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
             ? null
             : plugins.toList(),
         skills: _skills.toList(),
-        rules: kind.rules ? [..._agents.rules.where(_chosen)] : const [],
-        prompt: kind.prompt == 'none' ? '' : _prompt.text.trim(),
+        rules: rules,
+        prompt: kind.prompt == 'none' ? '' : firstMessage(_prompt.text, rules),
         cols: cols,
         rows: rows,
         inChat: kind.talks,
@@ -598,6 +599,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   bool _chosen(AgentRule rule) => _rules.contains(rule.id);
+
+  /// The chosen rules, if the agent takes rules at all.
+  List<AgentRule> get _picked =>
+      _kind?.rules ?? false ? [..._agents.rules.where(_chosen)] : const [];
 
   @override
   Widget build(BuildContext context) {
@@ -797,7 +802,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
                       _Field(controller: _title),
                       if (kind.prompt != 'none') ...[
                         _Section(s.chatPrompt),
-                        _Field(controller: _prompt, lines: 6),
+                        // What the chosen rules begin with, if nothing is
+                        // written here.
+                        _Field(
+                          controller: _prompt,
+                          hint: firstMessage('', _picked),
+                          lines: 6,
+                        ),
                       ],
                       const SizedBox(height: 24),
                       SizedBox(

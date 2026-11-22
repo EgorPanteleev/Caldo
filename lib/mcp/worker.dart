@@ -852,7 +852,11 @@ class Worker {
     if (claude == null) return;
     unawaited(
       _guard(() async {
-        final title = await nameChat(text, command: '${claude.command.first}');
+        final title = await nameChat(
+          text,
+          command: '${claude.command.first}',
+          language: ask.language,
+        );
         if (title == null) return;
         final db = await _db;
         await db

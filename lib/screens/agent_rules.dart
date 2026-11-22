@@ -143,7 +143,8 @@ String _ruleName(S s, AgentRule rule) {
   return first.isEmpty ? s.untitledRule : first;
 }
 
-/// One rule written or changed: its name and its words.
+/// One rule written or changed: its name, its words, and what a chat it is
+/// chosen for begins with when nothing else is written.
 class RuleScreen extends StatefulWidget {
   /// Null for a new one.
   final AgentRule? rule;
@@ -157,6 +158,7 @@ class RuleScreen extends StatefulWidget {
 class _RuleScreenState extends State<RuleScreen> {
   late final _name = TextEditingController(text: widget.rule?.name);
   late final _body = TextEditingController(text: widget.rule?.body);
+  late final _opening = TextEditingController(text: widget.rule?.opening);
   bool _saving = false;
 
   @override
@@ -169,6 +171,7 @@ class _RuleScreenState extends State<RuleScreen> {
   void dispose() {
     _name.dispose();
     _body.dispose();
+    _opening.dispose();
     super.dispose();
   }
 
@@ -181,6 +184,7 @@ class _RuleScreenState extends State<RuleScreen> {
         id: widget.rule?.id,
         name: _name.text.trim(),
         body: _body.text.trim(),
+        opening: _opening.text.trim(),
       );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -253,6 +257,12 @@ class _RuleScreenState extends State<RuleScreen> {
                     _Field(controller: _name),
                     _Section(s.ruleBody),
                     _Field(controller: _body, hint: s.ruleBodyHint, lines: 16),
+                    _Section(s.ruleOpening),
+                    _Field(
+                      controller: _opening,
+                      hint: s.ruleOpeningHint,
+                      lines: 4,
+                    ),
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 48,

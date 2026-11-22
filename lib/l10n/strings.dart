@@ -290,6 +290,8 @@ class S {
   String get ruleName => _word('ruleName');
   String get ruleBody => _word('ruleBody');
   String get ruleBodyHint => _word('ruleBodyHint');
+  String get ruleOpening => _word('ruleOpening');
+  String get ruleOpeningHint => _word('ruleOpeningHint');
   String get deleteRuleQuestion => _word('deleteRuleQuestion');
   String get deleteRuleHint => _word('deleteRuleHint');
   String get chatTitle => _word('chatTitle');
