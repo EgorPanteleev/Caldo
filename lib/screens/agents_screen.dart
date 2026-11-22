@@ -14,6 +14,7 @@ import '../services/agents.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
+import '../widgets/chat_usage.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardGap;
@@ -1275,6 +1276,24 @@ class _ChatScreenState extends State<ChatScreen> {
               asChat: talks ? asChat : null,
               onView: (chat) => setState(() => _asChat = chat),
             ),
+            if (asChat && talk != null)
+              ValueListenableBuilder(
+                valueListenable: talk.usage,
+                builder: (context, heard, _) {
+                  final usage = heard ?? chat.usage;
+                  if (usage == null || usage.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return ChatUsageStrip(
+                    usage: usage,
+                    onTap: () => showChatUsage(
+                      context,
+                      changes: Listenable.merge([_agents, talk.usage]),
+                      read: () => talk.usage.value ?? _chat?.usage,
+                    ),
+                  );
+                },
+              ),
             Expanded(
               child: asChat && talk != null
                   ? ValueListenableBuilder(

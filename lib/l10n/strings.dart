@@ -332,6 +332,35 @@ class S {
       _fill('chatInChatNow', {'agent': agent});
   String get chatEmpty => _word('chatEmpty');
   String get chatMoveStops => _word('chatMoveStops');
+  String get usageTitle => _word('usageTitle');
+  String get usageContext => _word('usageContext');
+  String usageContextShort(String share) =>
+      _fill('usageContextShort', {'n': share});
+  String usageTokensOnly(String n) => _fill('usageTokensOnly', {'n': n});
+  String usageOf(String used, String window) =>
+      _fill('usageOf', {'used': used, 'window': window});
+  String get usageLimits => _word('usageLimits');
+  String usageResets(String when) => _fill('usageResets', {'when': when});
+  String get usageLimitReached => _word('usageLimitReached');
+  String get usageLimitNear => _word('usageLimitNear');
+  String get usageThisChat => _word('usageThisChat');
+  String usageTurns(int n) => _fill('usageTurns', {'n': n});
+  String get usageTurnsName => _word('usageTurnsName');
+  String get usageWorking => _word('usageWorking');
+  String get usageInput => _word('usageInput');
+  String get usageOutput => _word('usageOutput');
+  String get usageCacheRead => _word('usageCacheRead');
+  String get usageCacheWrite => _word('usageCacheWrite');
+  String get usageCost => _word('usageCost');
+  String usageAsOf(String when) => _fill('usageAsOf', {'when': when});
+  String usageSeconds(int n) => _fill('usageSeconds', {'n': n});
+  String usageMinutes(int n) => _fill('usageMinutes', {'n': n});
+  String usageHours(int h, int m) => _fill('usageHours', {'h': h, 'm': m});
+  String get usageFiveHours => _word('usageFiveHours');
+  String get usageWeekly => _word('usageWeekly');
+  String usageDays(int n) => _fill('usageDays', {'n': n});
+  String usageHoursLimit(int n) => _fill('usageHoursLimit', {'n': n});
+  String get usageWeekShort => _word('usageWeekShort');
 
   // ---- The vault -----------------------------------------------------------
   String get vault => _word('vault');

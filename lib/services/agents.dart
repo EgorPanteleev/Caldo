@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase/supabase.dart';
 
+import '../mcp/usage.dart';
 import 'account.dart';
 
 /// One kind of agent a worker can run, as it says (`lib/mcp/agents.dart`).
@@ -134,6 +135,10 @@ class Chat {
   /// Whether it is in its chat, spoken to in messages, or in its terminal.
   final bool inChat;
 
+  /// What it has spent and where it stands, as its worker last kept it;
+  /// null before its first turn, or from a server without the column.
+  final ChatUsage? usage;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -152,6 +157,7 @@ class Chat {
     this.rows = 24,
     this.session,
     this.inChat = false,
+    this.usage,
   });
 
   /// Whether it can be a chat at all: one begun as one, wherever it is now.
@@ -191,6 +197,7 @@ class Chat {
         session: c.session,
         updatedAt: c.updatedAt,
         inChat: toChat,
+        usage: c.usage,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -220,6 +227,7 @@ class Chat {
     session: json['session'] as String?,
     updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     inChat: json['mode'] == 'chat',
+    usage: ChatUsage.of(json['usage']),
   );
 }
 
@@ -850,6 +858,11 @@ class TalkFeed extends ChangeNotifier {
   /// list of chats is read from; null once the row has caught up.
   final state = ValueNotifier<String?>(null);
 
+  /// What the chat has spent as last broadcast: said on every request, its
+  /// row only at a turn's end. Null until one is heard, then always at
+  /// least as new as the row.
+  final usage = ValueNotifier<ChatUsage?>(null);
+
   RealtimeChannel? _rows;
   final VoidCallback? _release;
   Timer? _poll;
@@ -906,6 +919,12 @@ class TalkFeed extends ChangeNotifier {
           event: 'state',
           callback: (message) {
             if (!_closed) state.value = _payloadOf(message)['state'] as String?;
+          },
+        )
+        .onBroadcast(
+          event: 'usage',
+          callback: (message) {
+            if (!_closed) usage.value = ChatUsage.of(_payloadOf(message));
           },
         );
     unawaited(_read());
@@ -1007,6 +1026,7 @@ class TalkFeed extends ChangeNotifier {
     _release?.call();
     pieces.dispose();
     state.dispose();
+    usage.dispose();
     super.dispose();
   }
 }

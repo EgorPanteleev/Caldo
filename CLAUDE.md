@@ -865,6 +865,29 @@ and Codex, the terminal side by side.
   identity and lays every letter out again for a new one, so the screen
   keeps both (`_theme`, `_TermFont.style`) — it rebuilds each frame of the
   keyboard's slide.
+- **A chat's usage shows under its head** (asked as "see the usage,
+  other stats in chat mode", 2026-11-22; `ChatUsage`,
+  `lib/mcp/usage.dart`; `ChatUsageStrip`, `showChatUsage`): context
+  filled, the account's limits, cost; a tap opens the whole (tokens in,
+  out, cache read/written, turns, time working, model). A talk reports
+  figures as they are (`set`: model, context, window, limits) or as
+  added (`add`: tokens, cost, turns, time), and the worker sums the adds
+  into the chat's totals (`_Talker.usage`), as a program's own totals
+  start again with each program. Measured on Claude 2.1.302:
+  `total_cost_usd`, `modelUsage` and `duration_api_ms` are the
+  program's running totals, `usage`, `duration_ms` and `num_turns` the
+  turn's own; so cost and tokens are told as what each result's totals
+  add to the last's. Context is the last main request's in + cache +
+  out (a helper's, with `parent_tool_use_id`, is not the chat's).
+  Limits from `rate_limit_event`'s `unifiedWindows` (utilization 0–1);
+  Codex's from `account/rateLimits/updated` (percent), its tokens from
+  `thread/tokenUsage/updated` — the first of a program adds only its
+  `last` (a resumed thread's total holds its past), later ones how far
+  the total went. Broadcast (`usage`) on every change; written to
+  `chats.usage` (`…_chat_usage.sql`) only at a turn's end or 20s into
+  a long one, as every write to a chat's row has each app read the list
+  again. Red only from 95%; from 80% just brighter. Turns taken in the
+  terminal aren't counted (the transcript has no results).
 - **The chat list is one forward list that follows the foot** while the
   reader is there (`_follow`, a few frames as a lazy list learns its
   length); new words are added below, so a reader scrolled up is left
@@ -1121,7 +1144,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 413 tests, all passing; keep it so. `supabase test db` — 49.
+`flutter test` — 427 tests, all passing; keep it so. `supabase test db` — 51.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(16);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -49,6 +49,14 @@ select lives_ok(
   $$insert into public.agent_rules (name, body) values
     ('Tests', 'Run the tests before saying it is done.')$$,
   'a rule is written');
+select lives_ok(
+  $$update public.chats set usage = '{"turns": 2, "cost": 0.4}'
+    where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'$$,
+  'the worker keeps what a chat has spent');
+select is(
+  (select (usage->>'turns')::int from public.chats
+    where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'),
+  2, 'and it is read back');
 reset role;
 
 select pg_temp.act_as('22222222-2222-4222-8222-222222222222');
