@@ -471,6 +471,9 @@ const Map<String, Object> nl = {
   'ruleName': "Naam",
   'ruleBody': "Regel",
   'ruleBodyHint': "Wat de agent altijd moet doen, of nooit",
+  'ruleOpening': "Begint de chat met",
+  'ruleOpeningHint':
+      "Wordt eerst gezegd als een chat zonder bericht begint; leeg wacht hij op het jouwe",
   'deleteRuleQuestion': "Deze regel verwijderen?",
   'deleteRuleHint': "Chats die ermee zijn gestart, houden hem.",
   'chatTitle': "Titel",

@@ -472,6 +472,9 @@ const Map<String, Object> it = {
   'ruleName': "Nome",
   'ruleBody': "Regola",
   'ruleBodyHint': "Cosa l’agente deve fare sempre, o non fare mai",
+  'ruleOpening': "Inizia la chat con",
+  'ruleOpeningHint':
+      "Detto per primo se una chat inizia senza messaggio; vuoto, aspetta il tuo",
   'deleteRuleQuestion': "Eliminare questa regola?",
   'deleteRuleHint': "Le chat avviate con essa la conservano.",
   'chatTitle': "Titolo",
