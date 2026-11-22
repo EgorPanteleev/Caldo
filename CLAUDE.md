@@ -956,6 +956,29 @@ and Codex, the terminal side by side.
   (`AgentSpec.takesRules`, sent as `rules`), so not to a shell, nor to any
   agent of a worker not reinstalled since. The app leaves `rules` out of
   the insert when none are chosen. Errands from tasks take none.
+- **A chat names itself from its first message** (asked as "like claude
+  app do", 2026-11-22; `Worker._name`, `nameChat`): the worker asks Haiku
+  (`namingArgs`: no tools, settings, MCP or session, run in the temp dir
+  so no CLAUDE.md is read) for three to six words in the message's
+  language, and writes `chats.title` only while it is still empty — a
+  title typed on the form wins. Asked for plain text, Haiku answered the
+  message or wrote "Заголовок: …"; the title comes as structured output
+  (`--json-schema`), the message inside `<message>` tags. ~2.7s, ~$0.0002
+  a chat. Once per chat per worker run; not for a shell, nor a line
+  starting `/`; none without Claude on the worker (the list then shows the
+  first line, as before).
+- **A message can be left for later** (asked as "postpone my messages
+  in chat", 2026-11-22): hold Send (right-click on a desk) for In 30
+  minutes / an hour / 3 hours / Tomorrow 9:00 / a day and time. Kept in
+  a server-only `chat_later` table (`…_chat_later.sql`), not `chat_in`,
+  which a worker empties as it reads — one from before would have said
+  them at once or dropped them. The worker says each when due
+  (`Worker._sayLater`, a timer to the next, woken on its own realtime
+  channel), deleting the row first so one taken back meanwhile is not
+  said; one for a chat not running waits for Start again. Waiting ones
+  are listed over the field (`LaterList`): tap for Send now / Edit /
+  Delete. Offered only by a worker that says it (`AgentKind.later`), so
+  not until it is reinstalled. Works for chat and terminal alike.
 - **The watcher's errands are chats** (`Worker.errand`, the `hand` the
   `Watcher` is given when tmux is installed; `ClaudeCli` still without
   it): Claude in messages in the task's folder, the answer its first
@@ -1144,7 +1167,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 427 tests, all passing; keep it so. `supabase test db` — 51.
+`flutter test` — 443 tests, all passing; keep it so. `supabase test db` — 54.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

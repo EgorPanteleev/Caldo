@@ -788,6 +788,71 @@ void main() {
     });
   });
 
+  group("a chat's title", () {
+    String said(Object? title, {bool error = false}) => jsonEncode({
+      'type': 'result',
+      'is_error': error,
+      'result': 'not this',
+      'structured_output': {'title': title},
+    });
+
+    test('is the structured title, tidied', () {
+      expect(
+        titleIn(said('Gradle build running out of memory')),
+        'Gradle build running out of memory',
+      );
+      expect(
+        titleIn(said('"Падение приложения."\nmore')),
+        'Падение приложения',
+      );
+      expect(titleIn(said('**Poem about cats**')), 'Poem about cats');
+      final long = titleIn(said('word ' * 30))!;
+      expect(long.length, lessThanOrEqualTo(60));
+      expect(long, endsWith('word'));
+    });
+
+    test('is none when Claude gave none', () {
+      expect(titleIn(said('  ')), isNull);
+      expect(titleIn(said(null)), isNull);
+      expect(titleIn(said('Fine', error: true)), isNull);
+      expect(titleIn('{"result": "Fine"}'), isNull);
+      expect(titleIn('claude: not logged in'), isNull);
+    });
+
+    test('is asked of Haiku with the message shown, not addressed', () {
+      expect(namingArgs, containsAllInOrder(['--model', 'haiku']));
+      expect(namingArgs, contains('--no-session-persistence'));
+      expect(namingArgs, containsAllInOrder(['--tools', '']));
+      final shown = namingInput('  help me ${'x' * 3000}');
+      expect(shown, contains('<message>\nhelp me x'));
+      expect(shown.length, lessThan(2100));
+    });
+
+    test("comes from Claude's own program", () async {
+      final dir = Directory.systemTemp.createTempSync('naming');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final claude = File('${dir.path}/claude')
+        ..writeAsStringSync(
+          '#!/bin/sh\n'
+          'cat > "${dir.path}/in"\n'
+          'printf \'{"structured_output":{"title":"Asked by %s"}}\' "\$3"\n',
+        );
+      Process.runSync('chmod', ['+x', claude.path]);
+      expect(
+        await nameChat('Tidy the repo', command: claude.path),
+        'Asked by haiku',
+      );
+      expect(
+        File('${dir.path}/in').readAsStringSync(),
+        contains('Tidy the repo'),
+      );
+
+      File('${dir.path}/fails').writeAsStringSync('#!/bin/sh\nexit 1\n');
+      Process.runSync('chmod', ['+x', '${dir.path}/fails']);
+      expect(await nameChat('Tidy', command: '${dir.path}/fails'), isNull);
+    });
+  });
+
   group("a terminal's output", () {
     late StringBuffer drawn;
     late TermOrder order;
@@ -1104,6 +1169,48 @@ void main() {
         await tester.tap(find.text('Bash'));
         await tester.pump();
         expect(find.text('3'), findsWidgets);
+      });
+
+      testWidgets('lists what is left for later in ${S.names[code]}', (
+        tester,
+      ) async {
+        final now = DateTime.now();
+        final soon = LaterLine(
+          id: 1,
+          text: 'Carry on with the migration and run every test after it\nok',
+          at: now.add(const Duration(minutes: 30)),
+        );
+        final later = LaterLine(
+          id: 2,
+          text: 'Go on.',
+          at: DateTime(now.year, now.month, now.day + 3, 9),
+        );
+        LaterLine? tapped, deleted;
+        await pump(
+          tester,
+          code,
+          Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: LaterList(
+                lines: [soon, later],
+                onTap: (l) => tapped = l,
+                onDelete: (l) => deleted = l,
+              ),
+            ),
+          ),
+        );
+        // Only its first line, and a day named when it is not today.
+        expect(find.textContaining('every test'), findsOneWidget);
+        expect(find.textContaining('\nok'), findsNothing);
+        expect(
+          find.text(LaterList.whenOf(later.at, h24: false)),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Go on.'));
+        expect(tapped, later);
+        await tester.tap(find.byIcon(Icons.close_rounded).first);
+        expect(deleted, soon);
       });
     }
   });

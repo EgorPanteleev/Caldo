@@ -15,6 +15,8 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import '../widgets/chat_usage.dart';
+import '../widgets/choice_sheet.dart';
+import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardGap;
@@ -982,6 +984,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _terminal.onOutput = _typed;
     _terminal.onResize = (cols, rows, _, _) => _sized(cols, rows);
     _follow();
+    unawaited(_readLater());
     _TermFont.read().then((size) {
       if (mounted) setState(() => _font = size);
     });
@@ -995,6 +998,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _talk?.dispose();
     _sizing?.cancel();
     _flushing?.cancel();
+    _laterCheck?.cancel();
     _input.dispose();
     _inputFocus.dispose();
     _controller.dispose();
@@ -1124,6 +1128,153 @@ class _ChatScreenState extends State<ChatScreen> {
         over: chat != null && chat.inChat ? _talk : null,
       ),
     );
+  }
+
+  /// Messages left for later and not yet said, soonest first.
+  List<LaterLine> _later = const [];
+  Timer? _laterCheck;
+
+  /// Whether the chat's worker says messages left for later: one not
+  /// reinstalled since would leave them unsaid.
+  bool get _canLater {
+    final chat = _chat;
+    if (chat == null) return false;
+    return _agents
+            .worker(chat.workerId)
+            ?.agents
+            .where((a) => a.id == chat.agent)
+            .firstOrNull
+            ?.later ??
+        false;
+  }
+
+  /// Read again a little after the next is due, when its worker has said
+  /// it — and every so often after, while one due is still waiting (its
+  /// worker away, or the chat not running).
+  Future<void> _readLater() async {
+    _laterCheck?.cancel();
+    List<LaterLine> later;
+    try {
+      later = await _agents.laterOf(widget.chat);
+    } catch (_) {
+      // Signed out, or offline: what is shown stays.
+      later = _later;
+    }
+    if (!mounted) return;
+    setState(() => _later = later);
+    if (later.isEmpty) return;
+    final wait = later.first.at.difference(DateTime.now());
+    _laterCheck = Timer(
+      wait.isNegative
+          ? const Duration(seconds: 15)
+          : wait + const Duration(seconds: 3),
+      _readLater,
+    );
+  }
+
+  /// What is written, left to be said later: when is asked first.
+  Future<void> _sendLater() async {
+    final text = _input.text.trim();
+    if (text.isEmpty) return;
+    final at = await _whenLater();
+    if (at == null || !mounted) return;
+    _input.clear();
+    try {
+      final line = await _agents.later(widget.chat, text, at);
+      if (!mounted) return;
+      setState(
+        () => _later = [..._later, line]..sort((a, b) => a.at.compareTo(b.at)),
+      );
+      unawaited(_readLater());
+    } catch (_) {
+      // Not kept: the words go back where they were written.
+      if (mounted && _input.text.isEmpty) _input.text = text;
+    }
+  }
+
+  Future<DateTime?> _whenLater() async {
+    final s = S.of(context);
+    final h24 = MediaQuery.alwaysUse24HourFormatOf(context);
+    final now = DateTime.now();
+    final morning = DateTime(now.year, now.month, now.day + 1, 9);
+    final minutes = await choose<int>(
+      context,
+      title: s.chatLater,
+      selected: null,
+      options: [
+        Option(30, s.chatLater30, icon: Icons.schedule_rounded),
+        Option(60, s.chatLater60, icon: Icons.schedule_rounded),
+        Option(180, s.chatLater180, icon: Icons.schedule_rounded),
+        Option(
+          -1,
+          s.chatLaterTomorrow(Dates.time(morning, h24: h24)),
+          icon: Icons.wb_twilight_rounded,
+        ),
+        Option(-2, s.chatLaterPick, icon: Icons.event_rounded),
+      ],
+    );
+    if (minutes == null || !mounted) return null;
+    if (minutes == -1) return morning;
+    if (minutes > 0) return DateTime.now().add(Duration(minutes: minutes));
+    final day = await showAppDatePicker(
+      context: context,
+      initial: now,
+      firstDate: DateTime(now.year, now.month, now.day),
+    );
+    if (day == null || !mounted) return null;
+    final soon = now.add(const Duration(hours: 1));
+    final time = await showAppTimePicker(
+      context: context,
+      initial: TimeOfDay(hour: soon.hour, minute: 0),
+    );
+    if (time == null) return null;
+    // A time already past is said at once.
+    return DateTime(day.year, day.month, day.day, time.hour, time.minute);
+  }
+
+  /// A message left for later, tapped: said now, written again, or put
+  /// away. Unless its worker has said it meanwhile.
+  Future<void> _laterTapped(LaterLine line) async {
+    final s = S.of(context);
+    final what = await choose<String>(
+      context,
+      title: line.text.split('\n').first,
+      selected: null,
+      options: [
+        Option('now', s.chatSendNow, icon: Icons.arrow_upward_rounded),
+        Option('edit', s.chatLaterEdit, icon: Icons.edit_outlined),
+        Option('delete', s.delete, icon: Icons.delete_outline_rounded),
+      ],
+    );
+    if (what == null || !mounted) return;
+    await _takeBack(line, then: what);
+  }
+
+  Future<void> _takeBack(LaterLine line, {String then = 'delete'}) async {
+    setState(() => _later = [..._later]..remove(line));
+    bool back;
+    try {
+      back = await _agents.takeBack(line);
+    } catch (_) {
+      unawaited(_readLater());
+      return;
+    }
+    if (!back || !mounted) return;
+    switch (then) {
+      case 'now':
+        final chat = _chat;
+        unawaited(
+          _agents.line(
+            widget.chat,
+            line.text,
+            over: chat != null && chat.inChat ? _talk : null,
+          ),
+        );
+      case 'edit':
+        final was = _input.text.trim();
+        _input.text = was.isEmpty ? line.text : '$was\n${line.text}';
+        _inputFocus.requestFocus();
+    }
   }
 
   Future<void> _toTerminal() async {
@@ -1317,6 +1468,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   ? const SizedBox.shrink()
                   : _terminalView(chat, live, p),
             ),
+            if (_later.isNotEmpty)
+              LaterList(
+                lines: _later,
+                onTap: _laterTapped,
+                onDelete: _takeBack,
+              ),
             if (asChat) ...[
               if (!chat.inChat)
                 _MoveBar(
@@ -1334,6 +1491,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       focus: _inputFocus,
                       hint: s.chatMessage,
                       onSend: _send,
+                      onLater: _canLater ? _sendLater : null,
                       onStop: at == 'running' || at == 'asking'
                           ? () => _agents.interrupt(widget.chat)
                           : null,
@@ -1350,6 +1508,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   focus: _inputFocus,
                   hint: s.chatMessage,
                   onSend: _send,
+                  onLater: _canLater ? _sendLater : null,
                 ),
               ] else
                 ?again,
@@ -1764,12 +1923,17 @@ class _InputRow extends StatelessWidget {
   /// While a turn is under way: the button, with nothing written, stops it.
   final VoidCallback? onStop;
 
+  /// The button held (or right-clicked) with something written: it is
+  /// left to be said later.
+  final VoidCallback? onLater;
+
   const _InputRow({
     required this.controller,
     required this.focus,
     required this.hint,
     required this.onSend,
     this.onStop,
+    this.onLater,
   });
 
   @override
@@ -1834,6 +1998,12 @@ class _InputRow extends StatelessWidget {
             listenable: controller,
             builder: (context, _) {
               final stop = onStop != null && controller.text.trim().isEmpty;
+              final later = onLater != null && controller.text.trim().isNotEmpty
+                  ? () {
+                      HapticFeedback.mediumImpact();
+                      onLater!();
+                    }
+                  : null;
               return Material(
                 color: p.field,
                 shape: CircleBorder(
@@ -1848,6 +2018,8 @@ class _InputRow extends StatelessWidget {
                     HapticFeedback.selectionClick();
                     stop ? onStop!() : onSend();
                   },
+                  onLongPress: later,
+                  onSecondaryTap: later,
                   child: SizedBox.square(
                     dimension: 44,
                     child: stop
@@ -1861,6 +2033,107 @@ class _InputRow extends StatelessWidget {
               );
             },
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The messages left for later, over the field: when each goes and its
+/// first line. A tap offers it now, to write again, or to put away.
+class LaterList extends StatelessWidget {
+  final List<LaterLine> lines;
+  final ValueChanged<LaterLine> onTap;
+  final ValueChanged<LaterLine> onDelete;
+
+  const LaterList({
+    super.key,
+    required this.lines,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  /// "17:30" today, else "Tomorrow 9:00", "Nov 26 9:00".
+  static String whenOf(DateTime at, {required bool h24}) {
+    final time = Dates.time(at, h24: h24);
+    return DateUtils.isSameDay(at, DateTime.now())
+        ? time
+        : '${Dates.dayWord(at) ?? Dates.shortDay(at)} $time';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final h24 = MediaQuery.alwaysUse24HourFormatOf(context);
+    return ConstrainedBox(
+      // Three show; more scroll.
+      constraints: const BoxConstraints(maxHeight: 3 * 40 + 4),
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+        children: [
+          for (final line in lines)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Material(
+                color: p.field,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                    color: BarRoom.rim(p),
+                    width: BarRoom.rimWidth,
+                  ),
+                ),
+                child: InkWell(
+                  customBorder: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  onTap: () => onTap(line),
+                  child: SizedBox(
+                    height: 36,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        Icon(Icons.schedule_rounded, size: 16, color: p.muted),
+                        const SizedBox(width: 6),
+                        // The words get the most of the row.
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.sizeOf(context).width * 0.4,
+                          ),
+                          child: Text(
+                            whenOf(line.at, h24: h24),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: p.muted,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            line.text.split('\n').first,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: p.text, fontSize: 14),
+                          ),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          iconSize: 18,
+                          tooltip: S.of(context).delete,
+                          onPressed: () => onDelete(line),
+                          icon: Icon(Icons.close_rounded, color: p.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
