@@ -29,8 +29,15 @@ abstract class TalkSink {
     Map<String, num> add = const {},
   });
 
-  /// A turn done: its last words, for a task waiting on them.
-  void turnEnded(String answer, {bool failed = false});
+  /// A turn done: its last words, for a task waiting on them. [limited]
+  /// if the account's limit refused it, [resets] when the limit is lifted
+  /// if that was said.
+  void turnEnded(
+    String answer, {
+    bool failed = false,
+    bool limited = false,
+    DateTime? resets,
+  });
   void exited(int code, String why);
 }
 
@@ -170,7 +177,12 @@ class _Replay implements TalkSink {
     Map<String, num> add = const {},
   }) {}
   @override
-  void turnEnded(String answer, {bool failed = false}) {}
+  void turnEnded(
+    String answer, {
+    bool failed = false,
+    bool limited = false,
+    DateTime? resets,
+  }) {}
   @override
   void exited(int code, String why) {}
 }
@@ -331,7 +343,12 @@ class ClaudeTalk extends Talk {
         _piece(event);
       case 'assistant':
         final message = line['message'] as Map? ?? const {};
-        if (line['parent_tool_use_id'] == null) _filled(message);
+        if (line['parent_tool_use_id'] == null) {
+          _filled(message);
+          // Claude's own message standing in for the answer the account's
+          // limit refused ("You've hit your limit · resets 11pm").
+          if (line['error'] == 'rate_limit') _refused = true;
+        }
         _onMessage('${message['id']}');
         for (final block in message['content'] as List? ?? const []) {
           _block(block as Map);
@@ -371,9 +388,44 @@ class ClaudeTalk extends Talk {
             'error': true,
           });
         }
-        sink.turnEnded(said.isNotEmpty ? said : _last, failed: failed);
+        final refused = _refused;
+        _refused = false;
+        sink.turnEnded(
+          said.isNotEmpty ? said : _last,
+          failed: failed,
+          limited: refused,
+          resets: refused ? _lifted() : null,
+        );
         sink.stands('idle');
     }
+  }
+
+  /// The turn under way was refused for the account's limit.
+  bool _refused = false;
+
+  /// The limits as last heard, for when a refused turn may go again.
+  Map _limited = const {};
+
+  /// When the limit that refused a turn is lifted: the one Claude names
+  /// as refusing, else the latest of the windows used up; null if neither
+  /// was said.
+  DateTime? _lifted() {
+    num? at;
+    if (_limited['status'] == 'rejected' && _limited['resetsAt'] is num) {
+      at = _limited['resetsAt'] as num;
+    } else if (_limited['unifiedWindows'] case final Map windows) {
+      for (final window in windows.values) {
+        if (window is Map &&
+            window['utilization'] is num &&
+            (window['utilization'] as num) >= 1 &&
+            window['resetsAt'] is num) {
+          at = max(at ?? 0, window['resetsAt'] as num);
+        }
+      }
+    }
+    return at == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch((at * 1000).round());
   }
 
   /// The model as Claude names it, its cost so far and each model's
@@ -406,6 +458,7 @@ class ClaudeTalk extends Talk {
   /// The account's limits: each window's share used and when it starts
   /// again, as one comes after every request.
   void _limits(Map info) {
+    _limited = info;
     final windows = info['unifiedWindows'];
     final limits = <Map<String, Object?>>[];
     if (windows is Map) {
@@ -888,7 +941,15 @@ class CodexTalk extends Talk {
               'working': DateTime.now().difference(began).inMilliseconds,
           },
         );
-        sink.turnEnded(_last, failed: failed);
+        final limited =
+            failed &&
+            (turn['error'] as Map?)?['codexErrorInfo'] == 'usageLimitExceeded';
+        sink.turnEnded(
+          _last,
+          failed: failed,
+          limited: limited,
+          resets: limited ? _lifted() : null,
+        );
         sink.stands('idle');
       case 'error' when params['willRetry'] != true:
         sink.item('e${_next++}', 'note', {
@@ -941,6 +1002,7 @@ class CodexTalk extends Talk {
   /// The account's limits: a short window and a long one, each a percent
   /// used and when it starts again.
   void _limits(Map limits) {
+    _limited = limits;
     final rows = [
       for (final name in const ['primary', 'secondary'])
         if (limits[name] case final Map window
@@ -956,6 +1018,26 @@ class CodexTalk extends Talk {
     sink.usage(
       set: {'limits': rows, 'limitsAt': DateTime.now().millisecondsSinceEpoch},
     );
+  }
+
+  /// The limits as last heard, for when a refused turn may go again.
+  Map _limited = const {};
+
+  /// When the windows used up start again, the latest of them; null if
+  /// none is said to be.
+  DateTime? _lifted() {
+    num? at;
+    for (final name in const ['primary', 'secondary']) {
+      if (_limited[name] case final Map window
+          when window['usedPercent'] is num &&
+              (window['usedPercent'] as num) >= 100 &&
+              window['resetsAt'] is num) {
+        at = max(at ?? 0, window['resetsAt'] as num);
+      }
+    }
+    return at == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch((at * 1000).round());
   }
 
   void _started(Map item) {
