@@ -1604,13 +1604,104 @@ class _Talker implements TalkSink {
   }
 
   @override
-  void turnEnded(String answer, {bool failed = false}) {
+  void turnEnded(
+    String answer, {
+    bool failed = false,
+    bool limited = false,
+    DateTime? resets,
+  }) {
     if (_keeping != null) _keepUsage();
     final waiting = turn;
     turn = null;
     if (waiting != null && !waiting.isCompleted) {
       waiting.complete((answered: !failed, text: answer));
     }
+    if (limited) {
+      unawaited(worker._guard(() => _carryOnAfter(resets)));
+    } else if (!failed) {
+      _guesses = 0;
+      if (_booked ?? true) unawaited(worker._guard(_unbook));
+    }
+  }
+
+  /// What is said to a chat the account's limit stopped, once it is lifted.
+  static const carryOn =
+      'The usage limit has been lifted. Carry on from where you stopped.';
+
+  /// The start of the key a carrying on is left for later under, so it is
+  /// told from the user's own and kept to one a chat.
+  static const _carryKey = 'limit';
+
+  /// Whether a carrying on is left for later: not known for a chat taken
+  /// up by a worker started again, which looks.
+  bool? _booked;
+
+  /// Tries in a row with no time said for the limit's end: a limit that
+  /// gives none (a spending cap) is not tried every quarter hour for ever.
+  int _guesses = 0;
+
+  /// A turn refused for the account's limit: carried on by itself a minute
+  /// after [resets], as a message left for later — so it outlives this
+  /// worker, and the app lists it, to be sent now or taken back. Refused
+  /// again (the user wrote meanwhile), the one left is moved, not doubled.
+  Future<void> _carryOnAfter(DateTime? resets) async {
+    if (forgotten) return;
+    final now = DateTime.now();
+    final told = resets != null && resets.isAfter(now);
+    if (!told && ++_guesses > 3) {
+      stands('idle', note: 'Stopped at the usage limit.');
+      return;
+    }
+    final at = told
+        ? resets.add(const Duration(minutes: 1))
+        : now.add(const Duration(minutes: 15));
+    final when = at.toUtc().toIso8601String();
+    final db = await worker._db;
+    final left = await db
+        .from('chat_later')
+        .select('id')
+        .eq('chat_id', ask.id)
+        .like('key', '$_carryKey%');
+    if (left.isEmpty) {
+      await db.from('chat_later').insert({
+        'chat_id': ask.id,
+        'data': carryOn,
+        'send_at': when,
+        'key': '$_carryKey${now.microsecondsSinceEpoch}',
+      });
+    } else {
+      await db.from('chat_later').update({'send_at': when}).inFilter('id', [
+        for (final row in left) row['id'],
+      ]);
+    }
+    _booked = true;
+    // A note on the chat's row, which also has an open chat read again
+    // what is left for later.
+    stands('idle', note: 'At the usage limit: carries on ${_at(at)}.');
+    worker.log('[${_short(ask.id)}] at the limit, carries on ${_at(at)}');
+  }
+
+  /// A turn gone through: a carrying on still left would come after the
+  /// user went on themselves, and is taken back.
+  Future<void> _unbook() async {
+    _booked = false;
+    if (forgotten) return;
+    final db = await worker._db;
+    await db
+        .from('chat_later')
+        .delete()
+        .eq('chat_id', ask.id)
+        .like('key', '$_carryKey%');
+  }
+
+  /// [at] as this computer tells it: the time, and the day if not today.
+  static String _at(DateTime at) {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final time = 'at ${two(at.hour)}:${two(at.minute)}';
+    final today =
+        at.year == now.year && at.month == now.month && at.day == now.day;
+    return today ? time : 'on ${at.day}.${two(at.month)} $time';
   }
 
   @override

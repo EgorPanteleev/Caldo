@@ -1231,6 +1231,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   ChatState? _lastState;
+  String? _lastNote;
 
   void _changed() {
     if (!mounted) return;
@@ -1239,6 +1240,13 @@ class _ChatScreenState extends State<ChatScreen> {
     if (now != _lastState) {
       _lastState = now;
       _talk?.state.value = null;
+    }
+    // A new note may say the worker left something for later itself: a
+    // chat stopped at the usage limit, to carry on when it is lifted.
+    final note = _chat?.note;
+    if (note != _lastNote) {
+      _lastNote = note;
+      if (note != null) unawaited(_readLater());
     }
     _follow();
     // Started again: it takes the size it is shown at.
