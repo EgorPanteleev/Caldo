@@ -73,6 +73,9 @@ class AgentSpec {
     'prompt': prompt,
     'talks': talks,
     'rules': takesRules,
+    // It says messages left for later (`chat_later`): an app offers
+    // them only to a worker that does.
+    'later': true,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part

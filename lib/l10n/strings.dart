@@ -325,6 +325,15 @@ class S {
   String get chatThinking => _word('chatThinking');
   String get chatWorking => _word('chatWorking');
   String get chatInterrupt => _word('chatInterrupt');
+  String get chatLater => _word('chatLater');
+  String get chatLater30 => _word('chatLater30');
+  String get chatLater60 => _word('chatLater60');
+  String get chatLater180 => _word('chatLater180');
+  String chatLaterTomorrow(String time) =>
+      _fill('chatLaterTomorrow', {'time': time});
+  String get chatLaterPick => _word('chatLaterPick');
+  String get chatSendNow => _word('chatSendNow');
+  String get chatLaterEdit => _word('chatLaterEdit');
   String get chatToTerminal => _word('chatToTerminal');
   String get chatToChat => _word('chatToChat');
   String get chatInTerminalNow => _word('chatInTerminalNow');

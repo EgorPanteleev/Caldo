@@ -933,6 +933,48 @@ void main() {
         await tester.pump();
         expect(find.text('3'), findsWidgets);
       });
+
+      testWidgets('lists what is left for later in ${S.names[code]}', (
+        tester,
+      ) async {
+        final now = DateTime.now();
+        final soon = LaterLine(
+          id: 1,
+          text: 'Carry on with the migration and run every test after it\nok',
+          at: now.add(const Duration(minutes: 30)),
+        );
+        final later = LaterLine(
+          id: 2,
+          text: 'Go on.',
+          at: DateTime(now.year, now.month, now.day + 3, 9),
+        );
+        LaterLine? tapped, deleted;
+        await pump(
+          tester,
+          code,
+          Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: LaterList(
+                lines: [soon, later],
+                onTap: (l) => tapped = l,
+                onDelete: (l) => deleted = l,
+              ),
+            ),
+          ),
+        );
+        // Only its first line, and a day named when it is not today.
+        expect(find.textContaining('every test'), findsOneWidget);
+        expect(find.textContaining('\nok'), findsNothing);
+        expect(
+          find.text(LaterList.whenOf(later.at, h24: false)),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Go on.'));
+        expect(tapped, later);
+        await tester.tap(find.byIcon(Icons.close_rounded).first);
+        expect(deleted, soon);
+      });
     }
   });
 }

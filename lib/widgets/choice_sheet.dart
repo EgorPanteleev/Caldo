@@ -17,11 +17,12 @@ class Option<T> {
 /// Every choice of one thing from a few is made this way, in Settings and on
 /// the task form alike: a dropdown beside the form's sheets, and a segmented
 /// bar beside Settings' rows, were each a second way of choosing on a
-/// screen that already had one.
+/// screen that already had one. With nothing [selected] it offers things
+/// to do, none of them dimmed.
 Future<T?> choose<T>(
   BuildContext context, {
   required String title,
-  required T selected,
+  required T? selected,
   required List<Option<T>> options,
 }) {
   return showAppSheet<T>(
@@ -33,7 +34,7 @@ Future<T?> choose<T>(
 
 class _Choices<T> extends StatefulWidget {
   final String title;
-  final T selected;
+  final T? selected;
   final List<Option<T>> options;
 
   const _Choices({
@@ -85,6 +86,7 @@ class _ChoicesState<T> extends State<_Choices<T>> {
               key: option.value == widget.selected ? _ticked : null,
               option: option,
               ticked: option.value == widget.selected,
+              lit: widget.selected == null,
             ),
         ],
       ),
@@ -96,11 +98,20 @@ class _Choice<T> extends StatelessWidget {
   final Option<T> option;
   final bool ticked;
 
-  const _Choice({super.key, required this.option, required this.ticked});
+  /// Drawn as a choice in force is, with none ticked.
+  final bool lit;
+
+  const _Choice({
+    super.key,
+    required this.option,
+    required this.ticked,
+    this.lit = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final bright = ticked || lit;
     return InkWell(
       onTap: () => Navigator.pop(context, option.value),
       child: Padding(
@@ -108,14 +119,14 @@ class _Choice<T> extends StatelessWidget {
         child: Row(
           children: [
             if (option.icon != null) ...[
-              Icon(option.icon, size: 21, color: ticked ? p.text : p.muted),
+              Icon(option.icon, size: 21, color: bright ? p.text : p.muted),
               const SizedBox(width: 16),
             ],
             Expanded(
               child: Text(
                 option.label,
                 style: TextStyle(
-                  color: ticked ? p.text : p.muted,
+                  color: bright ? p.text : p.muted,
                   fontSize: 15.5,
                   fontWeight: ticked ? FontWeight.w600 : FontWeight.w400,
                 ),

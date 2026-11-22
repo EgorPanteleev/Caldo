@@ -333,6 +333,20 @@ class Worker {
           },
         )
         .subscribe();
+    // A message left for later, or taken back: the next one's time is
+    // looked at again. A channel of its own, so a server without the table
+    // yet costs only this.
+    remote.client
+        .channel('caldo-worker-later')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'chat_later',
+          callback: (_) {
+            if (!_wake.isCompleted) _wake.complete();
+          },
+        )
+        .subscribe();
   }
 
   /// [chat]'s private channel: input heard on it is put in at once, ahead
@@ -394,6 +408,53 @@ class Worker {
         .order('id', ascending: true)
         .limit(500);
     await _take(typed);
+    await _sayLater();
+  }
+
+  /// Wakes [_look] when the next message left for later is due.
+  Timer? _nextLater;
+
+  /// Says the messages left for later whose time has come, each as if
+  /// typed then, and wakes for the next. One to a chat not running here
+  /// waits for it to be started again.
+  Future<void> _sayLater() async {
+    final db = await _db;
+    final rows = await db
+        .from('chat_later')
+        .select('id, chat_id, data, key, send_at, chats!inner(worker_id)')
+        .eq('chats.worker_id', state.id)
+        .order('send_at', ascending: true)
+        .limit(200);
+    final now = DateTime.now();
+    DateTime? next;
+    for (final row in rows) {
+      final chat = row['chat_id'] as String;
+      final at = DateTime.parse(row['send_at'] as String);
+      if (at.isAfter(now)) {
+        next ??= at;
+        continue;
+      }
+      if (!_live.containsKey(chat) && !_talks.containsKey(chat)) continue;
+      // Deleted first: one taken back from the app meanwhile is not said.
+      final taken = await db
+          .from('chat_later')
+          .delete()
+          .eq('id', row['id'])
+          .select('id');
+      if (taken.isEmpty) continue;
+      log('[${_short(chat)}] said what was left for later');
+      await _apply(chat, {
+        'kind': 'line',
+        'data': row['data'],
+        'key': row['key'],
+      });
+    }
+    _nextLater?.cancel();
+    if (next != null) {
+      _nextLater = Timer(next.difference(DateTime.now()), () {
+        if (!_wake.isCompleted) _wake.complete();
+      });
+    }
   }
 
   /// Puts in rows of input, each once, and deletes them.
