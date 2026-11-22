@@ -494,11 +494,15 @@ class Worker {
     final talker = _talks[chat];
     switch (row['kind']) {
       case 'line' when talker != null:
-        _name(talker.ask, row['data'] as String? ?? '');
-        await talker.say(
-          row['data'] as String? ?? '',
-          id: key is String ? 'u$key' : null,
-        );
+        final text = row['data'] as String? ?? '';
+        _name(talker.ask, text);
+        await _inTurn(chat, () async {
+          await talker.say(
+            text,
+            id: key is String ? 'u$key' : null,
+            files: await _fetch(chat, row['files']),
+          );
+        });
       case 'answer' when talker != null:
         // "<choice> <item>".
         final data = row['data'] as String? ?? '';
@@ -542,8 +546,82 @@ class Worker {
       case 'line' when live != null:
         final text = row['data'] as String? ?? '';
         _name(live.ask, text);
-        live.typing = live.typing.then((_) => tmux.line(chat, text));
+        final files = row['files'];
+        live.typing = live.typing.then(
+          (_) async =>
+              tmux.line(chat, withFiles(text, await _fetch(chat, files))),
+        );
     }
+  }
+
+  /// Each chat's messages, said one after another: one sent with files
+  /// waits on their taking down, and one typed after it, heard meanwhile,
+  /// must not go first.
+  final _saying = <String, Future<void>>{};
+
+  Future<void> _inTurn(String chat, Future<void> Function() say) {
+    final said = (_saying[chat] ?? Future.value()).then((_) => say());
+    _saying[chat] = said.then((_) {}, onError: (_) {});
+    return said;
+  }
+
+  /// The files sent with a message to [chat], taken down from the server
+  /// into the chat's own folder on this computer and deleted there; the
+  /// agent is told where each is. One not taken down is told as such.
+  Future<List<Given>> _fetch(String chat, Object? files) async {
+    if (files is! List || files.isEmpty) return const [];
+    // Offline, or the session not renewed: the files are told as not
+    // fetched and the words still go. Thrown, they would be lost, and in
+    // a terminal every line after them too (`typing` stays failed).
+    SupabaseClient? db;
+    String? given;
+    try {
+      db = await _db;
+      given = tmux.givenOf(chat);
+    } catch (e) {
+      log('[${_short(chat)}] could not take its files down: $e');
+    }
+    final bucket = db?.storage.from('chat-files');
+    final user = db?.auth.currentUser?.id;
+    final out = <Given>[];
+    for (final f in files.whereType<Map>()) {
+      final key = '${f['key'] ?? ''}';
+      final name = '${f['name'] ?? key.split('/').last}';
+      final mime = '${f['mime'] ?? 'application/octet-stream'}';
+      final size = f['size'] is int ? f['size'] as int : 0;
+      // "<chat>/<uuid>": the server takes no key in other letters than
+      // Latin, so the name comes beside it — and, being the app's, is
+      // kept from leaving the chat's folder here.
+      final parts = key.split('/');
+      final safe = name
+          .replaceAll(RegExp(r'[/\\\x00]'), '_')
+          .replaceFirst(RegExp(r'^\.+'), '');
+      String? path;
+      if (bucket != null &&
+          given != null &&
+          user != null &&
+          parts.length == 2 &&
+          parts.first == chat &&
+          RegExp(r'^[\w-]+$').hasMatch(parts.last)) {
+        try {
+          final bytes = await bucket.download('$user/$key');
+          final file = File(
+            '$given/${parts.last}/${safe.isEmpty ? 'file' : safe}',
+          );
+          await file.parent.create(recursive: true);
+          await file.writeAsBytes(bytes, flush: true);
+          path = file.path;
+        } catch (e) {
+          log('[${_short(chat)}] could not take $name down: $e');
+        }
+        if (path != null) {
+          // Left there, it is only the server's room spent.
+          await bucket.remove(['$user/$key']).then((_) {}, onError: (_) {});
+        }
+      }
+      out.add(Given(path: path, name: name, mime: mime, size: size));
+    }
+    return out;
   }
 
   AgentSpec? _specOf(String agent) =>
@@ -569,6 +647,7 @@ class Worker {
       resume: resume,
       prompt: first,
       events: tmux.eventsOf(ask.id),
+      given: tmux.givenOf(ask.id),
     );
     final kept = state.chats[ask.id];
     final out = File(tmux.outOf(ask.id));
@@ -1089,6 +1168,7 @@ class Worker {
     if (live != null) await remote.client.removeChannel(live.line);
     await tmux.kill(chat);
     tmux.forget(chat);
+    tmux.forgetGiven(chat);
     state.chats.remove(chat);
     state.save();
     final turn = live?.turn;
@@ -1298,7 +1378,13 @@ class _Talker implements TalkSink {
     // never saved: what was said is on the server already.
     final kept = Kept.find(_files, offset ?? 1 << 62);
     if (kept == null) return false;
-    final made = Talk.of(spec, ask, this, dir);
+    final made = Talk.of(
+      spec,
+      ask,
+      this,
+      dir,
+      given: worker.tmux.givenOf(ask.id),
+    );
     if (made == null) return false;
     talk = made..takeUp(kept, session: session);
     return true;
@@ -1315,7 +1401,13 @@ class _Talker implements TalkSink {
 
   Future<void> _wake() async {
     if (talk != null) return;
-    final made = Talk.of(spec, ask, this, dir);
+    final made = Talk.of(
+      spec,
+      ask,
+      this,
+      dir,
+      given: worker.tmux.givenOf(ask.id),
+    );
     if (made == null) {
       throw StateError('${spec.label} has no chat, only a terminal.');
     }
@@ -1335,10 +1427,14 @@ class _Talker implements TalkSink {
     }
   }
 
-  Future<void> say(String text, {String? id}) async {
-    if (text.trim().isEmpty) return;
+  Future<void> say(
+    String text, {
+    String? id,
+    List<Given> files = const [],
+  }) async {
+    if (text.trim().isEmpty && files.isEmpty) return;
     await wake();
-    talk!.say(text, id: id);
+    talk!.say(text, id: id, files: files);
   }
 
   void answer(String item, String choice) => talk?.answer(item, choice);

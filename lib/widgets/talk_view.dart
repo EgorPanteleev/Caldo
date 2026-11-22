@@ -165,7 +165,7 @@ class _TalkViewState extends State<TalkView> {
       key: ValueKey(item.id),
       top: above == null ? 0 : (close ? 4 : 14),
       child: switch (item.kind) {
-        'user' => _Said(text: item.text),
+        'user' => _Said(text: item.text, files: item.body['files']),
         'text' => _Answer(text: item.text),
         'thinking' => _Thinking(
           text: item.text,
@@ -201,15 +201,26 @@ class _Spaced extends StatelessWidget {
       Padding(padding: EdgeInsets.fromLTRB(16, top, 16, 0), child: child);
 }
 
-/// The user's words, on the right in a raised bubble.
+/// The user's words, on the right in a raised bubble, and under them
+/// what was sent with them, by name: the files are on the worker's
+/// computer now, not here.
 class _Said extends StatelessWidget {
   final String text;
+  final Object? files;
 
-  const _Said({required this.text});
+  const _Said({required this.text, this.files});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final sent = [
+      for (final f in files is List ? files as List : const [])
+        if (f is Map) f,
+    ];
+    final words = Text(
+      text,
+      style: TextStyle(color: p.text, fontSize: 15, height: 1.35),
+    );
     return Align(
       alignment: Alignment.centerRight,
       child: FractionallySizedBox(
@@ -223,10 +234,46 @@ class _Said extends StatelessWidget {
               color: p.panelHi,
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Text(
-              text,
-              style: TextStyle(color: p.text, fontSize: 15, height: 1.35),
-            ),
+            child: sent.isEmpty
+                ? words
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (final f in sent)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                '${f['mime']}'.startsWith('image/')
+                                    ? Icons.image_outlined
+                                    : Icons.insert_drive_file_outlined,
+                                size: 16,
+                                color: p.muted,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  '${f['name']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: p.text,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (text.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        words,
+                      ],
+                    ],
+                  ),
           ),
         ),
       ),

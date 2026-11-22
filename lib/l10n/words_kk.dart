@@ -505,6 +505,10 @@ const Map<String, Object> kk = {
   'chatLaterPick': "Күн мен уақытты таңдау",
   'chatSendNow': "Қазір жіберу",
   'chatLaterEdit': "Өзгерту",
+  'chatAttachFiles': "Тіркеу",
+  'chatFileTooBig': "50 МБ-тан асады, чатқа жіберілмейді: {name}",
+  'chatFilesFailed':
+      "Файлдар жіберілмеді. Ештеңе жіберілген жоқ; қайталап көріңіз.",
   'chatToTerminal': "Терминалда жалғастыру",
   'chatToChat': "Чатқа оралу",
   'chatInTerminalNow': "Бұл чат қазір терминалда.",

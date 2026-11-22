@@ -989,6 +989,26 @@ and Codex, the terminal side by side.
   are listed over the field (`LaterList`): tap for Send now / Edit /
   Delete. Offered only by a worker that says it (`AgentKind.later`), so
   not until it is reinstalled. Works for chat and terminal alike.
+- **Photos and files go with a message** (asked as "i cant attach photo
+  or file in chat", 2026-11-22): a plus before the field (Photo / Camera /
+  File, `Attachments.pick`), chips over it, ≤50MB each. Sending puts each
+  copy in a private `chat-files` bucket (`…_chat_files.sql`) under
+  `<user>/<chat>/<uuid>` — keyed by the copy's folder, since Storage takes
+  no Cyrillic in a key — and only then the line, naming them in
+  `chat_in.files` ([{key, name, mime, size}]); nothing is sent if the
+  upload fails. The worker takes each down to `<chat>.files/<uuid>/<name>`
+  beside the terminals' files (`Worker._fetch`, the name kept from leaving
+  the folder), deletes it from the bucket, and tells the agent the paths
+  (`withFiles`) — paths, not bytes, so Claude's own Read shrinks a large
+  photo, and a terminal is told the same as a chat. Claude gets the folder
+  as `--add-dir=<dir>` (joined by `=`: the flag is variadic and took the
+  first message for a folder). A message's lines are said in turn
+  (`_inTurn`), so one typed while files come down doesn't go first. The
+  user's item keeps the names (`files`), shown in the bubble. Offered only
+  by a worker that says it (`AgentKind.files`); not with Send later. A
+  chat deleted takes its folder and any files left in the bucket. Tried
+  on the local stack (Cyrillic name, a missing file, a `../` name, the
+  terminal) and one Haiku turn: it read the photo with no question asked.
 - **The watcher's errands are chats** (`Worker.errand`, the `hand` the
   `Watcher` is given when tmux is installed; `ClaudeCli` still without
   it): Claude in messages in the task's folder, the answer its first
@@ -1177,7 +1197,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 445 tests, all passing; keep it so. `supabase test db` — 54.
+`flutter test` — 447 tests, all passing; keep it so. `supabase test db` — 59.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

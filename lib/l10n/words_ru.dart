@@ -533,6 +533,10 @@ const Map<String, Object> ru = {
   'chatLaterPick': "Выбрать день и время",
   'chatSendNow': "Отправить сейчас",
   'chatLaterEdit': "Изменить",
+  'chatAttachFiles': "Прикрепить",
+  'chatFileTooBig': "Больше 50 МБ, в чат не отправить: {name}",
+  'chatFilesFailed':
+      "Файлы не отправились. Ничего не отправлено; попробуйте ещё раз.",
   'chatToTerminal': "Продолжить в терминале",
   'chatToChat': "Вернуться в чат",
   'chatInTerminalNow': "Сейчас этот чат в терминале.",

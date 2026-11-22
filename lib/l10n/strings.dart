@@ -329,6 +329,9 @@ class S {
   String get chatInterrupt => _word('chatInterrupt');
   String get chatLater => _word('chatLater');
   String get chatLater30 => _word('chatLater30');
+  String get chatAttachFiles => _word('chatAttachFiles');
+  String chatFileTooBig(String name) => _fill('chatFileTooBig', {'name': name});
+  String get chatFilesFailed => _word('chatFilesFailed');
   String get chatLater60 => _word('chatLater60');
   String get chatLater180 => _word('chatLater180');
   String chatLaterTomorrow(String time) =>
