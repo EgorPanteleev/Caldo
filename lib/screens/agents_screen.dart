@@ -31,6 +31,7 @@ import '../widgets/screen_header.dart';
 import '../widgets/talk_view.dart';
 
 part 'agent_rules.dart';
+part 'chat_settings.dart';
 
 /// Chats with agents — Claude, Codex, a model of the user's own, a shell —
 /// each run in a terminal on one of the user's computers (a worker,
@@ -555,32 +556,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   Future<void> _otherModel() async {
-    final s = S.of(context);
-    final field = TextEditingController(text: _model ?? '');
-    final got = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.chatModel),
-        content: TextField(
-          controller: field,
-          autofocus: true,
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(s.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, field.text),
-            child: Text(s.save),
-          ),
-        ],
-      ),
-    );
-    field.dispose();
-    if (got == null) return;
-    setState(() => _model = got.trim().isEmpty ? null : got.trim());
+    final got = await _askModel(context, _model);
+    if (got == null || !mounted) return;
+    setState(() => _model = got.isEmpty ? null : got);
   }
 
   Future<void> _start() async {
@@ -1647,6 +1625,12 @@ class _ChatScreenState extends State<ChatScreen> {
     await _TermFont.write(_font);
   }
 
+  void _settings() => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => ChatSettingsScreen(chat: widget.chat),
+    ),
+  );
+
   Future<void> _delete() async {
     final s = S.of(context);
     final ok = await showDialog<bool>(
@@ -1754,6 +1738,7 @@ class _ChatScreenState extends State<ChatScreen> {
               onStop: () => _agents.stop(widget.chat),
               onAgain: () => _agents.again(widget.chat),
               onDelete: _delete,
+              onSettings: _settings,
               asChat: talks ? asChat : null,
               onView: (chat) => setState(() => _asChat = chat),
             ),
@@ -1980,6 +1965,7 @@ class _Head extends StatelessWidget {
   final VoidCallback onStop;
   final VoidCallback onAgain;
   final VoidCallback onDelete;
+  final VoidCallback onSettings;
 
   /// Which side is on show, for a chat with both; null for a terminal only.
   final bool? asChat;
@@ -1992,6 +1978,7 @@ class _Head extends StatelessWidget {
     required this.onStop,
     required this.onAgain,
     required this.onDelete,
+    required this.onSettings,
     required this.asChat,
     required this.onView,
   });
@@ -2021,26 +2008,31 @@ class _Head extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    chat.name.isEmpty ? _lineOf(chat) : chat.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: p.text,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+              // Its name and what it runs with: a tap opens its settings.
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onSettings,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chat.name.isEmpty ? _lineOf(chat) : chat.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${_stateName(s, chat.state)} · ${_lineOf(chat)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: p.muted, fontSize: 12),
-                  ),
-                ],
+                    Text(
+                      '${_stateName(s, chat.state)} · ${_lineOf(chat)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: p.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
             ),
           ] else
@@ -2059,6 +2051,8 @@ class _Head extends StatelessWidget {
                   onStop();
                 case 'again':
                   onAgain();
+                case 'settings':
+                  onSettings();
                 case 'attach':
                   Clipboard.setData(
                     ClipboardData(
@@ -2075,6 +2069,8 @@ class _Head extends StatelessWidget {
                 PopupMenuItem(value: 'bigger', child: Text(s.chatBigger)),
                 PopupMenuItem(value: 'smaller', child: Text(s.chatSmaller)),
               ],
+              if (chat != null)
+                PopupMenuItem(value: 'settings', child: Text(s.chatSettings)),
               if (chat != null && chat.live)
                 PopupMenuItem(value: 'stop', child: Text(s.chatStop))
               else if (chat != null && chat.state != ChatState.asked)
