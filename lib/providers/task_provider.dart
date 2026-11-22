@@ -744,6 +744,22 @@ class TaskProvider extends ChangeNotifier {
     await _reloadAll();
   }
 
+  /// Marks each of [sent] with what it was sent to and puts it in
+  /// progress, as the board says of a task an agent is working on: a done
+  /// one is opened again, one in progress already keeps its start.
+  Future<void> sentToAgents(Map<Task, String> sent) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final MapEntry(key: task, value: label) in sent.entries) {
+      final started = task.stage == Stage.inProgress
+          ? task
+          : task.toStage(Stage.inProgress, now);
+      final marked = started.copyWith(agent: label);
+      task.done ? await _db.untick(marked) : await _db.update(marked);
+    }
+    rearranging.value++;
+    await _reloadAll();
+  }
+
   Future<void> removeAll(List<Task> tasks) async {
     await _db.deleteAll([
       for (final task in tasks)

@@ -643,6 +643,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final plugins = _plugins;
     final rules = _picked;
     final said = firstMessage(_prompt.text, rules);
+    final provider = context.read<TaskProvider>();
+    final mark = agentMark(kind, _model);
+    // Each task as it is now, not as it was picked out.
+    final marked = <Task, String>{};
     Chat? last;
     try {
       for (final task in widget.tasks) {
@@ -668,8 +672,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
           inChat: kind.talks,
         );
         _sent.add(task.id!);
+        marked[provider.taskById(task.id!) ?? task] = mark;
       }
     } catch (e) {
+      unawaited(provider.sentToAgents(marked));
       // Those started stay started; Start again goes on with the rest.
       if (!mounted) return;
       setState(() => _starting = false);
@@ -678,6 +684,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
       );
       return;
     }
+    unawaited(provider.sentToAgents(marked));
     unawaited(_remember());
     if (!mounted) return;
     if (widget.tasks.length == 1 && last != null) {
@@ -954,6 +961,14 @@ class _NewChatScreenState extends State<NewChatScreen> {
     );
   }
 }
+
+/// What a task sent to [kind] is marked with on its card: the model as
+/// the watcher's tasks name it for Claude, else the agent and its model.
+String agentMark(AgentKind kind, String? model) => switch ((kind.id, model)) {
+  ('claude', final m?) => ClaudeModels.name(m),
+  (_, final m?) => '${kind.label} · $m',
+  _ => kind.label,
+};
 
 /// What a task's chat is told first: [said] on the form for every one,
 /// then the task as its card holds it — title, when it is due, notes and

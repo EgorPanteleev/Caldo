@@ -756,6 +756,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                               // Handed over already, or sent to an agent:
                               // its chat, to watch it or say more.
                               if ((widget.task?.claude != null ||
+                                      widget.task?.agent != null ||
                                       _chat != null) &&
                                   Agents.instance.signedIn) ...[
                                 const SizedBox(height: 12),

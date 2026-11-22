@@ -26,7 +26,7 @@ network is used only for the GitHub release check/download and Supabase sync
 lib/
   data/holidays.dart       public holidays, computed on device
   l10n/                    strings.dart (S) + words_*.dart, a table per language
-  db/database.dart         schema v14 (+ migrations); db/sync_store.dart
+  db/database.dart         schema v15 (+ migrations); db/sync_store.dart
   models/                  task (Repeat, Priority), task_list (ListStyle,
                            colorOfTask), completion, secret, special_day
   providers/               task, settings, events, vault
@@ -1027,10 +1027,17 @@ and Codex, the terminal side by side.
   "Open its chat" shows for it too (`_findChat`). Only agents that take a
   first message, and not the shell, which would run a task's words as
   commands. One task opens its chat; more go back with a count. A Start
-  that fails part way goes on with the rest the next time (`_sent`). The
-  task itself is left as it was: nothing is written back to its notes,
-  unlike the watcher's errands. Tried on the local stack with a stand-in
-  agent from `agents.json` (two from Schedule, one from the calendar).
+  that fails part way goes on with the rest the next time (`_sent`). Each
+  task sent is put In progress (a done one opened again) and marked with
+  what it went to (asked for: "move it in progress and mark it like ai"):
+  `Task.agent`, schema v15, synced, a label (`agentMark`: "Opus", "Codex ·
+  gpt-5"), worn as the watcher's tasks wear theirs (`ClaudeMark.of`, the
+  watcher's model first). It is a mark only, apart from `Task.claude` on
+  purpose: the watcher takes a task up by `claude`, and would run one sent
+  to Codex, or moved back to Not started, as `claude --model <label>`.
+  Nothing is written back to the notes, unlike the watcher's errands.
+  Tried on the local stack with a stand-in agent from `agents.json` (two
+  from Schedule, one from the calendar).
 - **The app**: `AgentsScreen` (list; long press/right-click deletes),
   `NewChatScreen` (last choices kept in prefs `agents_last`),
   `ChatScreen` (Chat/Terminal switch for Claude and Codex; the send
@@ -1213,7 +1220,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 460 tests, all passing; keep it so. `supabase test db` — 59.
+`flutter test` — 462 tests, all passing; keep it so. `supabase test db` — 59.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

@@ -13,6 +13,7 @@ import 'package:caldo/screens/agents_screen.dart';
 import 'package:caldo/services/agents.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/widgets/chat_usage.dart';
+import 'package:caldo/widgets/task_card.dart' show ClaudeMark;
 import 'package:caldo/widgets/talk_view.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -1035,6 +1036,20 @@ void main() {
     // An ended chat's last screen stays where Claude drew it.
     final ended = TermCleaner(keepAlternate: () => true);
     expect(ended.add('\x1b[?1049hhi\x1b[?1049l'), '\x1b[?1049hhi');
+  });
+
+  test("a sent task's mark names the model, as the watcher's do", () {
+    const claude = AgentKind(id: 'claude', label: 'Claude');
+    const codex = AgentKind(id: 'codex', label: 'Codex');
+    expect(agentMark(claude, 'opus'), 'Opus');
+    expect(agentMark(claude, null), 'Claude');
+    expect(agentMark(codex, 'gpt-5'), 'Codex · gpt-5');
+    expect(agentMark(codex, null), 'Codex');
+    // The watcher's model first, then what it was sent to.
+    const task = Task(listId: 1, title: 'x', createdAt: 0, agent: 'Codex');
+    expect(ClaudeMark.of(task), 'Codex');
+    expect(ClaudeMark.of(task.copyWith(claude: 'haiku')), 'Haiku');
+    expect(ClaudeMark.of(task.copyWith(clearAgent: true)), isNull);
   });
 
   test("a task's chat is told what is written, then the task", () {
