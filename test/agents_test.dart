@@ -820,12 +820,26 @@ void main() {
     });
 
     test('is asked of Haiku with the message shown, not addressed', () {
-      expect(namingArgs, containsAllInOrder(['--model', 'haiku']));
-      expect(namingArgs, contains('--no-session-persistence'));
-      expect(namingArgs, containsAllInOrder(['--tools', '']));
+      final args = namingArgs();
+      expect(args, containsAllInOrder(['--model', 'haiku']));
+      expect(args, contains('--no-session-persistence'));
+      expect(args, containsAllInOrder(['--tools', '']));
+      expect(args.join(' '), contains('the language the message is written'));
       final shown = namingInput('  help me ${'x' * 3000}');
       expect(shown, contains('<message>\nhelp me x'));
       expect(shown.length, lessThan(2100));
+    });
+
+    test("is written in the app's language when the chat says it", () {
+      final ask = ChatAsk.fromJson({
+        'id': 'x',
+        'agent': 'claude',
+        'language': 'ru',
+      });
+      expect(ask.language, 'ru');
+      expect(namingArgs(ask.language).join(' '), contains('in Russian,'));
+      expect(namingArgs('xx').join(' '), contains('in xx,'));
+      expect(ChatAsk.fromJson({'id': 'x', 'agent': 'claude'}).language, isNull);
     });
 
     test("comes from Claude's own program", () async {

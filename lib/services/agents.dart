@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase/supabase.dart';
 
+import '../l10n/strings.dart';
 import '../mcp/usage.dart';
 import 'account.dart';
 
@@ -447,6 +448,8 @@ class Agents extends ChangeNotifier {
               for (final r in rules) {'name': r.name, 'body': r.body},
             ],
           'prompt': prompt,
+          // The worker titles the chat in it, not in the message's.
+          'language': S.current.code,
           'cols': cols.clamp(10, 500),
           'rows': rows.clamp(5, 300),
         })
