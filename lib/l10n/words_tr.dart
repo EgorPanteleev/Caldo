@@ -457,6 +457,9 @@ const Map<String, Object> tr = {
   'ruleName': "Ad",
   'ruleBody': "Kural",
   'ruleBodyHint': "Ajanın her zaman yapması ya da asla yapmaması gerekenler",
+  'ruleOpening': "Sohbeti şununla başlatır",
+  'ruleOpeningHint':
+      "Sohbet mesajsız başlatılırsa ilk bu söylenir; boşsa sizinkini bekler",
   'deleteRuleQuestion': "Bu kural silinsin mi?",
   'deleteRuleHint': "Onunla başlatılan sohbetler onu korur.",
   'chatTitle': "Başlık",

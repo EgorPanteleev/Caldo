@@ -956,6 +956,12 @@ and Codex, the terminal side by side.
   (`AgentSpec.takesRules`, sent as `rules`), so not to a shell, nor to any
   agent of a worker not reinstalled since. The app leaves `rules` out of
   the insert when none are chosen. Errands from tasks take none.
+  A rule may also say what a chat begins with (`agent_rules.opening`,
+  `…_rule_opening.sql`; asked as "after starting a chat I need to write
+  something to start it", 2026-11-22): left without a first message on
+  the form, the chat is started with the chosen rules' openings
+  (`firstMessage`), shown as the field's hint. The app alone reads it, so
+  no worker reinstall.
 - **A chat names itself from its first message** (asked as "like claude
   app do", 2026-11-22; `Worker._name`, `nameChat`): the worker asks Haiku
   (`namingArgs`: no tools, settings, MCP or session, run in the temp dir
@@ -1167,7 +1173,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 443 tests, all passing; keep it so. `supabase test db` — 54.
+`flutter test` — 444 tests, all passing; keep it so. `supabase test db` — 54.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
