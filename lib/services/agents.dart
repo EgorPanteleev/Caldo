@@ -40,6 +40,9 @@ class AgentKind {
   /// Whether its worker takes files sent with a message.
   final bool files;
 
+  /// Whether its worker starts a chat again with settings changed here.
+  final bool settings;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -54,6 +57,7 @@ class AgentKind {
     this.rules = false,
     this.later = false,
     this.files = false,
+    this.settings = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -70,6 +74,7 @@ class AgentKind {
     rules: json['rules'] == true,
     later: json['later'] == true,
     files: json['files'] == true,
+    settings: json['settings'] == true,
   );
 }
 
@@ -149,6 +154,9 @@ class AgentWorker {
 
 enum ChatState { asked, running, asking, idle, ended, failed }
 
+/// A rule as a chat keeps it: its words when it was chosen for the chat.
+typedef ChatRule = ({String name, String body});
+
 /// A message left for a chat to be told at [at]: kept on the server until
 /// the chat's worker says it, so it goes while the phone is away.
 @immutable
@@ -176,6 +184,13 @@ class Chat {
   final String? effort;
   final String? dir;
   final String? permission;
+
+  /// The plugins it runs with; null for Claude's own choice.
+  final List<String>? plugins;
+  final List<String> skills;
+
+  /// The rules it was told, as it keeps their words.
+  final List<ChatRule> rules;
   final String prompt;
   final String? taskUuid;
   final ChatState state;
@@ -203,6 +218,9 @@ class Chat {
     this.effort,
     this.dir,
     this.permission,
+    this.plugins,
+    this.skills = const [],
+    this.rules = const [],
     this.prompt = '',
     this.taskUuid,
     this.note,
@@ -241,6 +259,9 @@ class Chat {
         effort: c.effort,
         dir: c.dir,
         permission: c.permission,
+        plugins: c.plugins,
+        skills: c.skills,
+        rules: c.rules,
         prompt: c.prompt,
         taskUuid: c.taskUuid,
         state: c.state,
@@ -271,6 +292,12 @@ class Chat {
     effort: json['effort'] as String?,
     dir: json['dir'] as String?,
     permission: json['permission'] as String?,
+    plugins: json['plugins'] == null ? null : _strings(json['plugins']),
+    skills: _strings(json['skills']),
+    rules: [
+      for (final r in json['rules'] as List? ?? const [])
+        if (r is Map) (name: '${r['name'] ?? ''}', body: '${r['body'] ?? ''}'),
+    ],
     prompt: json['prompt'] as String? ?? '',
     taskUuid: json['task_uuid'] as String?,
     state: _stateOf(json['state'] as String?),
@@ -630,6 +657,33 @@ class Agents extends ChangeNotifier {
     ];
     notifyListeners();
     await _in(chat, 'mode', data: toChat ? 'chat' : 'terminal');
+  }
+
+  /// [fields] of [chat]'s row changed — its title, model, effort,
+  /// permission, plugins, skills or rules — and, if any but the title,
+  /// its worker told to start its program again with them.
+  Future<void> change(String chat, Map<String, Object?> fields) async {
+    if (fields.isEmpty) return;
+    final row = await _client!
+        .from('chats')
+        .update(fields)
+        .eq('id', chat)
+        .select()
+        .single();
+    final changed = Chat.fromJson(row);
+    chats = [
+      for (final c in chats)
+        if (c.id == chat) changed else c,
+    ];
+    notifyListeners();
+    if (fields.keys.every((k) => k == 'title')) return;
+    try {
+      await _in(chat, 'settings');
+    } on PostgrestException catch (e) {
+      // A server not yet taking the word (its check refuses it): the row
+      // is changed, and the chat starts with it when it starts again.
+      if (e.code != '23514') rethrow;
+    }
   }
 
   Future<void> remove(String chat) async {

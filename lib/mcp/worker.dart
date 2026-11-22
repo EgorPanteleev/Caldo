@@ -120,6 +120,10 @@ class _Live {
   /// Completed with the first turn's end, for a task waiting on it.
   Completer<_Turn>? turn;
 
+  /// Its settings changed while it was at work: started again with them
+  /// once its turn is done.
+  bool retune = false;
+
   _Live(
     this.ask,
     this.spec, {
@@ -514,6 +518,8 @@ class Worker {
         await _set(chat, 'ended', null);
       case 'mode':
         await _move(chat, row['data'] as String? ?? '');
+      case 'settings':
+        await _retune(chat);
       case 'start' when live == null && talker == null:
         await _restart(chat);
       case 'start' when talker != null && talker.talk == null:
@@ -706,6 +712,45 @@ class Worker {
       return;
     }
     await _start(ask, resume: ask.agent == 'claude' ? ask.session : null);
+  }
+
+  /// [chat]'s settings changed in the app — its model, effort,
+  /// permissions, plugins, skills or rules: its program is started again
+  /// with them, carrying on its session. A chat's waits for the turn
+  /// under way and then for the next message; a terminal is started again
+  /// at once if idle, Claude's after its turn. A terminal with no session
+  /// to carry on (a shell, a Codex begun there) keeps what it has until it
+  /// is started again.
+  Future<void> _retune(String chat) async {
+    final db = await _db;
+    final row = await db
+        .from('chats')
+        .select()
+        .eq('id', chat)
+        .eq('worker_id', state.id)
+        .maybeSingle();
+    if (row == null) return;
+    final ask = ChatAsk.fromJson(row);
+    final talker = _talks[chat];
+    if (talker != null) {
+      await talker.retune(ask);
+      return;
+    }
+    final live = _live[chat];
+    if (live == null) return;
+    final session = live.session ?? ask.session;
+    if (session == null || !(live.spec.isClaude || live.spec.id == 'codex')) {
+      return;
+    }
+    if (live.spec.isClaude && live.state != 'idle') {
+      live.retune = true;
+      return;
+    }
+    if (_live[chat] != live) return;
+    _live.remove(chat);
+    await _putAway(chat, live);
+    log('[${_short(chat)}] started again with new settings');
+    await _start(ask, resume: session, prompt: '');
   }
 
   /// Where [ask] is to run, or null — the chat marked failed — if this
@@ -1014,6 +1059,10 @@ class Worker {
       live.state = to;
       unawaited(_guard(() => _set(chat, to!, note)));
     }
+    if (to == 'idle' && live.retune) {
+      live.retune = false;
+      unawaited(_guard(() => _retune(chat)));
+    }
   }
 
   Future<void> _send(String chat, _Live live) =>
@@ -1275,7 +1324,10 @@ class Worker {
 /// second, which a row would be too slow and too heavy for.
 class _Talker implements TalkSink {
   final Worker worker;
-  final ChatAsk ask;
+
+  /// The chat as last read: changed in the app, the next program is
+  /// started with it ([retune]).
+  ChatAsk ask;
   final AgentSpec spec;
   final String dir;
   Talk? talk;
@@ -1396,6 +1448,9 @@ class _Talker implements TalkSink {
   Future<void>? _waking;
 
   Future<void> _wake() async {
+    // One being put by for new settings is ended first: two programs on
+    // one session would both write to it.
+    await _sleeping;
     if (talk != null) return;
     final made = Talk.of(
       spec,
@@ -1431,6 +1486,54 @@ class _Talker implements TalkSink {
     if (text.trim().isEmpty && files.isEmpty) return;
     await wake();
     talk!.say(text, id: id, files: files);
+  }
+
+  /// [now], the chat's settings as changed in the app: its program is
+  /// put by — once the turn under way is done — and the next message
+  /// starts one with them, carrying on the session.
+  Future<void> retune(ChatAsk now) async {
+    final before = _before ?? ask;
+    ask = now;
+    // Only its title, say: its program runs on as it is.
+    if (settingsChanged(before, now) == null) {
+      _before = null;
+      _retuning = false;
+      return;
+    }
+    _before = before;
+    if (talk == null) {
+      _sayChanged();
+      return;
+    }
+    if (turn != null || state == 'running' || state == 'asking') {
+      _retuning = true;
+      return;
+    }
+    await _putBy();
+  }
+
+  /// What the program now put by was started with, while it finishes its
+  /// turn: the note says what changed from it, where it changed.
+  ChatAsk? _before;
+  bool _retuning = false;
+  Future<void>? _sleeping;
+
+  void _sayChanged() {
+    final before = _before;
+    _before = null;
+    final said = before == null ? null : settingsChanged(before, ask);
+    if (said == null) return;
+    item('s${DateTime.now().millisecondsSinceEpoch}', 'note', {'text': said});
+  }
+
+  Future<void> _putBy() {
+    _sayChanged();
+    final was = talk;
+    talk = null;
+    _forgetOffset();
+    if (was == null) return Future.value();
+    worker.log('[${_short(ask.id)}] put by for new settings');
+    return _sleeping = was.close().whenComplete(() => _sleeping = null);
   }
 
   void answer(
@@ -1604,13 +1707,110 @@ class _Talker implements TalkSink {
   }
 
   @override
-  void turnEnded(String answer, {bool failed = false}) {
+  void turnEnded(
+    String answer, {
+    bool failed = false,
+    bool limited = false,
+    DateTime? resets,
+  }) {
     if (_keeping != null) _keepUsage();
     final waiting = turn;
     turn = null;
     if (waiting != null && !waiting.isCompleted) {
       waiting.complete((answered: !failed, text: answer));
     }
+    if (_retuning) {
+      _retuning = false;
+      // After the turn's last words are handed on: its program is ended
+      // once this returns.
+      scheduleMicrotask(() => unawaited(_putBy()));
+    }
+    if (limited) {
+      unawaited(worker._guard(() => _carryOnAfter(resets)));
+    } else if (!failed) {
+      _guesses = 0;
+      if (_booked ?? true) unawaited(worker._guard(_unbook));
+    }
+  }
+
+  /// What is said to a chat the account's limit stopped, once it is lifted.
+  static const carryOn =
+      'The usage limit has been lifted. Carry on from where you stopped.';
+
+  /// The start of the key a carrying on is left for later under, so it is
+  /// told from the user's own and kept to one a chat.
+  static const _carryKey = 'limit';
+
+  /// Whether a carrying on is left for later: not known for a chat taken
+  /// up by a worker started again, which looks.
+  bool? _booked;
+
+  /// Tries in a row with no time said for the limit's end: a limit that
+  /// gives none (a spending cap) is not tried every quarter hour for ever.
+  int _guesses = 0;
+
+  /// A turn refused for the account's limit: carried on by itself a minute
+  /// after [resets], as a message left for later — so it outlives this
+  /// worker, and the app lists it, to be sent now or taken back. Refused
+  /// again (the user wrote meanwhile), the one left is moved, not doubled.
+  Future<void> _carryOnAfter(DateTime? resets) async {
+    if (forgotten) return;
+    final now = DateTime.now();
+    final told = resets != null && resets.isAfter(now);
+    if (!told && ++_guesses > 3) {
+      stands('idle', note: 'Stopped at the usage limit.');
+      return;
+    }
+    final at = told
+        ? resets.add(const Duration(minutes: 1))
+        : now.add(const Duration(minutes: 15));
+    final when = at.toUtc().toIso8601String();
+    final db = await worker._db;
+    final left = await db
+        .from('chat_later')
+        .select('id')
+        .eq('chat_id', ask.id)
+        .like('key', '$_carryKey%');
+    if (left.isEmpty) {
+      await db.from('chat_later').insert({
+        'chat_id': ask.id,
+        'data': carryOn,
+        'send_at': when,
+        'key': '$_carryKey${now.microsecondsSinceEpoch}',
+      });
+    } else {
+      await db.from('chat_later').update({'send_at': when}).inFilter('id', [
+        for (final row in left) row['id'],
+      ]);
+    }
+    _booked = true;
+    // A note on the chat's row, which also has an open chat read again
+    // what is left for later.
+    stands('idle', note: 'At the usage limit: carries on ${_at(at)}.');
+    worker.log('[${_short(ask.id)}] at the limit, carries on ${_at(at)}');
+  }
+
+  /// A turn gone through: a carrying on still left would come after the
+  /// user went on themselves, and is taken back.
+  Future<void> _unbook() async {
+    _booked = false;
+    if (forgotten) return;
+    final db = await worker._db;
+    await db
+        .from('chat_later')
+        .delete()
+        .eq('chat_id', ask.id)
+        .like('key', '$_carryKey%');
+  }
+
+  /// [at] as this computer tells it: the time, and the day if not today.
+  static String _at(DateTime at) {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final time = 'at ${two(at.hour)}:${two(at.minute)}';
+    final today =
+        at.year == now.year && at.month == now.month && at.day == now.day;
+    return today ? time : 'on ${at.day}.${two(at.month)} $time';
   }
 
   @override

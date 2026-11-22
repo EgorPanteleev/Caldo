@@ -748,6 +748,16 @@ the app, a terminal beside them; anything else a terminal.
   a stopped chat waits for Start again. Listed over the field
   (`LaterList`: Send now / Edit / Delete). Only from workers that say so
   (`AgentKind.later`).
+- **A chat stopped at the usage limit carries on by itself** (task
+  "automatically reset session after limit updated", 2026-11-22): Claude
+  marks the refused turn's stand-in message `error: "rate_limit"`, and
+  its last `rate_limit_event` (`rejected`) says `resetsAt`; Codex fails
+  the turn with `codexErrorInfo: usageLimitExceeded` (from its types,
+  unseen). The worker leaves "Carry on…" in `chat_later` (key `limit…`,
+  one a chat, moved if refused again) a minute after the reset, with a
+  note on the chat; none said, it tries each 15 min, three times. A turn
+  that goes through first takes it back (`_Talker._unbook`). Chat mode
+  only; a terminal's Claude is left alone.
 - **Photos and files go with a message**: plus before the field
   (`Attachments.pick`), chips over it, ≤50MB each, uploaded to a private
   `chat-files` bucket under `<user>/<chat>/<uuid>` (Storage takes no
@@ -779,6 +789,25 @@ the app, a terminal beside them; anything else a terminal.
   watcher's tasks wear theirs (`ClaudeMark.of`). A mark only, apart from
   `Task.claude` on purpose: the watcher would run a task by its label.
   Nothing is written back to the notes.
+- **A chat's settings can be seen and changed after it began** (asked
+  for, 2026-11-22: "see and edit the chat settings, model and etc";
+  `ChatSettingsScreen`, `chat_settings.dart`, from the chat's menu or a
+  tap on its head): computer, agent and folder shown (a folder changed
+  would lose Claude's session, which lives under it); title, model,
+  effort, permissions, plugins, skills and rules changed. A rule the chat
+  keeps stays in its own words unless dropped; one added takes today's.
+  Saved, the row is updated (`Agents.change`) and, past the title, a
+  `chat_in` `settings` tells the worker (`Worker._retune`): a chat's
+  program is put by at once if idle, else after its turn
+  (`_Talker.retune`, `_putBy`), and the next message starts one with
+  `--resume` — the note "Settings changed: …" is written where that
+  happens, not at the save. A terminal with a session (Claude, or Codex
+  moved from its chat) is started again at once, Claude's after its Stop
+  hook (`_Live.retune`); one without keeps its settings until started
+  again. Only from workers that say so (`AgentKind.settings`); older ones
+  show them greyed with a line to reinstall. Tried on the local stack with
+  a stand-in `claude` and from the emulator: opus → sonnet came back as
+  `--model sonnet … --resume s1`.
 - **The app**: `AgentsScreen` (long press/right-click deletes),
   `NewChatScreen` (prefs `agents_last`), `ChatScreen` (Chat/Terminal
   switch; Send stops a running turn when the field is empty; the terminal
@@ -932,7 +961,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 476 tests, all passing; keep it so. `supabase test db` — 59.
+`flutter test` — 476 tests, all passing; keep it so. `supabase test db` — 60.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

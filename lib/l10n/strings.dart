@@ -356,6 +356,11 @@ class S {
       _fill('chatInChatNow', {'agent': agent});
   String get chatEmpty => _word('chatEmpty');
   String get chatMoveStops => _word('chatMoveStops');
+  String get chatSettings => _word('chatSettings');
+  String chatSettingsHint(String agent) =>
+      _fill('chatSettingsHint', {'agent': agent});
+  String chatSettingsOld(String name) =>
+      _fill('chatSettingsOld', {'name': name});
   String get usageTitle => _word('usageTitle');
   String get usageContext => _word('usageContext');
   String usageContextShort(String share) =>
