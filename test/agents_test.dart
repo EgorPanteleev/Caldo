@@ -738,6 +738,29 @@ void main() {
   });
 
   group('rules', () {
+    test('start a chat left without a message with their openings', () {
+      const review = AgentRule(
+        id: 'r',
+        name: 'Reviewer',
+        body: 'Review the open PRs.',
+        opening: ' Begin the first round. ',
+      );
+      const brief = AgentRule(id: 'b', name: 'Brief', body: 'Be brief.');
+      const ship = AgentRule(id: 's', name: 'Ship', body: '', opening: 'Go');
+      expect(firstMessage('', [review]), 'Begin the first round.');
+      expect(firstMessage('  ', [brief]), '');
+      expect(
+        firstMessage('', [review, brief, ship]),
+        'Begin the first round.\n\nGo',
+      );
+      // What is written wins.
+      expect(firstMessage(' Look at #12 ', [review]), 'Look at #12');
+      expect(
+        AgentRule.fromJson({'id': 'x', 'name': 'n', 'body': 'b'}).opening,
+        '',
+      );
+    });
+
     test('none, or only empty ones, are no rules', () {
       expect(rulesText(null), isNull);
       expect(rulesText([]), isNull);

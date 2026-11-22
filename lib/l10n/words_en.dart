@@ -455,6 +455,9 @@ const Map<String, Object> en = {
   'ruleName': "Name",
   'ruleBody': "Rule",
   'ruleBodyHint': "What the agent should always do, or never do",
+  'ruleOpening': "Starts the chat with",
+  'ruleOpeningHint':
+      "Said first when a chat is started without a message; empty, it waits for yours",
   'deleteRuleQuestion': "Delete this rule?",
   'deleteRuleHint': "Chats started with it keep it.",
   'chatTitle': "Title",

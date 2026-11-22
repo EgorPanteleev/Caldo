@@ -72,13 +72,34 @@ class AgentRule {
   final String name;
   final String body;
 
-  const AgentRule({required this.id, required this.name, required this.body});
+  /// Said as a chat's first message when none is written on the form, so
+  /// a rule that holds the whole errand starts the chat by itself; empty
+  /// for most.
+  final String opening;
+
+  const AgentRule({
+    required this.id,
+    required this.name,
+    required this.body,
+    this.opening = '',
+  });
 
   factory AgentRule.fromJson(Map json) => AgentRule(
     id: json['id'] as String,
     name: json['name'] as String? ?? '',
     body: json['body'] as String? ?? '',
+    opening: json['opening'] as String? ?? '',
   );
+}
+
+/// A new chat's first message: what was [written], else the openings of
+/// the chosen [rules], one after another.
+String firstMessage(String written, Iterable<AgentRule> rules) {
+  if (written.trim().isNotEmpty) return written.trim();
+  return [
+    for (final r in rules)
+      if (r.opening.trim().isNotEmpty) r.opening.trim(),
+  ].join('\n\n');
 }
 
 /// A computer that runs agents: one running `caldo-mcp watch`.
@@ -373,8 +394,16 @@ class Agents extends ChangeNotifier {
     String? id,
     required String name,
     required String body,
+    String opening = '',
   }) async {
-    final fields = {'name': name, 'body': body};
+    final fields = {
+      'name': name,
+      'body': body,
+      // Left out unless there is or was one, so a server without the
+      // column still keeps rules that have none.
+      if (opening.isNotEmpty || (rule(id ?? '')?.opening ?? '').isNotEmpty)
+        'opening': opening,
+    };
     final query = id == null
         ? _client!.from('agent_rules').insert(fields)
         : _client!.from('agent_rules').update(fields).eq('id', id);
