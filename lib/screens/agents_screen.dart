@@ -29,6 +29,7 @@ import '../widgets/desk.dart';
 import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardGap;
 import '../widgets/screen_header.dart';
+import '../widgets/selection.dart' show Selection;
 import '../widgets/talk_view.dart';
 
 part 'agent_accounts.dart';
@@ -58,12 +59,21 @@ class _AgentsScreenState extends State<AgentsScreen> {
   final _agents = Agents.instance;
   bool _watching = false;
 
+  /// The chats picked out to be pinned, stopped or deleted together, in the
+  /// order they were picked. A long press picks the first; while any are,
+  /// a tap picks or puts back, and the head gives its place to what can be
+  /// done with them.
+  final _picked = <String>{};
+
+  bool _picking() => _picked.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
     widget.shown?.addListener(_follow);
     Account.instance.email.addListener(_signedInOrOut);
     _agents.addListener(_changed);
+    Selection.elsewhere.add(_picking);
     _follow();
   }
 
@@ -72,19 +82,103 @@ class _AgentsScreenState extends State<AgentsScreen> {
     widget.shown?.removeListener(_follow);
     Account.instance.email.removeListener(_signedInOrOut);
     _agents.removeListener(_changed);
+    Selection.elsewhere.remove(_picking);
     if (_watching) _agents.unwatch();
     super.dispose();
   }
 
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // A chat deleted elsewhere, or by its worker, is no longer picked.
+    final there = {for (final c in _agents.chats) c.id};
+    setState(() => _picked.retainAll(there));
   }
 
   void _follow() {
     final shown = widget.shown?.value ?? true;
     if (shown == _watching) return;
     _watching = shown;
+    // Off the tab, what was picked is put down, as tasks' are.
+    if (!shown && _picked.isNotEmpty) setState(_picked.clear);
     shown ? _agents.watch() : _agents.unwatch();
+  }
+
+  void _pick(Chat chat) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!_picked.remove(chat.id)) _picked.add(chat.id);
+    });
+  }
+
+  void _drop() => setState(_picked.clear);
+
+  List<Chat> get _pickedChats => [
+    for (final c in _agents.chats)
+      if (_picked.contains(c.id)) c,
+  ];
+
+  /// Something the server refused, said rather than lost: a server
+  /// without the pins' column, say, or no connection.
+  void _failed(Object e) {
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(
+      context,
+    )?.showSnackBar(SnackBar(content: Text('$e')));
+  }
+
+  /// Pinned all, unless all are already, which lets them go.
+  Future<void> _pinPicked() async {
+    final chats = _pickedChats;
+    final pinned = !chats.every((c) => c.pinned);
+    _drop();
+    try {
+      await _agents.pin([for (final c in chats) c.id], pinned: pinned);
+    } catch (e) {
+      _failed(e);
+    }
+  }
+
+  Future<void> _stopPicked() async {
+    final ids = [..._picked];
+    _drop();
+    try {
+      await _agents.stopAll(ids);
+    } catch (e) {
+      _failed(e);
+    }
+  }
+
+  Future<void> _deletePicked() async {
+    final s = S.of(context);
+    final ids = [..._picked];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          ids.length == 1
+              ? s.deleteChatQuestion
+              : s.deleteChatsQuestion(ids.length),
+        ),
+        content: Text(s.cannotBeUndone),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(s.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(s.delete),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    _drop();
+    try {
+      await _agents.removeAll(ids);
+    } catch (e) {
+      _failed(e);
+    }
   }
 
   /// Signed in or out while on show: watched again with the new client.
@@ -135,14 +229,60 @@ class _AgentsScreenState extends State<AgentsScreen> {
           ),
           itemCount: chats.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, i) => _ChatRow(chat: chats[i]),
+          itemBuilder: (context, i) {
+            final chat = chats[i];
+            return _ChatRow(
+              chat: chat,
+              picking: _picked.isNotEmpty,
+              picked: _picked.contains(chat.id),
+              onPick: () => _pick(chat),
+            );
+          },
         ),
       );
     }
-    return Scaffold(
-      body: GlassTop(
-        head: DeskColumn(
-          child: ScreenHeader(
+    final picked = _pickedChats;
+    final head = picked.isNotEmpty
+        ? ScreenHeader(
+            title: s.selectedCount(picked.length),
+            // Its back arrow is Back's, which puts the picks down.
+            showBack: true,
+            actions: [
+              if (picked.length < chats.length)
+                IconButton(
+                  icon: Icon(Icons.select_all_rounded, color: p.muted),
+                  tooltip: s.chatSelectAll,
+                  onPressed: () => setState(
+                    () => _picked.addAll([for (final c in chats) c.id]),
+                  ),
+                ),
+              if (picked.every((c) => c.pinned))
+                IconButton(
+                  icon: Icon(Icons.push_pin, color: p.muted),
+                  tooltip: s.chatUnpin,
+                  onPressed: _pinPicked,
+                )
+              else
+                IconButton(
+                  icon: Icon(Icons.push_pin_outlined, color: p.muted),
+                  tooltip: s.chatPin,
+                  onPressed: _pinPicked,
+                ),
+              if (picked.any((c) => c.live))
+                IconButton(
+                  icon: Icon(Icons.stop_circle_outlined, color: p.muted),
+                  tooltip: s.chatStop,
+                  onPressed: _stopPicked,
+                ),
+              IconButton(
+                icon: Icon(Icons.delete_outline_rounded, color: p.muted),
+                tooltip: s.delete,
+                onPressed: _deletePicked,
+              ),
+              const SizedBox(width: 6),
+            ],
+          )
+        : ScreenHeader(
             title: s.agents,
             actions: [
               if (_agents.signedIn && _agents.workers.isNotEmpty)
@@ -165,9 +305,19 @@ class _AgentsScreenState extends State<AgentsScreen> {
                 ),
               const SizedBox(width: 6),
             ],
-          ),
+          );
+    return PopScope(
+      canPop: picked.isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        // Put down a moment later: the shell hears this Back too, and
+        // must still see something picked, or it goes to the start screen.
+        if (!didPop) scheduleMicrotask(() => mounted ? _drop() : null);
+      },
+      child: Scaffold(
+        body: GlassTop(
+          head: DeskColumn(child: head),
+          body: Builder(builder: (context) => body),
         ),
-        body: Builder(builder: (context) => body),
       ),
     );
   }
@@ -219,29 +369,17 @@ String _lineOf(Chat chat) {
 class _ChatRow extends StatelessWidget {
   final Chat chat;
 
-  const _ChatRow({required this.chat});
+  /// Whether any chat is picked out, so a tap picks rather than opens.
+  final bool picking;
+  final bool picked;
+  final VoidCallback onPick;
 
-  Future<void> _delete(BuildContext context) async {
-    final s = S.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(s.deleteChatQuestion),
-        content: Text(s.cannotBeUndone),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(s.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(s.delete),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await Agents.instance.remove(chat.id);
-  }
+  const _ChatRow({
+    required this.chat,
+    required this.picking,
+    required this.picked,
+    required this.onPick,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -253,28 +391,41 @@ class _ChatRow extends StatelessWidget {
         ? Dates.time(at)
         : Dates.shortDay(at);
     return Material(
-      color: p.panel,
-      borderRadius: BorderRadius.circular(14),
+      color: picked ? p.panelHi : p.panel,
+      // Picked, a rim in the text's colour: no accent, as the task cards'
+      // picks have none either.
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: picked
+            ? BorderSide(color: p.text.withValues(alpha: 0.7), width: 1.5)
+            : BorderSide.none,
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => openChat(context, chat.id),
-        onLongPress: () {
-          HapticFeedback.mediumImpact();
-          _delete(context);
-        },
-        onSecondaryTap: () => _delete(context),
+        onTap: picking ? onPick : () => openChat(context, chat.id),
+        onLongPress: onPick,
+        onSecondaryTap: onPick,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
           child: Row(
             children: [
-              Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: _stateColour(p, chat.state),
-                  shape: BoxShape.circle,
+              if (picking)
+                Icon(
+                  picked
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 20,
+                  color: picked ? p.text : p.faint,
+                )
+              else
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: _stateColour(p, chat.state),
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -304,6 +455,15 @@ class _ChatRow extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
+                        if (chat.pinned) ...[
+                          Icon(
+                            Icons.push_pin,
+                            size: 13,
+                            color: p.faint,
+                            semanticLabel: s.chatPinned,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         Text(
                           when,
                           style: TextStyle(color: p.faint, fontSize: 12),

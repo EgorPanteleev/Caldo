@@ -292,6 +292,9 @@ class Chat {
   /// The account it runs under; null for its worker's own.
   final String? account;
 
+  /// When it was pinned to the top of the list; null if it is not.
+  final DateTime? pinnedAt;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -315,7 +318,10 @@ class Chat {
     this.inChat = false,
     this.usage,
     this.account,
+    this.pinnedAt,
   });
+
+  bool get pinned => pinnedAt != null;
 
   /// Whether it can be a chat at all: one begun as one, wherever it is now.
   bool get talks => agent == 'claude' || agent == 'codex';
@@ -359,6 +365,35 @@ class Chat {
         inChat: toChat,
         usage: c.usage,
         account: c.account,
+        pinnedAt: c.pinnedAt,
+      );
+
+  /// [c] pinned [at], or unpinned for null: said here at once, as a move.
+  Chat._pinned(Chat c, DateTime? at)
+    : this(
+        id: c.id,
+        workerId: c.workerId,
+        agent: c.agent,
+        title: c.title,
+        model: c.model,
+        effort: c.effort,
+        dir: c.dir,
+        permission: c.permission,
+        plugins: c.plugins,
+        skills: c.skills,
+        rules: c.rules,
+        prompt: c.prompt,
+        taskUuid: c.taskUuid,
+        state: c.state,
+        note: c.note,
+        cols: c.cols,
+        rows: c.rows,
+        session: c.session,
+        updatedAt: c.updatedAt,
+        inChat: c.inChat,
+        usage: c.usage,
+        account: c.account,
+        pinnedAt: at,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -396,7 +431,19 @@ class Chat {
     inChat: json['mode'] == 'chat',
     usage: ChatUsage.of(json['usage']),
     account: json['account'] as String?,
+    pinnedAt: switch (json['pinned_at']) {
+      final String at => DateTime.parse(at).toLocal(),
+      _ => null,
+    },
   );
+
+  /// [chats] as the list shows them: the pinned on top, the last pinned
+  /// first, then the rest as they came (the latest news first).
+  static List<Chat> pinnedFirst(Iterable<Chat> chats) => [
+    ...chats.where((c) => c.pinned).toList()
+      ..sort((a, b) => b.pinnedAt!.compareTo(a.pinnedAt!)),
+    ...chats.where((c) => !c.pinned),
+  ];
 }
 
 /// [url] opened in the browser: the page an account is signed in on.
@@ -432,7 +479,11 @@ class Agents extends ChangeNotifier {
 
   SupabaseClient? get _client => Account.instance.client;
 
-  bool get signedIn => _client != null;
+  bool get signedIn => signedInForTest ?? _client != null;
+
+  /// Lets a test draw the list of chats without a server to sign in to.
+  @visibleForTesting
+  bool? signedInForTest;
 
   RealtimeChannel? _channel;
   RealtimeChannel? _accountsChannel;
@@ -514,7 +565,7 @@ class Agents extends ChangeNotifier {
           .order('updated_at', ascending: false)
           .limit(200);
       workers = [for (final r in w) AgentWorker.fromJson(r)];
-      chats = [for (final r in c) Chat.fromJson(r)];
+      chats = Chat.pinnedFirst([for (final r in c) Chat.fromJson(r)]);
       accounts = await _readAccounts(client);
       error = null;
     } catch (e) {
@@ -897,14 +948,54 @@ class Agents extends ChangeNotifier {
     }
   }
 
-  Future<void> remove(String chat) async {
-    await _client!.from('chats').delete().eq('id', chat);
-    unawaited(_unput(chat));
+  Future<void> remove(String chat) => removeAll([chat]);
+
+  /// [ids] deleted in one go, from a selection in the list.
+  Future<void> removeAll(Iterable<String> ids) async {
+    final gone = ids.toSet();
+    if (gone.isEmpty) return;
+    await _client!.from('chats').delete().inFilter('id', [...gone]);
+    for (final chat in gone) {
+      unawaited(_unput(chat));
+    }
     chats = [
       for (final c in chats)
-        if (c.id != chat) c,
+        if (!gone.contains(c.id)) c,
     ];
     notifyListeners();
+  }
+
+  /// [ids] pinned to the top of the list, or let go of. A pin is the
+  /// row's, so every device lists them alike; it doesn't move the chat's
+  /// `updated_at` (`chats_touch` stamps only news).
+  Future<void> pin(Iterable<String> ids, {required bool pinned}) async {
+    final picked = ids.toSet();
+    if (picked.isEmpty) return;
+    final at = pinned ? DateTime.now() : null;
+    await _client!
+        .from('chats')
+        .update({'pinned_at': at?.toUtc().toIso8601String()})
+        .inFilter('id', [...picked]);
+    chats = Chat.pinnedFirst([
+      for (final c in chats)
+        if (picked.contains(c.id) && c.pinned != pinned)
+          Chat._pinned(c, at)
+        else
+          c,
+    ]);
+    notifyListeners();
+  }
+
+  /// Every one of [ids] whose program is running told to stop.
+  Future<void> stopAll(Iterable<String> ids) async {
+    final live = {
+      for (final c in chats)
+        if (c.live) c.id,
+    };
+    await Future.wait([
+      for (final id in ids)
+        if (live.contains(id)) stop(id),
+    ]);
   }
 
   /// The files sent to [chat] and never taken down, gone with it.

@@ -58,7 +58,12 @@ class Selection extends ChangeNotifier {
 
   /// Whether anything is picked out on any screen, which back answers to
   /// before the shell does.
-  static bool get anyActive => _live.any((s) => s.active);
+  static bool get anyActive =>
+      _live.any((s) => s.active) || elsewhere.any((picking) => picking());
+
+  /// Whether something other than tasks is picked out — the chats on the
+  /// Agents tab — which back answers to first all the same.
+  static final elsewhere = <bool Function()>{};
 
   /// Lets go of whatever is picked out anywhere — for the tab bar, which
   /// is the way off a screen.

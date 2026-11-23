@@ -15,6 +15,7 @@ import 'package:caldo/screens/agents_screen.dart';
 import 'package:caldo/services/agents.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/widgets/chat_usage.dart';
+import 'package:caldo/widgets/selection.dart';
 import 'package:caldo/widgets/task_card.dart' show ClaudeMark;
 import 'package:caldo/widgets/talk_view.dart';
 import 'package:flutter/gestures.dart';
@@ -2313,6 +2314,98 @@ void main() {
         expect(tapped, later);
         await tester.tap(find.byIcon(Icons.close_rounded).first);
         expect(deleted, soon);
+      });
+
+      testWidgets('picks out chats in ${S.names[code]}', (tester) async {
+        final s = S.forCode(code);
+        final now = DateTime.now();
+        Agents.instance
+          ..signedInForTest = true
+          ..workers = [
+            AgentWorker(
+              id: 'w',
+              name: 'desk',
+              home: '/home/someone',
+              seenAt: now,
+              dirs: const [],
+              agents: const [AgentKind(id: 'claude', label: 'Claude')],
+            ),
+          ]
+          ..chats = Chat.pinnedFirst([
+            Chat(
+              id: 'a',
+              workerId: 'w',
+              agent: 'claude',
+              title: 'Alpha',
+              state: ChatState.idle,
+              updatedAt: now,
+            ),
+            Chat(
+              id: 'b',
+              workerId: 'w',
+              agent: 'claude',
+              title: 'Bravo',
+              state: ChatState.ended,
+              updatedAt: now.subtract(const Duration(days: 2)),
+              pinnedAt: now,
+            ),
+            Chat(
+              id: 'c',
+              workerId: 'w',
+              agent: 'claude',
+              title: 'Charlie',
+              state: ChatState.ended,
+              updatedAt: now.subtract(const Duration(days: 1)),
+            ),
+          ]);
+        addTearDown(() {
+          Agents.instance
+            ..signedInForTest = null
+            ..chats = const [];
+        });
+        // The pinned one on top, older though it is.
+        expect([for (final c in Agents.instance.chats) c.id], ['b', 'a', 'c']);
+
+        await pump(tester, code, const AgentsScreen());
+        expect(
+          tester.getTopLeft(find.text('Bravo')).dy,
+          lessThan(tester.getTopLeft(find.text('Alpha')).dy),
+        );
+        expect(find.byIcon(Icons.push_pin), findsOneWidget);
+
+        await tester.longPress(find.text('Alpha'));
+        await tester.pump();
+        expect(find.text(s.selectedCount(1)), findsOneWidget);
+        expect(Selection.anyActive, isTrue);
+        expect(find.byTooltip(s.chatPin), findsOneWidget);
+        // Alpha's program runs: it can be stopped.
+        expect(find.byTooltip(s.chatStop), findsOneWidget);
+        expect(find.byTooltip(s.delete), findsOneWidget);
+
+        // A tap picks now, rather than opening the chat.
+        await tester.tap(find.text('Bravo'));
+        await tester.pump();
+        expect(find.text(s.selectedCount(2)), findsOneWidget);
+        expect(find.byType(ChatScreen), findsNothing);
+        expect(find.byTooltip(s.chatPin), findsOneWidget);
+
+        await tester.tap(find.text('Alpha'));
+        await tester.pump();
+        // Only pinned ones left: they can be let go of; none to stop.
+        expect(find.byTooltip(s.chatUnpin), findsOneWidget);
+        expect(find.byTooltip(s.chatStop), findsNothing);
+
+        await tester.tap(find.byTooltip(s.chatSelectAll));
+        await tester.pump();
+        expect(find.text(s.selectedCount(3)), findsOneWidget);
+        expect(find.byTooltip(s.chatSelectAll), findsNothing);
+
+        // Back puts them down, and stays on the tab.
+        await tester.binding.handlePopRoute();
+        await tester.pump();
+        expect(find.text(s.agents), findsOneWidget);
+        expect(Selection.anyActive, isFalse);
+        expect(find.byTooltip(s.delete), findsNothing);
       });
     }
   });
