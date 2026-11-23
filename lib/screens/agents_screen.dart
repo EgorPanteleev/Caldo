@@ -31,6 +31,7 @@ import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardGap;
 import '../widgets/screen_header.dart';
 import '../widgets/talk_view.dart';
 
+part 'agent_accounts.dart';
 part 'agent_rules.dart';
 part 'chat_settings.dart';
 
@@ -144,6 +145,12 @@ class _AgentsScreenState extends State<AgentsScreen> {
           child: ScreenHeader(
             title: s.agents,
             actions: [
+              if (_agents.signedIn && _agents.workers.isNotEmpty)
+                IconButton(
+                  icon: Icon(Icons.account_circle_outlined, color: p.muted),
+                  tooltip: s.agentAccounts,
+                  onPressed: () => openAccounts(context),
+                ),
               if (_agents.signedIn)
                 IconButton(
                   icon: Icon(Icons.rule_rounded, color: p.muted),
@@ -428,6 +435,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
   Set<String>? _plugins;
   final Set<String> _skills = {};
 
+  /// The account it runs under; null for its worker's own.
+  String? _account;
+
   /// Chosen rules, by id: kept across agents, since a rule is the user's,
   /// not the agent's.
   final Set<String> _rules = {};
@@ -499,6 +509,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
     if (last['worker'] == _worker && last['dir'] is String) {
       _dir.text = last['dir'] as String;
     }
+    if (_ready(last['account'] as String?)) {
+      _account = last['account'] as String;
+    }
     _rules.addAll([for (final id in last['rules'] as List? ?? const []) '$id']);
   }
 
@@ -514,6 +527,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
           'effort': _effort,
           'permission': _permission,
           'dir': _dir.text.trim(),
+          'account': _account,
           'rules': _rules.toList(),
         }),
       );
@@ -537,6 +551,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final online = workers.where((w) => w.online);
     final w = _agents.worker(id) ?? online.firstOrNull ?? workers.firstOrNull;
     _worker = w?.id;
+    if (!_ready(_account)) _account = null;
     if (w == null) return;
     _dir.text = _short(w, w.home ?? '~');
     final keep = _kinds.where((a) => a.id == _agent).firstOrNull;
@@ -544,8 +559,16 @@ class _NewChatScreenState extends State<NewChatScreen> {
     if (first != null) _pickAgent(first);
   }
 
+  /// Whether [account] is one to run the chosen agent under on the chosen
+  /// worker: signed in, and of both.
+  bool _ready(String? account) {
+    final a = _agents.account(account);
+    return a != null && a.ready && a.workerId == _worker && a.agent == _agent;
+  }
+
   void _pickAgent(AgentKind kind) {
     _agent = kind.id;
+    if (!_ready(_account)) _account = null;
     if (!kind.models.contains(_model)) _model = null;
     if (!kind.efforts.contains(_effort)) _effort = null;
     _permission = kind.permissions.contains('auto') ? 'auto' : null;
@@ -595,6 +618,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
         skills: _skills.toList(),
         rules: rules,
         prompt: kind.prompt == 'none' ? '' : firstMessage(_prompt.text, rules),
+        account: _ready(_account) ? _account : null,
         cols: cols,
         rows: rows,
         inChat: kind.talks,
@@ -651,6 +675,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
           rules: rules,
           prompt: taskMessage(task, said),
           task: uuid,
+          account: _ready(_account) ? _account : null,
           cols: cols,
           rows: rows,
           inChat: kind.talks,
@@ -759,6 +784,14 @@ class _NewChatScreenState extends State<NewChatScreen> {
                         ],
                       ),
                     ],
+                    if (w != null && kind != null)
+                      ...accountPicks(
+                        context,
+                        worker: w,
+                        kind: kind,
+                        chosen: _ready(_account) ? _account : null,
+                        onPick: (id) => setState(() => _account = id),
+                      ),
                     if (kind != null) ...[
                       _Section(s.chatModel),
                       _Picks(
@@ -1849,7 +1882,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// The chat's figures as last heard: broadcast while it runs, else as
   /// its row keeps them. Nothing for a chat that has none (a shell).
+  /// The chat's figures under its head, with its account's limits as
+  /// the worker last read them: the chat's own copy is as old as its last
+  /// turn, which for a chat left a while is old indeed.
   Widget _usage(Chat chat, TalkFeed? talk) {
+    ChatUsage? withAccount(ChatUsage? own) {
+      final current = _chat ?? chat;
+      final account = _agents.accountOf(current)?.usage;
+      if (own == null && account == null) return null;
+      return (own ?? const ChatUsage()).withLimitsOf(account);
+    }
+
+    String? accountName() {
+      final account = _agents.accountOf(_chat ?? chat);
+      return account == null ? null : accountTitle(S.of(context), account);
+    }
+
     Widget strip(ChatUsage? usage) => usage == null || usage.isEmpty
         ? const SizedBox.shrink()
         : ChatUsageStrip(
@@ -1859,13 +1907,14 @@ class _ChatScreenState extends State<ChatScreen> {
               changes: talk == null
                   ? _agents
                   : Listenable.merge([_agents, talk.usage]),
-              read: () => talk?.usage.value ?? _chat?.usage,
+              read: () => withAccount(talk?.usage.value ?? _chat?.usage),
+              account: accountName,
             ),
           );
-    if (talk == null) return strip(chat.usage);
+    if (talk == null) return strip(withAccount(chat.usage));
     return ValueListenableBuilder(
       valueListenable: talk.usage,
-      builder: (context, heard, _) => strip(heard ?? chat.usage),
+      builder: (context, heard, _) => strip(withAccount(heard ?? chat.usage)),
     );
   }
 

@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(22);
+select plan(28);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -68,6 +68,20 @@ select lives_ok(
   'a message is kept to be said later');
 reset role;
 
+select lives_ok(
+  $$insert into public.agent_accounts (id, worker_id, agent, main, state) values
+    ('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude', true, 'ready')$$,
+  'a worker says which Claude it is signed into');
+select throws_ok(
+  $$insert into public.agent_accounts (worker_id, agent, main) values
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude', true)$$,
+  '23505', null, 'one login of its own per agent');
+select lives_ok(
+  $$insert into public.chats (worker_id, agent, account) values
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude',
+     'dddddddd-dddd-4ddd-8ddd-dddddddddddd')$$,
+  'a chat runs under an account');
 select pg_temp.act_as('22222222-2222-4222-8222-222222222222');
 select is(
   (select count(*)::int from public.chats) + (select count(*)::int from public.chat_out)
@@ -105,6 +119,17 @@ select throws_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'rm -rf ~', now(), 'k2',
      '22222222-2222-4222-8222-222222222222')$$,
   '42501', null, 'nor leaves it a message');
+select is(
+  (select count(*)::int from public.agent_accounts), 0,
+  'nor sees its accounts');
+select throws_ok(
+  $$insert into public.agent_accounts (worker_id, agent, user_id) values
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude',
+     '22222222-2222-4222-8222-222222222222')$$,
+  '42501', null, 'nor signs its worker into an account of its own');
+select is_empty(
+  $$update public.agent_accounts set login_code = 'x' returning id$$,
+  'nor hands its worker a code');
 reset role;
 
 select * from finish();

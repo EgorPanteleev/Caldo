@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:supabase/supabase.dart';
 
+import 'accounts.dart';
 import 'agents.dart';
 import 'kept.dart';
 import 'remote.dart';
@@ -190,6 +191,9 @@ class Worker {
 
   Future<SupabaseClient> get _db => remote.signedIn();
 
+  /// The accounts chats may run under, beside the worker's own.
+  late final logins = AgentLogins(home: home, root: '${book.config}/accounts');
+
   String get name => state.name ?? Platform.localHostname;
 
   Future<Never> run() async {
@@ -198,6 +202,8 @@ class Worker {
     for (var wait = 5; ; wait = min(wait * 2, 300)) {
       try {
         await _hello();
+        // Read before any chat is taken up, so each starts under its own.
+        await _guard(_tendAccounts);
         await _adopt();
         break;
       } catch (e) {
@@ -209,6 +215,7 @@ class Worker {
     Timer.periodic(const Duration(milliseconds: 50), (_) => _pump());
     Timer.periodic(const Duration(seconds: 1), (_) => _guard(_check));
     Timer.periodic(const Duration(seconds: 30), (_) => _guard(_hello));
+    _tendSoon(const Duration(seconds: 20));
     while (true) {
       await _guard(_look);
       await Future.any([
@@ -349,6 +356,26 @@ class Worker {
           table: 'chat_later',
           callback: (_) {
             if (!_wake.isCompleted) _wake.complete();
+          },
+        )
+        .subscribe();
+    // An account asked for, a code handed back, one removed: seen to at
+    // once.
+    remote.client
+        .channel('caldo-worker-accounts')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'agent_accounts',
+          callback: (change) {
+            // Its own writes come back too: a limit read is no news.
+            final row = change.newRecord;
+            if (change.eventType == PostgresChangeEvent.update &&
+                row['state'] == 'ready' &&
+                _accounts[row['id']]?.state == 'ready') {
+              return;
+            }
+            _tendSoon(const Duration(milliseconds: 300));
           },
         )
         .subscribe();
@@ -639,6 +666,322 @@ class Worker {
       ? '$home${dir.substring(1)}'
       : dir;
 
+  // ---- Accounts ------------------------------------------------------------
+
+  /// This worker's accounts as last read, by id.
+  Map<String, LoginRow> _accounts = {};
+
+  /// When each account's limits were last read here, and when who it is.
+  final _limitsRead = <String, DateTime>{};
+  final _statusRead = <String, DateTime>{};
+
+  /// When each sign-in under way began here.
+  final _signing = <String, DateTime>{};
+
+  Timer? _tendTimer;
+  bool _tending = false;
+  bool _tendAgain = false;
+
+  /// The accounts seen to again after [wait]: soon after a change, else
+  /// every few seconds while a sign-in waits and every 20s otherwise.
+  void _tendSoon(Duration wait) {
+    _tendTimer?.cancel();
+    _tendTimer = Timer(wait, () async {
+      await _guard(_tendAccounts);
+      _tendSoon(Duration(seconds: _signing.isNotEmpty ? 3 : 20));
+    });
+  }
+
+  /// How often an account's limits are read without a turn: Claude's is
+  /// one small request; Codex's starts its app server.
+  static Duration _limitsEvery(String agent) => agent == 'claude'
+      ? const Duration(minutes: 2)
+      : const Duration(minutes: 5);
+
+  /// The words a chat's program is started after to run under its account;
+  /// none for the worker's own, or an account not here. Its folder is
+  /// known by its id, so a chat taken up before the accounts are read
+  /// still runs under its own.
+  List<String> _envOf(ChatAsk ask) {
+    final id = ask.account;
+    if (id == null || _accounts[id]?.main == true) return const [];
+    final agent = _accounts[id]?.agent ?? ask.agent;
+    final folder = logins.folderOf(id);
+    if (agent != ask.agent || !Directory(folder).existsSync()) return const [];
+    logins.mirror(agent, folder);
+    return AgentLogins.envOf(agent, folder);
+  }
+
+  /// Every account of this worker's seen to: its own login of each agent
+  /// here said, sign-ins begun and followed, limits read, folders of
+  /// accounts removed put away.
+  Future<void> _tendAccounts() async {
+    if (_tending) {
+      _tendAgain = true;
+      return;
+    }
+    _tending = true;
+    try {
+      do {
+        _tendAgain = false;
+        await _tendOnce();
+      } while (_tendAgain);
+    } finally {
+      _tending = false;
+    }
+  }
+
+  Future<void> _tendOnce() async {
+    final db = await _db;
+    List<Map<String, dynamic>> rows;
+    try {
+      rows = await db.from('agent_accounts').select().eq('worker_id', state.id);
+    } on PostgrestException {
+      // A server without the table yet: chats run under the worker's own.
+      return;
+    }
+    final have = [for (final r in rows) LoginRow.fromJson(r)];
+    for (final spec in book.read()) {
+      if (spec.id != 'claude' && spec.id != 'codex') continue;
+      if (have.any((a) => a.main && a.agent == spec.id)) continue;
+      final status = await logins.status(spec.id, null);
+      final made = await db
+          .from('agent_accounts')
+          .insert({
+            'worker_id': state.id,
+            'agent': spec.id,
+            'main': true,
+            'state': status.signedIn ? 'ready' : 'signed_out',
+            'email': status.email,
+            'plan': status.plan,
+          })
+          .select()
+          .single();
+      have.add(LoginRow.fromJson(made));
+      _statusRead[made['id'] as String] = DateTime.now();
+    }
+    _accounts = {for (final a in have) a.id: a};
+    for (final account in have) {
+      await _guard(() => _tend(account));
+    }
+    // Removed in the app: its sign-in ended, its folder put away.
+    for (final id in [..._signing.keys]) {
+      if (_accounts.containsKey(id)) continue;
+      _signing.remove(id);
+      await tmux.kill(_loginOf(id));
+      tmux.forget(_loginOf(id));
+    }
+    for (final id in logins.strays(_accounts.keys)) {
+      log('account ${_short(id)} removed');
+      await logins.remove(logins.folderOf(id));
+    }
+  }
+
+  /// The terminal an account is signed in in.
+  static String _loginOf(String account) => 'login-$account';
+
+  Future<void> _tend(LoginRow a) async {
+    switch (a.state) {
+      case 'new':
+        await _beginLogin(a);
+      case 'signing_in':
+        await _followLogin(a);
+      // The worker's own may be signed into again on the computer.
+      case 'ready' || 'signed_out' when a.state == 'ready' || a.main:
+        final now = DateTime.now();
+        final asked = _statusRead[a.id];
+        if (asked == null || now.difference(asked).inMinutes >= 30) {
+          _statusRead[a.id] = now;
+          final status = await logins.status(a.agent, logins.placeOf(a));
+          if (status.signedIn != (a.state == 'ready')) {
+            await _account(a.id, {
+              'state': status.signedIn ? 'ready' : 'signed_out',
+              'email': status.email ?? a.email,
+              'plan': status.plan ?? a.plan,
+            });
+            log(
+              'account ${_short(a.id)} is ${status.signedIn ? 'signed in' : 'signed out'}',
+            );
+            return;
+          }
+          if (status.signedIn &&
+              (status.email != a.email || status.plan != a.plan)) {
+            await _account(a.id, {'email': status.email, 'plan': status.plan});
+          }
+        }
+        if (a.state != 'ready') return;
+        final read = _limitsRead[a.id];
+        if (read == null || now.difference(read) >= _limitsEvery(a.agent)) {
+          _limitsRead[a.id] = now;
+          final limits = await logins.limits(a.agent, logins.placeOf(a));
+          if (limits != null) await _keepLimits(a.id, limits);
+        }
+    }
+  }
+
+  /// A sign-in begun in a terminal of its own; the app is shown the page
+  /// it prints once it does.
+  Future<void> _beginLogin(LoginRow a) async {
+    final folder = logins.placeOf(a);
+    if (folder != null) logins.mirror(a.agent, folder);
+    final name = _loginOf(a.id);
+    await tmux.kill(name);
+    tmux.forget(name);
+    _signing[a.id] = DateTime.now();
+    await _account(a.id, {
+      'state': 'signing_in',
+      'note': null,
+      'login_url': null,
+      'login_hint': null,
+      'login_code': null,
+    });
+    try {
+      // Wide, so the page's long address is never wrapped.
+      await tmux.start(
+        name,
+        logins.loginArgv(a.agent, folder),
+        cwd: home,
+        cols: 500,
+        rows: 40,
+      );
+    } catch (e) {
+      _signing.remove(a.id);
+      await _account(a.id, {'state': 'failed', 'note': '$e'});
+      return;
+    }
+    log('account ${_short(a.id)}: signing in to ${a.agent}');
+  }
+
+  Future<void> _followLogin(LoginRow a) async {
+    final name = _loginOf(a.id);
+    final began = _signing[a.id];
+    final pane = (await tmux.panes())[Tmux.nameOf(name)];
+    if (began == null || pane == null) {
+      // Begun by a worker before this one, whose terminal went with it.
+      await _beginLogin(a);
+      return;
+    }
+    final text = await tmux.text(name) ?? '';
+    final shown = AgentLogins.loginScreen(a.agent, text);
+    if (shown.url != null && shown.url != a.loginUrl) {
+      await _account(a.id, {'login_url': shown.url, 'login_hint': shown.hint});
+    }
+    if (a.loginCode case final code?
+        when code.trim().isNotEmpty && !pane.dead) {
+      await _account(a.id, {'login_code': null});
+      await tmux.line(name, code.trim());
+      return;
+    }
+    final status = await (pane.dead || a.agent == 'codex'
+        ? logins.status(a.agent, logins.placeOf(a))
+        : Future.value((signedIn: false, email: null, plan: null)));
+    if (status.signedIn && (pane.dead || a.agent == 'codex')) {
+      _signing.remove(a.id);
+      await tmux.kill(name);
+      tmux.forget(name);
+      _statusRead[a.id] = DateTime.now();
+      _limitsRead.remove(a.id);
+      await _account(a.id, {
+        'state': 'ready',
+        'email': status.email,
+        'plan': status.plan,
+        'note': null,
+        'login_url': null,
+        'login_hint': null,
+      });
+      log('account ${_short(a.id)}: signed in as ${status.email ?? '?'}');
+      return;
+    }
+    final late = DateTime.now().difference(began) > const Duration(minutes: 20);
+    if (pane.dead || late) {
+      _signing.remove(a.id);
+      await tmux.kill(name);
+      tmux.forget(name);
+      await _account(a.id, {
+        'state': 'failed',
+        'note': late
+            ? 'The sign-in was not finished within 20 minutes.'
+            : AgentLogins.lastWords(text),
+        'login_url': null,
+        'login_hint': null,
+      });
+    }
+  }
+
+  Future<void> _account(String id, Map<String, Object?> fields) async {
+    final db = await _db;
+    await db.from('agent_accounts').update(fields).eq('id', id);
+  }
+
+  /// [limits] kept as the account's, if they say anything new.
+  Future<void> _keepLimits(String id, Map<String, Object?> limits) async {
+    final had = _accounts[id]?.usage;
+    String said(Map? m) => jsonEncode({...?m}..remove('limitsAt'));
+    if (had != null &&
+        said(had) == said(limits) &&
+        DateTime.now().millisecondsSinceEpoch -
+                ((had['limitsAt'] as num?) ?? 0) <
+            const Duration(minutes: 10).inMilliseconds) {
+      return;
+    }
+    await _account(id, {
+      'usage': limits,
+      'usage_at': DateTime.now().toUtc().toIso8601String(),
+    });
+    final a = _accounts[id];
+    if (a != null) {
+      _accounts[id] = LoginRow(
+        id: a.id,
+        agent: a.agent,
+        main: a.main,
+        state: a.state,
+        created: a.created,
+        email: a.email,
+        plan: a.plan,
+        usage: limits,
+      );
+    }
+  }
+
+  /// Limits a chat heard, the newest there are of its account's: kept as
+  /// the account's a few seconds on, the last of several heard together.
+  final _limitsHeard = <String, Map<String, Object?>>{};
+  Timer? _keepingHeard;
+
+  void _heardLimits(ChatAsk ask, Map<String, Object?> set) {
+    final id =
+        ask.account ??
+        _accounts.values
+            .where((a) => a.main && a.agent == ask.agent)
+            .firstOrNull
+            ?.id;
+    if (id == null) return;
+    // A chat may hear of one window only: laid over the others known.
+    final known =
+        _limitsHeard[id]?['limits'] ?? _accounts[id]?.usage?['limits'];
+    final limits = {
+      for (final l in [
+        if (known is List) ...known,
+        if (set['limits'] case final List heard) ...heard,
+      ])
+        if (l is Map) l['name']: l,
+    };
+    _limitsHeard[id] = {
+      'limits': limits.values.toList(),
+      'limitsAt': set['limitsAt'] ?? DateTime.now().millisecondsSinceEpoch,
+      if (set['limited'] != null) 'limited': set['limited'],
+    };
+    _limitsRead[id] = DateTime.now();
+    _keepingHeard ??= Timer(const Duration(seconds: 5), () {
+      _keepingHeard = null;
+      final heard = {..._limitsHeard};
+      _limitsHeard.clear();
+      for (final MapEntry(:key, :value) in heard.entries) {
+        unawaited(_guard(() => _keepLimits(key, value)));
+      }
+    });
+  }
+
   /// Starts [ask] in a terminal: fresh, or with Claude's [resume] taken up
   /// and [prompt] in place of the chat's own first message.
   Future<_Live?> _start(ChatAsk ask, {String? resume, String? prompt}) async {
@@ -647,14 +990,17 @@ class Worker {
     final (spec, dir) = place;
     resume = resumable(spec, home, dir, resume);
     final first = prompt ?? (resume != null ? '' : ask.prompt);
-    final argv = launchOf(
-      spec,
-      ask,
-      resume: resume,
-      prompt: first,
-      events: tmux.eventsOf(ask.id),
-      given: tmux.givenOf(ask.id),
-    );
+    final argv = [
+      ..._envOf(ask),
+      ...launchOf(
+        spec,
+        ask,
+        resume: resume,
+        prompt: first,
+        events: tmux.eventsOf(ask.id),
+        given: tmux.givenOf(ask.id),
+      ),
+    ];
     final kept = state.chats[ask.id];
     final out = File(tmux.outOf(ask.id));
     final events = File(tmux.eventsOf(ask.id));
@@ -1467,6 +1813,7 @@ class _Talker implements TalkSink {
       throw StateError('${spec.label} has no chat, only a terminal.');
     }
     if (made is CodexTalk) made.since = _since;
+    made.env = worker._envOf(ask);
     _since = null;
     _closing = false;
     talk = made;
@@ -1683,6 +2030,7 @@ class _Talker implements TalkSink {
     Map<String, num> add = const {},
   }) {
     if (forgotten) return;
+    if (set['limits'] != null) worker._heardLimits(ask, set);
     final now = ChatUsage.merged(_usage, set: set, add: add);
     final said = jsonEncode(now);
     if (said == _usageSaid) return;

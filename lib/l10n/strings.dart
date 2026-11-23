@@ -395,6 +395,42 @@ class S {
   String usageHoursLimit(int n) => _fill('usageHoursLimit', {'n': n});
   String get usageWeekShort => _word('usageWeekShort');
 
+  // ---- Agent accounts ------------------------------------------------------
+  String get agentAccounts => _word('agentAccounts');
+  String get addAccount => _word('addAccount');
+  String get accountsNone => _word('accountsNone');
+  String get accountsNoneHint => _word('accountsNoneHint');
+  String get accountsReinstall => _word('accountsReinstall');
+  String get accountOwn => _word('accountOwn');
+  String get accountStarting => _word('accountStarting');
+  String get accountSigningIn => _word('accountSigningIn');
+  String get accountReady => _word('accountReady');
+  String get accountSignedOut => _word('accountSignedOut');
+  String get accountFailed => _word('accountFailed');
+  String get accountSignIn => _word('accountSignIn');
+  String get accountSignInAgain => _word('accountSignInAgain');
+  String get accountRename => _word('accountRename');
+  String accountRemoveQuestion(String name) =>
+      _fill('accountRemoveQuestion', {'name': name});
+  String accountRemoveHint(String worker) =>
+      _fill('accountRemoveHint', {'worker': worker});
+  String get accountNoLimits => _word('accountNoLimits');
+  String get accountWaitingPage => _word('accountWaitingPage');
+  String get accountWaitingCodex => _word('accountWaitingCodex');
+  String get accountClaudeSteps => _word('accountClaudeSteps');
+  String get accountCodexSteps => _word('accountCodexSteps');
+  String get accountOpenPage => _word('accountOpenPage');
+  String get accountCopyLink => _word('accountCopyLink');
+  String get accountLinkCopied => _word('accountLinkCopied');
+  String get accountCode => _word('accountCode');
+  String get accountSend => _word('accountSend');
+  String get accountName => _word('accountName');
+  String get accountNameHint => _word('accountNameHint');
+  String accountAddHint(String worker) =>
+      _fill('accountAddHint', {'worker': worker});
+  String get chatAccount => _word('chatAccount');
+  String get usageResetSince => _word('usageResetSince');
+
   // ---- The vault -----------------------------------------------------------
   String get vault => _word('vault');
   String get vaultLooking => _word('vaultLooking');

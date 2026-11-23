@@ -44,7 +44,8 @@ lib/
                            quick_add_bar, keys_carry, tick_off, selection,
                            put_off, carry, desk, …
   mcp/                     MCP server: book, remote, tools, protocol, watch;
-                           worker: worker, agents, talk, kept, usage, terminal
+                           worker: worker, agents, talk, kept, usage, terminal,
+                           accounts
 bin/caldo_mcp.dart         the MCP server and watcher (plain Dart);
                            tool/mcp/install.sh, tool/mcp/watch.sh
 ```
@@ -686,6 +687,32 @@ the app, a terminal beside them; anything else a terminal.
   change; written to `chats.usage` only at a turn's end or 20s into a long
   one (every row write has each app re-read the list). Red from 95%,
   brighter from 80%. Terminal turns aren't counted.
+- **Accounts** (asked 2026-11-23: "i dont like i see non updated usage",
+  and Claude/Codex accounts to list with their usage and pick for a chat;
+  `agent_accounts`, `…_agent_accounts.sql`; `AgentLogins`,
+  `lib/mcp/accounts.dart`; `Worker._tendAccounts`; `AccountsScreen`,
+  `agent_accounts.dart`, a `part` of the agents screen). Limits are the
+  account's, not the chat's: the worker reads them every 2 min (Claude:
+  `GET api.anthropic.com/api/oauth/usage` with the login's token, as
+  `/usage` does, ~0.8s, no turn; an expired token is left for Claude to
+  renew, as two renewers spend a refresh token twice; Codex: its app
+  server's `account/rateLimits/read` every 5 min, written from the
+  protocol, not run here) and whenever a chat hears them
+  (`_heardLimits`, merged by window). The strip shows the account's
+  (`withLimitsOf`); a limit past its reset reads 0% (`usedNow`). Each
+  worker's own login is a `main` row; others live in
+  `~/.config/caldo/mcp/accounts/<id>` as `CLAUDE_CONFIG_DIR`/`CODEX_HOME`,
+  every entry of `~/.claude`/`~/.codex` but the login linked in
+  (`mirror`; `~/.claude.json` copied once less `oauthAccount`), so
+  plugins, skills and sessions are shared and a chat can change account in
+  its settings and carry its session on. Started as `env VAR=… claude …`
+  (`_envOf`, `Talk.env`). Sign-in runs `claude auth login` /
+  `codex login --device-auth` in tmux (`login-<id>`, 500 wide so the link
+  isn't wrapped); the link (Claude's printed after ~0.5s) and Codex's code
+  go on the row, the code Claude's page gives comes back as `login_code`,
+  typed in and cleared. A wrong code ends it `failed` with Claude's words.
+  Removed: `claude auth logout`, links deleted, then the folder. Tried on
+  the local stack with this machine's own Claude login.
 - **The chat list is one forward list that follows the foot** while the
   reader is there (`_follow`); a reader scrolled up is left alone.
 - **A swipe over the terminal is sent as the wheel** (`TermSwipe`):
@@ -985,7 +1012,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 512 tests, all passing; keep it so. `supabase test db` — 60.
+`flutter test` — 531 tests, all passing; keep it so. `supabase test db` — 66.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

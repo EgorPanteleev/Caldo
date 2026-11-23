@@ -4,14 +4,17 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:supabase/supabase.dart';
 
 import '../l10n/strings.dart';
 import '../mcp/usage.dart';
 import '../models/task.dart';
+import '../utils/platform.dart';
 import 'account.dart';
 import 'attachments.dart';
+import 'desktop.dart';
 
 /// One kind of agent a worker can run, as it says (`lib/mcp/agents.dart`).
 @immutable
@@ -43,6 +46,10 @@ class AgentKind {
   /// Whether its worker starts a chat again with settings changed here.
   final bool settings;
 
+  /// Whether its worker signs in to accounts asked for here, and runs a
+  /// chat under the one chosen.
+  final bool accounts;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -58,6 +65,7 @@ class AgentKind {
     this.later = false,
     this.files = false,
     this.settings = false,
+    this.accounts = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -75,6 +83,80 @@ class AgentKind {
     later: json['later'] == true,
     files: json['files'] == true,
     settings: json['settings'] == true,
+    accounts: json['accounts'] == true,
+  );
+}
+
+enum AccountState { asked, signingIn, ready, signedOut, failed }
+
+/// A Claude or Codex login a worker runs chats under: its own (`main`),
+/// or one signed into from here, each kept on the worker in a folder of
+/// its own. Its limits are the worker's last look at them, every few
+/// minutes and whenever a chat on it hears them.
+@immutable
+class AgentAccount {
+  final String id;
+  final String workerId;
+  final String agent;
+  final bool main;
+  final String name;
+  final String? email;
+  final String? plan;
+  final AccountState state;
+  final String? note;
+
+  /// While signing in: the page to sign in on, and Codex's code to type
+  /// there.
+  final String? loginUrl;
+  final String? loginHint;
+
+  /// Its limits (`ChatUsage` with only those set); null before they are
+  /// first read.
+  final ChatUsage? usage;
+  final DateTime created;
+
+  const AgentAccount({
+    required this.id,
+    required this.workerId,
+    required this.agent,
+    required this.state,
+    required this.created,
+    this.main = false,
+    this.name = '',
+    this.email,
+    this.plan,
+    this.note,
+    this.loginUrl,
+    this.loginHint,
+    this.usage,
+  });
+
+  bool get ready => state == AccountState.ready;
+
+  static AccountState _stateOf(String? s) => switch (s) {
+    'signing_in' => AccountState.signingIn,
+    'ready' => AccountState.ready,
+    'signed_out' => AccountState.signedOut,
+    'failed' => AccountState.failed,
+    _ => AccountState.asked,
+  };
+
+  factory AgentAccount.fromJson(Map json) => AgentAccount(
+    id: json['id'] as String,
+    workerId: json['worker_id'] as String,
+    agent: json['agent'] as String,
+    main: json['main'] == true,
+    name: json['name'] as String? ?? '',
+    email: json['email'] as String?,
+    plan: json['plan'] as String?,
+    state: _stateOf(json['state'] as String?),
+    note: json['note'] as String?,
+    loginUrl: json['login_url'] as String?,
+    loginHint: json['login_hint'] as String?,
+    usage: ChatUsage.of(json['usage']),
+    created:
+        DateTime.tryParse(json['created_at'] as String? ?? '')?.toLocal() ??
+        DateTime.now(),
   );
 }
 
@@ -207,6 +289,9 @@ class Chat {
   /// null before its first turn, or from a server without the column.
   final ChatUsage? usage;
 
+  /// The account it runs under; null for its worker's own.
+  final String? account;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -229,6 +314,7 @@ class Chat {
     this.session,
     this.inChat = false,
     this.usage,
+    this.account,
   });
 
   /// Whether it can be a chat at all: one begun as one, wherever it is now.
@@ -272,6 +358,7 @@ class Chat {
         updatedAt: c.updatedAt,
         inChat: toChat,
         usage: c.usage,
+        account: c.account,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -308,7 +395,22 @@ class Chat {
     updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     inChat: json['mode'] == 'chat',
     usage: ChatUsage.of(json['usage']),
+    account: json['account'] as String?,
   );
+}
+
+/// [url] opened in the browser: the page an account is signed in on.
+/// False if nothing would open it.
+Future<bool> openPage(String url) async {
+  if (onDesktop) return Desktop.open(url);
+  try {
+    return await const MethodChannel(
+          'caldo/updates',
+        ).invokeMethod<bool>('open', {'url': url}) ??
+        false;
+  } on PlatformException {
+    return false;
+  }
 }
 
 List<String> _strings(Object? list) => [
@@ -324,6 +426,7 @@ class Agents extends ChangeNotifier {
   List<AgentWorker> workers = const [];
   List<Chat> chats = const [];
   List<AgentRule> rules = const [];
+  List<AgentAccount> accounts = const [];
   bool loaded = false;
   Object? error;
 
@@ -332,6 +435,7 @@ class Agents extends ChangeNotifier {
   bool get signedIn => _client != null;
 
   RealtimeChannel? _channel;
+  RealtimeChannel? _accountsChannel;
   Timer? _every;
   int _watching = 0;
 
@@ -357,6 +461,17 @@ class Agents extends ChangeNotifier {
           callback: (_) => _soon(),
         )
         .subscribe();
+    // A channel of its own, so a server without the table yet costs only
+    // this.
+    _accountsChannel = client
+        .channel('caldo-agent-accounts')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'agent_accounts',
+          callback: (_) => _soon(),
+        )
+        .subscribe();
     // Whether a worker is there is told by time passing, not by a change.
     _every = Timer.periodic(const Duration(seconds: 30), (_) => load());
   }
@@ -365,9 +480,11 @@ class Agents extends ChangeNotifier {
     if (--_watching > 0) return;
     _every?.cancel();
     _every = null;
-    final channel = _channel;
+    for (final channel in [_channel, _accountsChannel]) {
+      if (channel != null) unawaited(_client?.removeChannel(channel));
+    }
     _channel = null;
-    if (channel != null) unawaited(_client?.removeChannel(channel));
+    _accountsChannel = null;
   }
 
   Timer? _later;
@@ -398,11 +515,101 @@ class Agents extends ChangeNotifier {
           .limit(200);
       workers = [for (final r in w) AgentWorker.fromJson(r)];
       chats = [for (final r in c) Chat.fromJson(r)];
+      accounts = await _readAccounts(client);
       error = null;
     } catch (e) {
       error = e;
     }
     loaded = true;
+    notifyListeners();
+  }
+
+  /// The accounts, the workers' own first, then as they were added; none
+  /// from a server without the table.
+  Future<List<AgentAccount>> _readAccounts(SupabaseClient client) async {
+    try {
+      final rows = await client
+          .from('agent_accounts')
+          .select()
+          .order('main', ascending: false)
+          .order('created_at', ascending: true);
+      return [for (final r in rows) AgentAccount.fromJson(r)];
+    } on PostgrestException {
+      return const [];
+    }
+  }
+
+  AgentAccount? account(String? id) =>
+      accounts.where((a) => a.id == id).firstOrNull;
+
+  /// The accounts [worker] runs [agent] under, its own first.
+  List<AgentAccount> accountsOf(String? worker, String agent) => [
+    for (final a in accounts)
+      if (a.workerId == worker && a.agent == agent) a,
+  ];
+
+  /// The account [chat] runs under: the one chosen, else its worker's
+  /// own.
+  AgentAccount? accountOf(Chat chat) =>
+      account(chat.account) ??
+      accountsOf(chat.workerId, chat.agent).where((a) => a.main).firstOrNull;
+
+  /// A new account of [agent] on [worker], signed into there: the worker
+  /// begins at once, and the row says where to sign in.
+  Future<AgentAccount> addAccount({
+    required String worker,
+    required String agent,
+    String name = '',
+  }) async {
+    final row = await _client!
+        .from('agent_accounts')
+        .insert({'worker_id': worker, 'agent': agent, 'name': name.trim()})
+        .select()
+        .single();
+    final made = AgentAccount.fromJson(row);
+    accounts = [...accounts, made];
+    notifyListeners();
+    return made;
+  }
+
+  Future<void> _changeAccount(String id, Map<String, Object?> fields) async {
+    final row = await _client!
+        .from('agent_accounts')
+        .update(fields)
+        .eq('id', id)
+        .select()
+        .single();
+    final changed = AgentAccount.fromJson(row);
+    accounts = [
+      for (final a in accounts)
+        if (a.id == id) changed else a,
+    ];
+    notifyListeners();
+  }
+
+  Future<void> renameAccount(String id, String name) =>
+      _changeAccount(id, {'name': name.trim()});
+
+  /// Claude's code from the sign-in page, for its worker to type in.
+  Future<void> loginCode(String id, String code) =>
+      _changeAccount(id, {'login_code': code.trim()});
+
+  /// Signed into afresh: after a failure, or once signed out.
+  Future<void> signInAgain(String id) => _changeAccount(id, {
+    'state': 'new',
+    'note': null,
+    'login_url': null,
+    'login_hint': null,
+  });
+
+  /// Gone here and, signed out of, from its worker; its chats go on under
+  /// the worker's own.
+  Future<void> removeAccount(String id) async {
+    await _client!.from('agent_accounts').delete().eq('id', id);
+    accounts = [
+      for (final a in accounts)
+        if (a.id != id) a,
+    ];
     notifyListeners();
   }
 
@@ -490,6 +697,7 @@ class Agents extends ChangeNotifier {
     List<AgentRule> rules = const [],
     String prompt = '',
     String? task,
+    String? account,
     int cols = 80,
     int rows = 24,
     bool inChat = false,
@@ -515,6 +723,9 @@ class Agents extends ChangeNotifier {
       // A task sent from Schedule or the calendar: the list marks the
       // chat as its task's, and the task's form opens it.
       'task_uuid': ?task,
+      // Left out for the worker's own, so a server without the column
+      // still starts a chat.
+      'account': ?account,
       // The worker titles the chat in it, not in the message's.
       'language': S.current.code,
       'cols': cols.clamp(10, 500),

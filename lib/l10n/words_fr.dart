@@ -543,8 +543,10 @@ const Map<String, Object> fr = {
   'chatEmpty': "Rien n’a encore été dit.",
   'chatMoveStops': "Il est au travail : le déplacer maintenant arrête ce tour.",
   'chatSettings': "Réglages",
-  'chatSettingsHint': "{agent} les reprend dans la même conversation : après le tour en cours, dès votre prochain message.",
-  'chatSettingsOld': "Le worker sur {name} est plus ancien et ne peut pas les changer : réinstallez-le là-bas (tool/mcp/install.sh, puis watch.sh).",
+  'chatSettingsHint':
+      "{agent} les reprend dans la même conversation : après le tour en cours, dès votre prochain message.",
+  'chatSettingsOld':
+      "Le worker sur {name} est plus ancien et ne peut pas les changer : réinstallez-le là-bas (tool/mcp/install.sh, puis watch.sh).",
   'usageTitle': "Consommation",
   'usageContext': "Contexte",
   'usageContextShort': "Contexte {n}",
@@ -572,4 +574,41 @@ const Map<String, Object> fr = {
   'usageDays': "Limite sur {n} jours",
   'usageHoursLimit': "Limite sur {n} heures",
   'usageWeekShort': "Semaine",
+  'agentAccounts': "Comptes",
+  'addAccount': "Ajouter un compte",
+  'accountsNone': "Aucun compte pour l'instant",
+  'accountsNoneHint':
+      "Les connexions Claude et Codex propres à chaque ordinateur apparaissent ici une fois son worker réinstallé. Ajoutez-en d'autres pour y lancer des chats.",
+  'accountsReinstall':
+      "Réinstallez caldo-mcp sur votre ordinateur (tool/mcp/install.sh et watch.sh) pour y ajouter des comptes.",
+  'accountOwn': "Compte propre à l'ordinateur",
+  'accountStarting': "Démarrage…",
+  'accountSigningIn': "Connexion…",
+  'accountReady': "Connecté",
+  'accountSignedOut': "Déconnecté",
+  'accountFailed': "Échec de la connexion",
+  'accountSignIn': "Se connecter",
+  'accountSignInAgain': "Se reconnecter",
+  'accountRename': "Renommer",
+  'accountRemoveQuestion': "Retirer {name} ?",
+  'accountRemoveHint':
+      "Il sera déconnecté sur {worker}. Ses chats continuent sous le compte propre de l'ordinateur.",
+  'accountNoLimits': "Limites pas encore lues",
+  'accountWaitingPage': "En attente de la page de connexion…",
+  'accountWaitingCodex': "En attente de la confirmation sur la page…",
+  'accountClaudeSteps':
+      "Ouvrez la page, connectez-vous avec le compte, puis collez ici le code affiché.",
+  'accountCodexSteps':
+      "Ouvrez la page, connectez-vous avec le compte et saisissez-y ce code.",
+  'accountOpenPage': "Ouvrir la page de connexion",
+  'accountCopyLink': "Copier",
+  'accountLinkCopied': "Copié",
+  'accountCode': "Code de la page",
+  'accountSend': "Envoyer",
+  'accountName': "Nom",
+  'accountNameHint': "Facultatif : sinon son e-mail",
+  'accountAddHint':
+      "{worker} s'y connecte et le garde à part de sa propre connexion. Les chats sous ce compte partagent extensions, compétences et sessions.",
+  'chatAccount': "Compte",
+  'usageResetSince': "Réinitialisé depuis",
 };

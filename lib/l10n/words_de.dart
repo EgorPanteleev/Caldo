@@ -545,8 +545,10 @@ const Map<String, Object> de = {
   'chatEmpty': "Noch nichts gesagt.",
   'chatMoveStops': "Er arbeitet gerade: Verschieben beendet diesen Zug.",
   'chatSettings': "Einstellungen",
-  'chatSettingsHint': "{agent} übernimmt sie im selben Gespräch: nach dem laufenden Zug, ab deiner nächsten Nachricht.",
-  'chatSettingsOld': "Der Worker auf {name} ist älter und kann sie nicht ändern: installiere ihn dort neu (tool/mcp/install.sh, dann watch.sh).",
+  'chatSettingsHint':
+      "{agent} übernimmt sie im selben Gespräch: nach dem laufenden Zug, ab deiner nächsten Nachricht.",
+  'chatSettingsOld':
+      "Der Worker auf {name} ist älter und kann sie nicht ändern: installiere ihn dort neu (tool/mcp/install.sh, dann watch.sh).",
   'usageTitle': "Verbrauch",
   'usageContext': "Kontext",
   'usageContextShort': "Kontext {n}",
@@ -574,4 +576,41 @@ const Map<String, Object> de = {
   'usageDays': "{n}-Tage-Limit",
   'usageHoursLimit': "{n}-Stunden-Limit",
   'usageWeekShort': "Woche",
+  'agentAccounts': "Konten",
+  'addAccount': "Konto hinzufügen",
+  'accountsNone': "Noch keine Konten",
+  'accountsNoneHint':
+      "Die eigenen Claude- und Codex-Anmeldungen jedes Computers erscheinen hier, sobald sein Worker neu installiert ist. Füge weitere hinzu, um Chats darunter laufen zu lassen.",
+  'accountsReinstall':
+      "Installiere caldo-mcp auf deinem Computer neu (tool/mcp/install.sh und watch.sh), um dort Konten hinzuzufügen.",
+  'accountOwn': "Eigenes Konto des Computers",
+  'accountStarting': "Startet…",
+  'accountSigningIn': "Anmeldung…",
+  'accountReady': "Angemeldet",
+  'accountSignedOut': "Abgemeldet",
+  'accountFailed': "Anmeldung fehlgeschlagen",
+  'accountSignIn': "Anmelden",
+  'accountSignInAgain': "Erneut anmelden",
+  'accountRename': "Umbenennen",
+  'accountRemoveQuestion': "{name} entfernen?",
+  'accountRemoveHint':
+      "Es wird auf {worker} abgemeldet. Seine Chats laufen unter dem eigenen Konto des Computers weiter.",
+  'accountNoLimits': "Limits noch nicht gelesen",
+  'accountWaitingPage': "Warte auf die Anmeldeseite…",
+  'accountWaitingCodex': "Warte auf die Bestätigung auf der Seite…",
+  'accountClaudeSteps':
+      "Öffne die Seite, melde dich mit dem Konto an und füge den angezeigten Code hier ein.",
+  'accountCodexSteps':
+      "Öffne die Seite, melde dich mit dem Konto an und gib dort diesen Code ein.",
+  'accountOpenPage': "Anmeldeseite öffnen",
+  'accountCopyLink': "Kopieren",
+  'accountLinkCopied': "Kopiert",
+  'accountCode': "Code von der Seite",
+  'accountSend': "Senden",
+  'accountName': "Name",
+  'accountNameHint': "Optional: sonst seine E-Mail",
+  'accountAddHint':
+      "{worker} meldet sich daran an und hält es getrennt von der eigenen Anmeldung. Chats darunter teilen Plugins, Skills und Sitzungen.",
+  'chatAccount': "Konto",
+  'usageResetSince': "Inzwischen zurückgesetzt",
 };

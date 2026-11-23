@@ -135,11 +135,20 @@ abstract class Talk {
   /// worker, for one started again to read on from.
   int? get offset => _kept?.offset;
 
+  /// The words its program is started after: the account it runs under
+  /// (`AgentLogins.envOf`).
+  List<String> env = const [];
+
   // The chat's id is in its program's environment, and so in that of
   // every MCP server it starts: Caldo's tells another chat who a message
   // is from (`ChatTools`).
   Future<void> _run(String files, List<String> argv) async => _follow(
-    await Kept.start(files, argv, cwd: dir, environment: {chatEnv: ask.id}),
+    await Kept.start(
+      files,
+      [...env, ...argv],
+      cwd: dir,
+      environment: {chatEnv: ask.id},
+    ),
   );
 
   void _follow(Kept kept) {
@@ -1119,17 +1128,7 @@ class CodexTalk extends Talk {
   /// used and when it starts again.
   void _limits(Map limits) {
     _limited = limits;
-    final rows = [
-      for (final name in const ['primary', 'secondary'])
-        if (limits[name] case final Map window
-            when window['usedPercent'] is num)
-          limitRow(
-            name,
-            (window['usedPercent'] as num) / 100,
-            resets: window['resetsAt'] as num?,
-            minutes: window['windowDurationMins'] as num?,
-          ),
-    ];
+    final rows = codexLimitRows(limits);
     if (rows.isEmpty) return;
     sink.usage(
       set: {'limits': rows, 'limitsAt': DateTime.now().millisecondsSinceEpoch},

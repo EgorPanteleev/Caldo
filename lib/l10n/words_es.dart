@@ -541,8 +541,10 @@ const Map<String, Object> es = {
   'chatEmpty': "Aún no se ha dicho nada.",
   'chatMoveStops': "Está trabajando: moverlo ahora detiene este turno.",
   'chatSettings': "Ajustes",
-  'chatSettingsHint': "{agent} los adopta en la misma conversación: tras el turno en curso, desde tu próximo mensaje.",
-  'chatSettingsOld': "El worker de {name} es más antiguo y no puede cambiarlos: reinstálalo allí (tool/mcp/install.sh, luego watch.sh).",
+  'chatSettingsHint':
+      "{agent} los adopta en la misma conversación: tras el turno en curso, desde tu próximo mensaje.",
+  'chatSettingsOld':
+      "El worker de {name} es más antiguo y no puede cambiarlos: reinstálalo allí (tool/mcp/install.sh, luego watch.sh).",
   'usageTitle': "Consumo",
   'usageContext': "Contexto",
   'usageContextShort': "Contexto {n}",
@@ -570,4 +572,41 @@ const Map<String, Object> es = {
   'usageDays': "Límite de {n} días",
   'usageHoursLimit': "Límite de {n} horas",
   'usageWeekShort': "Semana",
+  'agentAccounts': "Cuentas",
+  'addAccount': "Añadir cuenta",
+  'accountsNone': "Aún no hay cuentas",
+  'accountsNoneHint':
+      "Los accesos propios de Claude y Codex de cada ordenador aparecen aquí cuando se reinstala su worker. Añade más para ejecutar chats con ellas.",
+  'accountsReinstall':
+      "Reinstala caldo-mcp en tu ordenador (tool/mcp/install.sh y watch.sh) para añadir cuentas allí.",
+  'accountOwn': "Cuenta propia del ordenador",
+  'accountStarting': "Iniciando…",
+  'accountSigningIn': "Iniciando sesión…",
+  'accountReady': "Sesión iniciada",
+  'accountSignedOut': "Sesión cerrada",
+  'accountFailed': "Error al iniciar sesión",
+  'accountSignIn': "Iniciar sesión",
+  'accountSignInAgain': "Volver a iniciar sesión",
+  'accountRename': "Renombrar",
+  'accountRemoveQuestion': "¿Quitar {name}?",
+  'accountRemoveHint':
+      "Se cerrará su sesión en {worker}. Sus chats seguirán con la cuenta propia del ordenador.",
+  'accountNoLimits': "Límites aún sin leer",
+  'accountWaitingPage': "Esperando la página de inicio de sesión…",
+  'accountWaitingCodex': "Esperando la confirmación en la página…",
+  'accountClaudeSteps':
+      "Abre la página, inicia sesión con la cuenta y pega aquí el código que muestra.",
+  'accountCodexSteps':
+      "Abre la página, inicia sesión con la cuenta e introduce allí este código.",
+  'accountOpenPage': "Abrir página de inicio de sesión",
+  'accountCopyLink': "Copiar",
+  'accountLinkCopied': "Copiado",
+  'accountCode': "Código de la página",
+  'accountSend': "Enviar",
+  'accountName': "Nombre",
+  'accountNameHint': "Opcional: si no, su correo",
+  'accountAddHint':
+      "{worker} inicia sesión en ella y la guarda aparte de su propio acceso. Los chats con ella comparten complementos, habilidades y sesiones.",
+  'chatAccount': "Cuenta",
+  'usageResetSince': "Ya reiniciado",
 };

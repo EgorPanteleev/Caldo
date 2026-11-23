@@ -29,6 +29,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   Set<String>? _plugins;
   final Set<String> _skills = {};
 
+  /// The account it runs under; null for its worker's own.
+  String? _account;
+
   /// Its rules as it keeps them, and which of those it still has: one
   /// dropped is gone; one of the kept rules chosen here is told in its
   /// words as they are now.
@@ -53,6 +56,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         chat.plugins?.toSet() ??
         (kind == null || kind.plugins.isEmpty ? null : {...kind.pluginsOn});
     _skills.addAll(chat.skills);
+    _account = chat.account;
     _kept.addAll(chat.rules);
     _keep.addAll(chat.rules);
   }
@@ -139,6 +143,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       if (_permission != was.permission) 'permission': _permission,
       if (!listEquals(pluginsNow, pluginsWas)) 'plugins': pluginsNow,
       if (!setEquals(_skills, was.skills.toSet())) 'skills': _skills.toList(),
+      if (_account != was.account) 'account': _account,
       if (!listEquals(rules, was.rules))
         'rules': [
           for (final r in rules) {'name': r.name, 'body': r.body},
@@ -267,6 +272,16 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   /// What it runs with, chosen as on the new chat's form.
   List<Widget> _choices(S s, AppPalette p, AgentKind kind, bool otherModel) => [
+    // Another account carries the same session on: one at its limit is
+    // left for another.
+    if (_w case final w?)
+      ...accountPicks(
+        context,
+        worker: w,
+        kind: kind,
+        chosen: _account,
+        onPick: (id) => setState(() => _account = id),
+      ),
     _Section(s.chatModel),
     _Picks(
       children: [
