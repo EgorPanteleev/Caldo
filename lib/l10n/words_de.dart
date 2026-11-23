@@ -522,6 +522,8 @@ const Map<String, Object> de = {
   'chatPickAny': "Mehrere möglich",
   'chatThinking': "Denkt nach",
   'chatWorking': "Arbeitet…",
+  'chatFrom': "Aus dem Chat „{name}“",
+  'chatFromOutside': "Von einem Assistenten",
   'chatInterrupt': "Unterbrechen",
   'chatLater': "Später senden",
   'chatLater30': "In 30 Minuten",

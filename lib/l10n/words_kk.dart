@@ -507,6 +507,8 @@ const Map<String, Object> kk = {
   'chatPickAny': "Бірнешеуін таңдауға болады",
   'chatThinking': "Ойланып жатыр",
   'chatWorking': "Жұмыс істеп жатыр…",
+  'chatFrom': "«{name}» чатынан",
+  'chatFromOutside': "Көмекшіден",
   'chatInterrupt': "Үзу",
   'chatLater': "Кейінірек жіберу",
   'chatLater30': "30 минуттан кейін",

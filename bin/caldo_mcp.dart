@@ -24,6 +24,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caldo/mcp/agents.dart';
+import 'package:caldo/mcp/chat_tools.dart';
 import 'package:caldo/mcp/protocol.dart';
 import 'package:caldo/mcp/remote.dart';
 import 'package:caldo/mcp/tools.dart';
@@ -61,15 +62,23 @@ Future<void> main(List<String> args) async {
   exit(exitCode);
 }
 
+/// The tools served: the account's tasks, and its chats with agents.
+List<Tool> _tools(SupabaseRemote remote, Caldo caldo) => [
+  ...caldo.tools,
+  ...ChatTools(SupabaseChatDesk(remote), self: ChatTools.here).tools,
+];
+
+const _instructions = Caldo.instructions + ChatTools.instructions;
+
 Future<void> _serve(SessionFile file) async {
   final remote = SupabaseRemote(file);
   final caldo = Caldo(remote);
   // stdout carries the protocol and nothing else.
   await McpServer(
-    tools: caldo.tools,
+    tools: _tools(remote, caldo),
     name: 'caldo',
     version: _version,
-    instructions: Caldo.instructions,
+    instructions: _instructions,
     before: caldo.refresh,
   ).serve(stdin, stdout.writeln);
   await stdout.flush();
@@ -154,19 +163,21 @@ Future<int> _status(SessionFile file) async {
 }
 
 Future<int> _call(SessionFile file, String name, String json) async {
-  final caldo = Caldo(SupabaseRemote(file));
-  final tool = caldo.tools.where((t) => t.name == name).firstOrNull;
+  final remote = SupabaseRemote(file);
+  final caldo = Caldo(remote);
+  final tools = _tools(remote, caldo);
+  final tool = tools.where((t) => t.name == name).firstOrNull;
   if (tool == null) {
     stderr.writeln(
-      'No tool $name. Tools: ${caldo.tools.map((t) => t.name).join(', ')}',
+      'No tool $name. Tools: ${tools.map((t) => t.name).join(', ')}',
     );
     return 64;
   }
   final server = McpServer(
-    tools: caldo.tools,
+    tools: tools,
     name: 'caldo',
     version: _version,
-    instructions: Caldo.instructions,
+    instructions: _instructions,
     before: caldo.refresh,
   );
   final answer = await server.call(

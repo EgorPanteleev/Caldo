@@ -894,6 +894,35 @@ void main() {
       ]);
     });
 
+    test("is told another chat's message is not the user's", () {
+      const sender = {'chat': 'abcd1234-ffff', 'title': 'Tests', 'waits': true};
+      final told = withSender('Do the tests pass?', sender);
+      expect(told, endsWith('\n\nDo the tests pass?'));
+      expect(told, contains('"Tests" (chat abcd1234)'));
+      expect(told, contains('not from the user'));
+      expect(told, contains('handed back to it'));
+      final later = withSender('FYI', {...sender, 'waits': false});
+      expect(later, contains('message_chat tool to chat abcd1234'));
+      expect(
+        withSender('Hi', const {'chat': null, 'title': null, 'waits': false}),
+        contains('outside Caldo'),
+      );
+      expect(withSender('Hi', null), 'Hi');
+
+      final heard = _Heard();
+      ClaudeTalk(
+        claude,
+        const ChatAsk(id: 'x', agent: 'claude'),
+        heard,
+        dir: '/tmp',
+      ).say('Do the tests pass?', id: 'u1', sender: sender);
+      // The app shows the words as sent, and whose they are.
+      final (kind, body) = heard.items['u1']!;
+      expect(kind, 'user');
+      expect(body['text'], 'Do the tests pass?');
+      expect(body['sender'], sender);
+    });
+
     test('is told the skills and the rules in one appended prompt', () {
       final ask = ChatAsk.fromJson({
         'id': 'x',
@@ -1857,6 +1886,19 @@ void main() {
             kind: 'note',
             body: {'text': 'Context compacted.'},
           ),
+          const ChatItem(
+            id: 'm',
+            seq: 6,
+            kind: 'user',
+            body: {
+              'text': 'Do the tests pass?',
+              'sender': {
+                'chat': 'abcd1234-ffff',
+                'title': 'Planning the release of the next version, at length',
+                'waits': true,
+              },
+            },
+          ),
         ]);
         addTearDown(feed.dispose);
         await pump(
@@ -1867,6 +1909,13 @@ void main() {
           ),
         );
         final s = S.forCode(code);
+        // Another chat's message says whose it is, cut to a line.
+        expect(
+          find.text(
+            s.chatFrom('Planning the release of the next version, at length'),
+          ),
+          findsOneWidget,
+        );
         expect(find.text(s.chatAllow), findsOneWidget);
         expect(find.text(s.chatWorking), findsOneWidget);
         // Opened at the foot: the tool is above, scrolled to.

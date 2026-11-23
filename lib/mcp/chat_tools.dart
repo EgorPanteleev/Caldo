@@ -1,0 +1,502 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:supabase/supabase.dart';
+
+import 'agents.dart';
+import 'remote.dart';
+import 'talk.dart';
+import 'tools.dart';
+
+/// The account's chats with agents as the server holds them: the Agents
+/// tab's tables, which are not synced rows.
+abstract class ChatDesk {
+  /// Every chat, the latest touched first.
+  Future<List<Map<String, dynamic>>> chats();
+
+  Future<List<Map<String, dynamic>>> workers();
+
+  /// [chat]'s items after [after], in order; or its last [last], in order.
+  Future<List<Map<String, dynamic>>> items(
+    String chat, {
+    int? after,
+    int? last,
+  });
+
+  /// [chat]'s item [id], or null if not there yet.
+  Future<Map<String, dynamic>?> item(String chat, String id);
+
+  /// Input for a chat, as the app sends it (`chat_in`).
+  Future<void> send(Map<String, Object?> row);
+}
+
+/// [ChatDesk] on Supabase, signed in as the MCP server is.
+class SupabaseChatDesk implements ChatDesk {
+  final SupabaseRemote remote;
+
+  SupabaseChatDesk(this.remote);
+
+  Future<SupabaseClient> get _db => remote.signedIn();
+
+  @override
+  Future<List<Map<String, dynamic>>> chats() async => (await _db)
+      .from('chats')
+      .select(
+        'id, title, prompt, agent, model, state, mode, dir, worker_id, '
+        'updated_at',
+      )
+      .order('updated_at', ascending: false)
+      .limit(200);
+
+  @override
+  Future<List<Map<String, dynamic>>> workers() async =>
+      (await _db).from('workers').select('id, name, agents, seen_at');
+
+  @override
+  Future<List<Map<String, dynamic>>> items(
+    String chat, {
+    int? after,
+    int? last,
+  }) async {
+    final db = await _db;
+    final rows = db
+        .from('chat_items')
+        .select('id, seq, kind, body')
+        .eq('chat_id', chat);
+    if (last != null) {
+      final latest = await rows.order('seq', ascending: false).limit(last);
+      return latest.reversed.toList();
+    }
+    return rows.gt('seq', after ?? -1).order('seq', ascending: true);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> item(String chat, String id) async =>
+      (await _db)
+          .from('chat_items')
+          .select('id, seq, kind, body')
+          .eq('chat_id', chat)
+          .eq('id', id)
+          .maybeSingle();
+
+  @override
+  Future<void> send(Map<String, Object?> row) async =>
+      (await _db).from('chat_in').insert(row);
+}
+
+/// Chats talking to each other: tools for an agent in one of Caldo's chats
+/// — or any assistant with Caldo's MCP server — to see the user's other
+/// chats, read one, and send one a message, waiting on its answer or not.
+///
+/// A message goes as the app's own words do, a `line` in `chat_in`, saying
+/// who it is from (`sender`), so the agent it reaches is told it is not
+/// the user's (`withSender`) and the app shows whose it is. Waited on, the
+/// answer is that turn's words, read back from the chat's items once it
+/// stands idle again: so a chat at work is waited for first, or its
+/// running turn's words would be taken for the answer.
+class ChatTools {
+  final ChatDesk desk;
+
+  /// The chat these tools are called from (`chatEnv`), or null for an
+  /// assistant outside Caldo's chats.
+  final String? self;
+
+  /// How often a chat waited on is looked at.
+  final Duration poll;
+
+  final DateTime Function() _now;
+
+  ChatTools(
+    this.desk, {
+    this.self,
+    this.poll = const Duration(seconds: 1),
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
+
+  /// The chat this process runs under, as its worker started it; null if
+  /// not one of Caldo's.
+  static String? get here {
+    final id = Platform.environment[chatEnv]?.trim();
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  static const _gone = {'ended', 'failed'};
+  static const _busy = {'new', 'running', 'asking'};
+
+  /// Longest answer handed back: its end, where an agent says what it
+  /// found.
+  static const _most = 20000;
+
+  // ---- Finding things ---------------------------------------------------
+
+  static String _short(String id) => id.substring(0, min(8, id.length));
+
+  static String _titleOf(Map chat) {
+    final title = '${chat['title'] ?? ''}'.trim();
+    if (title.isNotEmpty) return title;
+    final prompt = '${chat['prompt'] ?? ''}'.trim().split('\n').first;
+    return prompt.isEmpty ? 'untitled' : clip(prompt, 60);
+  }
+
+  Future<Map<String, dynamic>> _chat(Object? id) async {
+    final want = '${id ?? ''}'.trim().toLowerCase().replaceAll(
+      RegExp(r'[\[\]]'),
+      '',
+    );
+    if (want.length < 4) {
+      throw const Refusal('Give the chat id, as [abcd1234] (see chats).');
+    }
+    final found = [
+      for (final c in await desk.chats())
+        if ('${c['id']}'.startsWith(want)) c,
+    ];
+    if (found.isEmpty) throw Refusal('No chat with id $want (see chats).');
+    if (found.length > 1) {
+      throw Refusal(
+        'Id $want matches ${found.length} chats: '
+        '${found.map((c) => '[${_short(c['id'])}] ${_titleOf(c)}').join(', ')}.',
+      );
+    }
+    return found.single;
+  }
+
+  Future<Map<String, Map>> _workers() async => {
+    for (final w in await desk.workers()) '${w['id']}': w,
+  };
+
+  bool _online(Map? worker) {
+    final seen = DateTime.tryParse('${worker?['seen_at']}');
+    return seen != null &&
+        _now().difference(seen.toLocal()) < const Duration(seconds: 90);
+  }
+
+  /// What [worker] says it can do with [agent], as it tells the app.
+  static Map? _kind(Map? worker, String agent) {
+    final agents = worker?['agents'];
+    if (agents is! List) return null;
+    return agents.whereType<Map>().where((a) => a['id'] == agent).firstOrNull;
+  }
+
+  // ---- The tools --------------------------------------------------------
+
+  Future<String> chats(Map<String, Object?> args) async {
+    final all = args['include_ended'] == true;
+    final workers = await _workers();
+    final lines = <String>[];
+    for (final c in await desk.chats()) {
+      final state = '${c['state']}';
+      if (!all && _gone.contains(state) && c['id'] != self) continue;
+      final worker = workers['${c['worker_id']}'];
+      final where = worker == null
+          ? 'no computer'
+          : '${worker['name']}${_online(worker) ? '' : ' (offline)'}';
+      final agent = [
+        '${c['agent']}',
+        if ('${c['model'] ?? ''}'.isNotEmpty) '${c['model']}',
+      ].join(' ');
+      lines.add(
+        '[${_short(c['id'])}] ${_titleOf(c)} — $agent, $state'
+        '${c['mode'] == 'terminal' ? ', in its terminal' : ''}, on $where'
+        '${'${c['dir'] ?? ''}'.isEmpty ? '' : ', in ${c['dir']}'}'
+        '${c['id'] == self ? '  ← this chat (you)' : ''}',
+      );
+      if (lines.length == 40) break;
+    }
+    if (lines.isEmpty) return 'No chats${all ? '' : ' running'}.';
+    return [
+      if (self == null) 'You are not in one of these chats.',
+      ...lines,
+    ].join('\n');
+  }
+
+  Future<String> readChat(Map<String, Object?> args) async {
+    final chat = await _chat(args['chat']);
+    final last = ((args['last'] as num?)?.toInt() ?? 20).clamp(1, 200);
+    final said = <String>[];
+    for (final item in await desk.items(chat['id'], last: last)) {
+      final body = item['body'] is Map ? item['body'] as Map : const {};
+      final text = '${body['text'] ?? ''}'.trim();
+      switch (item['kind']) {
+        case 'user':
+          final sender = body['sender'];
+          final who = sender is Map
+              ? sender['chat'] == null
+                    ? 'An assistant outside Caldo'
+                    : 'Chat ${_short('${sender['chat']}')}'
+                          '${sender['chat'] == self ? ' (you)' : ''}'
+              : 'User';
+          said.add('$who: ${clip(text, 4000)}');
+        case 'text':
+          if (text.isNotEmpty) said.add('Agent: ${clip(text, 4000)}');
+        case 'tool':
+          said.add('  (tool: ${body['name'] ?? ''} ${body['line'] ?? ''})');
+        case 'ask':
+          if (body['answer'] == null) {
+            said.add('  (asking the user: ${body['tool']} ${body['line']})');
+          }
+        case 'note':
+          if (text.isNotEmpty) said.add('  (note: $text)');
+      }
+    }
+    final head = '[${_short(chat['id'])}] ${_titleOf(chat)} — ${chat['state']}';
+    return said.isEmpty
+        ? '$head\nNothing said yet.'
+        : '$head\n\n${said.join('\n\n')}';
+  }
+
+  Future<String> messageChat(Map<String, Object?> args) async {
+    final message = (args['message'] as String? ?? '').trim();
+    if (message.isEmpty) throw const Refusal('Say what to tell it.');
+    final wait = args['wait'] as bool? ?? true;
+    final minutes = ((args['timeout_minutes'] as num?)?.toInt() ?? 10).clamp(
+      1,
+      120,
+    );
+    final until = _now().add(Duration(minutes: minutes));
+    var chat = await _chat(args['chat']);
+    final id = chat['id'] as String;
+    final name = '"${_titleOf(chat)}" [${_short(id)}]';
+    if (id == self) throw const Refusal('That is this chat, your own.');
+    if (_gone.contains(chat['state'])) {
+      throw Refusal(
+        '$name has ${chat['state']}; the user can start it again in '
+        "Caldo's Agents tab.",
+      );
+    }
+    final workers = await _workers();
+    final worker = workers['${chat['worker_id']}'];
+    if (!_online(worker)) {
+      throw Refusal(
+        "$name's computer${worker == null ? '' : ', ${worker['name']},'} "
+        'is not online.',
+      );
+    }
+    final kind = _kind(worker, '${chat['agent']}');
+    // A shell, say: the words would be run as a command.
+    if (kind != null && kind['talks'] != true) {
+      throw Refusal(
+        '$name runs ${kind['label'] ?? chat['agent']}, which takes keys, '
+        'not messages: only Claude and Codex chats can be messaged.',
+      );
+    }
+    // One not reinstalled since would pass the words off as the user's.
+    if (kind?['chats'] != true) {
+      throw Refusal(
+        "${worker!['name']} runs a Caldo worker from before chats could "
+        'message each other: reinstall caldo-mcp there '
+        '(tool/mcp/install.sh, tool/mcp/watch.sh) first.',
+      );
+    }
+    final talks = chat['mode'] == 'chat';
+    if (wait && !talks) {
+      throw Refusal(
+        '$name is in its terminal, where its answer cannot be read back. '
+        'Send with wait false, or ask the user to move it to its chat.',
+      );
+    }
+
+    // At work on what this chat asked it, waiting on this answer: waited
+    // on in turn, each would wait out the other's timeout.
+    if (wait && _busy.contains(chat['state']) && await _waitsOnMe(id)) {
+      throw Refusal(
+        '$name is waiting on your answer to its message: just answer it '
+        'in this turn (it is handed back), or send with wait false.',
+      );
+    }
+
+    // At work on something else: what it says now is not the answer.
+    if (wait && _busy.contains(chat['state'])) {
+      while (_busy.contains(chat['state'])) {
+        if (!_now().isBefore(until)) {
+          return '$name is still busy (${chat['state']}) after $minutes '
+              'minutes; nothing was sent. Try again later, or send with '
+              'wait false.';
+        }
+        await Future<void>.delayed(poll);
+        chat = await _chat(id);
+      }
+      if (_gone.contains(chat['state'])) {
+        throw Refusal('$name ${chat['state']} while waiting; nothing sent.');
+      }
+    }
+
+    String? myTitle;
+    if (self != null) {
+      for (final c in await desk.chats()) {
+        if (c['id'] == self) myTitle = _titleOf(c);
+      }
+    }
+    final key = 'm${_now().microsecondsSinceEpoch}${Random().nextInt(1 << 20)}';
+    await desk.send({
+      'chat_id': id,
+      'kind': 'line',
+      'data': message,
+      'key': key,
+      'sender': {'chat': self, 'title': myTitle, 'waits': wait},
+    });
+    if (!wait) {
+      return 'Sent to $name. Its answer stays in its chat (read_chat)'
+          '${self == null ? '' : ', or it may message you back'}.';
+    }
+
+    // Its words, then the turn they began, to its end.
+    Map<String, dynamic>? said;
+    final heard = _now().add(const Duration(seconds: 30));
+    while ((said = await desk.item(id, 'u$key')) == null) {
+      if (!_now().isBefore(heard) || !_now().isBefore(until)) {
+        return 'Sent to $name, but its computer has not taken it up yet; '
+            'it will be said there when it is. Look with read_chat later.';
+      }
+      await Future<void>.delayed(poll);
+    }
+    final from = said!['seq'] as int;
+    var begun = false;
+    var quiet = 0;
+    while (true) {
+      final after = await desk.items(id, after: from);
+      chat = await _chat(id);
+      final state = '${chat['state']}';
+      if (after.isNotEmpty || _busy.contains(state)) begun = true;
+      // Idle with nothing said a while: it took it up and said nothing.
+      if (!_busy.contains(state)) quiet++;
+      if ((begun || quiet > 20) && !_busy.contains(state)) {
+        return _answer(name, after, state);
+      }
+      if (!_now().isBefore(until)) {
+        final words = _words(after);
+        return '$name is still at work after $minutes minutes'
+            '${state == 'asking' ? ', waiting for the user to answer it in '
+                      'its chat' : ''}; its answer will stay in its chat '
+            '(read_chat).'
+            '${words.isEmpty ? '' : ' So far:\n\n${_tail(words)}'}';
+      }
+      await Future<void>.delayed(poll);
+    }
+  }
+
+  /// Whether this chat's turn under way answers [chat], which waits on it.
+  Future<bool> _waitsOnMe(String chat) async {
+    final me = self;
+    if (me == null) return false;
+    final said = await desk.items(me, last: 30);
+    final asked = said.lastWhere(
+      (i) => i['kind'] == 'user',
+      orElse: () => const {},
+    );
+    final sender = (asked['body'] as Map?)?['sender'];
+    return sender is Map && sender['chat'] == chat && sender['waits'] == true;
+  }
+
+  static String _words(List<Map<String, dynamic>> items) => [
+    for (final item in items)
+      if (item['kind'] == 'text' && item['body'] is Map)
+        if ('${(item['body'] as Map)['text'] ?? ''}'.trim() case final text
+            when text.isNotEmpty)
+          text,
+  ].join('\n\n');
+
+  static String _tail(String text) =>
+      text.length <= _most ? text : '…${text.substring(text.length - _most)}';
+
+  static String _answer(
+    String name,
+    List<Map<String, dynamic>> items,
+    String state,
+  ) {
+    final words = _words(items);
+    final failed = [
+      for (final item in items)
+        if (item['kind'] == 'note' &&
+            item['body'] is Map &&
+            (item['body'] as Map)['error'] == true)
+          '${(item['body'] as Map)['text']}',
+    ];
+    if (words.isEmpty) {
+      return '$name said nothing back'
+          '${failed.isEmpty ? '' : ': ${failed.join('; ')}'}'
+          '${_gone.contains(state) ? ' (it has $state)' : ''}.';
+    }
+    return '$name answered:\n\n${_tail(words)}';
+  }
+
+  static Map<String, Object?> _shape(
+    Map<String, Object?> properties, [
+    List<String> required = const [],
+  ]) => {
+    'type': 'object',
+    'properties': properties,
+    if (required.isNotEmpty) 'required': required,
+  };
+
+  static const _chatId = {
+    'type': 'string',
+    'description': 'The chat id, as chats lists it ([abcd1234]).',
+  };
+
+  late final List<Tool> tools = [
+    Tool(
+      'chats',
+      "The user's chats with agents (Claude, Codex…) in Caldo's Agents "
+          'tab, latest first: id, title, agent and model, how it stands, '
+          'which computer, which folder. Marks the one you are, if you are '
+          'one of them.',
+      _shape({
+        'include_ended': {
+          'type': 'boolean',
+          'description': 'List ended chats too (default false).',
+        },
+      }),
+      chats,
+      reads: true,
+    ),
+    Tool(
+      'read_chat',
+      "What was said lately in one of the user's chats: the user's and "
+          "other chats' messages, the agent's answers, its tools in a line.",
+      _shape(
+        {
+          'chat': _chatId,
+          'last': {
+            'type': 'integer',
+            'description': 'How many of its last items (default 20).',
+          },
+        },
+        ['chat'],
+      ),
+      readChat,
+      reads: true,
+    ),
+    Tool(
+      'message_chat',
+      "Sends a message to another of the user's chats, as the user would "
+          'type it there; its agent is told it is from you, not the user. '
+          'By default waits for its answer and hands it back (a chat at '
+          'work is waited for first). With wait false it returns at once; '
+          'the other agent may then answer with message_chat. Do not wait '
+          'on a chat that is waiting on you.',
+      _shape(
+        {
+          'chat': _chatId,
+          'message': {'type': 'string'},
+          'wait': {
+            'type': 'boolean',
+            'description': 'Wait for its answer (default true).',
+          },
+          'timeout_minutes': {
+            'type': 'integer',
+            'description': 'How long to wait, 1–120 (default 10).',
+          },
+        },
+        ['chat', 'message'],
+      ),
+      messageChat,
+    ),
+  ];
+
+  /// Added to what the assistant is told when it connects.
+  static const instructions =
+      " Chats with agents in Caldo's Agents tab can talk to each other: "
+      'chats lists them, read_chat reads one, message_chat sends one a '
+      'message.';
+}

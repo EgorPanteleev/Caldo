@@ -336,6 +336,10 @@ class S {
   String get chatPickAny => _word('chatPickAny');
   String get chatThinking => _word('chatThinking');
   String get chatWorking => _word('chatWorking');
+
+  /// Over a message another chat's agent sent: [name] is that chat's title.
+  String chatFrom(String name) => _fill('chatFrom', {'name': name});
+  String get chatFromOutside => _word('chatFromOutside');
   String get chatInterrupt => _word('chatInterrupt');
   String get chatLater => _word('chatLater');
   String get chatLater30 => _word('chatLater30');
