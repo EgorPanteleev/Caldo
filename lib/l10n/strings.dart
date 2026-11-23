@@ -310,6 +310,11 @@ class S {
   String get chatAgain => _word('chatAgain');
   String get chatDelete => _word('chatDelete');
   String get deleteChatQuestion => _word('deleteChatQuestion');
+  String deleteChatsQuestion(int n) => _count('deleteChatsQuestion', n);
+  String get chatPin => _word('chatPin');
+  String get chatUnpin => _word('chatUnpin');
+  String get chatPinned => _word('chatPinned');
+  String get chatSelectAll => _word('chatSelectAll');
   String get chatAsked => _word('chatAsked');
   String get chatRunning => _word('chatRunning');
   String get chatAsking => _word('chatAsking');
