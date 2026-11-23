@@ -505,6 +505,7 @@ class Worker {
             text,
             id: key is String ? 'u$key' : null,
             files: await _fetch(chat, row['files']),
+            sender: row['sender'] is Map ? row['sender'] as Map : null,
           );
         });
       case 'answer' when talker != null:
@@ -549,9 +550,12 @@ class Worker {
         final text = row['data'] as String? ?? '';
         _name(live.ask, text);
         final files = row['files'];
+        final sender = row['sender'] is Map ? row['sender'] as Map : null;
         live.typing = live.typing.then(
-          (_) async =>
-              tmux.line(chat, withFiles(text, await _fetch(chat, files))),
+          (_) async => tmux.line(
+            chat,
+            withSender(withFiles(text, await _fetch(chat, files)), sender),
+          ),
         );
     }
   }
@@ -1482,10 +1486,11 @@ class _Talker implements TalkSink {
     String text, {
     String? id,
     List<Given> files = const [],
+    Map? sender,
   }) async {
     if (text.trim().isEmpty && files.isEmpty) return;
     await wake();
-    talk!.say(text, id: id, files: files);
+    talk!.say(text, id: id, files: files, sender: sender);
   }
 
   /// [now], the chat's settings as changed in the app: its program is

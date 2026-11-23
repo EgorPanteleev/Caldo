@@ -169,7 +169,11 @@ class _TalkViewState extends State<TalkView> {
       key: ValueKey(item.id),
       top: above == null ? 0 : (close ? 4 : 14),
       child: switch (item.kind) {
-        'user' => _Said(text: item.text, files: item.body['files']),
+        'user' => _Said(
+          text: item.text,
+          files: item.body['files'],
+          sender: item.body['sender'],
+        ),
         'text' => _Answer(text: item.text),
         'thinking' => _Thinking(
           text: item.text,
@@ -217,11 +221,48 @@ class _Said extends StatelessWidget {
   final String text;
   final Object? files;
 
-  const _Said({required this.text, this.files});
+  /// Who sent it if not the user: another chat's agent (`withSender`).
+  final Object? sender;
+
+  const _Said({required this.text, this.files, this.sender});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final said = _bubble(p);
+    final from = sender;
+    if (from is! Map) return said;
+    final s = S.of(context);
+    final title = '${from['title'] ?? ''}'.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 6, bottom: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.forum_outlined, size: 13, color: p.muted),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  from['chat'] == null || title.isEmpty
+                      ? s.chatFromOutside
+                      : s.chatFrom(title),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: p.muted, fontSize: 12.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+        said,
+      ],
+    );
+  }
+
+  Widget _bubble(AppPalette p) {
     final sent = [
       for (final f in files is List ? files as List : const [])
         if (f is Map) f,

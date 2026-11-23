@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'agents.dart';
+
 /// The terminals a worker runs its chats in: one tmux session each, on a
 /// tmux server of Caldo's own (`tmux -L caldo`).
 ///
@@ -55,7 +57,8 @@ class Tmux {
       '--',
       'sh', '-c',
       'while [ ! -e "\$0" ]; do sleep 0.05; done; rm -f "\$0"; '
-          'export TERM=xterm-256color COLORTERM=truecolor; exec "\$@"',
+          'export TERM=xterm-256color COLORTERM=truecolor '
+          '$chatEnv=$chat; exec "\$@"',
       flag, ...argv,
       // Kept by the server for every session after: the pane stays once
       // its program ends, so its exit is read; its size is the app's.

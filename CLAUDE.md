@@ -769,6 +769,30 @@ the app, a terminal beside them; anything else a terminal.
   variadic). A message's lines are said in turn (`_inTurn`). Only from
   workers that say so (`AgentKind.files`); not with Send later. Deleting a
   chat takes its folder and bucket files.
+- **Chats talk to each other through Caldo's MCP server** (asked as
+  "agents (chats) chatting with each other", 2026-11-23; `ChatTools`,
+  `lib/mcp/chat_tools.dart`): `chats` lists them, `read_chat` reads one,
+  `message_chat` sends one a message. A chat's program is started with
+  its id in `CALDO_CHAT` (`chatEnv`; `Kept.start`'s environment, the tmux
+  script's export), which the MCP servers it starts inherit, so the tool
+  knows who is sending. The message is a `line` in `chat_in` with
+  `sender` ({chat, title, waits}; `…_chat_from.sql`); the worker tells
+  the agent it is from another chat, not the user, and how an answer gets
+  back (`withSender`), and keeps `sender` on the user item, drawn as
+  "From chat “…”" over the bubble. Waited on (the default, up to 10 min),
+  a busy chat is waited for first — else its running turn's words would
+  be taken for the answer — and the answer is the text items after the
+  message's own (`u<key>`) once it stands idle. Refused: itself, ended
+  chats, offline computers, shells (pasted, a message would run as a
+  command), a worker from before (`chats` in its agents' JSON), waiting
+  on a terminal, and waiting on a chat that is waiting on this one (each
+  would wait out the other). Without `CALDO_CHAT` (a Claude Code session
+  of the user's own) it sends as "an assistant outside Caldo's chats".
+  Only where the user has Caldo's MCP server set up for Claude (`claude
+  mcp add`); Codex passes few variables to MCP servers and cuts tools at
+  60s, so it is unseen there. Tried on the local stack with a stand-in
+  `claude` calling `caldo-mcp call message_chat`: an asked question came
+  back in ~1.5s.
 - **The watcher's errands are chats** (`Worker.errand`, when tmux is
   installed; `ClaudeCli` without it): Claude in the task's folder, the
   answer its first turn's `result` (or `--timeout`, then it goes on in its
@@ -961,7 +985,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 504 tests, all passing; keep it so. `supabase test db` — 60.
+`flutter test` — 512 tests, all passing; keep it so. `supabase test db` — 60.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

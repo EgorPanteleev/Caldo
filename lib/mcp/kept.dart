@@ -41,11 +41,13 @@ wait $!
 echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
 ''';
 
-  /// Runs [argv] in [cwd], its files at [base].
+  /// Runs [argv] in [cwd], its files at [base], with [environment] added
+  /// to the worker's own.
   static Future<Kept> start(
     String base,
     List<String> argv, {
     required String cwd,
+    Map<String, String>? environment,
   }) async {
     clear(base);
     File(base).parent.createSync(recursive: true);
@@ -58,6 +60,7 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
       'sh',
       ['-c', _script, 'sh', base, ...argv],
       workingDirectory: cwd,
+      environment: environment,
       mode: ProcessStartMode.detached,
     );
     for (var i = 0; i < 500; i++) {

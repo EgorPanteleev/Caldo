@@ -504,6 +504,8 @@ const Map<String, Object> tr = {
   'chatPickAny': "Birden fazla seçilebilir",
   'chatThinking': "Düşünüyor",
   'chatWorking': "Çalışıyor…",
+  'chatFrom': "«{name}» sohbetinden",
+  'chatFromOutside': "Bir asistandan",
   'chatInterrupt': "Kes",
   'chatLater': "Sonra gönder",
   'chatLater30': "30 dakika sonra",

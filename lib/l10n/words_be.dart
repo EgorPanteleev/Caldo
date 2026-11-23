@@ -536,6 +536,8 @@ const Map<String, Object> be = {
   'chatPickAny': "Можна некалькі",
   'chatThinking': "Разважае",
   'chatWorking': "Працуе…",
+  'chatFrom': "З чата «{name}»",
+  'chatFromOutside': "Ад асістэнта",
   'chatInterrupt': "Перапыніць",
   'chatLater': "Адправіць пазней",
   'chatLater30': "Праз 30 хвілін",

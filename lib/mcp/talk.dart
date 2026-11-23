@@ -95,8 +95,14 @@ abstract class Talk {
   void _takenUp(String? session) {}
 
   /// [text] said by the user, with [files] sent along; [id], the app's own
-  /// for it, so the words it showed at once are these.
-  void say(String text, {String? id, List<Given> files = const []});
+  /// for it, so the words it showed at once are these. [sender] if another
+  /// chat's agent sent it, not the user (`withSender`).
+  void say(
+    String text, {
+    String? id,
+    List<Given> files = const [],
+    Map? sender,
+  });
 
   /// [choice] is `allow`, `always` or `deny`; or `answer` to questions
   /// asked of the user, [answers] by each question's words.
@@ -129,8 +135,12 @@ abstract class Talk {
   /// worker, for one started again to read on from.
   int? get offset => _kept?.offset;
 
-  Future<void> _run(String files, List<String> argv) async =>
-      _follow(await Kept.start(files, argv, cwd: dir));
+  // The chat's id is in its program's environment, and so in that of
+  // every MCP server it starts: Caldo's tells another chat who a message
+  // is from (`ChatTools`).
+  Future<void> _run(String files, List<String> argv) async => _follow(
+    await Kept.start(files, argv, cwd: dir, environment: {chatEnv: ask.id}),
+  );
 
   void _follow(Kept kept) {
     _kept = kept;
@@ -246,16 +256,24 @@ class ClaudeTalk extends Talk {
   var _asked = 0;
 
   @override
-  void say(String text, {String? id, List<Given> files = const []}) {
+  void say(
+    String text, {
+    String? id,
+    List<Given> files = const [],
+    Map? sender,
+  }) {
     sink.item(
       id ?? 'u${DateTime.now().microsecondsSinceEpoch}',
       'user',
-      saidBody(text, files),
+      saidBody(text, files, sender: sender),
     );
     sink.stands('running');
     _write({
       'type': 'user',
-      'message': {'role': 'user', 'content': withFiles(text, files)},
+      'message': {
+        'role': 'user',
+        'content': withSender(withFiles(text, files), sender),
+      },
       'parent_tool_use_id': null,
       'session_id': '',
     });
@@ -754,6 +772,8 @@ String toolLine(String name, Map input) {
     'WebSearch' => of('query'),
     'Task' || 'Agent' => of('description'),
     'Skill' => of('skill'),
+    // To another chat: what it was told, not the chat's id.
+    'mcp__caldo__message_chat' => of('message'),
     _ => null,
   };
   return line ??
@@ -907,11 +927,16 @@ class CodexTalk extends Talk {
   }
 
   @override
-  void say(String text, {String? id, List<Given> files = const []}) {
+  void say(
+    String text, {
+    String? id,
+    List<Given> files = const [],
+    Map? sender,
+  }) {
     sink.item(
       id ?? 'u${DateTime.now().microsecondsSinceEpoch}',
       'user',
-      saidBody(text, files),
+      saidBody(text, files, sender: sender),
     );
     sink.stands('running');
     final thread = _thread;
@@ -923,7 +948,7 @@ class CodexTalk extends Talk {
         'input': [
           {
             'type': 'text',
-            'text': withFiles(text, files),
+            'text': withSender(withFiles(text, files), sender),
             'text_elements': <Object>[],
           },
         ],

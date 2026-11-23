@@ -81,6 +81,10 @@ class AgentSpec {
     // It starts a chat's program again when its settings are changed
     // (`chat_in` `settings`).
     'settings': true,
+    // It tells its agent who a message from another chat is from
+    // (`chat_in` `sender`): `message_chat` sends only to a worker that
+    // does.
+    'chats': true,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part
@@ -649,11 +653,42 @@ String withFiles(String text, List<Given> files) {
   return text.trim().isEmpty ? list : '$text\n\n$list';
 }
 
-/// A user item's body: the words, and the files as the app shows them.
-Map<String, Object?> saidBody(String text, List<Given> files) => {
-  'text': text,
-  if (files.isNotEmpty) 'files': [for (final f in files) f.toJson()],
-};
+/// A user item's body: the words, the files as the app shows them, and
+/// the chat they came from if not the user (`withSender`).
+Map<String, Object?> saidBody(String text, List<Given> files, {Map? sender}) =>
+    {
+      'text': text,
+      if (files.isNotEmpty) 'files': [for (final f in files) f.toJson()],
+      'sender': ?sender,
+    };
+
+/// Where a chat's program, and every MCP server it starts, finds the
+/// chat's id: Caldo's own says by it which chat a message is from.
+const chatEnv = 'CALDO_CHAT';
+
+/// [text], a message another chat's agent sent ([sender], `chat_in`'s:
+/// {chat, title, waits}), as its agent is told it: who it is from, that it
+/// is not the user, and how an answer gets back — on its own if the sender
+/// waits, else only by `message_chat`. Without it, an agent took a
+/// question from another chat as the user's own and answered the user.
+String withSender(String text, Map? sender) {
+  if (sender == null) return text;
+  final chat = sender['chat'] as String?;
+  final title = '${sender['title'] ?? ''}'.trim();
+  final short = chat == null || chat.length < 8 ? null : chat.substring(0, 8);
+  final who = short == null
+      ? 'an assistant outside Caldo\'s chats'
+      : 'another of the user\'s chats in Caldo'
+            '${title.isEmpty ? '' : ', "$title"'} (chat $short)';
+  final back = sender['waits'] == true
+      ? 'It waits for your answer: what you say at the end of this turn '
+            'is handed back to it.'
+      : short == null
+      ? 'It is not waiting for an answer.'
+      : 'It is not waiting for an answer; if it needs one, send it with '
+            'Caldo\'s message_chat tool to chat $short.';
+  return '[A message from $who, not from the user. $back]\n\n$text';
+}
 
 /// "340 B", "12 KB", "2.1 MB".
 String sizeWord(int bytes) => bytes < 1024

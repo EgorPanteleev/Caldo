@@ -545,6 +545,8 @@ const Map<String, Object> pl = {
   'chatPickAny': "Można kilka",
   'chatThinking': "Myśli",
   'chatWorking': "Pracuje…",
+  'chatFrom': "Z czatu „{name}”",
+  'chatFromOutside': "Od asystenta",
   'chatInterrupt': "Przerwij",
   'chatLater': "Wyślij później",
   'chatLater30': "Za 30 minut",
