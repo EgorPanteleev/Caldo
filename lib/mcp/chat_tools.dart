@@ -41,6 +41,10 @@ abstract class ChatDesk {
 
   /// Whether there was one with [id] to put away.
   Future<bool> unsubscribe(int id);
+
+  /// The chat that opened [repo]'s pull request [number], as its worker
+  /// noted it (`chat_pulls`): `chat_id`, `url`, `created_at`; or null.
+  Future<Map<String, dynamic>?> pullOpener(String repo, int number);
 }
 
 /// [ChatDesk] on Supabase, signed in as the MCP server is.
@@ -118,6 +122,15 @@ class SupabaseChatDesk implements ChatDesk {
               .eq('id', id)
               .select('id'))
           .isNotEmpty;
+
+  @override
+  Future<Map<String, dynamic>?> pullOpener(String repo, int number) async =>
+      (await _db)
+          .from('chat_pulls')
+          .select('chat_id, url, created_at')
+          .eq('repo', repo)
+          .eq('number', number)
+          .maybeSingle();
 }
 
 /// Chats talking to each other: tools for an agent in one of Caldo's chats
@@ -142,12 +155,17 @@ class ChatTools {
 
   final DateTime Function() _now;
 
+  /// The repository of the folder this runs in, when a tool is not told.
+  final Future<String> Function() _repoHere;
+
   ChatTools(
     this.desk, {
     this.self,
     this.poll = const Duration(seconds: 1),
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+    Future<String> Function()? repoHere,
+  }) : _now = now ?? DateTime.now,
+       _repoHere = repoHere ?? (() => GitHub().repoIn(Directory.current.path));
 
   /// The chat this process runs under, as its worker started it; null if
   /// not one of Caldo's.
@@ -568,6 +586,60 @@ class ChatTools {
     return 'Subscription #$id ended.';
   }
 
+  // ---- Pull requests ----------------------------------------------------
+
+  /// Which chat opened a pull request: the one to talk to about it. Known
+  /// for those opened by `gh pr create` in one of Caldo's chats, as its
+  /// worker saw it go by — a description need not name its chat.
+  Future<String> pullChat(Map<String, Object?> args) async {
+    final given = '${args['repo'] ?? ''}'.trim();
+    final link = RegExp(r'/pull/(\d+)').firstMatch(given);
+    final number = switch (args['number']) {
+      final num n => n.toInt(),
+      final String s => int.tryParse(s.replaceAll('#', '').trim()),
+      _ => link == null ? null : int.parse(link[1]!),
+    };
+    if (number == null) {
+      throw const Refusal("Give the pull request's number, or its link.");
+    }
+    final String repo;
+    if (given.isEmpty) {
+      try {
+        repo = await _repoHere();
+      } on GitHubError catch (e) {
+        throw Refusal('Say which repository (owner/name): $e.');
+      }
+    } else {
+      repo =
+          Subscription.repoOf(given) ??
+          (throw Refusal(
+            '"$given" is not a GitHub repository: give owner/name.',
+          ));
+    }
+    final row = await desk.pullOpener(repo, number);
+    if (row == null) {
+      return 'No chat is known to have opened $repo#$number: it was opened '
+          "outside Caldo's chats, or by a worker from before this was noted.";
+    }
+    final id = '${row['chat_id']}';
+    final chat = [
+      for (final c in await desk.chats())
+        if (c['id'] == id) c,
+    ].firstOrNull;
+    if (chat == null) {
+      return '$repo#$number was opened by chat [${_short(id)}], which is '
+          'gone now.';
+    }
+    final state = '${chat['state']}';
+    return '$repo#$number was opened by "${_titleOf(chat)}" [${_short(id)}]'
+        ' — ${chat['agent']}, $state'
+        '${id == self
+            ? '. That is this chat, you.'
+            : _gone.contains(state)
+            ? '. A message would start it again.'
+            : '. message_chat reaches it.'}';
+  }
+
   static Map<String, Object?> _shape(
     Map<String, Object?> properties, [
     List<String> required = const [],
@@ -698,6 +770,26 @@ class ChatTools {
       ),
       unsubscribe,
     ),
+    Tool(
+      'pull_chat',
+      'Which of the user\'s chats opened a GitHub pull request, so you can '
+          'talk to it about it with message_chat. Known for those opened '
+          "with gh pr create in one of Caldo's chats.",
+      _shape({
+        'number': {
+          'type': 'integer',
+          'description': "The pull request's number.",
+        },
+        'repo': {
+          'type': 'string',
+          'description':
+              'owner/name, or a link to the pull request (then no number '
+              'is needed); default the repository of your folder.',
+        },
+      }),
+      pullChat,
+      reads: true,
+    ),
   ];
 
   /// Added to what the assistant is told when it connects.
@@ -705,5 +797,6 @@ class ChatTools {
       " Chats with agents in Caldo's Agents tab can talk to each other: "
       'chats lists them, read_chat reads one, message_chat sends one a '
       'message. A chat can be subscribed to pull requests on GitHub '
-      '(subscribe), and is then told of new ones as they come.';
+      '(subscribe), and is then told of new ones as they come; pull_chat '
+      'says which chat opened one.';
 }

@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(34);
+select plan(38);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -82,6 +82,16 @@ select throws_ok(
   $$insert into public.chat_subscriptions (chat_id, target) values
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'not a repo; drop')$$,
   '23514', null, 'in a repository named as GitHub names them');
+select lives_ok(
+  $$insert into public.chat_pulls (chat_id, repo, number, url) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'EgorPanteleev/Caldo', 26,
+     'https://github.com/EgorPanteleev/Caldo/pull/26')$$,
+  'the worker notes which chat opened a pull request');
+select lives_ok(
+  $$insert into public.chat_pulls (chat_id, repo, number) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'EgorPanteleev/Caldo', 26)
+    on conflict (user_id, repo, number) do nothing$$,
+  'and noting it again changes nothing');
 reset role;
 
 select lives_ok(
@@ -143,6 +153,14 @@ select throws_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'a/b',
      '22222222-2222-4222-8222-222222222222')$$,
   '42501', null, 'nor subscribes it to anything');
+select is(
+  (select count(*)::int from public.chat_pulls), 0,
+  'nor sees which pull requests it opened');
+select throws_ok(
+  $$insert into public.chat_pulls (chat_id, repo, number, user_id) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'a/b', 1,
+     '22222222-2222-4222-8222-222222222222')$$,
+  '42501', null, 'nor says it opened one');
 select is(
   (select count(*)::int from public.agent_accounts), 0,
   'nor sees its accounts');
