@@ -258,3 +258,22 @@ List<Map<String, Object?>> codexLimitRows(Map limits) => [
         minutes: window['windowDurationMins'] as num?,
       ),
 ];
+
+/// A chat stopped at the account's limit carries on only if the user asks:
+/// the worker puts a `limit` item in the chat (its body's `resets` in
+/// milliseconds since the epoch, if said), drawn with a box to tick, and
+/// the tick leaves [words] for later under a key starting [key] — one a
+/// chat, which a turn going through first takes back.
+abstract final class CarryOn {
+  static const words =
+      'The usage limit has been lifted. Carry on from where you stopped.';
+  static const key = 'limit';
+
+  /// When it is said: a minute after the limit is lifted, a quarter hour
+  /// on if that wasn't said, and at once if it is already past.
+  static DateTime at(DateTime? resets, DateTime now) {
+    if (resets == null) return now.add(const Duration(minutes: 15));
+    final at = resets.add(const Duration(minutes: 1));
+    return at.isAfter(now) ? at : now;
+  }
+}

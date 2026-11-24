@@ -2342,68 +2342,50 @@ class _Talker implements TalkSink {
       scheduleMicrotask(() => unawaited(clearing ? _forget() : _putBy()));
     }
     if (limited) {
-      unawaited(worker._guard(() => _carryOnAfter(resets)));
+      unawaited(worker._guard(() => _atLimit(resets)));
     } else if (!failed) {
-      _guesses = 0;
       if (_booked ?? true) unawaited(worker._guard(_unbook));
     }
   }
 
-  /// What is said to a chat the account's limit stopped, once it is lifted.
-  static const carryOn =
-      'The usage limit has been lifted. Carry on from where you stopped.';
-
-  /// The start of the key a carrying on is left for later under, so it is
-  /// told from the user's own and kept to one a chat.
-  static const _carryKey = 'limit';
-
-  /// Whether a carrying on is left for later: not known for a chat taken
-  /// up by a worker started again, which looks.
+  /// Whether a carrying on is left for later: not known once the user
+  /// may have ticked one in the app, or for a chat taken up by a worker
+  /// started again, which looks.
   bool? _booked;
 
-  /// Tries in a row with no time said for the limit's end: a limit that
-  /// gives none (a spending cap) is not tried every quarter hour for ever.
-  int _guesses = 0;
-
-  /// A turn refused for the account's limit: carried on by itself a minute
-  /// after [resets], as a message left for later — so it outlives this
-  /// worker, and the app lists it, to be sent now or taken back. Refused
-  /// again (the user wrote meanwhile), the one left is moved, not doubled.
-  Future<void> _carryOnAfter(DateTime? resets) async {
+  /// A turn refused for the account's limit: said in the chat, with a box
+  /// the user may tick to have it carry on by itself once the limit is
+  /// lifted ([CarryOn]). Never carried on unasked. One asked for already
+  /// (the user wrote meanwhile, and was refused too) is moved to the new
+  /// end, not doubled.
+  Future<void> _atLimit(DateTime? resets) async {
     if (forgotten) return;
     final now = DateTime.now();
     final told = resets != null && resets.isAfter(now);
-    if (!told && ++_guesses > 3) {
-      stands('finished', note: 'Stopped at the usage limit.');
-      return;
-    }
-    final at = told
-        ? resets.add(const Duration(minutes: 1))
-        : now.add(const Duration(minutes: 15));
-    final when = at.toUtc().toIso8601String();
     final db = await worker._db;
     final left = await db
         .from('chat_later')
         .select('id')
         .eq('chat_id', ask.id)
-        .like('key', '$_carryKey%');
-    if (left.isEmpty) {
-      await db.from('chat_later').insert({
-        'chat_id': ask.id,
-        'data': carryOn,
-        'send_at': when,
-        'key': '$_carryKey${now.microsecondsSinceEpoch}',
-      });
-    } else {
-      await db.from('chat_later').update({'send_at': when}).inFilter('id', [
-        for (final row in left) row['id'],
-      ]);
+        .like('key', '${CarryOn.key}%');
+    if (left.isNotEmpty) {
+      final at = CarryOn.at(told ? resets : null, now);
+      await db
+          .from('chat_later')
+          .update({'send_at': at.toUtc().toIso8601String()})
+          .inFilter('id', [for (final row in left) row['id']]);
     }
-    _booked = true;
-    // A note on the chat's row, which also has an open chat read again
-    // what is left for later.
-    stands('finished', note: 'At the usage limit: carries on ${_at(at)}.');
-    worker.log('[${_short(ask.id)}] at the limit, carries on ${_at(at)}');
+    _booked = null;
+    item('l${now.microsecondsSinceEpoch}', 'limit', {
+      if (told) 'resets': resets.millisecondsSinceEpoch,
+    });
+    stands(
+      'finished',
+      note: told
+          ? 'At the usage limit: lifted ${_at(resets)}.'
+          : 'Stopped at the usage limit.',
+    );
+    worker.log('[${_short(ask.id)}] at the limit');
   }
 
   /// A turn gone through: a carrying on still left would come after the
@@ -2416,7 +2398,7 @@ class _Talker implements TalkSink {
         .from('chat_later')
         .delete()
         .eq('chat_id', ask.id)
-        .like('key', '$_carryKey%');
+        .like('key', '${CarryOn.key}%');
   }
 
   /// [at] as this computer tells it: the time, and the day if not today.

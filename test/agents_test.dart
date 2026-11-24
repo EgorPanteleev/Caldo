@@ -2274,6 +2274,67 @@ void main() {
         );
       });
 
+      testWidgets(
+        'offers to carry on after the usage limit in ${S.names[code]}',
+        (tester) async {
+          final resets = DateTime.now().add(const Duration(hours: 2));
+          final said = [
+            const ChatItem(
+              id: 'u',
+              seq: 0,
+              kind: 'user',
+              body: {'text': 'Go on.'},
+            ),
+            ChatItem(
+              id: 'l1',
+              seq: 1,
+              kind: 'limit',
+              body: {'resets': resets.millisecondsSinceEpoch},
+            ),
+          ];
+          final asked = <String>[];
+          Future<void> show(List<ChatItem> items) async {
+            final feed = TalkFeed.held('c', items);
+            addTearDown(feed.dispose);
+            await pump(
+              tester,
+              code,
+              Scaffold(
+                body: TalkView(
+                  feed: feed,
+                  working: false,
+                  onAnswer: (_, _, _) {},
+                  onCarry: (item) => asked.add(item.id),
+                ),
+              ),
+            );
+          }
+
+          await show(said);
+          final s = S.forCode(code);
+          expect(find.text(s.chatAtLimit), findsOneWidget);
+          // Not asked for until ticked.
+          final box = find.textContaining(s.chatCarryOnAt('').split('(')[0]);
+          expect(box, findsOneWidget);
+          expect(asked, isEmpty);
+          await tester.tap(box);
+          expect(asked, ['l1']);
+
+          // Once the user wrote again, it is only said.
+          await show([
+            ...said,
+            const ChatItem(
+              id: 'u2',
+              seq: 2,
+              kind: 'user',
+              body: {'text': 'Well?'},
+            ),
+          ]);
+          expect(find.text(s.chatAtLimit), findsOneWidget);
+          expect(box, findsNothing);
+        },
+      );
+
       testWidgets('lists what is left for later in ${S.names[code]}', (
         tester,
       ) async {

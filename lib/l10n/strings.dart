@@ -376,6 +376,9 @@ class S {
   String chatLaterTomorrow(String time) =>
       _fill('chatLaterTomorrow', {'time': time});
   String get chatLaterPick => _word('chatLaterPick');
+  String get chatAtLimit => _word('chatAtLimit');
+  String chatCarryOnAt(String time) => _fill('chatCarryOnAt', {'time': time});
+  String get chatCarryOnSoon => _word('chatCarryOnSoon');
   String get chatSendNow => _word('chatSendNow');
   String get chatLaterEdit => _word('chatLaterEdit');
   String get chatToTerminal => _word('chatToTerminal');

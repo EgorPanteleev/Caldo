@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import '../l10n/strings.dart';
 import '../services/agents.dart';
 import '../theme/app_theme.dart';
+import '../utils/dates.dart';
 import 'markdown_text.dart';
+import 'task_card.dart' show CheckMark;
 
 /// A chat with an agent as a chat: the user's words on the right, the
 /// agent's answers across the width in Markdown, each tool it used as one
@@ -27,6 +29,12 @@ class TalkView extends StatefulWidget {
   final void Function(String item, String choice, Map<String, String> answers)
   onAnswer;
 
+  /// Whether the chat is to carry on by itself after the usage limit, and
+  /// the tick on the latest stop at it that asks for that or takes it
+  /// back; null where its worker can't leave messages for later.
+  final bool carrying;
+  final ValueChanged<ChatItem>? onCarry;
+
   /// Room left at the top and foot of the list.
   final EdgeInsets padding;
 
@@ -35,6 +43,8 @@ class TalkView extends StatefulWidget {
     required this.feed,
     required this.working,
     required this.onAnswer,
+    this.carrying = false,
+    this.onCarry,
     this.padding = EdgeInsets.zero,
   });
 
@@ -122,6 +132,12 @@ class _TalkViewState extends State<TalkView> {
         ),
       );
     }
+    // Only the latest stop at the limit can be ticked, and only until the
+    // user writes again: what was said after it stands in for carrying on.
+    var live = items.lastIndexWhere((item) => item.kind == 'limit');
+    if (live >= 0 && items.skip(live + 1).any((item) => item.kind == 'user')) {
+      live = -1;
+    }
     return SelectionArea(
       child: CustomScrollView(
         controller: _scroll,
@@ -130,7 +146,7 @@ class _TalkViewState extends State<TalkView> {
             padding: EdgeInsets.only(top: widget.padding.top + 8),
             sliver: SliverList.builder(
               itemCount: items.length,
-              itemBuilder: (context, i) => _tile(items, i),
+              itemBuilder: (context, i) => _tile(items, i, live),
             ),
           ),
           SliverToBoxAdapter(
@@ -161,7 +177,7 @@ class _TalkViewState extends State<TalkView> {
 
   /// [list]'s item [i], spaced from the one above it: tools in a run sit
   /// close, as one block of work.
-  Widget _tile(List<ChatItem> list, int i) {
+  Widget _tile(List<ChatItem> list, int i, int live) {
     final item = list[i];
     final above = i > 0 ? list[i - 1] : null;
     final close = above != null && _small(above) && _small(item);
@@ -193,6 +209,17 @@ class _TalkViewState extends State<TalkView> {
         'ask' => _Ask(
           body: item.body,
           onAnswer: (choice) => widget.onAnswer(item.id, choice, const {}),
+        ),
+        'limit' => _Limit(
+          resets: item.body['resets'] is num
+              ? DateTime.fromMillisecondsSinceEpoch(
+                  (item.body['resets'] as num).round(),
+                )
+              : null,
+          carrying: i == live && widget.carrying,
+          onTap: i == live && widget.onCarry != null
+              ? () => widget.onCarry!(item)
+              : null,
         ),
         _ => _Note(text: item.text, error: item.body['error'] == true),
       },
@@ -1029,6 +1056,82 @@ class _Note extends StatelessWidget {
         fontSize: 12.5,
         height: 1.4,
       ),
+    );
+  }
+}
+
+/// A turn the account's limit refused: said as a note, and under the
+/// latest a box to tick to have the chat carry on by itself once the limit
+/// is lifted. Unticked unless the user asks.
+class _Limit extends StatelessWidget {
+  final DateTime? resets;
+  final bool carrying;
+  final VoidCallback? onTap;
+
+  const _Limit({required this.resets, required this.carrying, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = AppTheme.of(context);
+    final note = _Note(text: s.chatAtLimit, error: false);
+    if (onTap == null) return note;
+    final at = resets;
+    String? when;
+    if (at != null && at.isAfter(DateTime.now())) {
+      final time = Dates.time(
+        at,
+        h24: MediaQuery.alwaysUse24HourFormatOf(context),
+      );
+      when = DateUtils.isSameDay(at, DateTime.now())
+          ? time
+          : '${Dates.dayWord(at) ?? Dates.shortDay(at)} $time';
+    }
+    return Column(
+      children: [
+        note,
+        const SizedBox(height: 6),
+        Center(
+          child: GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: carrying ? p.text : Colors.transparent,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: carrying ? p.text : p.muted,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: CustomPaint(
+                      painter: CheckMark(
+                        progress: carrying ? 1 : 0,
+                        color: p.bg,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      when == null ? s.chatCarryOnSoon : s.chatCarryOnAt(when),
+                      style: TextStyle(color: p.text, fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
