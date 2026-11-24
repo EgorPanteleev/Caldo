@@ -479,6 +479,7 @@ const Map<String, Object> kk = {
   'chatMessage': "Хабар",
   'chatStop': "Тоқтату",
   'chatAgain': "Қайта бастау",
+  'chatClear': "Контексті тазарту",
   'chatDelete': "Чатты жою",
   'deleteChatQuestion': "Бұл чатты жою керек пе?",
   'chatPin': "Бекіту",

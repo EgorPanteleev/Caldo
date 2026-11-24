@@ -474,6 +474,7 @@ const Map<String, Object> en = {
   'chatMessage': "Message",
   'chatStop': "Stop",
   'chatAgain': "Start again",
+  'chatClear': "Clear context",
   'chatDelete': "Delete chat",
   'deleteChatQuestion': "Delete this chat?",
   'chatPin': "Pin",

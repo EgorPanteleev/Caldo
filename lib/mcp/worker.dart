@@ -648,6 +648,8 @@ class Worker {
         if (item != null) talker.answer(item, choice, answers: answers);
       case 'interrupt' when talker != null:
         talker.interrupt();
+      case 'clear' when talker != null:
+        await talker.clear();
       case 'stop' when talker != null:
         _talks.remove(chat);
         await talker.close();
@@ -1956,7 +1958,12 @@ class _Talker implements TalkSink {
     if (text.trim().isEmpty && files.isEmpty) return;
     await wake();
     talk!.say(text, id: id, files: files, sender: sender);
+    _owed++;
   }
+
+  /// Messages handed to its program and not yet answered: one said during
+  /// a turn waits behind it, and is answered by a turn of its own.
+  int _owed = 0;
 
   /// [now], the chat's settings as changed in the app: its program is
   /// put by — once the turn under way is done — and the next message
@@ -2013,6 +2020,55 @@ class _Talker implements TalkSink {
   }) => talk?.answer(item, choice, answers: answers);
 
   void interrupt() => talk?.interrupt();
+
+  /// Asked to clear its context while a turn is under way: done once the
+  /// turn ends, so its last words — the agent's own, asking for it — are
+  /// said and kept.
+  bool _clearing = false;
+
+  /// Its context cleared, as Claude's `/clear` does: its program put by
+  /// and its session forgotten, so the next message starts one afresh.
+  /// The chat's rules, skills and subscriptions stay, as each program is
+  /// started with them; what was said stays on the chat's screen.
+  Future<void> clear() async {
+    if (turn != null || _owed > 0 || state == 'running' || state == 'asking') {
+      _clearing = true;
+      return;
+    }
+    await _forget();
+  }
+
+  Future<void> _forget() async {
+    _clearing = false;
+    _retuning = false;
+    // Settings changed meanwhile are told too: the next program has them.
+    _sayChanged();
+    final was = talk;
+    talk = null;
+    _forgetOffset();
+    session = null;
+    _since = null;
+    // How full the context was is no longer so; the chat's totals stay.
+    final usage = _usage;
+    if (usage != null && usage.containsKey('context')) {
+      _usage = {...usage}..remove('context');
+      _usageSaid = jsonEncode(_usage);
+      _broadcast('usage', _usage!);
+    }
+    item('c${DateTime.now().millisecondsSinceEpoch}', 'note', {
+      'text': 'Context cleared: the next message starts afresh.',
+    });
+    worker.log('[${_short(ask.id)}] context cleared');
+    await worker._guard(
+      () async => (await worker._db)
+          .from('chats')
+          .update({'session': null, 'usage': ?_usage})
+          .eq('id', ask.id),
+    );
+    if (was != null) {
+      await (_sleeping = was.close().whenComplete(() => _sleeping = null));
+    }
+  }
 
   Future<void> close() async {
     _closing = true;
@@ -2190,11 +2246,15 @@ class _Talker implements TalkSink {
     if (waiting != null && !waiting.isCompleted) {
       waiting.complete((answered: !failed, text: answer));
     }
-    if (_retuning) {
+    _owed = max(0, _owed - 1);
+    // Cleared only once nothing said waits behind this turn: a pull
+    // request told during the reviewer's round would go unanswered.
+    final clearing = _clearing && _owed == 0;
+    if (clearing || _retuning) {
       _retuning = false;
       // After the turn's last words are handed on: its program is ended
       // once this returns.
-      scheduleMicrotask(() => unawaited(_putBy()));
+      scheduleMicrotask(() => unawaited(clearing ? _forget() : _putBy()));
     }
     if (limited) {
       unawaited(worker._guard(() => _carryOnAfter(resets)));
@@ -2287,6 +2347,7 @@ class _Talker implements TalkSink {
   @override
   void exited(int code, String why) {
     talk = null;
+    _owed = 0;
     _forgetOffset();
     if (_closing || forgotten) return;
     // Ended by itself: the chat waits to be taken up again with the next

@@ -1567,6 +1567,11 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.trim().isEmpty && (_chat?.inChat ?? false)) return;
     _input.clear();
     final chat = _chat;
+    // As in Claude's own: in its terminal the program reads it itself.
+    if (text.trim() == '/clear' && chat != null && chat.inChat && _canClear) {
+      unawaited(_agents.clear(widget.chat));
+      return;
+    }
     unawaited(
       _agents.line(
         widget.chat,
@@ -1585,6 +1590,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Whether the chat's worker takes files: one not reinstalled since
   /// would say the words and leave the files on the server.
   bool get _canAttach => _kindOf(_chat)?.files ?? false;
+
+  /// Whether the chat's worker clears its context when asked.
+  bool get _canClear => _kindOf(_chat)?.clears ?? false;
 
   AgentKind? _kindOf(Chat? chat) => chat == null
       ? null
@@ -1976,6 +1984,9 @@ class _ChatScreenState extends State<ChatScreen> {
               onFont: _setFont,
               onStop: () => _agents.stop(widget.chat),
               onAgain: () => _agents.again(widget.chat),
+              onClear: chat != null && chat.inChat && chat.live && _canClear
+                  ? () => _agents.clear(widget.chat)
+                  : null,
               onDelete: _delete,
               onSettings: _settings,
               asChat: talks ? asChat : null,
@@ -2230,6 +2241,10 @@ class _Head extends StatelessWidget {
   final ValueChanged<double> onFont;
   final VoidCallback onStop;
   final VoidCallback onAgain;
+
+  /// Its context cleared; null where it can't be (a terminal, a worker
+  /// from before).
+  final VoidCallback? onClear;
   final VoidCallback onDelete;
   final VoidCallback onSettings;
 
@@ -2243,6 +2258,7 @@ class _Head extends StatelessWidget {
     required this.onFont,
     required this.onStop,
     required this.onAgain,
+    required this.onClear,
     required this.onDelete,
     required this.onSettings,
     required this.asChat,
@@ -2312,6 +2328,8 @@ class _Head extends StatelessWidget {
                   onStop();
                 case 'again':
                   onAgain();
+                case 'clear':
+                  onClear?.call();
                 case 'settings':
                   onSettings();
                 case 'attach':
@@ -2332,6 +2350,8 @@ class _Head extends StatelessWidget {
               ],
               if (chat != null)
                 PopupMenuItem(value: 'settings', child: Text(s.chatSettings)),
+              if (onClear != null)
+                PopupMenuItem(value: 'clear', child: Text(s.chatClear)),
               if (chat != null && chat.live)
                 PopupMenuItem(value: 'stop', child: Text(s.chatStop))
               else if (chat != null && chat.state != ChatState.asked)

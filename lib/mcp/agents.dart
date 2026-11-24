@@ -89,6 +89,9 @@ class AgentSpec {
     // (`chat_subscriptions`): only an agent that takes messages, as a
     // shell would run them.
     'events': talks,
+    // It clears a chat's context when asked (`chat_in` `clear`): an app
+    // and `clear_context` ask only a worker that does.
+    'clears': talks,
     // It signs in to accounts asked for in the app and runs a chat under
     // the one chosen (`agent_accounts`).
     'accounts': id == 'claude' || id == 'codex',

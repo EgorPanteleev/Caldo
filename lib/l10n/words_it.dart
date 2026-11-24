@@ -491,6 +491,7 @@ const Map<String, Object> it = {
   'chatMessage': "Messaggio",
   'chatStop': "Ferma",
   'chatAgain': "Riavvia",
+  'chatClear': "Cancella contesto",
   'chatDelete': "Elimina chat",
   'deleteChatQuestion': "Eliminare questa chat?",
   'chatPin': "Fissa",

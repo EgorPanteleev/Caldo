@@ -784,6 +784,17 @@ the app, a terminal beside them; anything else a terminal.
   a stopped chat waits for Start again. Listed over the field
   (`LaterList`: Send now / Edit / Delete). Only from workers that say so
   (`AgentKind.later`).
+- **A chat's context can be cleared, as `/clear` does** (asked for the
+  reviewer to start each round afresh, 2026-11-24): `chat_in` `clear`,
+  from the chat's menu, `/clear` typed in its chat, or the MCP tool
+  `clear_context` (this chat by default). The worker puts the program by
+  and forgets the session (`_Talker.clear`, `_forget`; `chats.session`
+  null, `usage.context` dropped, a note); the next message starts afresh
+  with the chat's rules, skills and subscriptions. Asked mid-turn, it
+  waits for the turn and for every message said behind it (`_owed`), or
+  a pull request told during the round went unanswered. Chat mode only (a
+  terminal's Claude takes `/clear` itself); workers that say so
+  (`AgentKind.clears`). Tried on the local stack with a stand-in `claude`.
 - **A chat stopped at the usage limit carries on by itself** (task
   "automatically reset session after limit updated", 2026-11-22): Claude
   marks the refused turn's stand-in message `error: "rate_limit"`, and
@@ -1045,7 +1056,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 566 tests, all passing; keep it so. `supabase test db` — 72.
+`flutter test` — 569 tests, all passing; keep it so. `supabase test db` — 73.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

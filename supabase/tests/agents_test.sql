@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(34);
+select plan(35);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -49,6 +49,10 @@ select lives_ok(
   $$insert into public.chat_in (chat_id, kind) values
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'settings')$$,
   'the app tells the worker its settings changed');
+select lives_ok(
+  $$insert into public.chat_in (chat_id, kind) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'clear')$$,
+  'the app has the worker clear a chat''s context');
 select throws_ok(
   $$update public.chats set mode = 'window'$$,
   '23514', null, 'a chat is in its chat or its terminal');

@@ -114,7 +114,13 @@ void main() {
       'name': 'desk',
       'seen_at': DateTime.now().toUtc().toIso8601String(),
       'agents': [
-        {'id': 'claude', 'talks': true, 'chats': true, 'events': true},
+        {
+          'id': 'claude',
+          'talks': true,
+          'chats': true,
+          'events': true,
+          'clears': true,
+        },
         {'id': 'codex', 'talks': true},
         {'id': 'shell', 'label': 'Shell', 'chats': true},
       ],
@@ -364,6 +370,41 @@ void main() {
       await expectLater(run('unsubscribe', {'id': 9}), throwsA(isA<Refusal>()));
       tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
       await refused({'repo': 'a/b'}, 'not in one of Caldo');
+    });
+  });
+
+  group('clear_context', () {
+    test('this chat, by default: once its turn ends', () async {
+      final said = await run('clear_context', {});
+      expect(said, startsWith('Cleared once this turn ends'));
+      expect(desk.sent.single['chat_id'], 'aaaa1111-0000');
+      expect(desk.sent.single['kind'], 'clear');
+      expect(desk.sent.single['key'], isA<String>());
+    });
+
+    test('another chat', () async {
+      final said = await run('clear_context', {'chat': 'bbbb2222'});
+      expect(said, startsWith('"Tester" [bbbb2222] will start afresh'));
+      expect(desk.sent.single['chat_id'], 'bbbb2222-0000');
+    });
+
+    test('refuses what has nothing to clear, or cannot', () async {
+      Future<void> refused(Map<String, Object?> args, String why) =>
+          expectLater(
+            run('clear_context', args),
+            throwsA(
+              isA<Refusal>().having((r) => r.message, 'message', contains(why)),
+            ),
+          );
+      await refused({'chat': 'cccc3333'}, 'nothing to clear');
+      await refused({'chat': 'eeee5555'}, 'no context to clear');
+      // Its worker says nothing of clearing: one from before.
+      await refused({'chat': 'dddd4444'}, 'reinstall');
+      desk.chat('bbbb2222-0000')['mode'] = 'terminal';
+      await refused({'chat': 'bbbb2222'}, 'type /clear there');
+      expect(desk.sent, isEmpty);
+      tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
+      await refused({}, 'not in one of Caldo');
     });
   });
 }
