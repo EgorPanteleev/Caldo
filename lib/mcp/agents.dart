@@ -85,6 +85,10 @@ class AgentSpec {
     // (`chat_in` `sender`): `message_chat` sends only to a worker that
     // does.
     'chats': true,
+    // It watches what its chats are subscribed to and tells them
+    // (`chat_subscriptions`): only an agent that takes messages, as a
+    // shell would run them.
+    'events': talks,
     // It signs in to accounts asked for in the app and runs a chat under
     // the one chosen (`agent_accounts`).
     'accounts': id == 'claude' || id == 'codex',
@@ -683,6 +687,15 @@ const chatEnv = 'CALDO_CHAT';
 /// question from another chat as the user's own and answered the user.
 String withSender(String text, Map? sender) {
   if (sender == null) return text;
+  // An event the chat is subscribed to (`chat_subscriptions`): from no
+  // one who could be answered.
+  if (sender['event'] != null) {
+    return '[Events this chat is subscribed to in Caldo (pull requests in '
+        '${sender['title']}), told by Caldo as they happen — not a message '
+        'from the user, and nobody waits for an answer. The subscription '
+        'is #${sender['subscription']}: Caldo\'s unsubscribe tool ends '
+        'it.]\n\n$text';
+  }
   final chat = sender['chat'] as String?;
   final title = '${sender['title'] ?? ''}'.trim();
   final short = chat == null || chat.length < 8 ? null : chat.substring(0, 8);

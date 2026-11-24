@@ -9,6 +9,7 @@ import 'accounts.dart';
 import 'agents.dart';
 import 'kept.dart';
 import 'remote.dart';
+import 'subscriptions.dart';
 import 'talk.dart';
 import 'terminal.dart';
 import 'usage.dart';
@@ -180,7 +181,12 @@ class Worker {
     required this.state,
     required this.home,
     void Function(String line)? log,
-  }) : log = log ?? print;
+    GitHub? github,
+  }) : log = log ?? print,
+       github = github ?? GitHub();
+
+  /// Reads the pull requests its chats are subscribed to.
+  final GitHub github;
 
   /// At most this often a chat's output goes up: a spinner redrawn every
   /// tenth of a second would otherwise be ten rows a second.
@@ -215,6 +221,8 @@ class Worker {
     Timer.periodic(const Duration(milliseconds: 50), (_) => _pump());
     Timer.periodic(const Duration(seconds: 1), (_) => _guard(_check));
     Timer.periodic(const Duration(seconds: 30), (_) => _guard(_hello));
+    Timer.periodic(_watchEvery, (_) => _watchSoon(Duration.zero));
+    _watchSoon(const Duration(seconds: 5));
     _tendSoon(const Duration(seconds: 20));
     while (true) {
       await _guard(_look);
@@ -359,6 +367,19 @@ class Worker {
           },
         )
         .subscribe();
+    // A subscription made: looked at soon, so the first round of what it
+    // watches is seen before anything is told. One changed or put away is
+    // read at the next round; its worker's own writes, of what it has
+    // seen, come back as changes too.
+    remote.client
+        .channel('caldo-worker-subscriptions')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'chat_subscriptions',
+          callback: (_) => _watchSoon(const Duration(seconds: 1)),
+        )
+        .subscribe();
     // An account asked for, a code handed back, one removed: seen to at
     // once.
     remote.client
@@ -489,6 +510,93 @@ class Worker {
     }
   }
 
+  /// How often what chats are subscribed to is looked at: a minute late
+  /// at most, a call to GitHub a repository a minute — far inside its
+  /// limit of 5000 an hour.
+  static const _watchEvery = Duration(minutes: 1);
+
+  Timer? _watchTimer;
+  Future<void>? _watching;
+
+  void _watchSoon(Duration wait) {
+    _watchTimer?.cancel();
+    _watchTimer = Timer(wait, () {
+      // One round at a time: a slow `gh` must not be asked twice.
+      _watching ??= _guard(_watch).whenComplete(() => _watching = null);
+    });
+  }
+
+  /// Looks at what this worker's chats are subscribed to and tells each
+  /// chat what has happened since the last look, as one message. What a
+  /// chat has seen is written before it is told — a write that keeps
+  /// failing must not tell it the same every minute. One for a chat not
+  /// running here is left as it was, and told once it is started again.
+  Future<void> _watch() async {
+    final db = await _db;
+    final rows = await db
+        .from('chat_subscriptions')
+        .select('*, chats!inner(worker_id, dir, agent)')
+        .eq('chats.worker_id', state.id)
+        .order('id', ascending: true);
+    if (rows.isEmpty) return;
+    final read = <String, Future<List<Pull>>>{};
+    for (final row in rows) {
+      var sub = Subscription.fromJson(row);
+      final chat = sub.chat;
+      final of = row['chats'] as Map? ?? const {};
+      // A shell would run the words as a command.
+      if (_specOf('${of['agent']}')?.talks != true) continue;
+      final dir = _expand(of['dir'] as String? ?? home);
+      Future<void> fail(Object e) async {
+        if (sub.error == '$e') return;
+        log('[${_short(chat)}] cannot watch ${sub.label}: $e');
+        await db
+            .from('chat_subscriptions')
+            .update({'error': '$e'})
+            .eq('id', sub.id);
+      }
+
+      if (sub.target == null) {
+        try {
+          final repo = await github.repoIn(dir);
+          await db
+              .from('chat_subscriptions')
+              .update({'target': repo, 'error': null})
+              .eq('id', sub.id);
+          sub = Subscription.fromJson({...row, 'target': repo, 'error': null});
+        } catch (e) {
+          await fail(e);
+          continue;
+        }
+      }
+      final List<Pull> pulls;
+      try {
+        pulls = await (read[sub.target!] ??= github.pulls(sub.target!));
+      } catch (e) {
+        await fail(e);
+        continue;
+      }
+      final (:told, :seen) = pullEvents(sub, pulls);
+      final live = _live.containsKey(chat) || _talks.containsKey(chat);
+      if (told.isNotEmpty && !live) continue;
+      final known = jsonEncode(seen) == jsonEncode(sub.seen ?? const {});
+      if (!known || sub.error != null) {
+        await db
+            .from('chat_subscriptions')
+            .update({'seen': seen, 'error': null})
+            .eq('id', sub.id);
+      }
+      if (told.isEmpty) continue;
+      log('[${_short(chat)}] told of ${told.length} in ${sub.label}');
+      await _apply(chat, {
+        'kind': 'line',
+        'data': pullsMessage(sub, told),
+        'key': 'e${sub.id}-${DateTime.now().microsecondsSinceEpoch}',
+        'sender': eventSender(sub),
+      });
+    }
+  }
+
   /// Puts in rows of input, each once, and deletes them.
   Future<void> _take(List<Map<String, dynamic>> rows) async {
     final done = <int>[];
@@ -526,7 +634,7 @@ class Worker {
     switch (row['kind']) {
       case 'line' when talker != null:
         final text = row['data'] as String? ?? '';
-        _name(talker.ask, text);
+        if (!_isEvent(row)) _name(talker.ask, text);
         await _inTurn(chat, () async {
           await talker.say(
             text,
@@ -575,7 +683,7 @@ class Worker {
         live.typing = live.typing.then((_) => tmux.keys(chat, bytes));
       case 'line' when live != null:
         final text = row['data'] as String? ?? '';
-        _name(live.ask, text);
+        if (!_isEvent(row)) _name(live.ask, text);
         final files = row['files'];
         final sender = row['sender'] is Map ? row['sender'] as Map : null;
         live.typing = live.typing.then(
@@ -586,6 +694,11 @@ class Worker {
         );
     }
   }
+
+  /// Whether [row] tells of what the chat is subscribed to: not words a
+  /// chat is named by.
+  static bool _isEvent(Map row) =>
+      row['sender'] is Map && (row['sender'] as Map)['event'] != null;
 
   /// Each chat's messages, said one after another: one sent with files
   /// waits on their taking down, and one typed after it, heard meanwhile,

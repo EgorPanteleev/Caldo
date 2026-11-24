@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:supabase/supabase.dart';
 
 import '../l10n/strings.dart';
+import '../mcp/subscriptions.dart' show Subscription;
 import '../mcp/usage.dart';
 import '../models/task.dart';
 import '../utils/platform.dart';
@@ -50,6 +51,10 @@ class AgentKind {
   /// chat under the one chosen.
   final bool accounts;
 
+  /// Whether its worker watches what a chat is subscribed to and tells it
+  /// (`chat_subscriptions`).
+  final bool events;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -66,6 +71,7 @@ class AgentKind {
     this.files = false,
     this.settings = false,
     this.accounts = false,
+    this.events = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -84,6 +90,7 @@ class AgentKind {
     files: json['files'] == true,
     settings: json['settings'] == true,
     accounts: json['accounts'] == true,
+    events: json['events'] == true,
   );
 }
 
@@ -889,6 +896,52 @@ class Agents extends ChangeNotifier {
         .select('id');
     return gone.isNotEmpty;
   }
+
+  /// What [chat] is subscribed to, oldest first.
+  Future<List<Subscription>> subscriptionsOf(String chat) async {
+    final rows = await _client!
+        .from('chat_subscriptions')
+        .select()
+        .eq('chat_id', chat)
+        .order('id', ascending: true);
+    return [for (final row in rows) Subscription.fromJson(row)];
+  }
+
+  /// [chat] subscribed to [repo]'s pull requests (null: its folder's), or
+  /// subscription [id] changed — its repository with it, which starts
+  /// what it has seen afresh.
+  Future<void> subscribe(
+    String chat, {
+    int? id,
+    String? repo,
+    required List<String> events,
+    String? note,
+  }) async {
+    final fields = {
+      'target': repo,
+      'events': events,
+      'note': note == null || note.trim().isEmpty ? null : note.trim(),
+    };
+    final table = _client!.from('chat_subscriptions');
+    if (id == null) {
+      await table.insert({'chat_id': chat, ...fields});
+      return;
+    }
+    final was = await table.select('target').eq('id', id).maybeSingle();
+    await table
+        .update({
+          ...fields,
+          if (was != null && was['target'] != repo) ...{
+            'seen': null,
+            'error': null,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          },
+        })
+        .eq('id', id);
+  }
+
+  Future<void> unsubscribe(int id) async =>
+      _client!.from('chat_subscriptions').delete().eq('id', id);
 
   Future<void> resize(String chat, int cols, int rows) =>
       _in(chat, 'size', cols: cols.clamp(10, 500), rows: rows.clamp(5, 300));

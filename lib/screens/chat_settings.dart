@@ -40,11 +40,37 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   final Set<String> _added = {};
   bool _saving = false;
 
+  /// What it is subscribed to, read when shown and after one is opened.
+  List<Subscription> _subs = const [];
+
+  Future<void> _readSubs() async {
+    try {
+      final subs = await _agents.subscriptionsOf(widget.chat);
+      if (mounted) setState(() => _subs = subs);
+    } catch (_) {
+      // A server without the table yet: none.
+    }
+  }
+
+  Future<void> _openSub(Subscription? sub) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SubscriptionScreen(
+          chat: widget.chat,
+          sub: sub,
+          worker: _w?.name ?? '',
+        ),
+      ),
+    );
+    await _readSubs();
+  }
+
   @override
   void initState() {
     super.initState();
     _agents.addListener(_changed);
     _agents.watch();
+    unawaited(_readSubs());
     final chat = _was;
     if (chat == null) return;
     _title.text = chat.title;
@@ -260,6 +286,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                         child: Text(s.save),
                       ),
                     ),
+                    // Below Save: each is kept as it is made, not with it.
+                    if ((kind?.events ?? false) || _subs.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _SubscriptionsList(
+                        subs: _subs,
+                        watched: kind?.events ?? false,
+                        onOpen: _openSub,
+                      ),
+                    ],
                   ],
                 ),
               ),

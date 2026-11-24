@@ -54,6 +54,36 @@ class _Desk implements ChatDesk {
     sent.add(row);
     onSend?.call(row);
   }
+
+  final subs = <Map<String, dynamic>>[];
+
+  @override
+  Future<List<Map<String, dynamic>>> subscriptions() async => [
+    for (final s in subs) {...s},
+  ];
+
+  @override
+  Future<Map<String, dynamic>> subscribe(Map<String, Object?> row) async {
+    final sub = {
+      'id': subs.length + 1,
+      'source': 'github_pulls',
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      ...row,
+    };
+    subs.add(sub);
+    return sub;
+  }
+
+  @override
+  Future<void> resubscribe(int id, Map<String, Object?> fields) async =>
+      subs.singleWhere((s) => s['id'] == id).addAll(fields);
+
+  @override
+  Future<bool> unsubscribe(int id) async {
+    final before = subs.length;
+    subs.removeWhere((s) => s['id'] == id);
+    return subs.length < before;
+  }
 }
 
 void main() {
@@ -84,7 +114,7 @@ void main() {
       'name': 'desk',
       'seen_at': DateTime.now().toUtc().toIso8601String(),
       'agents': [
-        {'id': 'claude', 'talks': true, 'chats': true},
+        {'id': 'claude', 'talks': true, 'chats': true, 'events': true},
         {'id': 'codex', 'talks': true},
         {'id': 'shell', 'label': 'Shell', 'chats': true},
       ],
@@ -269,6 +299,71 @@ void main() {
       'chat': null,
       'title': null,
       'waits': false,
+    });
+  });
+
+  group('subscriptions', () {
+    test('subscribe this chat to a repository, and change it again', () async {
+      final made = await run('subscribe', {
+        'repo': 'https://github.com/EgorPanteleev/Caldo/pull/3',
+        'events': ['opened', 'pushed'],
+        'note': 'Review it.',
+      });
+      expect(made, contains('Subscribed "Planner" [aaaa1111]'));
+      expect(made, contains('pull requests in EgorPanteleev/Caldo (#1)'));
+      expect(desk.subs.single, containsPair('chat_id', 'aaaa1111-0000'));
+      expect(desk.subs.single['events'], ['opened', 'pushed']);
+      expect(desk.subs.single['note'], 'Review it.');
+
+      final again = await run('subscribe', {'repo': 'EgorPanteleev/Caldo'});
+      expect(again, startsWith('Changed'));
+      expect(desk.subs, hasLength(1));
+      expect(desk.subs.single['events'], ['opened']);
+      expect(desk.subs.single['note'], isNull);
+
+      final listed = await run('subscriptions', {});
+      expect(
+        listed,
+        '#1 [aaaa1111] Planner — pull requests in EgorPanteleev/Caldo: opened',
+      );
+      expect(await run('unsubscribe', {'id': 1}), 'Subscription #1 ended.');
+      expect(desk.subs, isEmpty);
+      expect(await run('subscriptions', {}), 'No subscriptions.');
+    });
+
+    test('another chat, and its folder\'s repository by default', () async {
+      final made = await run('subscribe', {'chat': 'bbbb2222'});
+      expect(made, contains("the chat's folder's repository"));
+      expect(desk.subs.single['chat_id'], 'bbbb2222-0000');
+      expect(desk.subs.single['target'], isNull);
+    });
+
+    test('an ended chat is told once it is started again', () async {
+      final made = await run('subscribe', {'chat': 'cccc3333', 'repo': 'a/b'});
+      expect(made, contains('told once the user starts it again'));
+    });
+
+    test('refuses what cannot be told', () async {
+      Future<void> refused(Map<String, Object?> args, String why) =>
+          expectLater(
+            run('subscribe', args),
+            throwsA(
+              isA<Refusal>().having((r) => r.message, 'message', contains(why)),
+            ),
+          );
+      await refused({'repo': 'not a repo'}, 'not a GitHub repository');
+      await refused({
+        'repo': 'a/b',
+        'events': ['merged'],
+      }, 'not merged');
+      await refused({'repo': 'a/b', 'events': <String>[]}, 'Events are');
+      await refused({'chat': 'eeee5555', 'repo': 'a/b'}, 'takes keys');
+      // Its worker says nothing of watching: one from before.
+      await refused({'chat': 'dddd4444', 'repo': 'a/b'}, 'reinstall');
+      expect(desk.subs, isEmpty);
+      await expectLater(run('unsubscribe', {'id': 9}), throwsA(isA<Refusal>()));
+      tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
+      await refused({'repo': 'a/b'}, 'not in one of Caldo');
     });
   });
 }
