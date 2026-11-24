@@ -136,11 +136,13 @@ class Pull {
 /// What has happened to [pulls] since [sub] last looked: the lines to tell
 /// its chat, and what it has seen now. Told only of the events it asked
 /// for, and never of one opened before it was made; a draft counts as
-/// opened once it is ready for review.
+/// opened once it is ready for review. [by] names the chat that opened a
+/// pull request, by number (`chat_pulls`), so the one told can talk to it.
 ({List<String> told, Map<String, Object?> seen}) pullEvents(
   Subscription sub,
-  List<Pull> pulls,
-) {
+  List<Pull> pulls, {
+  Map<int, String> by = const {},
+}) {
   final was = sub.seen ?? const {};
   final seen = <String, Object?>{...was};
   final told = <String>[];
@@ -154,7 +156,9 @@ class Pull {
       // One there before the subscription is no news; one opened since,
       // and closed before a look, is told of only if closings are.
       if (!p.created.isAfter(sub.created)) continue;
-      if (p.open && !p.draft && wants('opened')) told.add(_opened(p, 'opened'));
+      if (p.open && !p.draft && wants('opened')) {
+        told.add(_opened(p, 'opened', by[p.number]));
+      }
       if (!p.open && wants('closed')) told.add(_closed(p));
       continue;
     }
@@ -166,13 +170,17 @@ class Pull {
     }
     if (p.draft) continue;
     if (!wasOpen) {
-      if (wants('opened')) told.add(_opened(p, 'reopened'));
+      if (wants('opened')) told.add(_opened(p, 'reopened', by[p.number]));
     } else if (wasDraft) {
-      if (wants('opened')) told.add(_opened(p, 'ready for review'));
+      if (wants('opened')) {
+        told.add(_opened(p, 'ready for review', by[p.number]));
+      }
     } else if (before['sha'] != p.sha && wants('pushed')) {
+      final from = by[p.number];
       told.add(
         '#${p.number} got new commits '
-        '(${_sha(before['sha'])} → ${_sha(p.sha)}): ${p.title}\n${p.url}',
+        '(${_sha(before['sha'])} → ${_sha(p.sha)}): ${p.title}\n${p.url}'
+        '${from == null ? '' : '\nopened by chat $from'}',
       );
     }
   }
@@ -190,7 +198,7 @@ String _sha(Object? sha) {
   return s.length > 7 ? s.substring(0, 7) : s;
 }
 
-String _opened(Pull p, String how) {
+String _opened(Pull p, String how, String? from) {
   final body = p.body.trim();
   return [
     '#${p.number} $how: ${p.title}',
@@ -198,6 +206,7 @@ String _opened(Pull p, String how) {
       if (p.author.isNotEmpty) 'by ${p.author}',
       if (p.head.isNotEmpty) '${p.head} → ${p.base}',
     ].join(' · '),
+    if (from != null) 'opened by chat $from',
     p.url,
     if (body.isNotEmpty) '\n${clip(body, 1500)}',
   ].where((l) => l.isNotEmpty).join('\n');
@@ -215,6 +224,46 @@ String pullsMessage(Subscription sub, List<String> told) {
     ...told,
     if (note.isNotEmpty) note,
   ].join('\n\n');
+}
+
+/// A chat as an event names it: `[abcd1234] "its title"`, and whether it
+/// is the very chat told.
+String openerLabel(String chat, String title, {required String told}) =>
+    '[${chat.substring(0, chat.length < 8 ? chat.length : 8)}]'
+    '${title.isEmpty ? '' : ' "$title"'}'
+    '${chat == told ? ' (this chat)' : ''}';
+
+/// A pull request a chat opened, as its worker saw it go by.
+typedef PullMade = ({String repo, int number, String url});
+
+final _opens = RegExp(r'\bgh\s+pr\s+(create|new)\b');
+final _pullLink = RegExp(
+  r'https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/(\d+)',
+);
+
+/// The pull requests one of a chat's tool calls opened: a `gh pr create`
+/// (or `new`) [command] in a shell (Claude's Bash, Codex's Shell — not a
+/// file read or a search that merely mentions one), or a [tool] named for
+/// making one, and the link
+/// GitHub answered with in its [output]. Its worker reads every chat's
+/// tool calls through this, so which chat opened which pull request is
+/// known without the agent having to say so — asked for in place of each
+/// description naming its chat, which a public repository shows to all.
+List<PullMade> pullsOpened(String tool, String command, String output) {
+  final shell = const {'bash', 'shell'}.contains(tool.toLowerCase());
+  if (!(shell && _opens.hasMatch(command)) &&
+      !tool.toLowerCase().contains('create_pull_request')) {
+    return const [];
+  }
+  final found = <String, PullMade>{};
+  for (final m in _pullLink.allMatches(output)) {
+    found['${m[1]}#${m[2]}'] ??= (
+      repo: m[1]!,
+      number: int.parse(m[2]!),
+      url: m[0]!,
+    );
+  }
+  return found.values.toList();
 }
 
 /// Who an event is from, as `chat_in`'s `sender` says it: the agent is
