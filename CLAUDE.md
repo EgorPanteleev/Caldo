@@ -864,6 +864,19 @@ the app, a terminal beside them; anything else a terminal.
   (`AgentKind.events`). Polled, not a webhook: nothing to host or set up
   on GitHub, at most a minute late. Tried on the local stack with a
   stand-in `claude` and `gh`: told 55s after the PR, the push 60s after.
+- **Which chat opened a pull request is noted, not written in it**
+  (asked 2026-11-24, so a reviewer can talk to the author; a
+  `Chat: [id]` line in each description was tried in the rules first and
+  asked off — the repository is public). The worker reads every finished
+  tool call (`_Talker.item`; Claude's `PostToolUse` hook in a terminal):
+  a `gh pr create`/`new` in Bash or Codex's Shell, or a
+  `create_pull_request` tool, with GitHub's link in its output
+  (`pullsOpened`), goes into server-only `chat_pulls`
+  (`…_chat_pulls.sql`; one row a PR, the first chat keeps it). A
+  subscription's opened and pushed events say "opened by chat [id]
+  "title"" (`Worker._openers`, `openerLabel`); the MCP tool `pull_chat`
+  answers by number or link. A file read or search that mentions the
+  command is not taken.
 - **The watcher's errands are chats** (`Worker.errand`, when tmux is
   installed; `ClaudeCli` without it): Claude in the task's folder, the
   answer its first turn's `result` (or `--timeout`, then it goes on in its

@@ -163,4 +163,51 @@ void main() {
     expect(pulls.single.author, 'EgorPanteleev');
     expect(pulls.single.created, DateTime.utc(2026, 11, 24, 19, 13, 38));
   });
+
+  test('an event names the chat that opened the pull request', () {
+    final by = {
+      2: openerLabel('bbbb2222-0000', 'Tester', told: 'aaaa1111-0000'),
+    };
+    final told = pullEvents(sub(), [pull(2), pull(3)], by: by).told;
+    expect(told[0], contains('opened by chat [bbbb2222] "Tester"\n'));
+    expect(told[1], isNot(contains('opened by chat')));
+    final pushed = twice(
+      sub(events: ['pushed']),
+      [pull(2)],
+      [pull(2, sha: 'bbbbbbbbbb')],
+    );
+    expect(pushed.single, isNot(contains('opened by chat')));
+    expect(
+      openerLabel('aaaa1111-0000', '', told: 'aaaa1111-0000'),
+      '[aaaa1111] (this chat)',
+    );
+  });
+
+  group('pull requests a tool call opened', () {
+    const link = 'https://github.com/EgorPanteleev/Caldo/pull/27';
+
+    test('gh pr create, and the link it printed', () {
+      final made = pullsOpened(
+        'Bash',
+        'git push -u origin bump && gh pr create --title "Call it" --body x',
+        'remote: \nWarning: 1 uncommitted change\n$link\n',
+      );
+      expect(made, [(repo: 'EgorPanteleev/Caldo', number: 27, url: link)]);
+      expect(
+        pullsOpened('Shell', "bash -lc 'gh  pr new -f'", '$link $link'),
+        hasLength(1),
+      );
+      expect(
+        pullsOpened('mcp__github__create_pull_request', '', '{"url":"$link"}'),
+        hasLength(1),
+      );
+    });
+
+    test('not a link merely shown, nor a command that opened nothing', () {
+      expect(pullsOpened('Bash', 'gh pr view 27', link), isEmpty);
+      expect(pullsOpened('Bash', 'gh pr list', link), isEmpty);
+      expect(pullsOpened('Bash', 'gh pr create', 'aborted'), isEmpty);
+      expect(pullsOpened('Read', 'notes about gh pr create', link), isEmpty);
+    });
+  });
 }

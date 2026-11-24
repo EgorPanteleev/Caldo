@@ -576,7 +576,7 @@ class Worker {
         await fail(e);
         continue;
       }
-      final (:told, :seen) = pullEvents(sub, pulls);
+      var (:told, :seen) = pullEvents(sub, pulls);
       final live = _live.containsKey(chat) || _talks.containsKey(chat);
       if (told.isNotEmpty && !live) continue;
       final known = jsonEncode(seen) == jsonEncode(sub.seen ?? const {});
@@ -587,6 +587,8 @@ class Worker {
             .eq('id', sub.id);
       }
       if (told.isEmpty) continue;
+      final by = await _openers(sub, pulls);
+      if (by.isNotEmpty) told = pullEvents(sub, pulls, by: by).told;
       log('[${_short(chat)}] told of ${told.length} in ${sub.label}');
       await _apply(chat, {
         'kind': 'line',
@@ -595,6 +597,69 @@ class Worker {
         'sender': eventSender(sub),
       });
     }
+  }
+
+  /// Which of the account's chats opened [pulls], by number, as [sub]'s
+  /// events name them. None if it can't be read: the events go as before.
+  Future<Map<int, String>> _openers(Subscription sub, List<Pull> pulls) async {
+    try {
+      final db = await _db;
+      final rows = await db
+          .from('chat_pulls')
+          .select('number, chat_id, chats(title, prompt)')
+          .eq('repo', sub.target!)
+          .inFilter('number', [for (final p in pulls) p.number]);
+      return {
+        for (final row in rows)
+          row['number'] as int: openerLabel(
+            row['chat_id'] as String,
+            _chatTitle(row['chats'] as Map? ?? const {}),
+            told: sub.chat,
+          ),
+      };
+    } catch (e) {
+      log('[${_short(sub.chat)}] cannot tell who opened pull requests: $e');
+      return const {};
+    }
+  }
+
+  static String _chatTitle(Map chat) {
+    final title = '${chat['title'] ?? ''}'.trim();
+    if (title.isNotEmpty) return title;
+    return clip('${chat['prompt'] ?? ''}'.trim().split('\n').first, 60);
+  }
+
+  /// Notes the pull requests one of [chat]'s tool calls opened
+  /// (`chat_pulls`), so a chat told of them knows whom to talk to. The
+  /// first chat to show one keeps it: a second `gh pr create` on the same
+  /// branch only prints the link to the one already there.
+  void _notePulls(String chat, String tool, String command, String output) {
+    final made = pullsOpened(tool, command, output);
+    if (made.isEmpty) return;
+    unawaited(
+      _guard(() async {
+        final db = await _db;
+        await db
+            .from('chat_pulls')
+            .upsert(
+              [
+                for (final p in made)
+                  {
+                    'chat_id': chat,
+                    'repo': p.repo,
+                    'number': p.number,
+                    'url': p.url,
+                  },
+              ],
+              onConflict: 'user_id,repo,number',
+              ignoreDuplicates: true,
+            );
+        log(
+          '[${_short(chat)}] opened '
+          '${made.map((p) => '${p.repo}#${p.number}').join(', ')}',
+        );
+      }),
+    );
   }
 
   /// Puts in rows of input, each once, and deletes them.
@@ -1494,6 +1559,18 @@ class Worker {
   void _event(String chat, _Live live, Map event) {
     String? to;
     String? note;
+    if (event['hook_event_name'] == 'PostToolUse') {
+      final input = event['tool_input'] as Map? ?? const {};
+      final response = event['tool_response'];
+      _notePulls(
+        chat,
+        '${event['tool_name'] ?? ''}',
+        '${input['command'] ?? ''}',
+        response is Map
+            ? '${response['stdout'] ?? ''}\n${response['stderr'] ?? ''}'
+            : '$response',
+      );
+    }
     switch (event['hook_event_name']) {
       case 'SessionStart':
         final session = event['session_id'] as String?;
@@ -2120,6 +2197,14 @@ class _Talker implements TalkSink {
       'body': body,
     };
     _queue[id] = row;
+    if (kind == 'tool' && body['done'] == true) {
+      worker._notePulls(
+        ask.id,
+        '${body['name'] ?? ''}',
+        '${body['line'] ?? ''}\n${body['detail'] ?? ''}',
+        '${body['output'] ?? ''}',
+      );
+    }
     // Heard at once on the channel; the row, a quarter of a second behind,
     // is what is kept. One too big for a broadcast comes by the row alone.
     if (jsonEncode(body).length < 100000) _broadcast('item', row);

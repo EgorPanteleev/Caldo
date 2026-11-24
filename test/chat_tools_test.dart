@@ -84,6 +84,12 @@ class _Desk implements ChatDesk {
     subs.removeWhere((s) => s['id'] == id);
     return subs.length < before;
   }
+
+  final pulls = <String, Map<String, dynamic>>{};
+
+  @override
+  Future<Map<String, dynamic>?> pullOpener(String repo, int number) async =>
+      pulls['$repo#$number'];
 }
 
 void main() {
@@ -370,6 +376,55 @@ void main() {
       await expectLater(run('unsubscribe', {'id': 9}), throwsA(isA<Refusal>()));
       tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
       await refused({'repo': 'a/b'}, 'not in one of Caldo');
+    });
+  });
+
+  group('pull_chat', () {
+    setUp(() {
+      desk.pulls['EgorPanteleev/Caldo#27'] = {'chat_id': 'bbbb2222-0000'};
+      desk.pulls['EgorPanteleev/Caldo#28'] = {'chat_id': 'aaaa1111-0000'};
+      desk.pulls['EgorPanteleev/Caldo#29'] = {'chat_id': 'cccc3333-0000'};
+      desk.pulls['EgorPanteleev/Caldo#30'] = {'chat_id': 'ffff6666-0000'};
+      tools = ChatTools(
+        desk,
+        self: 'aaaa1111-0000',
+        repoHere: () async => 'EgorPanteleev/Caldo',
+      );
+    });
+
+    test('names the chat that opened a pull request', () async {
+      expect(
+        await run('pull_chat', {'number': 27}),
+        'EgorPanteleev/Caldo#27 was opened by "Tester" [bbbb2222] — claude, '
+        'idle. message_chat reaches it.',
+      );
+      expect(
+        await run('pull_chat', {
+          'repo': 'https://github.com/EgorPanteleev/Caldo/pull/28',
+        }),
+        endsWith('That is this chat, you.'),
+      );
+      expect(
+        await run('pull_chat', {
+          'number': '#29',
+          'repo': 'EgorPanteleev/Caldo',
+        }),
+        endsWith('A message would start it again.'),
+      );
+      expect(await run('pull_chat', {'number': 30}), endsWith('gone now.'));
+      expect(
+        await run('pull_chat', {'number': 31}),
+        startsWith('No chat is known to have opened EgorPanteleev/Caldo#31'),
+      );
+    });
+
+    test('refuses without a number or with a bad repository', () async {
+      for (final args in [
+        <String, Object?>{},
+        {'number': 3, 'repo': 'no such'},
+      ]) {
+        await expectLater(run('pull_chat', args), throwsA(isA<Refusal>()));
+      }
     });
   });
 
