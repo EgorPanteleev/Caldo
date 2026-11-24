@@ -69,6 +69,28 @@ class ChatUsage {
 
   int get tokens => input + output + cacheRead + cacheWrite;
 
+  /// This chat's figures with the limits of [account] in place of its own:
+  /// a chat's copy is as old as its last turn, its account's as new as the
+  /// worker's last look (`agent_accounts`).
+  ChatUsage withLimitsOf(ChatUsage? account) =>
+      account == null || account.limitsAt == null
+      ? this
+      : ChatUsage(
+          model: model,
+          context: context,
+          window: window,
+          input: input,
+          output: output,
+          cacheRead: cacheRead,
+          cacheWrite: cacheWrite,
+          cost: cost,
+          turns: turns,
+          working: working,
+          limits: account.limits,
+          limited: account.limited,
+          limitsAt: account.limitsAt,
+        );
+
   bool get isEmpty =>
       context == null && limits.isEmpty && turns == 0 && tokens == 0;
 
@@ -152,6 +174,13 @@ class UsageLimit {
     this.minutes,
   });
 
+  /// What is used now: nothing once its window has started again, though
+  /// nobody has looked since.
+  double get usedNow => passed ? 0 : used;
+
+  /// Its window has started again since it was heard.
+  bool get passed => resets?.isBefore(DateTime.now()) ?? false;
+
   static UsageLimit? of(Object? json) {
     if (json is! Map || json['name'] is! String || json['used'] is! num) {
       return null;
@@ -194,3 +223,38 @@ Map<String, Object?> limitRow(
   num? resets,
   num? minutes,
 }) => {'name': name, 'used': used, 'resets': ?resets, 'minutes': ?minutes};
+
+/// The limits in Claude's answer for an account's usage (`/api/oauth/usage`,
+/// as `/usage` reads it): each window's percent used and when it starts
+/// again. Only the windows Claude's own chats name; the rest of the answer
+/// is offers and code names.
+List<Map<String, Object?>> claudeLimitRows(Map answer) => [
+  for (final name in const [
+    'five_hour',
+    'seven_day',
+    'seven_day_opus',
+    'seven_day_sonnet',
+  ])
+    if (answer[name] case {'utilization': final num used} && final window)
+      limitRow(
+        name,
+        used / 100,
+        resets: switch (DateTime.tryParse('${window['resets_at']}')) {
+          final at? => at.millisecondsSinceEpoch / 1000,
+          null => null,
+        },
+      ),
+];
+
+/// The limits in Codex's word on them (`account/rateLimits/*`): a short
+/// window and a long one, each a percent used and when it starts again.
+List<Map<String, Object?>> codexLimitRows(Map limits) => [
+  for (final name in const ['primary', 'secondary'])
+    if (limits[name] case final Map window when window['usedPercent'] is num)
+      limitRow(
+        name,
+        (window['usedPercent'] as num) / 100,
+        resets: window['resetsAt'] as num?,
+        minutes: window['windowDurationMins'] as num?,
+      ),
+];

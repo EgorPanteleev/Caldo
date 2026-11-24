@@ -179,6 +179,21 @@ class Tmux {
         '${modesOf(flags)}';
   }
 
+  /// The screen as plain text, lines its program wrapped joined again: for
+  /// a link to be read off it whole.
+  Future<String?> text(String chat) async {
+    final shot = await _tmux([
+      'capture-pane',
+      '-p',
+      '-J',
+      '-t',
+      nameOf(chat),
+      '-S',
+      '-200',
+    ]);
+    return shot.exitCode == 0 ? '${shot.stdout}' : null;
+  }
+
   /// The private modes a snapshot restores, by the tmux flag that says
   /// whether each is on: the mouse's reports, bracketed paste, the
   /// cursor's keys and whether it shows.

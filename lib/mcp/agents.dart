@@ -85,6 +85,9 @@ class AgentSpec {
     // (`chat_in` `sender`): `message_chat` sends only to a worker that
     // does.
     'chats': true,
+    // It signs in to accounts asked for in the app and runs a chat under
+    // the one chosen (`agent_accounts`).
+    'accounts': id == 'claude' || id == 'codex',
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part
@@ -304,6 +307,10 @@ class ChatAsk {
   /// title is written in; null for the message's own.
   final String? language;
 
+  /// The account it runs under (`agent_accounts`); null for the worker's
+  /// own login.
+  final String? account;
+
   const ChatAsk({
     required this.id,
     required this.agent,
@@ -323,6 +330,7 @@ class ChatAsk {
     this.mode = 'terminal',
     this.usage,
     this.language,
+    this.account,
   });
 
   factory ChatAsk.fromJson(Map json) => ChatAsk(
@@ -344,6 +352,7 @@ class ChatAsk {
     mode: json['mode'] as String? ?? 'terminal',
     usage: json['usage'] is Map ? json['usage'] as Map : null,
     language: _blank(json['language']),
+    account: _blank(json['account']),
   );
 }
 
@@ -365,6 +374,7 @@ String? settingsChanged(ChatAsk was, ChatAsk now) {
     if (!same(was.skills, now.skills))
       now.skills.isEmpty ? 'no skills' : 'skills ${now.skills.join(', ')}',
     if (was.rules != now.rules) now.rules == null ? 'no rules' : 'rules',
+    if (was.account != now.account) 'account',
   ];
   if (parts.isEmpty) return null;
   return 'Settings changed: ${parts.join(', ')}.';

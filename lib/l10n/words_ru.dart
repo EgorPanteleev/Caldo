@@ -566,8 +566,10 @@ const Map<String, Object> ru = {
   'chatEmpty': "Пока ничего не сказано.",
   'chatMoveStops': "Он сейчас работает: перенос остановит этот ход.",
   'chatSettings': "Настройки",
-  'chatSettingsHint': "{agent} продолжит тот же разговор с ними: после текущего хода, с вашего следующего сообщения.",
-  'chatSettingsOld': "Обработчик на {name} старее и не может их изменить: переустановите его там (tool/mcp/install.sh, затем watch.sh).",
+  'chatSettingsHint':
+      "{agent} продолжит тот же разговор с ними: после текущего хода, с вашего следующего сообщения.",
+  'chatSettingsOld':
+      "Обработчик на {name} старее и не может их изменить: переустановите его там (tool/mcp/install.sh, затем watch.sh).",
   'usageTitle': "Расход",
   'usageContext': "Контекст",
   'usageContextShort': "Контекст {n}",
@@ -595,4 +597,41 @@ const Map<String, Object> ru = {
   'usageDays': "Лимит на {n} дн.",
   'usageHoursLimit': "Лимит на {n} ч",
   'usageWeekShort': "Неделя",
+  'agentAccounts': "Аккаунты",
+  'addAccount': "Добавить аккаунт",
+  'accountsNone': "Аккаунтов пока нет",
+  'accountsNoneHint':
+      "Собственные входы Claude и Codex каждого компьютера появятся здесь после переустановки его воркера. Добавьте ещё, чтобы запускать чаты под ними.",
+  'accountsReinstall':
+      "Переустановите caldo-mcp на компьютере (tool/mcp/install.sh и watch.sh), чтобы добавлять там аккаунты.",
+  'accountOwn': "Собственный аккаунт компьютера",
+  'accountStarting': "Запуск…",
+  'accountSigningIn': "Вход…",
+  'accountReady': "Вход выполнен",
+  'accountSignedOut': "Выход выполнен",
+  'accountFailed': "Не удалось войти",
+  'accountSignIn': "Войти",
+  'accountSignInAgain': "Войти заново",
+  'accountRename': "Переименовать",
+  'accountRemoveQuestion': "Удалить {name}?",
+  'accountRemoveHint':
+      "На {worker} будет выполнен выход. Его чаты продолжат работу под собственным аккаунтом компьютера.",
+  'accountNoLimits': "Лимиты ещё не прочитаны",
+  'accountWaitingPage': "Ждём страницу входа…",
+  'accountWaitingCodex': "Ждём подтверждения на странице…",
+  'accountClaudeSteps':
+      "Откройте страницу, войдите в аккаунт и вставьте сюда показанный код.",
+  'accountCodexSteps':
+      "Откройте страницу, войдите в аккаунт и введите там этот код.",
+  'accountOpenPage': "Открыть страницу входа",
+  'accountCopyLink': "Копировать",
+  'accountLinkCopied': "Скопировано",
+  'accountCode': "Код со страницы",
+  'accountSend': "Отправить",
+  'accountName': "Название",
+  'accountNameHint': "Необязательно: иначе его почта",
+  'accountAddHint':
+      "{worker} войдёт в него и будет хранить отдельно от своего входа. Чаты под ним используют те же плагины, навыки и сессии.",
+  'chatAccount': "Аккаунт",
+  'usageResetSince': "Уже сброшен",
 };

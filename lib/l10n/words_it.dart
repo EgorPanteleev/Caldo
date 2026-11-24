@@ -547,8 +547,10 @@ const Map<String, Object> it = {
   'chatEmpty': "Ancora niente.",
   'chatMoveStops': "Sta lavorando: spostarla ora ferma questo turno.",
   'chatSettings': "Impostazioni",
-  'chatSettingsHint': "{agent} le adotta nella stessa conversazione: dopo il turno in corso, dal tuo prossimo messaggio.",
-  'chatSettingsOld': "Il worker su {name} è più vecchio e non può cambiarle: reinstallalo lì (tool/mcp/install.sh, poi watch.sh).",
+  'chatSettingsHint':
+      "{agent} le adotta nella stessa conversazione: dopo il turno in corso, dal tuo prossimo messaggio.",
+  'chatSettingsOld':
+      "Il worker su {name} è più vecchio e non può cambiarle: reinstallalo lì (tool/mcp/install.sh, poi watch.sh).",
   'usageTitle': "Consumo",
   'usageContext': "Contesto",
   'usageContextShort': "Contesto {n}",
@@ -576,4 +578,41 @@ const Map<String, Object> it = {
   'usageDays': "Limite di {n} giorni",
   'usageHoursLimit': "Limite di {n} ore",
   'usageWeekShort': "Settimana",
+  'agentAccounts': "Account",
+  'addAccount': "Aggiungi account",
+  'accountsNone': "Ancora nessun account",
+  'accountsNoneHint':
+      "Gli accessi Claude e Codex di ogni computer compaiono qui una volta reinstallato il suo worker. Aggiungine altri per eseguirci delle chat.",
+  'accountsReinstall':
+      "Reinstalla caldo-mcp sul computer (tool/mcp/install.sh e watch.sh) per aggiungervi account.",
+  'accountOwn': "Account del computer",
+  'accountStarting': "Avvio…",
+  'accountSigningIn': "Accesso…",
+  'accountReady': "Accesso eseguito",
+  'accountSignedOut': "Disconnesso",
+  'accountFailed': "Accesso non riuscito",
+  'accountSignIn': "Accedi",
+  'accountSignInAgain': "Accedi di nuovo",
+  'accountRename': "Rinomina",
+  'accountRemoveQuestion': "Rimuovere {name}?",
+  'accountRemoveHint':
+      "Verrà disconnesso su {worker}. Le sue chat continuano con l'account del computer.",
+  'accountNoLimits': "Limiti non ancora letti",
+  'accountWaitingPage': "In attesa della pagina di accesso…",
+  'accountWaitingCodex': "In attesa della conferma sulla pagina…",
+  'accountClaudeSteps':
+      "Apri la pagina, accedi con l'account, poi incolla qui il codice mostrato.",
+  'accountCodexSteps':
+      "Apri la pagina, accedi con l'account e inserisci lì questo codice.",
+  'accountOpenPage': "Apri la pagina di accesso",
+  'accountCopyLink': "Copia",
+  'accountLinkCopied': "Copiato",
+  'accountCode': "Codice dalla pagina",
+  'accountSend': "Invia",
+  'accountName': "Nome",
+  'accountNameHint': "Facoltativo: altrimenti la sua email",
+  'accountAddHint':
+      "{worker} vi accede e lo tiene separato dal proprio accesso. Le chat con esso condividono plugin, skill e sessioni.",
+  'chatAccount': "Account",
+  'usageResetSince': "Già azzerato",
 };

@@ -535,8 +535,10 @@ const Map<String, Object> kk = {
   'chatEmpty': "Әзірге ештеңе айтылмады.",
   'chatMoveStops': "Ол қазір жұмыс істеп жатыр: көшіру осы жүрісті тоқтатады.",
   'chatSettings': "Баптаулар",
-  'chatSettingsHint': "{agent} сол әңгімені солармен жалғастырады: ағымдағы жүрістен кейін, келесі хабарламаңыздан бастап.",
-  'chatSettingsOld': "{name} ішіндегі өңдеуші ескі, оларды өзгерте алмайды: оны сонда қайта орнатыңыз (tool/mcp/install.sh, содан кейін watch.sh).",
+  'chatSettingsHint':
+      "{agent} сол әңгімені солармен жалғастырады: ағымдағы жүрістен кейін, келесі хабарламаңыздан бастап.",
+  'chatSettingsOld':
+      "{name} ішіндегі өңдеуші ескі, оларды өзгерте алмайды: оны сонда қайта орнатыңыз (tool/mcp/install.sh, содан кейін watch.sh).",
   'usageTitle': "Шығын",
   'usageContext': "Контекст",
   'usageContextShort': "Контекст {n}",
@@ -564,4 +566,41 @@ const Map<String, Object> kk = {
   'usageDays': "{n} күндік лимит",
   'usageHoursLimit': "{n} сағаттық лимит",
   'usageWeekShort': "Апта",
+  'agentAccounts': "Аккаунттар",
+  'addAccount': "Аккаунт қосу",
+  'accountsNone': "Әзірге аккаунттар жоқ",
+  'accountsNoneHint':
+      "Әр компьютердің өз Claude және Codex кірулері оның воркері қайта орнатылғаннан кейін осында көрінеді. Чаттарды солардың атынан іске қосу үшін тағы қосыңыз.",
+  'accountsReinstall':
+      "Аккаунттарды қосу үшін компьютерде caldo-mcp қайта орнатыңыз (tool/mcp/install.sh және watch.sh).",
+  'accountOwn': "Компьютердің өз аккаунты",
+  'accountStarting': "Іске қосылуда…",
+  'accountSigningIn': "Кіру…",
+  'accountReady': "Кірді",
+  'accountSignedOut': "Шықты",
+  'accountFailed': "Кіру сәтсіз",
+  'accountSignIn': "Кіру",
+  'accountSignInAgain': "Қайта кіру",
+  'accountRename': "Атын өзгерту",
+  'accountRemoveQuestion': "{name} жою керек пе?",
+  'accountRemoveHint':
+      "{worker} ішінде одан шығады. Оның чаттары компьютердің өз аккаунтымен жалғасады.",
+  'accountNoLimits': "Лимиттер әлі оқылмады",
+  'accountWaitingPage': "Кіру беті күтілуде…",
+  'accountWaitingCodex': "Беттегі растау күтілуде…",
+  'accountClaudeSteps':
+      "Бетті ашып, аккаунтқа кіріңіз, сосын көрсетілген кодты осында қойыңыз.",
+  'accountCodexSteps':
+      "Бетті ашып, аккаунтқа кіріңіз және сол жерге осы кодты енгізіңіз.",
+  'accountOpenPage': "Кіру бетін ашу",
+  'accountCopyLink': "Көшіру",
+  'accountLinkCopied': "Көшірілді",
+  'accountCode': "Беттегі код",
+  'accountSend': "Жіберу",
+  'accountName': "Атауы",
+  'accountNameHint': "Міндетті емес: әйтпесе оның поштасы",
+  'accountAddHint':
+      "{worker} оған кіріп, өз кіруінен бөлек сақтайды. Оның чаттары сол плагиндерді, дағдыларды және сессияларды пайдаланады.",
+  'chatAccount': "Аккаунт",
+  'usageResetSince': "Қалпына келді",
 };

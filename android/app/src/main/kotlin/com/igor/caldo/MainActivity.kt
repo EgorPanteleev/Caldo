@@ -283,6 +283,18 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "info" -> result.success(updateInfo())
+                    // A web page in the browser: an agent account's sign-in.
+                    "open" -> result.success(
+                        try {
+                            startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(call.argument<String>("url")))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                            true
+                        } catch (e: ActivityNotFoundException) {
+                            false
+                        },
+                    )
                     "install" -> install(
                         call.argument<String>("path")!!,
                         call.argument<Map<String, String>>("words") ?: emptyMap(),

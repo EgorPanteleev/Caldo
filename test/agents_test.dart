@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caldo/l10n/strings.dart';
+import 'package:caldo/mcp/accounts.dart';
 import 'package:caldo/mcp/agents.dart';
 import 'package:caldo/mcp/kept.dart';
 import 'package:caldo/mcp/talk.dart';
@@ -1145,6 +1146,15 @@ void main() {
         isTrue,
       );
       expect(AgentKind.fromJson({'id': 'claude'}).settings, isFalse);
+      expect(
+        Chat.fromJson({
+          'id': 'c',
+          'agent': 'claude',
+          'updated_at': '2026-11-22T10:00:00Z',
+          'account': 'a1',
+        }).account,
+        'a1',
+      );
     });
 
     test('changed are said in the chat, once each', () {
@@ -1192,6 +1202,200 @@ void main() {
         'Settings changed: model sonnet, effort default, permissions plan, '
         'plugins, no skills, no rules.',
       );
+      // Another account carries the session on: the program starts again.
+      expect(
+        settingsChanged(
+          was,
+          ChatAsk.fromJson({
+            'id': 'c',
+            'agent': 'claude',
+            'model': 'opus',
+            'effort': 'high',
+            'skills': ['clean-code'],
+            'rules': [
+              {'name': 'Brief', 'body': 'Be brief.'},
+            ],
+            'account': 'a1',
+          }),
+        ),
+        'Settings changed: account.',
+      );
+    });
+  });
+
+  group('accounts', () {
+    test("Claude's usage answer is read for its windows only", () {
+      final rows = claudeLimitRows({
+        'five_hour': {
+          'utilization': 65.0,
+          'resets_at': '2026-11-23T01:40:00.716195+00:00',
+        },
+        'seven_day': {'utilization': 6.0, 'resets_at': null},
+        'seven_day_opus': null,
+        'seven_day_cowork': {'utilization': 50.0},
+        'limits': [],
+      });
+      expect(rows.map((r) => r['name']), ['five_hour', 'seven_day']);
+      expect(rows.first['used'], 0.65);
+      expect(
+        rows.first['resets'],
+        DateTime.utc(2026, 11, 23, 1, 40, 0, 716, 195).millisecondsSinceEpoch /
+            1000,
+      );
+      expect(rows.last.containsKey('resets'), isFalse);
+      final limit = UsageLimit.of(rows.first)!;
+      expect(limit.span, 300);
+    });
+
+    test("Codex's limits are read as its chats read them", () {
+      final rows = codexLimitRows({
+        'primary': {
+          'usedPercent': 40,
+          'windowDurationMins': 300,
+          'resetsAt': 1795400000,
+        },
+        'secondary': {'usedPercent': 'x'},
+      });
+      expect(rows, [
+        limitRow('primary', 0.4, resets: 1795400000, minutes: 300),
+      ]);
+    });
+
+    test('a limit whose window started again reads as used up to nothing', () {
+      final past = DateTime.now().subtract(const Duration(minutes: 1));
+      final ahead = DateTime.now().add(const Duration(hours: 1));
+      final gone = UsageLimit.of(
+        limitRow('five_hour', 0.9, resets: past.millisecondsSinceEpoch / 1000),
+      )!;
+      final still = UsageLimit.of(
+        limitRow('five_hour', 0.9, resets: ahead.millisecondsSinceEpoch / 1000),
+      )!;
+      expect((gone.passed, gone.usedNow), (true, 0));
+      expect((still.passed, still.usedNow), (false, 0.9));
+    });
+
+    test("a chat's figures take its account's limits, newer than its own", () {
+      final own = ChatUsage.of({
+        'turns': 3,
+        'cost': 1.5,
+        'limits': [limitRow('five_hour', 0.2)],
+        'limitsAt': 1,
+      })!;
+      final account = ChatUsage.of({
+        'limits': [limitRow('five_hour', 0.7), limitRow('seven_day', 0.1)],
+        'limitsAt': 2,
+      })!;
+      final both = own.withLimitsOf(account);
+      expect(both.turns, 3);
+      expect(both.cost, 1.5);
+      expect(both.limits.map((l) => l.used), [0.7, 0.1]);
+      expect(own.withLimitsOf(null), same(own));
+      expect(own.withLimitsOf(const ChatUsage()), same(own));
+    });
+
+    test('the sign-in page is read off the screen', () {
+      const claude =
+          'Opening browser to sign in…\n'
+          'If the browser didn\'t open, visit: '
+          'https://claude.com/cai/oauth/authorize?code=true&client_id=x&state=y\n'
+          'Paste code here if prompted >';
+      expect(AgentLogins.loginScreen('claude', claude), (
+        url:
+            'https://claude.com/cai/oauth/authorize?code=true&client_id=x&state=y',
+        hint: null,
+      ));
+      const codex =
+          '1. Open this link in your browser and sign in to your account\n'
+          '   https://auth.openai.com/codex/device\n'
+          '2. Enter this one-time code (expires in 15 minutes)\n'
+          '   AB12-CD3EF\n';
+      expect(AgentLogins.loginScreen('codex', codex), (
+        url: 'https://auth.openai.com/codex/device',
+        hint: 'AB12-CD3EF',
+      ));
+      expect(
+        AgentLogins.lastWords(
+          'Opening browser to sign in…\n'
+          'If the browser didn\'t open, visit: https://claude.com/x\n'
+          'Paste code here if prompted > Login failed: Request failed with '
+          'status code 400\n\n'
+          'Pane is dead (status 1, Mon Nov 23 21:36:04 2026)\n',
+        ),
+        'Opening browser to sign in… '
+        'Login failed: Request failed with status code 400',
+      );
+      expect(AgentLogins.loginScreen('claude', 'Starting…'), (
+        url: null,
+        hint: null,
+      ));
+    });
+
+    test("an account's folder shares all of the agent's own but the login", () {
+      final home = Directory.systemTemp.createTempSync('caldo-logins');
+      addTearDown(() => home.deleteSync(recursive: true));
+      final own = Directory('${home.path}/.claude')..createSync();
+      File('${own.path}/settings.json').writeAsStringSync('{}');
+      File('${own.path}/.credentials.json').writeAsStringSync('mine');
+      Directory('${own.path}/plugins').createSync();
+      File('${home.path}/.claude.json').writeAsStringSync(
+        jsonEncode({
+          'oauthAccount': {'emailAddress': 'me@x'},
+          'mcpServers': {'caldo': {}},
+        }),
+      );
+      final logins = AgentLogins(
+        home: home.path,
+        root: '${home.path}/accounts',
+      );
+      final folder = logins.folderOf('11111111-2222-4333-8444-555555555555');
+      logins.mirror('claude', folder);
+      expect(
+        Link('$folder/settings.json').targetSync(),
+        '${own.path}/settings.json',
+      );
+      expect(Link('$folder/plugins').existsSync(), isTrue);
+      // Sessions are kept with the rest, made first if there were none.
+      expect(Link('$folder/projects').targetSync(), '${own.path}/projects');
+      expect(File('$folder/.credentials.json').existsSync(), isFalse);
+      final config = jsonDecode(
+        File('$folder/.claude.json').readAsStringSync(),
+      );
+      expect(config, {
+        'mcpServers': {'caldo': {}},
+      });
+      expect(AgentLogins.envOf('claude', folder), [
+        'env',
+        'CLAUDE_CONFIG_DIR=$folder',
+      ]);
+      expect(AgentLogins.envOf('codex', null), isEmpty);
+
+      // Removed on the server: its folder goes, and nothing it linked to.
+      expect(logins.strays(const []), ['11111111-2222-4333-8444-555555555555']);
+      expect(
+        logins.strays(const ['11111111-2222-4333-8444-555555555555']),
+        isEmpty,
+      );
+    });
+
+    test('removing a folder leaves what it linked to', () async {
+      final home = Directory.systemTemp.createTempSync('caldo-logins');
+      addTearDown(() => home.deleteSync(recursive: true));
+      final own = Directory('${home.path}/.codex')..createSync();
+      File('${own.path}/config.toml').writeAsStringSync('x');
+      File('${own.path}/auth.json').writeAsStringSync('{}');
+      final logins = AgentLogins(
+        home: home.path,
+        root: '${home.path}/accounts',
+      );
+      final folder = logins.folderOf('11111111-2222-4333-8444-555555555555');
+      logins.mirror('codex', folder);
+      expect(Link('$folder/sessions').existsSync(), isTrue);
+      expect(File('$folder/auth.json').existsSync(), isFalse);
+      await logins.remove(folder);
+      expect(Directory(folder).existsSync(), isFalse);
+      expect(File('${own.path}/config.toml').existsSync(), isTrue);
+      expect(File('${own.path}/auth.json').existsSync(), isTrue);
+      expect(Directory('${own.path}/sessions').existsSync(), isTrue);
     });
   });
 
@@ -1407,6 +1611,7 @@ void main() {
       S.use('en');
       Agents.instance.workers = const [];
       Agents.instance.rules = const [];
+      Agents.instance.accounts = const [];
     });
 
     Future<void> pump(WidgetTester tester, String code, Widget home) async {
@@ -1656,6 +1861,11 @@ void main() {
       });
 
       testWidgets("shows a chat's usage in ${S.names[code]}", (tester) async {
+        final soon =
+            DateTime.now()
+                .add(const Duration(hours: 2))
+                .millisecondsSinceEpoch /
+            1000;
         final usage = ChatUsage.of({
           'model': 'claude-opus-5-5[1m]',
           'context': 812345,
@@ -1668,8 +1878,8 @@ void main() {
           'turns': 42,
           'working': 3723000,
           'limits': [
-            limitRow('five_hour', 0.91, resets: 1795341600),
-            limitRow('seven_day', 0.14, resets: 1795374000),
+            limitRow('five_hour', 0.91, resets: soon),
+            limitRow('seven_day', 0.14, resets: soon + 86400),
             limitRow('seven_day_opus', 0.5),
           ],
           'limited': 'allowed_warning',
@@ -1743,6 +1953,128 @@ void main() {
         expect(line.data, contains(s.usageTurns(42)));
         // The account's limits are the strip's, not a chat's.
         expect(line.data, isNot(contains('91%')));
+      });
+
+      testWidgets('lists accounts in ${S.names[code]}', (tester) async {
+        final s = S.forCode(code);
+        final ahead =
+            DateTime.now()
+                .add(const Duration(hours: 3))
+                .millisecondsSinceEpoch /
+            1000;
+        Agents.instance.workers = [
+          AgentWorker(
+            id: 'w',
+            name: 'a-rather-long-computer-name',
+            seenAt: DateTime.now(),
+            dirs: const [],
+            agents: const [
+              AgentKind(id: 'claude', label: 'Claude', accounts: true),
+              AgentKind(id: 'codex', label: 'Codex', accounts: true),
+            ],
+          ),
+        ];
+        AgentAccount account(
+          String id,
+          String agent,
+          AccountState state, {
+          bool main = false,
+          String? url,
+          String? hint,
+          ChatUsage? usage,
+          String? note,
+        }) => AgentAccount(
+          id: id,
+          workerId: 'w',
+          agent: agent,
+          state: state,
+          created: DateTime.now(),
+          main: main,
+          email: main ? 'someone.with.a.long.address@example.com' : null,
+          plan: main ? 'max' : null,
+          loginUrl: url,
+          loginHint: hint,
+          usage: usage,
+          note: note,
+        );
+        Agents.instance.accounts = [
+          account(
+            'a',
+            'claude',
+            AccountState.ready,
+            main: true,
+            usage: ChatUsage.of({
+              'limits': [
+                limitRow('five_hour', 0.65, resets: ahead),
+                limitRow('seven_day', 0.06, resets: ahead + 86400 * 5),
+                // Its window started again since: read as nothing used.
+                limitRow('seven_day_opus', 0.97, resets: 1),
+              ],
+              'limitsAt': DateTime.now().millisecondsSinceEpoch,
+            }),
+          ),
+          account(
+            'b',
+            'claude',
+            AccountState.signingIn,
+            url: 'https://claude.com/cai/oauth/authorize?code=true',
+          ),
+          account(
+            'c',
+            'codex',
+            AccountState.signingIn,
+            url: 'https://auth.openai.com/codex/device',
+            hint: 'AB12-CD3EF',
+          ),
+          account(
+            'd',
+            'codex',
+            AccountState.failed,
+            note: 'The sign-in was not finished within 20 minutes.',
+          ),
+        ];
+        await pump(tester, code, const AccountsScreen());
+        expect(
+          find.text('someone.with.a.long.address@example.com'),
+          findsOneWidget,
+        );
+        expect(find.text('65%'), findsOneWidget);
+        expect(find.text('0%'), findsOneWidget);
+        expect(find.text(s.usageResetSince), findsOneWidget);
+        final list = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(
+          find.text(s.accountSend),
+          100,
+          scrollable: list,
+        );
+        expect(find.text(s.accountOpenPage), findsWidgets);
+        await tester.scrollUntilVisible(
+          find.text('AB12-CD3EF'),
+          100,
+          scrollable: list,
+        );
+        await tester.scrollUntilVisible(
+          find.text(s.accountSignIn),
+          100,
+          scrollable: list,
+        );
+        expect(find.text(s.accountSignIn), findsOneWidget);
+
+        // Chosen on a new chat's form, its limits beside its name.
+        await pump(tester, code, const NewChatScreen());
+        expect(find.text(s.chatAccount.toUpperCase()), findsOneWidget);
+        expect(
+          find.textContaining('someone.with.a.long.address@example.com'),
+          findsOneWidget,
+        );
+        expect(find.text(s.addAccount), findsOneWidget);
+
+        await pump(tester, code, const NewAccountScreen());
+        expect(find.text('Codex'), findsOneWidget);
+        expect(
+          find.text(s.accountAddHint('a-rather-long-computer-name')),
+          findsOneWidget,
+        );
       });
 
       testWidgets('asks questions in ${S.names[code]}', (tester) async {

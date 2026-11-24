@@ -39,8 +39,8 @@ class ChatUsageStrip extends StatelessWidget {
     }
     for (final limit in usage.limits) {
       part(
-        '${_limitShort(s, limit)} ${_percent(limit.used)}',
-        colour: _near(p, limit.used),
+        '${_limitShort(s, limit)} ${_percent(limit.usedNow)}',
+        colour: _near(p, limit.usedNow),
       );
     }
     if (usage.cost case final cost? when cost > 0) part(_dollars(cost));
@@ -124,23 +124,29 @@ class ChatUsageBrief extends StatelessWidget {
 
 /// The whole of a chat's figures in a sheet, kept up while it is open:
 /// [read] is asked again whenever [changes] says so.
+/// [account] names the account the limits are of.
 Future<void> showChatUsage(
   BuildContext context, {
   required Listenable changes,
   required ChatUsage? Function() read,
+  String? Function()? account,
 }) => showAppSheet<void>(
   context,
   maxHeight: MediaQuery.sizeOf(context).height * 0.8,
   child: ListenableBuilder(
     listenable: changes,
-    builder: (context, _) => _UsageSheet(usage: read() ?? const ChatUsage()),
+    builder: (context, _) => _UsageSheet(
+      usage: read() ?? const ChatUsage(),
+      account: account?.call(),
+    ),
   ),
 );
 
 class _UsageSheet extends StatelessWidget {
   final ChatUsage usage;
+  final String? account;
 
-  const _UsageSheet({required this.usage});
+  const _UsageSheet({required this.usage, this.account});
 
   @override
   Widget build(BuildContext context) {
@@ -188,15 +194,8 @@ class _UsageSheet extends StatelessWidget {
           ],
           if (usage.limits.isNotEmpty) ...[
             head(s.usageLimits),
-            for (final limit in usage.limits)
-              _Gauge(
-                name: _limitName(s, limit),
-                figure: _percent(limit.used),
-                share: limit.used,
-                under: limit.resets == null
-                    ? null
-                    : s.usageResets(_when(limit.resets!.toLocal(), h24)),
-              ),
+            if (account case final account?) _Figure(s.chatAccount, account),
+            for (final limit in usage.limits) _limitGauge(s, limit, h24),
             if (usage.limited case 'allowed_warning' || 'rejected')
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 2, 24, 0),
@@ -241,6 +240,65 @@ class _UsageSheet extends StatelessWidget {
   }
 }
 
+/// One limit as a gauge: used now — nothing, once its window has started
+/// again since it was heard — and when it starts again.
+Widget _limitGauge(
+  S s,
+  UsageLimit limit,
+  bool h24, {
+  EdgeInsets padding = _Gauge.inSheet,
+}) => _Gauge(
+  name: _limitName(s, limit),
+  figure: _percent(limit.usedNow),
+  share: limit.usedNow,
+  under: limit.passed
+      ? s.usageResetSince
+      : limit.resets == null
+      ? null
+      : s.usageResets(_when(limit.resets!.toLocal(), h24)),
+  padding: padding,
+);
+
+/// An account's limits, a gauge each: in the list of accounts.
+class AccountLimits extends StatelessWidget {
+  final ChatUsage usage;
+
+  const AccountLimits({super.key, required this.usage});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final h24 = MediaQuery.alwaysUse24HourFormatOf(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final limit in usage.limits)
+          _limitGauge(
+            s,
+            limit,
+            h24,
+            padding: const EdgeInsets.symmetric(vertical: 5),
+          ),
+      ],
+    );
+  }
+}
+
+/// "5h 65% · Week 6%": an account's limits in a line, to choose it by.
+String limitsLine(S s, ChatUsage usage) => [
+  for (final limit in usage.limits)
+    '${_limitShort(s, limit)} ${_percent(limit.usedNow)}',
+].join(' · ');
+
+/// When [usage]'s limits were heard, if long enough ago to say.
+String? limitsAge(BuildContext context, ChatUsage usage) {
+  final at = usage.limitsAt;
+  if (at == null || DateTime.now().difference(at).inMinutes < 10) return null;
+  return S
+      .of(context)
+      .usageAsOf(_when(at, MediaQuery.alwaysUse24HourFormatOf(context)));
+}
+
 /// A share of something: its name and figure on a line, a bar under it,
 /// and a word under that.
 class _Gauge extends StatelessWidget {
@@ -248,19 +306,23 @@ class _Gauge extends StatelessWidget {
   final String? figure;
   final double? share;
   final String? under;
+  final EdgeInsets padding;
+
+  static const inSheet = EdgeInsets.fromLTRB(24, 4, 24, 8);
 
   const _Gauge({
     required this.name,
     required this.figure,
     required this.share,
     this.under,
+    this.padding = inSheet,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

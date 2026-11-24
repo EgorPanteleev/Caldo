@@ -529,8 +529,10 @@ const Map<String, Object> en = {
   'chatEmpty': "Nothing said yet.",
   'chatMoveStops': "It is at work: moving it now stops this turn.",
   'chatSettings': "Settings",
-  'chatSettingsHint': "{agent} takes these up on the same conversation: after the turn under way, from your next message.",
-  'chatSettingsOld': "The worker on {name} is older and can't change these: reinstall it there (tool/mcp/install.sh, then watch.sh).",
+  'chatSettingsHint':
+      "{agent} takes these up on the same conversation: after the turn under way, from your next message.",
+  'chatSettingsOld':
+      "The worker on {name} is older and can't change these: reinstall it there (tool/mcp/install.sh, then watch.sh).",
   'usageTitle': "Usage",
   'usageContext': "Context",
   'usageContextShort': "Context {n}",
@@ -558,4 +560,41 @@ const Map<String, Object> en = {
   'usageDays': "{n}-day limit",
   'usageHoursLimit': "{n}-hour limit",
   'usageWeekShort': "Week",
+  'agentAccounts': "Accounts",
+  'addAccount': "Add account",
+  'accountsNone': "No accounts yet",
+  'accountsNoneHint':
+      "Each computer's own Claude and Codex logins show here once its worker is reinstalled. Add more to run chats under them.",
+  'accountsReinstall':
+      "Reinstall caldo-mcp on your computer (tool/mcp/install.sh and watch.sh) to add accounts there.",
+  'accountOwn': "This computer's own",
+  'accountStarting': "Starting…",
+  'accountSigningIn': "Signing in…",
+  'accountReady': "Signed in",
+  'accountSignedOut': "Signed out",
+  'accountFailed': "Sign-in failed",
+  'accountSignIn': "Sign in",
+  'accountSignInAgain': "Sign in again",
+  'accountRename': "Rename",
+  'accountRemoveQuestion': "Remove {name}?",
+  'accountRemoveHint':
+      "It is signed out on {worker}. Its chats carry on under the computer's own account.",
+  'accountNoLimits': "Limits not read yet",
+  'accountWaitingPage': "Waiting for the sign-in page…",
+  'accountWaitingCodex': "Waiting for the page to be confirmed…",
+  'accountClaudeSteps':
+      "Open the page, sign in with the account, then paste the code it shows here.",
+  'accountCodexSteps':
+      "Open the page, sign in with the account and enter this code there.",
+  'accountOpenPage': "Open sign-in page",
+  'accountCopyLink': "Copy",
+  'accountLinkCopied': "Copied",
+  'accountCode': "Code from the page",
+  'accountSend': "Send",
+  'accountName': "Name",
+  'accountNameHint': "Optional: its email otherwise",
+  'accountAddHint':
+      "{worker} signs in to it and keeps it apart from its own login. Chats under it share its plugins, skills and sessions.",
+  'chatAccount': "Account",
+  'usageResetSince': "Reset since",
 };

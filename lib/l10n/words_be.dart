@@ -568,8 +568,10 @@ const Map<String, Object> be = {
   'chatEmpty': "Пакуль нічога не сказана.",
   'chatMoveStops': "Ён зараз працуе: перанос спыніць гэты ход.",
   'chatSettings': "Налады",
-  'chatSettingsHint': "{agent} працягне тую ж размову з імі: пасля бягучага ходу, з вашага наступнага паведамлення.",
-  'chatSettingsOld': "Апрацоўшчык на {name} старэйшы і не можа іх змяніць: пераўсталюйце яго там (tool/mcp/install.sh, потым watch.sh).",
+  'chatSettingsHint':
+      "{agent} працягне тую ж размову з імі: пасля бягучага ходу, з вашага наступнага паведамлення.",
+  'chatSettingsOld':
+      "Апрацоўшчык на {name} старэйшы і не можа іх змяніць: пераўсталюйце яго там (tool/mcp/install.sh, потым watch.sh).",
   'usageTitle': "Выдаткі",
   'usageContext': "Кантэкст",
   'usageContextShort': "Кантэкст {n}",
@@ -597,4 +599,41 @@ const Map<String, Object> be = {
   'usageDays': "Ліміт на {n} дз.",
   'usageHoursLimit': "Ліміт на {n} г",
   'usageWeekShort': "Тыдзень",
+  'agentAccounts': "Акаўнты",
+  'addAccount': "Дадаць акаўнт",
+  'accountsNone': "Акаўнтаў пакуль няма",
+  'accountsNoneHint':
+      "Уласныя ўваходы Claude і Codex кожнага камп'ютара з'явяцца тут пасля пераўсталёўкі яго воркера. Дадайце яшчэ, каб запускаць чаты пад імі.",
+  'accountsReinstall':
+      "Пераўсталюйце caldo-mcp на камп'ютары (tool/mcp/install.sh і watch.sh), каб дадаваць там акаўнты.",
+  'accountOwn': "Уласны акаўнт камп'ютара",
+  'accountStarting': "Запуск…",
+  'accountSigningIn': "Уваход…",
+  'accountReady': "Уваход выкананы",
+  'accountSignedOut': "Выхад выкананы",
+  'accountFailed': "Не ўдалося ўвайсці",
+  'accountSignIn': "Увайсці",
+  'accountSignInAgain': "Увайсці зноў",
+  'accountRename': "Перайменаваць",
+  'accountRemoveQuestion': "Выдаліць {name}?",
+  'accountRemoveHint':
+      "На {worker} будзе выкананы выхад. Яго чаты працягнуць працу пад уласным акаўнтам камп'ютара.",
+  'accountNoLimits': "Ліміты яшчэ не прачытаныя",
+  'accountWaitingPage': "Чакаем старонку ўваходу…",
+  'accountWaitingCodex': "Чакаем пацвярджэння на старонцы…",
+  'accountClaudeSteps':
+      "Адкрыйце старонку, увайдзіце ў акаўнт і ўстаўце сюды паказаны код.",
+  'accountCodexSteps':
+      "Адкрыйце старонку, увайдзіце ў акаўнт і ўвядзіце там гэты код.",
+  'accountOpenPage': "Адкрыць старонку ўваходу",
+  'accountCopyLink': "Капіяваць",
+  'accountLinkCopied': "Скапіявана",
+  'accountCode': "Код са старонкі",
+  'accountSend': "Адправіць",
+  'accountName': "Назва",
+  'accountNameHint': "Неабавязкова: інакш яго пошта",
+  'accountAddHint':
+      "{worker} увойдзе ў яго і будзе захоўваць асобна ад свайго ўваходу. Чаты пад ім маюць тыя ж плагіны, навыкі і сесіі.",
+  'chatAccount': "Акаўнт",
+  'usageResetSince': "Ужо скінуты",
 };

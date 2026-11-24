@@ -532,8 +532,10 @@ const Map<String, Object> tr = {
   'chatEmpty': "Henüz bir şey söylenmedi.",
   'chatMoveStops': "Şu an çalışıyor: şimdi taşımak bu turu durdurur.",
   'chatSettings': "Ayarlar",
-  'chatSettingsHint': "{agent} bunları aynı konuşmada kullanır: süren turdan sonra, bir sonraki mesajınızdan itibaren.",
-  'chatSettingsOld': "{name} üzerindeki işçi daha eski ve bunları değiştiremez: orada yeniden kurun (tool/mcp/install.sh, ardından watch.sh).",
+  'chatSettingsHint':
+      "{agent} bunları aynı konuşmada kullanır: süren turdan sonra, bir sonraki mesajınızdan itibaren.",
+  'chatSettingsOld':
+      "{name} üzerindeki işçi daha eski ve bunları değiştiremez: orada yeniden kurun (tool/mcp/install.sh, ardından watch.sh).",
   'usageTitle': "Kullanım",
   'usageContext': "Bağlam",
   'usageContextShort': "Bağlam {n}",
@@ -561,4 +563,41 @@ const Map<String, Object> tr = {
   'usageDays': "{n} günlük sınır",
   'usageHoursLimit': "{n} saatlik sınır",
   'usageWeekShort': "Hafta",
+  'agentAccounts': "Hesaplar",
+  'addAccount': "Hesap ekle",
+  'accountsNone': "Henüz hesap yok",
+  'accountsNoneHint':
+      "Her bilgisayarın kendi Claude ve Codex girişleri, worker'ı yeniden kurulunca burada görünür. Sohbetleri onlarla çalıştırmak için daha fazlasını ekleyin.",
+  'accountsReinstall':
+      "Oraya hesap eklemek için bilgisayarınızda caldo-mcp'yi yeniden kurun (tool/mcp/install.sh ve watch.sh).",
+  'accountOwn': "Bilgisayarın kendi hesabı",
+  'accountStarting': "Başlatılıyor…",
+  'accountSigningIn': "Giriş yapılıyor…",
+  'accountReady': "Giriş yapıldı",
+  'accountSignedOut': "Çıkış yapıldı",
+  'accountFailed': "Giriş başarısız",
+  'accountSignIn': "Giriş yap",
+  'accountSignInAgain': "Yeniden giriş yap",
+  'accountRename': "Yeniden adlandır",
+  'accountRemoveQuestion': "{name} kaldırılsın mı?",
+  'accountRemoveHint':
+      "{worker} üzerinde oturumu kapatılır. Sohbetleri bilgisayarın kendi hesabıyla devam eder.",
+  'accountNoLimits': "Sınırlar henüz okunmadı",
+  'accountWaitingPage': "Giriş sayfası bekleniyor…",
+  'accountWaitingCodex': "Sayfada onay bekleniyor…",
+  'accountClaudeSteps':
+      "Sayfayı açın, hesapla giriş yapın, sonra gösterilen kodu buraya yapıştırın.",
+  'accountCodexSteps':
+      "Sayfayı açın, hesapla giriş yapın ve bu kodu oraya girin.",
+  'accountOpenPage': "Giriş sayfasını aç",
+  'accountCopyLink': "Kopyala",
+  'accountLinkCopied': "Kopyalandı",
+  'accountCode': "Sayfadaki kod",
+  'accountSend': "Gönder",
+  'accountName': "Ad",
+  'accountNameHint': "İsteğe bağlı: yoksa e-postası",
+  'accountAddHint':
+      "{worker} bu hesaba giriş yapar ve kendi girişinden ayrı tutar. Bu hesaptaki sohbetler aynı eklentileri, becerileri ve oturumları paylaşır.",
+  'chatAccount': "Hesap",
+  'usageResetSince': "Sıfırlandı",
 };

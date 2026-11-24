@@ -577,8 +577,10 @@ const Map<String, Object> pl = {
   'chatEmpty': "Jeszcze nic nie powiedziano.",
   'chatMoveStops': "Teraz pracuje: przeniesienie zatrzyma tę turę.",
   'chatSettings': "Ustawienia",
-  'chatSettingsHint': "{agent} przejmie je w tej samej rozmowie: po bieżącej turze, od twojej następnej wiadomości.",
-  'chatSettingsOld': "Worker na {name} jest starszy i nie może ich zmienić: zainstaluj go tam ponownie (tool/mcp/install.sh, potem watch.sh).",
+  'chatSettingsHint':
+      "{agent} przejmie je w tej samej rozmowie: po bieżącej turze, od twojej następnej wiadomości.",
+  'chatSettingsOld':
+      "Worker na {name} jest starszy i nie może ich zmienić: zainstaluj go tam ponownie (tool/mcp/install.sh, potem watch.sh).",
   'usageTitle': "Zużycie",
   'usageContext': "Kontekst",
   'usageContextShort': "Kontekst {n}",
@@ -606,4 +608,41 @@ const Map<String, Object> pl = {
   'usageDays': "Limit {n}-dniowy",
   'usageHoursLimit': "Limit {n}-godzinny",
   'usageWeekShort': "Tydzień",
+  'agentAccounts': "Konta",
+  'addAccount': "Dodaj konto",
+  'accountsNone': "Brak kont",
+  'accountsNoneHint':
+      "Własne logowania Claude i Codex każdego komputera pojawią się tu po ponownej instalacji jego workera. Dodaj kolejne, by uruchamiać w nich czaty.",
+  'accountsReinstall':
+      "Zainstaluj ponownie caldo-mcp na komputerze (tool/mcp/install.sh i watch.sh), by dodawać tam konta.",
+  'accountOwn': "Własne konto komputera",
+  'accountStarting': "Uruchamianie…",
+  'accountSigningIn': "Logowanie…",
+  'accountReady': "Zalogowano",
+  'accountSignedOut': "Wylogowano",
+  'accountFailed': "Logowanie nie powiodło się",
+  'accountSignIn': "Zaloguj się",
+  'accountSignInAgain': "Zaloguj ponownie",
+  'accountRename': "Zmień nazwę",
+  'accountRemoveQuestion': "Usunąć {name}?",
+  'accountRemoveHint':
+      "Zostanie wylogowane na {worker}. Jego czaty będą działać dalej na własnym koncie komputera.",
+  'accountNoLimits': "Limity jeszcze nieodczytane",
+  'accountWaitingPage': "Czekam na stronę logowania…",
+  'accountWaitingCodex': "Czekam na potwierdzenie na stronie…",
+  'accountClaudeSteps':
+      "Otwórz stronę, zaloguj się na konto i wklej tu pokazany kod.",
+  'accountCodexSteps':
+      "Otwórz stronę, zaloguj się na konto i wpisz tam ten kod.",
+  'accountOpenPage': "Otwórz stronę logowania",
+  'accountCopyLink': "Kopiuj",
+  'accountLinkCopied': "Skopiowano",
+  'accountCode': "Kod ze strony",
+  'accountSend': "Wyślij",
+  'accountName': "Nazwa",
+  'accountNameHint': "Opcjonalnie: inaczej jego e-mail",
+  'accountAddHint':
+      "{worker} loguje się na nie i trzyma je osobno od własnego logowania. Czaty na nim mają te same wtyczki, umiejętności i sesje.",
+  'chatAccount': "Konto",
+  'usageResetSince': "Już wyzerowany",
 };

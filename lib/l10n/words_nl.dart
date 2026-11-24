@@ -546,8 +546,10 @@ const Map<String, Object> nl = {
   'chatEmpty': "Nog niets gezegd.",
   'chatMoveStops': "Hij is bezig: nu verplaatsen stopt deze beurt.",
   'chatSettings': "Instellingen",
-  'chatSettingsHint': "{agent} neemt ze over in hetzelfde gesprek: na de lopende beurt, vanaf je volgende bericht.",
-  'chatSettingsOld': "De worker op {name} is ouder en kan ze niet wijzigen: installeer hem daar opnieuw (tool/mcp/install.sh, dan watch.sh).",
+  'chatSettingsHint':
+      "{agent} neemt ze over in hetzelfde gesprek: na de lopende beurt, vanaf je volgende bericht.",
+  'chatSettingsOld':
+      "De worker op {name} is ouder en kan ze niet wijzigen: installeer hem daar opnieuw (tool/mcp/install.sh, dan watch.sh).",
   'usageTitle': "Verbruik",
   'usageContext': "Context",
   'usageContextShort': "Context {n}",
@@ -575,4 +577,41 @@ const Map<String, Object> nl = {
   'usageDays': "Limiet per {n} dagen",
   'usageHoursLimit': "Limiet per {n} uur",
   'usageWeekShort': "Week",
+  'agentAccounts': "Accounts",
+  'addAccount': "Account toevoegen",
+  'accountsNone': "Nog geen accounts",
+  'accountsNoneHint':
+      "De eigen Claude- en Codex-aanmeldingen van elke computer verschijnen hier zodra de worker opnieuw is geïnstalleerd. Voeg er meer toe om chats onder te draaien.",
+  'accountsReinstall':
+      "Installeer caldo-mcp opnieuw op je computer (tool/mcp/install.sh en watch.sh) om daar accounts toe te voegen.",
+  'accountOwn': "Eigen account van de computer",
+  'accountStarting': "Starten…",
+  'accountSigningIn': "Aanmelden…",
+  'accountReady': "Aangemeld",
+  'accountSignedOut': "Afgemeld",
+  'accountFailed': "Aanmelden mislukt",
+  'accountSignIn': "Aanmelden",
+  'accountSignInAgain': "Opnieuw aanmelden",
+  'accountRename': "Hernoemen",
+  'accountRemoveQuestion': "{name} verwijderen?",
+  'accountRemoveHint':
+      "Het wordt afgemeld op {worker}. De chats gaan verder onder het eigen account van de computer.",
+  'accountNoLimits': "Limieten nog niet gelezen",
+  'accountWaitingPage': "Wachten op de aanmeldpagina…",
+  'accountWaitingCodex': "Wachten op bevestiging op de pagina…",
+  'accountClaudeSteps':
+      "Open de pagina, meld je aan met het account en plak hier de code die verschijnt.",
+  'accountCodexSteps':
+      "Open de pagina, meld je aan met het account en voer daar deze code in.",
+  'accountOpenPage': "Aanmeldpagina openen",
+  'accountCopyLink': "Kopiëren",
+  'accountLinkCopied': "Gekopieerd",
+  'accountCode': "Code van de pagina",
+  'accountSend': "Versturen",
+  'accountName': "Naam",
+  'accountNameHint': "Optioneel: anders het e-mailadres",
+  'accountAddHint':
+      "{worker} meldt zich erbij aan en houdt het apart van de eigen aanmelding. Chats eronder delen plug-ins, skills en sessies.",
+  'chatAccount': "Account",
+  'usageResetSince': "Inmiddels gereset",
 };
