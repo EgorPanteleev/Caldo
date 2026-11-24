@@ -1787,6 +1787,49 @@ class _ChatScreenState extends State<ChatScreen> {
     return DateTime(day.year, day.month, day.day, time.hour, time.minute);
   }
 
+  /// Whether a tick on the stop at the limit is still being written.
+  bool _carrying = false;
+
+  /// The stop at the usage limit [item], ticked: the chat is left to carry
+  /// on by itself once the limit is lifted — or, ticked again, not. Never
+  /// asked for unless ticked.
+  Future<void> _carry(ChatItem item) async {
+    if (_carrying) return;
+    _carrying = true;
+    try {
+      final left = _later.where((line) => line.carriesOn).toList();
+      if (left.isNotEmpty) {
+        for (final line in left) {
+          await _takeBack(line);
+        }
+        return;
+      }
+      final resets = item.body['resets'];
+      final at = CarryOn.at(
+        resets is num
+            ? DateTime.fromMillisecondsSinceEpoch(resets.round())
+            : null,
+        DateTime.now(),
+      );
+      final line = await _agents.later(
+        widget.chat,
+        CarryOn.words,
+        at,
+        carryOn: true,
+      );
+      if (!mounted) return;
+      setState(
+        () => _later = [..._later, line]..sort((a, b) => a.at.compareTo(b.at)),
+      );
+      unawaited(_readLater());
+    } catch (_) {
+      // Not kept: the box stays as it was.
+      unawaited(_readLater());
+    } finally {
+      _carrying = false;
+    }
+  }
+
   /// A message left for later, tapped: said now, written again, or put
   /// away. Unless its worker has said it meanwhile.
   Future<void> _laterTapped(LaterLine line) async {
@@ -2010,6 +2053,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           choice,
                           answers: answers,
                         ),
+                        carrying: _later.any((line) => line.carriesOn),
+                        onCarry: _canLater ? _carry : null,
                       ),
                     )
                   : talks && chat.inChat

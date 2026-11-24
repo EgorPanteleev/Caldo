@@ -795,16 +795,17 @@ the app, a terminal beside them; anything else a terminal.
   a pull request told during the round went unanswered. Chat mode only (a
   terminal's Claude takes `/clear` itself); workers that say so
   (`AgentKind.clears`). Tried on the local stack with a stand-in `claude`.
-- **A chat stopped at the usage limit carries on by itself** (task
-  "automatically reset session after limit updated", 2026-11-22): Claude
-  marks the refused turn's stand-in message `error: "rate_limit"`, and
-  its last `rate_limit_event` (`rejected`) says `resetsAt`; Codex fails
-  the turn with `codexErrorInfo: usageLimitExceeded` (from its types,
-  unseen). The worker leaves "Carry on…" in `chat_later` (key `limit…`,
-  one a chat, moved if refused again) a minute after the reset, with a
-  note on the chat; none said, it tries each 15 min, three times. A turn
-  that goes through first takes it back (`_Talker._unbook`). Chat mode
-  only; a terminal's Claude is left alone.
+- **A chat stopped at the usage limit carries on only if ticked**
+  (asked 2026-11-25; it used to book itself): Claude marks the refused
+  turn's stand-in message `error: "rate_limit"`, and its last
+  `rate_limit_event` (`rejected`) says `resetsAt`; Codex fails the turn
+  with `codexErrorInfo: usageLimitExceeded` (from its types, unseen). The
+  worker posts a `limit` item (`resets` in ms); `TalkView` draws it with
+  an unticked box, live on the latest one until the user writes. Ticking
+  leaves `CarryOn.words` in `chat_later` (key `limit…`, `CarryOn.at`: a
+  minute after the reset, else 15 min on); ticking again takes it back.
+  Refused again while one waits, the worker moves it. A turn that goes
+  through first takes it back (`_Talker._unbook`). Chat mode only.
 - **Photos and files go with a message**: plus before the field
   (`Attachments.pick`), chips over it, ≤50MB each, uploaded to a private
   `chat-files` bucket under `<user>/<chat>/<uuid>` (Storage takes no

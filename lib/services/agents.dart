@@ -260,13 +260,23 @@ class LaterLine {
   final int id;
   final String text;
   final DateTime at;
+  final String key;
 
-  const LaterLine({required this.id, required this.text, required this.at});
+  const LaterLine({
+    required this.id,
+    required this.text,
+    required this.at,
+    this.key = '',
+  });
+
+  /// The chat carrying on after the usage limit, as the user asked.
+  bool get carriesOn => key.startsWith(CarryOn.key);
 
   factory LaterLine.fromJson(Map json) => LaterLine(
     id: json['id'] as int,
     text: json['data'] as String? ?? '',
     at: DateTime.parse(json['send_at'] as String).toLocal(),
+    key: json['key'] as String? ?? '',
   );
 }
 
@@ -867,17 +877,24 @@ class Agents extends ChangeNotifier {
   /// The most a file sent to a chat may be: the bucket's own limit.
   static const largestFile = 50 * 1024 * 1024;
 
-  /// [text] left for [chat]'s worker to say at [at].
-  Future<LaterLine> later(String chat, String text, DateTime at) async {
+  /// [text] left for [chat]'s worker to say at [at]; [carryOn] if it is
+  /// the chat carrying on after the usage limit, which its worker takes
+  /// back if a turn goes through first.
+  Future<LaterLine> later(
+    String chat,
+    String text,
+    DateTime at, {
+    bool carryOn = false,
+  }) async {
     final row = await _client!
         .from('chat_later')
         .insert({
           'chat_id': chat,
           'data': text,
           'send_at': at.toUtc().toIso8601String(),
-          'key': _key(),
+          'key': '${carryOn ? CarryOn.key : ''}${_key()}',
         })
-        .select('id, data, send_at')
+        .select('id, data, send_at, key')
         .single();
     return LaterLine.fromJson(row);
   }
@@ -886,7 +903,7 @@ class Agents extends ChangeNotifier {
   Future<List<LaterLine>> laterOf(String chat) async {
     final rows = await _client!
         .from('chat_later')
-        .select('id, data, send_at')
+        .select('id, data, send_at, key')
         .eq('chat_id', chat)
         .order('send_at', ascending: true);
     return [for (final row in rows) LaterLine.fromJson(row)];
