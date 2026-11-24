@@ -508,6 +508,7 @@ const Map<String, Object> be = {
   'chatMessage': "Паведамленне",
   'chatStop': "Спыніць",
   'chatAgain': "Запусціць зноў",
+  'chatClear': "Ачысціць кантэкст",
   'chatDelete': "Выдаліць чат",
   'deleteChatQuestion': "Выдаліць гэты чат?",
   'chatPin': "Замацаваць",

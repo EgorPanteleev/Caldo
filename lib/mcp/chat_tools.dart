@@ -475,10 +475,58 @@ class ChatTools {
     return '$name answered:\n\n${_tail(words)}';
   }
 
+  // ---- Clearing ---------------------------------------------------------
+
+  /// A chat's context cleared, as `/clear` does in Claude: asked for so a
+  /// chat at standing work — the reviewer, done with a round of pull
+  /// requests — starts each round afresh. Its worker waits for the turn
+  /// under way to end, so the agent asking for its own can still answer.
+  Future<String> clearContext(Map<String, Object?> args) async {
+    final chat = await _namedOrMine(args['chat']);
+    final id = chat['id'] as String;
+    final mine = id == self;
+    final name = mine ? 'This chat' : '"${_titleOf(chat)}" [${_short(id)}]';
+    if (_gone.contains(chat['state'])) {
+      throw Refusal('$name has ${chat['state']}: there is nothing to clear.');
+    }
+    final worker = (await _workers())['${chat['worker_id']}'];
+    final kind = _kind(worker, '${chat['agent']}');
+    if (kind != null && kind['talks'] != true) {
+      throw Refusal(
+        '$name runs ${kind['label'] ?? chat['agent']}, which has no '
+        'context to clear.',
+      );
+    }
+    if (chat['mode'] == 'terminal') {
+      throw Refusal('$name is in its terminal: type /clear there instead.');
+    }
+    if (kind?['clears'] != true) {
+      throw Refusal(
+        "${worker?['name'] ?? 'Its computer'} runs a Caldo worker from "
+        'before contexts could be cleared: reinstall caldo-mcp there '
+        '(tool/mcp/install.sh, tool/mcp/watch.sh) first.',
+      );
+    }
+    if (!_online(worker)) {
+      throw Refusal("$name's computer, ${worker!['name']}, is not online.");
+    }
+    await desk.send({
+      'chat_id': id,
+      'kind': 'clear',
+      'key': 'c${_now().microsecondsSinceEpoch}${Random().nextInt(1 << 20)}',
+    });
+    return mine
+        ? 'Cleared once this turn ends: what you say now is still shown, '
+              'but you will remember none of it. The next message starts '
+              'afresh, with your rules and subscriptions.'
+        : '$name will start afresh with its next message, once the turn '
+              'it may be on ends.';
+  }
+
   // ---- Subscriptions ----------------------------------------------------
 
-  /// The chat a subscription is for: the one named, else this one.
-  Future<Map<String, dynamic>> _subscriber(Object? id) async {
+  /// The chat a tool is asked for: the one named, else this one.
+  Future<Map<String, dynamic>> _namedOrMine(Object? id) async {
     if ('${id ?? ''}'.trim().isNotEmpty) return _chat(id);
     final me = self;
     if (me == null) {
@@ -501,7 +549,7 @@ class ChatTools {
   }
 
   Future<String> subscribe(Map<String, Object?> args) async {
-    final chat = await _subscriber(args['chat']);
+    final chat = await _namedOrMine(args['chat']);
     final id = chat['id'] as String;
     final name = '"${_titleOf(chat)}" [${_short(id)}]';
     final given = '${args['repo'] ?? ''}'.trim();
@@ -713,6 +761,21 @@ class ChatTools {
       messageChat,
     ),
     Tool(
+      'clear_context',
+      "Clears a chat's context (by default this one's), as /clear does: "
+          'once the turn under way ends, everything said is forgotten and '
+          'the next message starts a fresh session, with the same rules, '
+          'skills and subscriptions. The chat keeps what was said on '
+          'screen. For standing work done in rounds: clear after each.',
+      _shape({
+        'chat': {
+          'type': 'string',
+          'description': 'The chat to clear ([abcd1234]); default this one.',
+        },
+      }),
+      clearContext,
+    ),
+    Tool(
       'subscribe',
       "Subscribes a chat (by default this one) to a GitHub repository's "
           'pull requests: its computer looks every minute, with gh, and '
@@ -798,5 +861,6 @@ class ChatTools {
       'chats lists them, read_chat reads one, message_chat sends one a '
       'message. A chat can be subscribed to pull requests on GitHub '
       '(subscribe), and is then told of new ones as they come; pull_chat '
-      'says which chat opened one.';
+      'says which chat opened one. clear_context clears a chat\'s context, '
+      'as /clear does.';
 }

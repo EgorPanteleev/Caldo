@@ -476,6 +476,7 @@ const Map<String, Object> tr = {
   'chatMessage': "Mesaj",
   'chatStop': "Durdur",
   'chatAgain': "Yeniden başlat",
+  'chatClear': "Bağlamı temizle",
   'chatDelete': "Sohbeti sil",
   'deleteChatQuestion': "Bu sohbet silinsin mi?",
   'chatPin': "Sabitle",

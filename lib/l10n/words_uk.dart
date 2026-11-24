@@ -513,6 +513,7 @@ const Map<String, Object> uk = {
   'chatMessage': "Повідомлення",
   'chatStop': "Зупинити",
   'chatAgain': "Запустити знову",
+  'chatClear': "Очистити контекст",
   'chatDelete': "Видалити чат",
   'deleteChatQuestion': "Видалити цей чат?",
   'chatPin': "Закріпити",

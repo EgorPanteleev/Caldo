@@ -55,6 +55,9 @@ class AgentKind {
   /// (`chat_subscriptions`).
   final bool events;
 
+  /// Whether its worker clears a chat's context when asked (`clear`).
+  final bool clears;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -72,6 +75,7 @@ class AgentKind {
     this.settings = false,
     this.accounts = false,
     this.events = false,
+    this.clears = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -91,6 +95,7 @@ class AgentKind {
     settings: json['settings'] == true,
     accounts: json['accounts'] == true,
     events: json['events'] == true,
+    clears: json['clears'] == true,
   );
 }
 
@@ -967,6 +972,10 @@ class Agents extends ChangeNotifier {
 
   /// The turn under way cut short; the chat stays.
   Future<void> interrupt(String chat) => _in(chat, 'interrupt');
+
+  /// What the chat's agent was told forgotten, as `/clear` does, once its
+  /// turn under way ends; what was said stays on screen.
+  Future<void> clear(String chat) => _in(chat, 'clear');
 
   /// The chat moved to its terminal, or back to its chat.
   Future<void> move(String chat, {required bool toChat}) async {

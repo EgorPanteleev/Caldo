@@ -308,6 +308,7 @@ class S {
   String get chatMessage => _word('chatMessage');
   String get chatStop => _word('chatStop');
   String get chatAgain => _word('chatAgain');
+  String get chatClear => _word('chatClear');
   String get chatDelete => _word('chatDelete');
   String get deleteChatQuestion => _word('deleteChatQuestion');
   String deleteChatsQuestion(int n) => _count('deleteChatsQuestion', n);

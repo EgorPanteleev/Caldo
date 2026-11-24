@@ -490,6 +490,7 @@ const Map<String, Object> nl = {
   'chatMessage': "Bericht",
   'chatStop': "Stoppen",
   'chatAgain': "Opnieuw starten",
+  'chatClear': "Context wissen",
   'chatDelete': "Chat verwijderen",
   'deleteChatQuestion': "Deze chat verwijderen?",
   'chatPin': "Vastzetten",

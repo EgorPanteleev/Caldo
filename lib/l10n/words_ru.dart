@@ -506,6 +506,7 @@ const Map<String, Object> ru = {
   'chatMessage': "Сообщение",
   'chatStop': "Остановить",
   'chatAgain': "Запустить снова",
+  'chatClear': "Очистить контекст",
   'chatDelete': "Удалить чат",
   'deleteChatQuestion': "Удалить этот чат?",
   'chatPin': "Закрепить",
