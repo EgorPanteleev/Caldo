@@ -791,13 +791,18 @@ void main() {
     tester,
   ) async {
     await pumpScreen(tester, const CalendarScreen());
-    final today = dayOf(DateTime.now());
-    // Tomorrow has nothing on it in the seeded data.
-    await tester.drag(
-      find.text(Dates.weekdayShort(today)),
-      const Offset(-400, 0),
-    );
-    await tester.pumpAndSettle();
+    var day = dayOf(DateTime.now());
+    // The seeded data leaves the days after today free, but a holiday may
+    // fall on one (Thanksgiving was tomorrow once): turn on to an empty one.
+    for (var i = 0; i < 7; i++) {
+      await tester.drag(
+        find.text(Dates.weekdayShort(day)),
+        const Offset(-400, 0),
+      );
+      await tester.pumpAndSettle();
+      day = DateTime(day.year, day.month, day.day + 1);
+      if (find.text('Nothing on this day').evaluate().isNotEmpty) break;
+    }
     expect(find.text('Nothing on this day'), findsOneWidget);
 
     final month = tester.getSize(find.byType(MonthGrid).first).height;
