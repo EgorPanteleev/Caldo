@@ -487,6 +487,7 @@ const Map<String, Object> tr = {
   'chatRunning': "Çalışıyor",
   'chatAsking': "Sizi bekliyor",
   'chatIdle': "Hazır",
+  'chatFinished': "Bitti",
   'chatEnded': "Bitti",
   'chatFailed': "Başarısız",
   'chatBigger': "Daha büyük yazı",

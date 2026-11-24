@@ -502,6 +502,7 @@ const Map<String, Object> fr = {
   'chatRunning': "Au travail",
   'chatAsking': "Vous attend",
   'chatIdle': "Prêt",
+  'chatFinished': "Terminé",
   'chatEnded': "Terminé",
   'chatFailed': "Échec",
   'chatBigger': "Texte plus grand",

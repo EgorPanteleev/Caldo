@@ -333,22 +333,59 @@ class _AgentsScreenState extends State<AgentsScreen> {
   );
 }
 
-/// The colour a chat's state is shown in: a dot, as quiet as the rest of
-/// the app's signals, the one asking for the user the loudest.
+/// The colour a chat's state is shown in, as quiet as the rest of the
+/// app's signals, the one asking for the user the loudest.
 Color _stateColour(AppPalette p, ChatState state) => switch (state) {
   ChatState.asked => p.muted,
   ChatState.running => AppColors.holiday,
   ChatState.asking => AppColors.overdue,
-  ChatState.idle => p.text,
+  ChatState.idle => p.muted,
+  ChatState.finished => p.text,
   ChatState.ended => p.faint,
   ChatState.failed => AppColors.danger,
 };
+
+/// A chat's state at a glance, [size] across: a dot; a ring while it is
+/// ready and has done nothing yet, and a tick once a turn has finished,
+/// so a finished chat is told by its shape, not a shade of grey.
+class _StateMark extends StatelessWidget {
+  final ChatState state;
+  final double size;
+
+  const _StateMark({required this.state, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final colour = _stateColour(AppTheme.of(context), state);
+    return SizedBox.square(
+      dimension: size,
+      child: state == ChatState.finished
+          // Drawn larger than the dot, as a tick's strokes are thin; it
+          // overflows its square so the row doesn't move.
+          ? OverflowBox(
+              maxWidth: size * 1.8,
+              maxHeight: size * 1.8,
+              child: Icon(Icons.check_rounded, size: size * 1.8, color: colour),
+            )
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                color: state == ChatState.idle ? null : colour,
+                border: state == ChatState.idle
+                    ? Border.all(color: colour, width: 1.4)
+                    : null,
+                shape: BoxShape.circle,
+              ),
+            ),
+    );
+  }
+}
 
 String _stateName(S s, ChatState state) => switch (state) {
   ChatState.asked => s.chatAsked,
   ChatState.running => s.chatRunning,
   ChatState.asking => s.chatAsking,
   ChatState.idle => s.chatIdle,
+  ChatState.finished => s.chatFinished,
   ChatState.ended => s.chatEnded,
   ChatState.failed => s.chatFailed,
 };
@@ -418,14 +455,7 @@ class _ChatRow extends StatelessWidget {
                   color: picked ? p.text : p.faint,
                 )
               else
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: _stateColour(p, chat.state),
-                    shape: BoxShape.circle,
-                  ),
-                ),
+                _StateMark(state: chat.state, size: 9),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2232,14 +2262,9 @@ class _Head extends StatelessWidget {
             onPressed: () => Navigator.of(context).maybePop(),
           ),
           if (chat != null) ...[
-            Container(
-              width: 8,
-              height: 8,
-              margin: const EdgeInsets.only(right: 10),
-              decoration: BoxDecoration(
-                color: _stateColour(p, chat.state),
-                shape: BoxShape.circle,
-              ),
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: _StateMark(state: chat.state, size: 8),
             ),
             Expanded(
               // Its name and what it runs with: a tap opens its settings.

@@ -523,6 +523,7 @@ const Map<String, Object> be = {
   'chatRunning': "Працуе",
   'chatAsking': "Чакае вас",
   'chatIdle': "Гатовы",
+  'chatFinished': "Скончыў",
   'chatEnded': "Завершаны",
   'chatFailed': "Памылка",
   'chatBigger': "Буйней",

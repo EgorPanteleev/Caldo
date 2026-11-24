@@ -485,6 +485,7 @@ const Map<String, Object> en = {
   'chatRunning': "Working",
   'chatAsking': "Waiting for you",
   'chatIdle': "Ready",
+  'chatFinished': "Finished",
   'chatEnded': "Ended",
   'chatFailed': "Failed",
   'chatBigger': "Larger text",

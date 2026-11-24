@@ -528,6 +528,7 @@ const Map<String, Object> uk = {
   'chatRunning': "Працює",
   'chatAsking': "Чекає на вас",
   'chatIdle': "Готовий",
+  'chatFinished': "Завершив",
   'chatEnded': "Завершено",
   'chatFailed': "Помилка",
   'chatBigger': "Більше",
