@@ -218,7 +218,7 @@ void main() {
       expect(heard.deltas['m2:0'], 'There are 3 files.');
       expect(heard.items['m2:0']!.$2['text'], 'There are 3 files.');
       expect(heard.answer, 'There are 3 files.');
-      expect(heard.states, ['running', 'asking', 'idle']);
+      expect(heard.states, ['running', 'asking', 'finished']);
     });
 
     test("reads Codex's app server: its thread, a command, its answer", () {
@@ -291,7 +291,7 @@ void main() {
       expect(heard.items['ask:7']!.$2['line'], 'git status');
       expect(heard.deltas['i2'], 'All clean.');
       expect(heard.answer, 'All clean.');
-      expect(heard.states.last, 'idle');
+      expect(heard.states.last, 'finished');
       talk.answer('ask:7', 'always');
       expect(heard.items['ask:7']!.$2['answer'], 'always');
     });
@@ -1038,7 +1038,7 @@ void main() {
       await _until(() => heard.code != null);
       expect(heard.code, 0);
       expect(heard.answer, 'Done.');
-      expect(heard.states.last, 'idle');
+      expect(heard.states.last, 'finished');
       expect(File('$base.out').existsSync(), isFalse);
     });
   });
@@ -2314,6 +2314,57 @@ void main() {
         expect(tapped, later);
         await tester.tap(find.byIcon(Icons.close_rounded).first);
         expect(deleted, soon);
+      });
+
+      testWidgets('tells ready chats from finished ones in ${S.names[code]}', (
+        tester,
+      ) async {
+        final s = S.forCode(code);
+        final now = DateTime.now();
+        Chat chat(String id, String title, ChatState state) => Chat(
+          id: id,
+          workerId: 'w',
+          agent: 'claude',
+          title: title,
+          state: state,
+          updatedAt: now,
+        );
+        Agents.instance
+          ..signedInForTest = true
+          ..workers = [
+            AgentWorker(
+              id: 'w',
+              name: 'desk',
+              home: '/home/someone',
+              seenAt: now,
+              dirs: const [],
+              agents: const [AgentKind(id: 'claude', label: 'Claude')],
+            ),
+          ]
+          ..chats = [
+            chat('a', 'Alpha', ChatState.idle),
+            chat('b', 'Bravo', ChatState.running),
+            chat('c', 'Charlie', ChatState.asking),
+            chat('d', 'Delta', ChatState.finished),
+          ];
+        addTearDown(() {
+          Agents.instance
+            ..signedInForTest = null
+            ..chats = const [];
+        });
+        await pump(tester, code, const AgentsScreen());
+        for (final word in [
+          s.chatIdle,
+          s.chatRunning,
+          s.chatAsking,
+          s.chatFinished,
+        ]) {
+          expect(find.textContaining('$word · '), findsOneWidget);
+        }
+        // A finished one is marked by a tick, not by a dot's shade.
+        expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+        // Finished, it still takes a message: its program runs.
+        expect(chat('d', 'Delta', ChatState.finished).live, isTrue);
       });
 
       testWidgets('picks out chats in ${S.names[code]}', (tester) async {

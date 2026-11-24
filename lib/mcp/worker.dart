@@ -261,7 +261,7 @@ class Worker {
         .from('chats')
         .select()
         .eq('worker_id', state.id)
-        .inFilter('state', ['running', 'asking', 'idle']);
+        .inFilter('state', ['running', 'asking', 'idle', 'finished']);
     for (final row in mine) {
       final ask = ChatAsk.fromJson(row);
       if (ask.mode == 'chat') {
@@ -278,7 +278,7 @@ class Worker {
         }
         // Its program is gone (or was the last worker's child, and went
         // with it): its session is taken up again with the next message.
-        if (row['state'] != 'idle') {
+        if (!_ready(row['state'])) {
           await _set(
             ask.id,
             'idle',
@@ -1092,7 +1092,7 @@ class Worker {
     if (session == null || !(live.spec.isClaude || live.spec.id == 'codex')) {
       return;
     }
-    if (live.spec.isClaude && live.state != 'idle') {
+    if (live.spec.isClaude && !_ready(live.state)) {
       live.retune = true;
       return;
     }
@@ -1270,6 +1270,11 @@ class Worker {
     );
   }
 
+  /// Whether a chat in [state] waits for the user's word: `idle` before it
+  /// has done anything, `finished` once a turn has ended — told apart so
+  /// the app can say a chat is done, both taking a message alike.
+  static bool _ready(Object? state) => state == 'idle' || state == 'finished';
+
   Future<void> _set(String chat, String to, String? note) async {
     final db = await _db;
     await db.from('chats').update({'state': to, 'note': note}).eq('id', chat);
@@ -1396,7 +1401,7 @@ class Worker {
         to = 'asking';
         note = event['message'] as String?;
       case 'Stop':
-        to = 'idle';
+        to = 'finished';
         final turn = live.turn;
         if (turn != null && !turn.isCompleted) {
           turn.complete((
@@ -1409,7 +1414,7 @@ class Worker {
       live.state = to;
       unawaited(_guard(() => _set(chat, to!, note)));
     }
-    if (to == 'idle' && live.retune) {
+    if (to == 'finished' && live.retune) {
       live.retune = false;
       unawaited(_guard(() => _retune(chat)));
     }
@@ -2111,7 +2116,7 @@ class _Talker implements TalkSink {
     final now = DateTime.now();
     final told = resets != null && resets.isAfter(now);
     if (!told && ++_guesses > 3) {
-      stands('idle', note: 'Stopped at the usage limit.');
+      stands('finished', note: 'Stopped at the usage limit.');
       return;
     }
     final at = told
@@ -2139,7 +2144,7 @@ class _Talker implements TalkSink {
     _booked = true;
     // A note on the chat's row, which also has an open chat read again
     // what is left for later.
-    stands('idle', note: 'At the usage limit: carries on ${_at(at)}.');
+    stands('finished', note: 'At the usage limit: carries on ${_at(at)}.');
     worker.log('[${_short(ask.id)}] at the limit, carries on ${_at(at)}');
   }
 

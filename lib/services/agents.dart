@@ -234,7 +234,9 @@ class AgentWorker {
   );
 }
 
-enum ChatState { asked, running, asking, idle, ended, failed }
+/// `idle` is ready, nothing done yet; `finished`, a turn has ended. Both
+/// wait for the user's next message.
+enum ChatState { asked, running, asking, idle, finished, ended, failed }
 
 /// A rule as a chat keeps it: its words when it was chosen for the chat.
 typedef ChatRule = ({String name, String body});
@@ -330,7 +332,8 @@ class Chat {
   bool get live =>
       state == ChatState.running ||
       state == ChatState.asking ||
-      state == ChatState.idle;
+      state == ChatState.idle ||
+      state == ChatState.finished;
 
   /// What to call it: its title, else its first message's first line.
   String get name {
@@ -400,6 +403,7 @@ class Chat {
     'running' => ChatState.running,
     'asking' => ChatState.asking,
     'idle' => ChatState.idle,
+    'finished' => ChatState.finished,
     'ended' => ChatState.ended,
     'failed' => ChatState.failed,
     _ => ChatState.asked,

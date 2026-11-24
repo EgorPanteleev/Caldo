@@ -532,6 +532,7 @@ const Map<String, Object> pl = {
   'chatRunning': "Pracuje",
   'chatAsking': "Czeka na ciebie",
   'chatIdle': "Gotowy",
+  'chatFinished': "Zakończony",
   'chatEnded': "Zakończony",
   'chatFailed': "Błąd",
   'chatBigger': "Większy tekst",

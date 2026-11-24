@@ -319,6 +319,7 @@ class S {
   String get chatRunning => _word('chatRunning');
   String get chatAsking => _word('chatAsking');
   String get chatIdle => _word('chatIdle');
+  String get chatFinished => _word('chatFinished');
   String get chatEnded => _word('chatEnded');
   String get chatFailed => _word('chatFailed');
   String get chatBigger => _word('chatBigger');

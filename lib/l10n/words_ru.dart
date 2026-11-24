@@ -521,6 +521,7 @@ const Map<String, Object> ru = {
   'chatRunning': "Работает",
   'chatAsking': "Ждёт вас",
   'chatIdle': "Готов",
+  'chatFinished': "Завершил",
   'chatEnded': "Завершён",
   'chatFailed': "Ошибка",
   'chatBigger': "Крупнее",

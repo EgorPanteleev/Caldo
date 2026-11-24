@@ -728,9 +728,18 @@ the app, a terminal beside them; anything else a terminal.
   program waits on a flag file until the pipe is in place. tmux answers
   terminal queries; the app's xterm must not (`_drawing`). `TermCleaner`
   strips `ESC [ <>=…` requests.
+- **A chat is Ready, Working, Waiting for you or Finished** (asked as "i
+  dont see when chat definetly finished work", 2026-11-24): `idle` is
+  only a chat that has done nothing yet (a ring); a turn's end — a
+  result, Codex's turn completed, Claude's Stop hook in the terminal, the
+  usage limit — writes `finished` (a tick, `_StateMark`), so a finished
+  chat is told by its shape, not a shade. Both take a message
+  (`Chat.live`, `Worker._ready`). `…_chat_finished.sql` widens the check;
+  an older worker still says `idle`, an older app reads `finished` as
+  Starting.
 - **Server-only tables, not synced rows** (`…_agents.sql`): `workers`
   (heartbeat 30s, online if seen <90s, what it offers), `chats` (state new
-  → running/asking/idle → ended/failed, note, size, session), `chat_out`
+  → running/asking/idle/finished → ended/failed, note, size, session), `chat_out`
   (pieces ≤ every 200ms; a `capture-pane -e` snapshot after 300 pieces
   once quiet, older rows deleted; the app reads from the latest snapshot),
   `chat_in` (keys, line, size, stop, start, answer, interrupt, mode;

@@ -434,7 +434,7 @@ class ClaudeTalk extends Talk {
           limited: refused,
           resets: refused ? _lifted() : null,
         );
-        sink.stands('idle');
+        sink.stands('finished');
     }
   }
 
@@ -1075,7 +1075,7 @@ class CodexTalk extends Talk {
           limited: limited,
           resets: limited ? _lifted() : null,
         );
-        sink.stands('idle');
+        sink.stands('finished');
       case 'error' when params['willRetry'] != true:
         sink.item('e${_next++}', 'note', {
           'text': '${(params['error'] as Map?)?['message'] ?? 'Error'}',

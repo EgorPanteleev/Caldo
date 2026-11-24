@@ -490,6 +490,7 @@ const Map<String, Object> kk = {
   'chatRunning': "Жұмыс істеуде",
   'chatAsking': "Сізді күтуде",
   'chatIdle': "Дайын",
+  'chatFinished': "Аяқталды",
   'chatEnded': "Аяқталды",
   'chatFailed': "Қате",
   'chatBigger': "Үлкенірек",
