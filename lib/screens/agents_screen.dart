@@ -12,6 +12,7 @@ import 'package:xterm/xterm.dart';
 import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../mcp/agents.dart' show sizeWord;
+import '../mcp/subscriptions.dart' show Subscription;
 import '../mcp/usage.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
@@ -35,6 +36,7 @@ import '../widgets/talk_view.dart';
 part 'agent_accounts.dart';
 part 'agent_rules.dart';
 part 'chat_settings.dart';
+part 'chat_subscriptions.dart';
 
 /// Chats with agents — Claude, Codex, a model of the user's own, a shell —
 /// each run in a terminal on one of the user's computers (a worker,

@@ -6,6 +6,7 @@ import 'package:supabase/supabase.dart';
 
 import 'agents.dart';
 import 'remote.dart';
+import 'subscriptions.dart';
 import 'talk.dart';
 import 'tools.dart';
 
@@ -29,6 +30,17 @@ abstract class ChatDesk {
 
   /// Input for a chat, as the app sends it (`chat_in`).
   Future<void> send(Map<String, Object?> row);
+
+  /// Every chat's subscriptions (`chat_subscriptions`), oldest first.
+  Future<List<Map<String, dynamic>>> subscriptions();
+
+  /// A subscription made, as the server keeps it.
+  Future<Map<String, dynamic>> subscribe(Map<String, Object?> row);
+
+  Future<void> resubscribe(int id, Map<String, Object?> fields);
+
+  /// Whether there was one with [id] to put away.
+  Future<bool> unsubscribe(int id);
 }
 
 /// [ChatDesk] on Supabase, signed in as the MCP server is.
@@ -83,6 +95,29 @@ class SupabaseChatDesk implements ChatDesk {
   @override
   Future<void> send(Map<String, Object?> row) async =>
       (await _db).from('chat_in').insert(row);
+
+  @override
+  Future<List<Map<String, dynamic>>> subscriptions() async => (await _db)
+      .from('chat_subscriptions')
+      .select()
+      .order('id', ascending: true);
+
+  @override
+  Future<Map<String, dynamic>> subscribe(Map<String, Object?> row) async =>
+      (await _db).from('chat_subscriptions').insert(row).select().single();
+
+  @override
+  Future<void> resubscribe(int id, Map<String, Object?> fields) async =>
+      (await _db).from('chat_subscriptions').update(fields).eq('id', id);
+
+  @override
+  Future<bool> unsubscribe(int id) async =>
+      (await (await _db)
+              .from('chat_subscriptions')
+              .delete()
+              .eq('id', id)
+              .select('id'))
+          .isNotEmpty;
 }
 
 /// Chats talking to each other: tools for an agent in one of Caldo's chats
@@ -221,7 +256,9 @@ class ChatTools {
         case 'user':
           final sender = body['sender'];
           final who = sender is Map
-              ? sender['chat'] == null
+              ? sender['event'] != null
+                    ? 'Caldo (pull requests in ${sender['title']})'
+                    : sender['chat'] == null
                     ? 'An assistant outside Caldo'
                     : 'Chat ${_short('${sender['chat']}')}'
                           '${sender['chat'] == self ? ' (you)' : ''}'
@@ -420,6 +457,117 @@ class ChatTools {
     return '$name answered:\n\n${_tail(words)}';
   }
 
+  // ---- Subscriptions ----------------------------------------------------
+
+  /// The chat a subscription is for: the one named, else this one.
+  Future<Map<String, dynamic>> _subscriber(Object? id) async {
+    if ('${id ?? ''}'.trim().isNotEmpty) return _chat(id);
+    final me = self;
+    if (me == null) {
+      throw const Refusal(
+        'You are not in one of Caldo\'s chats: say which chat (see chats).',
+      );
+    }
+    return _chat(me);
+  }
+
+  static String _subLine(Map sub, Map<String, Map> chats) {
+    final s = Subscription.fromJson(sub);
+    final chat = chats[s.chat];
+    final note = s.note?.trim() ?? '';
+    return '#${s.id} [${_short(s.chat)}] '
+        '${chat == null ? '' : '${_titleOf(chat)} — '}${s.label}: '
+        '${s.events.join(', ')}'
+        '${note.isEmpty ? '' : '; then told "${clip(note, 200)}"'}'
+        '${s.error == null ? '' : ' (cannot watch: ${s.error})'}';
+  }
+
+  Future<String> subscribe(Map<String, Object?> args) async {
+    final chat = await _subscriber(args['chat']);
+    final id = chat['id'] as String;
+    final name = '"${_titleOf(chat)}" [${_short(id)}]';
+    final given = '${args['repo'] ?? ''}'.trim();
+    final repo = given.isEmpty ? null : Subscription.repoOf(given);
+    if (given.isNotEmpty && repo == null) {
+      throw Refusal('"$given" is not a GitHub repository: give owner/name.');
+    }
+    final events = args['events'] is List
+        ? {for (final e in args['events'] as List) '$e'}.toList()
+        : const ['opened'];
+    final unknown = events.where((e) => !Subscription.kinds.contains(e));
+    if (events.isEmpty || unknown.isNotEmpty) {
+      throw Refusal(
+        'Events are some of ${Subscription.kinds.join(', ')}'
+        '${unknown.isEmpty ? '' : '; not ${unknown.join(', ')}'}.',
+      );
+    }
+    final note = '${args['note'] ?? ''}'.trim();
+    final worker = (await _workers())['${chat['worker_id']}'];
+    final kind = _kind(worker, '${chat['agent']}');
+    if (kind != null && kind['talks'] != true) {
+      throw Refusal(
+        '$name runs ${kind['label'] ?? chat['agent']}, which takes keys, '
+        'not messages: only Claude and Codex chats can be told of events.',
+      );
+    }
+    if (kind?['events'] != true) {
+      throw Refusal(
+        "${worker?['name'] ?? "Its computer"} runs a Caldo worker from "
+        'before subscriptions: reinstall caldo-mcp there '
+        '(tool/mcp/install.sh, tool/mcp/watch.sh) first.',
+      );
+    }
+    // One a repository for a chat: asked again, it is changed.
+    final had = [
+      for (final s in await desk.subscriptions())
+        if (s['chat_id'] == id && s['target'] == repo) s,
+    ].firstOrNull;
+    final fields = {'events': events, 'note': note.isEmpty ? null : note};
+    final Map sub;
+    if (had != null) {
+      await desk.resubscribe(had['id'] as int, fields);
+      sub = {...had, ...fields};
+    } else {
+      sub = await desk.subscribe({'chat_id': id, 'target': repo, ...fields});
+    }
+    final what = Subscription.fromJson(sub).label;
+    final later = _gone.contains(chat['state'])
+        ? ' It has ${chat['state']}: what happens meanwhile is told once '
+              'the user starts it again.'
+        : '';
+    return '${had == null ? 'Subscribed' : 'Changed: subscribed'} $name to '
+        '$what (#${sub['id']}): told of ${events.join(', ')}, within a '
+        'minute, as a message from Caldo. Those opened before now are not '
+        'told.$later';
+  }
+
+  Future<String> subscriptions(Map<String, Object?> args) async {
+    final only = '${args['chat'] ?? ''}'.trim().isEmpty
+        ? null
+        : (await _chat(args['chat']))['id'];
+    final chats = {for (final c in await desk.chats()) '${c['id']}': c};
+    final lines = [
+      for (final s in await desk.subscriptions())
+        if (only == null || s['chat_id'] == only) _subLine(s, chats),
+    ];
+    return lines.isEmpty ? 'No subscriptions.' : lines.join('\n');
+  }
+
+  Future<String> unsubscribe(Map<String, Object?> args) async {
+    final id = switch (args['id']) {
+      final num n => n.toInt(),
+      final String s => int.tryParse(s.replaceAll('#', '').trim()),
+      _ => null,
+    };
+    if (id == null) {
+      throw const Refusal('Give the subscription\'s number (subscriptions).');
+    }
+    if (!await desk.unsubscribe(id)) {
+      throw Refusal('No subscription #$id (see subscriptions).');
+    }
+    return 'Subscription #$id ended.';
+  }
+
   static Map<String, Object?> _shape(
     Map<String, Object?> properties, [
     List<String> required = const [],
@@ -492,11 +640,70 @@ class ChatTools {
       ),
       messageChat,
     ),
+    Tool(
+      'subscribe',
+      "Subscribes a chat (by default this one) to a GitHub repository's "
+          'pull requests: its computer looks every minute, with gh, and '
+          'tells the chat what happened as a message from Caldo — no need '
+          'to look for new ones yourself. Asked again for the same '
+          'repository, it changes what is told.',
+      _shape({
+        'chat': {
+          'type': 'string',
+          'description': 'The chat to tell ([abcd1234]); default this one.',
+        },
+        'repo': {
+          'type': 'string',
+          'description':
+              'owner/name or its link; default the repository of the '
+              "chat's folder.",
+        },
+        'events': {
+          'type': 'array',
+          'items': {'type': 'string', 'enum': Subscription.kinds},
+          'description':
+              'What to be told of: opened (also out of draft, reopened), '
+              'pushed (new commits), closed (merged or not). Default '
+              'opened.',
+        },
+        'note': {
+          'type': 'string',
+          'description':
+              'Said after each event, e.g. what to do with it ("Review it '
+              'as your rules say").',
+        },
+      }),
+      subscribe,
+    ),
+    Tool(
+      'subscriptions',
+      "What the user's chats are subscribed to, by number.",
+      _shape({
+        'chat': {
+          'type': 'string',
+          'description': 'Only this chat\'s ([abcd1234]).',
+        },
+      }),
+      subscriptions,
+      reads: true,
+    ),
+    Tool(
+      'unsubscribe',
+      'Ends a subscription, by its number (see subscriptions).',
+      _shape(
+        {
+          'id': {'type': 'integer'},
+        },
+        ['id'],
+      ),
+      unsubscribe,
+    ),
   ];
 
   /// Added to what the assistant is told when it connects.
   static const instructions =
       " Chats with agents in Caldo's Agents tab can talk to each other: "
       'chats lists them, read_chat reads one, message_chat sends one a '
-      'message.';
+      'message. A chat can be subscribed to pull requests on GitHub '
+      '(subscribe), and is then told of new ones as they come.';
 }

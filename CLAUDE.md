@@ -45,7 +45,7 @@ lib/
                            put_off, carry, desk, …
   mcp/                     MCP server: book, remote, tools, protocol, watch;
                            worker: worker, agents, talk, kept, usage, terminal,
-                           accounts
+                           accounts, subscriptions
 bin/caldo_mcp.dart         the MCP server and watcher (plain Dart);
                            tool/mcp/install.sh, tool/mcp/watch.sh
 ```
@@ -829,6 +829,30 @@ the app, a terminal beside them; anything else a terminal.
   60s, so it is unseen there. Tried on the local stack with a stand-in
   `claude` calling `caldo-mcp call message_chat`: an asked question came
   back in ~1.5s.
+- **A chat can be subscribed to a repository's pull requests** (asked
+  as "every new PR, reviewer get an message", 2026-11-24, so a reviewing
+  chat stops looking every ten minutes; `Subscription`, `pullEvents`,
+  `GitHub`, `lib/mcp/subscriptions.dart`; server-only
+  `chat_subscriptions`, `…_chat_subscriptions.sql`). The chat's worker
+  reads `gh pr list --state all --limit 50` once a minute a repository
+  (`Worker._watch`; soon after a row is made, by realtime) — no turns
+  spent, GitHub's own login on that computer. Events: opened (also out
+  of draft, reopened; the default), pushed, closed (merged or not);
+  never one opened before the row was made. Told as one message a look,
+  a `line` whose `sender` is `{event, title: repo, subscription}`:
+  `withSender` tells the agent it is not the user and nobody waits; the
+  app draws "GitHub · owner/name" over it; it never names a chat. What
+  was told is written to `seen` before it is said (a failing write must
+  not repeat it each minute); one for a chat not running here waits for
+  Start again. No `target` is the chat's folder's repository (`gh repo
+  view` there, written in). `error` says why it could not look. Made by
+  the MCP tools `subscribe`/`subscriptions`/`unsubscribe` (an agent
+  subscribes itself) or in the chat's settings (`_SubscriptionsList`,
+  `SubscriptionScreen`, `chat_subscriptions.dart`, saved at once, not
+  with the settings). Only Claude and Codex, from a worker that says so
+  (`AgentKind.events`). Polled, not a webhook: nothing to host or set up
+  on GitHub, at most a minute late. Tried on the local stack with a
+  stand-in `claude` and `gh`: told 55s after the PR, the push 60s after.
 - **The watcher's errands are chats** (`Worker.errand`, when tmux is
   installed; `ClaudeCli` without it): Claude in the task's folder, the
   answer its first turn's `result` (or `--timeout`, then it goes on in its
@@ -1021,7 +1045,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 543 tests, all passing; keep it so. `supabase test db` — 66.
+`flutter test` — 566 tests, all passing; keep it so. `supabase test db` — 72.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

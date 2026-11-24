@@ -234,6 +234,8 @@ class _Said extends StatelessWidget {
     if (from is! Map) return said;
     final s = S.of(context);
     final title = '${from['title'] ?? ''}'.trim();
+    // Told of what it is subscribed to (`chat_subscriptions`).
+    final event = from['event'] != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -242,11 +244,17 @@ class _Said extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.forum_outlined, size: 13, color: p.muted),
+              Icon(
+                event ? Icons.call_merge : Icons.forum_outlined,
+                size: 13,
+                color: p.muted,
+              ),
               const SizedBox(width: 5),
               Flexible(
                 child: Text(
-                  from['chat'] == null || title.isEmpty
+                  event
+                      ? s.chatFromEvent(title)
+                      : from['chat'] == null || title.isEmpty
                       ? s.chatFromOutside
                       : s.chatFrom(title),
                   maxLines: 1,

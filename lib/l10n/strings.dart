@@ -346,6 +346,24 @@ class S {
   /// Over a message another chat's agent sent: [name] is that chat's title.
   String chatFrom(String name) => _fill('chatFrom', {'name': name});
   String get chatFromOutside => _word('chatFromOutside');
+
+  /// Over a message telling of events a chat is subscribed to: [name] is
+  /// the repository.
+  String chatFromEvent(String name) => _fill('chatFromEvent', {'name': name});
+  String get chatSubscriptions => _word('chatSubscriptions');
+  String get chatSubscribe => _word('chatSubscribe');
+  String get chatSubscription => _word('chatSubscription');
+  String get chatSubRepo => _word('chatSubRepo');
+  String get chatSubRepoHint => _word('chatSubRepoHint');
+  String get chatSubThisRepo => _word('chatSubThisRepo');
+  String get chatSubWhen => _word('chatSubWhen');
+  String get chatSubOpened => _word('chatSubOpened');
+  String get chatSubPushed => _word('chatSubPushed');
+  String get chatSubClosed => _word('chatSubClosed');
+  String get chatSubNote => _word('chatSubNote');
+  String get chatSubNoteHint => _word('chatSubNoteHint');
+  String chatSubHint(String worker) => _fill('chatSubHint', {'worker': worker});
+  String get chatSubBadRepo => _word('chatSubBadRepo');
   String get chatInterrupt => _word('chatInterrupt');
   String get chatLater => _word('chatLater');
   String get chatLater30 => _word('chatLater30');

@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(29);
+select plan(34);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -69,6 +69,19 @@ select lives_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Go on.', now() + interval '1 hour',
      'k1')$$,
   'a message is kept to be said later');
+select lives_ok(
+  $$insert into public.chat_subscriptions (chat_id, target, events, note) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'EgorPanteleev/Caldo',
+     '{opened,pushed}', 'Review it.')$$,
+  'a chat is subscribed to pull requests');
+select throws_ok(
+  $$insert into public.chat_subscriptions (chat_id, events) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '{starred}')$$,
+  '23514', null, 'only to what can be told');
+select throws_ok(
+  $$insert into public.chat_subscriptions (chat_id, target) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'not a repo; drop')$$,
+  '23514', null, 'in a repository named as GitHub names them');
 reset role;
 
 select lives_ok(
@@ -122,6 +135,14 @@ select throws_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'rm -rf ~', now(), 'k2',
      '22222222-2222-4222-8222-222222222222')$$,
   '42501', null, 'nor leaves it a message');
+select is(
+  (select count(*)::int from public.chat_subscriptions), 0,
+  'nor sees what it is subscribed to');
+select throws_ok(
+  $$insert into public.chat_subscriptions (chat_id, target, user_id) values
+    ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'a/b',
+     '22222222-2222-4222-8222-222222222222')$$,
+  '42501', null, 'nor subscribes it to anything');
 select is(
   (select count(*)::int from public.agent_accounts), 0,
   'nor sees its accounts');
