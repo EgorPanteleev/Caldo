@@ -1070,8 +1070,9 @@ So an assistant can read and change the tasks.
   terminals and their tools run in individual systemd user scopes under
   `caldo-agents.slice` when supported by the user manager. Scopes outlive
   watcher restarts and are cleaned up when their command exits. The slice
-  reclaims memory at 45% of physical RAM, caps memory at 65%, and caps
-  swap at 1 GiB. Existing chats move into the slice the next time their
+  caps memory at 65% of physical RAM and swap at 1 GiB, with no
+  `MemoryHigh`: with swap capped it could only throttle, and the slice
+  stalled (64 of 120 minutes; chats 7s to start). Existing chats move into the slice the next time their
   agent or terminal starts. **A task is sent
   by naming a model on it** (`Task.claude`, schema v14: opus, sonnet, haiku
   or fable, `ClaudeModels`): a ✦ chip by the add field's group chip
