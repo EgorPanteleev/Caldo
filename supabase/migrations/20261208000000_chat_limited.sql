@@ -4,4 +4,4 @@
 alter table public.chats drop constraint if exists chats_state_check;
 alter table public.chats add constraint chats_state_check
   check (state in ('new', 'waiting', 'running', 'asking', 'idle', 'finished',
-                   'limited', 'ended', 'failed'));
+                   'your_turn', 'limited', 'ended', 'failed'));

@@ -70,7 +70,7 @@ class Notices {
         if (_asked[chat] == question) return;
         _asked[chat] = question;
         tell(chat, 'asking', question);
-      case 'finished':
+      case 'finished' || 'your_turn':
         _asked.remove(chat);
         final opened = _opened.remove(chat) ?? const [];
         if (!_turning.remove(chat) || _fromOthers.contains(chat)) return;

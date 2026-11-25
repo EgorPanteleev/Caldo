@@ -741,12 +741,19 @@ the app, a terminal beside them; anything else a terminal.
   its shape, not a shade. **The usage limit is `limited`** (an hourglass,
   "Out of usage", and under it which limit and when it resets,
   `limitBrief`, from the chat's usage — not the worker's English note;
-  asked 2026-11-25). All three take a message (`Chat.live`,
-  `Worker._ready`). `…_chat_finished.sql` and `…_chat_limited.sql` widen
-  the check; an older app reads either as Starting.
+  asked 2026-11-25). All take a message (`Chat.live`, `Worker._ready`).
+  `…_chat_finished.sql`, `…_chat_your_turn.sql` and `…_chat_limited.sql`
+  widen the check; an older app reads the newer states as Starting.
+- **A turn that ends asking or offering is `your_turn`, not `finished`**
+  (asked 2026-11-25: "agents ask me smth in the end or offer me, but chat
+  writes finished"): `asksBack` reads the last paragraph (and the one
+  before a trailing list) for a `?` outside code and links, or an offer's
+  words in the app's languages. Shown as Waiting for you (red dot), pushed
+  as a turn's end, takes a message like `finished`. A usage-limit stop is
+  `limited`.
 - **Server-only tables, not synced rows** (`…_agents.sql`): `workers`
   (heartbeat 30s, online if seen <90s, what it offers), `chats` (state new
-  → running/asking/idle/finished → ended/failed, note, size, session), `chat_out`
+  → running/asking/idle/finished/your_turn/limited → ended/failed, note, size, session), `chat_out`
   (pieces ≤ every 200ms; a `capture-pane -e` snapshot after 300 pieces
   once quiet, older rows deleted; the app reads from the latest snapshot),
   `chat_in` (keys, line, size, stop, start, answer, interrupt, mode;

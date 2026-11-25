@@ -2642,6 +2642,7 @@ void main() {
             chat('b', 'Bravo', ChatState.running),
             chat('c', 'Charlie', ChatState.asking),
             chat('d', 'Delta', ChatState.finished),
+            chat('e', 'Echo', ChatState.yourTurn),
           ];
         addTearDown(() {
           Agents.instance
@@ -2649,18 +2650,17 @@ void main() {
             ..chats = const [];
         });
         await pump(tester, code, const AgentsScreen());
-        for (final word in [
-          s.chatIdle,
-          s.chatRunning,
-          s.chatAsking,
-          s.chatFinished,
-        ]) {
+        for (final word in [s.chatIdle, s.chatRunning, s.chatFinished]) {
           expect(find.textContaining('$word · '), findsOneWidget);
         }
+        // A turn ended asking the user something waits for them, as a
+        // question asked does.
+        expect(find.textContaining('${s.chatAsking} · '), findsNWidgets(2));
         // A finished one is marked by a tick, not by a dot's shade.
         expect(find.byIcon(Icons.check_rounded), findsOneWidget);
         // Finished, it still takes a message: its program runs.
         expect(chat('d', 'Delta', ChatState.finished).live, isTrue);
+        expect(chat('e', 'Echo', ChatState.yourTurn).live, isTrue);
       });
 
       testWidgets('picks out chats in ${S.names[code]}', (tester) async {

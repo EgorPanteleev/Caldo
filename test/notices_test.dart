@@ -114,4 +114,11 @@ void main() {
     await later();
     expect(told, isEmpty);
   });
+
+  test('tells a turn ended asking something as any turn over', () async {
+    notices.stands('c', 'running');
+    notices.stands('c', 'your_turn', said: 'Want me to open a PR?');
+    await later();
+    expect(told, [('c', 'waiting', 'Want me to open a PR?')]);
+  });
 }

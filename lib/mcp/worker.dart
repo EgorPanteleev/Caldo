@@ -8,6 +8,7 @@ import 'package:supabase/supabase.dart';
 import '../models/task.dart';
 import 'accounts.dart';
 import 'agents.dart';
+import 'asks_back.dart';
 import 'kept.dart';
 import 'notices.dart';
 import 'remote.dart';
@@ -283,6 +284,7 @@ class Worker {
           'asking',
           'idle',
           'finished',
+          'your_turn',
           'limited',
         ]);
     for (final row in mine) {
@@ -1556,11 +1558,19 @@ class Worker {
   }
 
   /// Whether a chat in [state] waits for the user's word: `idle` before it
-  /// has done anything, `finished` once a turn has ended, `limited` once
-  /// the account's limit refused one — told apart so the app can say what
-  /// became of a chat, all taking a message alike.
+  /// has done anything, `finished` once a turn has ended, `your_turn` once
+  /// one has ended asking or offering something ([asksBack]), `limited`
+  /// once the account's limit refused one — told apart so the app can say
+  /// what became of a chat, all taking a message alike.
   static bool _ready(Object? state) =>
-      state == 'idle' || state == 'finished' || state == 'limited';
+      state == 'idle' ||
+      state == 'finished' ||
+      state == 'your_turn' ||
+      state == 'limited';
+
+  /// Where a chat stands once a turn has ended with [said].
+  static String _ended(String said) =>
+      asksBack(said) ? 'your_turn' : 'finished';
 
   Future<void> _set(String chat, String to, String? note, {String? said}) {
     notices.stands(chat, to, note: note, said: said);
@@ -1826,7 +1836,7 @@ class Worker {
         to = 'asking';
         note = event['message'] as String?;
       case 'Stop':
-        to = 'finished';
+        to = _ended(event['last_assistant_message'] as String? ?? '');
         _turnDone(
           chat,
           event['last_assistant_message'] as String? ?? '',
@@ -1845,7 +1855,7 @@ class Worker {
       final said = event['last_assistant_message'] as String?;
       unawaited(_guard(() => _set(chat, to!, note, said: said)));
     }
-    if (to == 'finished' && live.retune) {
+    if (_ready(to) && live.retune) {
       live.retune = false;
       unawaited(_guard(() => _retune(chat)));
     }
@@ -2541,6 +2551,8 @@ class _Talker implements TalkSink {
 
   @override
   void stands(String to, {String? note}) {
+    // A turn ended by the agent, not by the limit: its last words may ask.
+    if (to == 'finished' && note == null) to = Worker._ended(_said);
     if (forgotten || (to == state && note == null)) return;
     state = to;
     _broadcast('state', {'state': to, 'note': note});
