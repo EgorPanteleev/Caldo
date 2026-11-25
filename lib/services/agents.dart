@@ -609,13 +609,30 @@ class Chat {
     },
   );
 
-  /// [chats] as the list shows them: the pinned on top, the last pinned
-  /// first, then the rest as they came (the latest news first).
-  static List<Chat> pinnedFirst(Iterable<Chat> chats) => [
-    ...chats.where((c) => c.pinned).toList()
-      ..sort((a, b) => b.pinnedAt!.compareTo(a.pinnedAt!)),
-    ...chats.where((c) => !c.pinned),
-  ];
+  int get _listPriority => pinned
+      ? 0
+      : switch (state) {
+          ChatState.asking || ChatState.yourTurn => 1,
+          ChatState.running => 2,
+          ChatState.limited => 3,
+          ChatState.asked || ChatState.waiting || ChatState.idle => 4,
+          ChatState.finished || ChatState.ended || ChatState.failed => 5,
+        };
+
+  /// The list puts pinned chats and chats needing attention first. A
+  /// turn ending updates the chat's timestamp, bringing it to the top
+  /// of its group.
+  static List<Chat> listOrder(Iterable<Chat> chats) =>
+      chats.toList()..sort((a, b) {
+        final priority = a._listPriority.compareTo(b._listPriority);
+        if (priority != 0) return priority;
+        if (a.pinned && b.pinned) {
+          final pinned = b.pinnedAt!.compareTo(a.pinnedAt!);
+          if (pinned != 0) return pinned;
+        }
+        final recent = b.updatedAt.compareTo(a.updatedAt);
+        return recent != 0 ? recent : a.id.compareTo(b.id);
+      });
 }
 
 /// [url] opened in the browser: the page an account is signed in on.
@@ -739,7 +756,7 @@ class Agents extends ChangeNotifier {
           .order('updated_at', ascending: false)
           .limit(200);
       workers = [for (final r in w) AgentWorker.fromJson(r)];
-      chats = Chat.pinnedFirst([for (final r in c) Chat.fromJson(r)]);
+      chats = Chat.listOrder([for (final r in c) Chat.fromJson(r)]);
       accounts = await _readAccounts(client);
       error = null;
     } catch (e) {
@@ -1136,7 +1153,7 @@ class Agents extends ChangeNotifier {
       row = await insert({...made}..remove('language'));
     }
     final chat = Chat.fromJson(row);
-    chats = [chat, ...chats];
+    chats = Chat.listOrder([chat, ...chats]);
     notifyListeners();
     return chat;
   }
@@ -1342,10 +1359,10 @@ class Agents extends ChangeNotifier {
         .select()
         .single();
     final changed = Chat.fromJson(row);
-    chats = [
+    chats = Chat.listOrder([
       for (final c in chats)
         if (c.id == chat) changed else c,
-    ];
+    ]);
     notifyListeners();
     if (fields.keys.every((k) => k == 'title')) return;
     try {
@@ -1385,7 +1402,7 @@ class Agents extends ChangeNotifier {
         .from('chats')
         .update({'pinned_at': at?.toUtc().toIso8601String()})
         .inFilter('id', [...picked]);
-    chats = Chat.pinnedFirst([
+    chats = Chat.listOrder([
       for (final c in chats)
         if (picked.contains(c.id) && c.pinned != pinned)
           Chat._pinned(c, at)
