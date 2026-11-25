@@ -372,7 +372,7 @@ class _Said extends StatelessWidget {
             ? Border(left: BorderSide(color: accent, width: 3))
             : null,
         borderRadius: event
-            ? null
+            ? const BorderRadius.all(Radius.circular(16))
             : const BorderRadius.only(
                 topLeft: Radius.circular(5),
                 topRight: Radius.circular(16),
