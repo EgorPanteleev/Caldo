@@ -10,7 +10,7 @@ import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/mcp/usage.dart';
 import 'package:caldo/mcp/workspace.dart';
-import 'package:caldo/mcp/worker.dart' show answerOf;
+import 'package:caldo/mcp/worker.dart' show answerOf, withoutNul;
 import 'package:caldo/models/task.dart';
 import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/task_provider.dart';
@@ -403,6 +403,32 @@ void main() {
         );
       },
     );
+
+    test('takes NULs out of an item, which Postgres refuses', () {
+      final clean = {
+        'line': 'ok',
+        'n': [1, 'two'],
+      };
+      expect(identical(withoutNul(clean), clean), isTrue);
+      expect(
+        withoutNul({
+          'line': 'a\u0000b',
+          'output': [
+            {'x': '\u0000'},
+            3,
+          ],
+          'done': true,
+        }),
+        {
+          'line': 'ab',
+          'output': [
+            {'x': ''},
+            3,
+          ],
+          'done': true,
+        },
+      );
+    });
 
     test('reads an answer as the app writes it, old or new', () {
       var (item, choice, answers) = answerOf('allow ask:r1');
@@ -1170,6 +1196,22 @@ void main() {
       expect(again.written(), ['two']);
 
       await kept.stop();
+      expect(File('$base.pid').existsSync(), isFalse);
+    });
+
+    test('given up on, leaves nothing running behind it', () async {
+      // A start called failed used to leave its program running, and the
+      // next message started a second on the same session.
+      final mark = 'kept-abandoned-${DateTime.now().microsecondsSinceEpoch}';
+      Kept.startWithin = Duration.zero;
+      addTearDown(() => Kept.startWithin = const Duration(seconds: 30));
+      await expectLater(
+        Kept.start(base, ['sh', '-c', 'sleep 30 # $mark'], cwd: dir.path),
+        throwsStateError,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final left = Process.runSync('pgrep', ['-f', mark]);
+      expect('${left.stdout}'.trim(), isEmpty);
       expect(File('$base.pid').existsSync(), isFalse);
     });
 

@@ -668,7 +668,11 @@ the app, a terminal beside them; anything else a terminal.
   every 30ms and saves offsets each second (`worker.json` `talks`); a new
   worker re-reads what was unheard (`Talk.takeUp`, `_Replay`) to rebuild
   open questions and tools, then goes on live. Items keep their seq. Dart
-  can't append to a pipe: open it `FileMode.write`. A program killed with
+  can't append to a pipe: open it `FileMode.write`. A program is given 30s
+  to come up (`Kept.startWithin`); given up on, its process group and
+  scope are killed, or the next message starts a second on its session.
+  NULs are taken out of items and terminal output (`withoutNul`,
+  `_NoNul`): Postgres refuses them, and the row was retried for ever. A program killed with
   the session is noted "ended from outside"; the next message resumes.
   A message chat with a resumable session releases its agent after five
   quiet minutes between turns and resumes it on the next message.
@@ -1061,7 +1065,9 @@ So an assistant can read and change the tasks.
   `~/.config/caldo/mcp/session.json`, 600), renewed only under a file lock,
   file read first (`SessionFile`, `ready`): every Claude session runs its
   own server, and a refresh token spent twice ends the session.
-  `recoverSession` won't renew with `autoRefreshToken` off; it signs out.
+  `recoverSession` won't renew with `autoRefreshToken` off; it signs out
+  *on the server*, ending the session everywhere — so a kept session is
+  taken up only with a minute left (`_endingSoon`), else renewed.
 - **Out of reach on purpose**: the vault, creating groups, attachment
   files. Ids are the uuid's first 8 characters; times are this computer's.
 - **Install**: `tool/mcp/install.sh` → a kernel snapshot run by Flutter's
@@ -1176,7 +1182,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 569 tests, all passing; keep it so. `supabase test db` — 73.
+`flutter test` — 666 tests, all passing; keep it so. `supabase test db` — 73.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

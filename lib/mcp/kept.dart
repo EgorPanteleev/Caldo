@@ -66,21 +66,43 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
       base,
       ...argv,
     ], errors: '$base.err');
-    await Process.start(
+    final launcher = await Process.start(
       launch.first,
       launch.sublist(1),
       workingDirectory: cwd,
       environment: environment,
       mode: ProcessStartMode.detached,
     );
-    for (var i = 0; i < 500; i++) {
+    // Starting a scope under a slice short of memory has taken 7s; 5s was
+    // given, and the program came up after it was called failed — then the
+    // next message started a second on the same session beside it.
+    final until = DateTime.now().add(startWithin);
+    while (DateTime.now().isBefore(until)) {
       final kept = _read(base, 0);
       if (kept != null) return kept;
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
     final errors = File('$base.err');
     final why = errors.existsSync() ? errors.readAsStringSync().trim() : '';
+    await _abandon(launcher.pid);
+    clear(base);
     throw StateError('${argv.first} did not start. $why'.trim());
+  }
+
+  /// How long a program is given to come up.
+  static Duration startWithin = const Duration(seconds: 30);
+
+  /// A launch given up on, ended with all it started: detached, it leads
+  /// a process group of its own, and its scope is named by its pid.
+  static Future<void> _abandon(int pid) async {
+    await Process.run('kill', ['-KILL', '--', '-$pid']);
+    if (Platform.environment.containsKey('CALDO_AGENT_SLICE')) {
+      await Process.run('systemctl', [
+        '--user',
+        'stop',
+        'caldo-agent-$pid.scope',
+      ]);
+    }
   }
 
   /// The program started at [base] by a worker before this one, read up to
