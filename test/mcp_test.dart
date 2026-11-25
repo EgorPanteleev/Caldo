@@ -349,6 +349,58 @@ void main() {
     );
   });
 
+  test('a subtask added here hangs from its parent on the phone', () async {
+    final work = await phone.db.insertList(
+      TaskList(name: 'Work', styleId: 'teal', createdAt: 1),
+    );
+    final release = await phone.db.insert(
+      Task(
+        listId: work.id!,
+        title: 'Release',
+        notes: 'By Friday.',
+        createdAt: 1,
+      ),
+    );
+    await phone.round();
+    await caldo.refresh();
+
+    final added = await run('add_task', {
+      'title': 'Write the notes',
+      'parent': idOf('Release'),
+    });
+    expect(added, contains('under [${idOf('Release')}] Release'));
+    await phone.round();
+    final there = await phone.named('Write the notes');
+    expect(there.parentId, release.id);
+    expect(there.listId, work.id, reason: 'it goes where its parent is');
+
+    await caldo.refresh();
+    final told = await run('task', {'id': idOf('Write the notes')});
+    expect(told, contains('Part of: [${idOf('Release')}] Release'));
+    expect(
+      await run('task', {'id': idOf('Release')}),
+      contains('Subtasks:\n  - '),
+    );
+    final held = caldo.book.tasks.singleWhere(
+      (h) => h.task.title == 'Write the notes',
+    );
+    expect(
+      taskMessage(
+        held.task,
+        '',
+        parents: [for (final p in caldo.book.parentsOf(held)) p.task],
+      ),
+      contains('Parent task: Release\nNotes:\nBy Friday.'),
+    );
+
+    expect(
+      await run('delete_task', {'id': idOf('Release')}),
+      endsWith('and its 1 subtask.'),
+    );
+    await phone.round();
+    expect(await phone.count('SELECT COUNT(*) FROM tasks'), 0);
+  });
+
   test('a special day added here is on the phone', () async {
     await run('add_special_day', {
       'name': 'Anna',

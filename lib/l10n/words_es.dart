@@ -174,6 +174,10 @@ const Map<String, Object> es = {
   'notesField': "Notas (opcional)",
   'sectionSubtasks': "SUBTAREAS",
   'addSubtask': "Añadir una subtarea",
+  'sectionChecklist': "LISTA DE PASOS",
+  'addStep': "Añadir un paso",
+  'partOf': "Parte de",
+  'subtasksGoToo': "Sus subtareas se eliminan con ella.",
   'sectionAttachments': "ADJUNTOS",
   'attachPhoto': "Foto",
   'attachCamera': "Cámara",
@@ -669,7 +673,6 @@ const Map<String, Object> es = {
   'usageResetSince': "Ya reiniciado",
   'agentProjects': "Proyectos",
   'newProject': "Nuevo proyecto",
-  'newSubproject': "Nuevo subproyecto",
   'editProject': "Proyecto",
   'editProjects': "Editar proyectos…",
   'noProjects': "Aún no hay proyectos",
@@ -684,11 +687,9 @@ const Map<String, Object> es = {
   'projectSourcesHint':
       "Carpetas del ordenador, como ~/dev/src/Caldo. Cada chat recibe un repositorio git como worktree en una rama propia; cualquier otra carpeta se comparte tal cual.",
   'projectAddSource': "Añadir carpeta",
-  'projectFrom': "De {name}",
-  'projectSubprojects': "Subproyectos",
   'deleteProjectQuestion': "¿Eliminar este proyecto?",
   'deleteProjectHint':
-      "Sus subproyectos se van con él. Los chats iniciados en él conservan lo que se les dijo.",
+      "Los chats iniciados en él conservan lo que se les dijo.",
   'chatProject': "Proyecto",
   'chatNoProject': "Ninguno",
   'chatOwnFolderHint':

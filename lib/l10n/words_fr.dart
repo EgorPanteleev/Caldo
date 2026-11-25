@@ -175,6 +175,10 @@ const Map<String, Object> fr = {
   'notesField': "Notes (facultatif)",
   'sectionSubtasks': "SOUS-TÂCHES",
   'addSubtask': "Ajouter une sous-tâche",
+  'sectionChecklist': "CHECKLIST",
+  'addStep': "Ajouter une étape",
+  'partOf': "Fait partie de",
+  'subtasksGoToo': "Ses sous-tâches sont supprimées avec elle.",
   'sectionAttachments': "PIÈCES JOINTES",
   'attachPhoto': "Photo",
   'attachCamera': "Appareil photo",
@@ -671,7 +675,6 @@ const Map<String, Object> fr = {
   'usageResetSince': "Réinitialisé depuis",
   'agentProjects': "Projets",
   'newProject': "Nouveau projet",
-  'newSubproject': "Nouveau sous-projet",
   'editProject': "Projet",
   'editProjects': "Modifier les projets…",
   'noProjects': "Pas encore de projets",
@@ -686,11 +689,9 @@ const Map<String, Object> fr = {
   'projectSourcesHint':
       "Dossiers de l'ordinateur, comme ~/dev/src/Caldo. Chaque chat reçoit un dépôt git comme worktree sur sa propre branche ; tout autre dossier est partagé tel quel.",
   'projectAddSource': "Ajouter un dossier",
-  'projectFrom': "De {name}",
-  'projectSubprojects': "Sous-projets",
   'deleteProjectQuestion': "Supprimer ce projet ?",
   'deleteProjectHint':
-      "Ses sous-projets partent avec lui. Les chats commencés dedans gardent ce qu'on leur a dit.",
+      "Les chats commencés dedans gardent ce qu'on leur a dit.",
   'chatProject': "Projet",
   'chatNoProject': "Aucun",
   'chatOwnFolderHint':

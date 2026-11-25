@@ -159,6 +159,10 @@ const Map<String, Object> en = {
   'notesField': "Notes (optional)",
   'sectionSubtasks': "SUBTASKS",
   'addSubtask': "Add a subtask",
+  'sectionChecklist': "CHECKLIST",
+  'addStep': "Add a step",
+  'partOf': "Part of",
+  'subtasksGoToo': "Its subtasks are deleted with it.",
   'sectionAttachments': "ATTACHMENTS",
   'attachPhoto': "Photo",
   'attachCamera': "Camera",
@@ -651,7 +655,6 @@ const Map<String, Object> en = {
   'usageResetSince': "Reset since",
   'agentProjects': "Projects",
   'newProject': "New project",
-  'newSubproject': "New subproject",
   'editProject': "Project",
   'editProjects': "Edit projects…",
   'noProjects': "No projects yet",
@@ -666,11 +669,8 @@ const Map<String, Object> en = {
   'projectSourcesHint':
       "Folders on the computer, like ~/dev/src/Caldo. A git repository is given to each chat as a worktree on a branch of its own; any other folder is shared as it is.",
   'projectAddSource': "Add folder",
-  'projectFrom': "From {name}",
-  'projectSubprojects': "Subprojects",
   'deleteProjectQuestion': "Delete this project?",
-  'deleteProjectHint':
-      "Its subprojects go with it. Chats begun in it keep what they were told.",
+  'deleteProjectHint': "Chats begun in it keep what they were told.",
   'chatProject': "Project",
   'chatNoProject': "None",
   'chatOwnFolderHint':

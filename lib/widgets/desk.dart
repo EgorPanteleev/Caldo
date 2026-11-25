@@ -147,14 +147,14 @@ class TaskPanel extends ChangeNotifier {
   /// Goes up each time a form with changes in it was asked to give way.
   final nudged = ValueNotifier<int>(0);
 
-  void open({Task? task, DateTime? date}) {
+  void open({Task? task, DateTime? date, Task? parent}) {
     if (_request != null && dirty) {
       nudged.value++;
       return;
     }
     // The task already open is left as it is, scrolled where it was.
     if (task != null && _request?.task?.id == task.id) return;
-    _request = FormRequest(task: task, date: date);
+    _request = FormRequest(task: task, date: date, parent: parent);
     dirty = false;
     notifyListeners();
   }
@@ -168,12 +168,14 @@ class TaskPanel extends ChangeNotifier {
 }
 
 /// What a form was opened on: a task to edit, or none and the day a new one
-/// starts on. Each is a form of its own, so the panel is keyed by it.
+/// starts on and the task it is a subtask of. Each is a form of its own, so
+/// the panel is keyed by it.
 class FormRequest {
   final Task? task;
   final DateTime? date;
+  final Task? parent;
 
-  const FormRequest({this.task, this.date});
+  const FormRequest({this.task, this.date, this.parent});
 }
 
 /// Holds a column of cards to [Desk.column] in the middle of a wide window,

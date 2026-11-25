@@ -168,6 +168,10 @@ const Map<String, Object> kk = {
   'notesField': "Жазбалар (міндетті емес)",
   'sectionSubtasks': "ІШКІ ТАПСЫРМАЛАР",
   'addSubtask': "Ішкі тапсырма қосу",
+  'sectionChecklist': "ТЕКСЕРУ ТІЗІМІ",
+  'addStep': "Қадам қосу",
+  'partOf': "Тапсырманың бөлігі",
+  'subtasksGoToo': "Оның ішкі тапсырмалары бірге жойылады.",
   'sectionAttachments': "ТІРКЕМЕЛЕР",
   'attachPhoto': "Фото",
   'attachCamera': "Камера",
@@ -659,7 +663,6 @@ const Map<String, Object> kk = {
   'usageResetSince': "Қалпына келді",
   'agentProjects': "Жобалар",
   'newProject': "Жаңа жоба",
-  'newSubproject': "Жаңа ішкі жоба",
   'editProject': "Жоба",
   'editProjects': "Жобаларды өзгерту…",
   'noProjects': "Әзірге жоба жоқ",
@@ -674,11 +677,8 @@ const Map<String, Object> kk = {
   'projectSourcesHint':
       "Компьютердегі қалталар, мысалы ~/dev/src/Caldo. Git репозиторийін әр чат өз тармағындағы worktree ретінде алады; басқа кез келген қалта ортақ.",
   'projectAddSource': "Қалта қосу",
-  'projectFrom': "«{name}» жобасынан",
-  'projectSubprojects': "Ішкі жобалар",
   'deleteProjectQuestion': "Жобаны жою керек пе?",
-  'deleteProjectHint':
-      "Оның ішкі жобалары бірге жойылады. Онда басталған чаттар айтылғанды сақтайды.",
+  'deleteProjectHint': "Онда басталған чаттар айтылғанды сақтайды.",
   'chatProject': "Жоба",
   'chatNoProject': "Жобасыз",
   'chatOwnFolderHint':

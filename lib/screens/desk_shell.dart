@@ -562,6 +562,7 @@ class _DeskFormPanelState extends State<DeskFormPanel>
             key: ObjectKey(shown),
             task: shown.task,
             initialDate: shown.date,
+            parent: shown.parent,
             inPanel: true,
           ),
         ),

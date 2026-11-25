@@ -1334,37 +1334,29 @@ void main() {
   group('projects', () {
     tearDown(() => Agents.instance.projects = const []);
 
-    test('a subproject takes its parents\' words, colour and folders', () {
+    test('a chat keeps its project\'s name, colour, words and folders', () {
       const caldo = AgentProject(
         id: 'p',
         name: 'Caldo',
         colour: 'teal',
         context: 'A calendar app.',
-        sources: ['~/dev/src/Caldo'],
+        sources: ['~/dev/src/Caldo', ' ', '~/dev/src/Caldo'],
       );
-      const sync = AgentProject(
-        id: 'q',
-        parentId: 'p',
-        name: 'Sync',
-        context: 'Supabase.',
-        sources: ['~/dev/src/Caldo', '~/notes/sync'],
-      );
-      const files = AgentProject(id: 'r', parentId: 'q', name: 'Files');
-      Agents.instance.projects = const [caldo, sync, files];
-      final agents = Agents.instance;
-      expect(agents.pathOf(files), 'Caldo › Sync › Files');
-      expect(agents.depthOf(files), 2);
-      expect(agents.colourOf(files), 'teal');
-      expect(agents.familyOf('p'), {'p', 'q', 'r'});
-      expect(agents.familyOf('q'), {'q', 'r'});
-      expect(agents.snapshotOf(files), {
-        'name': 'Caldo › Sync › Files',
+      Agents.instance.projects = const [caldo];
+      expect(Agents.instance.snapshotOf(caldo), {
+        'name': 'Caldo',
         'colour': 'teal',
         'context': [
           {'name': 'Caldo', 'body': 'A calendar app.'},
-          {'name': 'Sync', 'body': 'Supabase.'},
         ],
-        'sources': ['~/dev/src/Caldo', '~/notes/sync'],
+        'sources': ['~/dev/src/Caldo'],
+      });
+      const bare = AgentProject(id: 'q', name: 'Notes');
+      expect(Agents.instance.snapshotOf(bare), {
+        'name': 'Notes',
+        'colour': null,
+        'context': <Object>[],
+        'sources': <Object>[],
       });
     });
 
@@ -2155,8 +2147,7 @@ void main() {
             ),
           ]
           ..projects = const [
-            AgentProject(id: 'parent', name: 'Caldo', colour: colour),
-            AgentProject(id: 'child', name: 'Sync', parentId: 'parent'),
+            AgentProject(id: 'caldo', name: 'Caldo', colour: colour),
           ]
           ..chats = [
             Chat(
@@ -2165,7 +2156,7 @@ void main() {
               agent: 'shell',
               state: ChatState.ended,
               updatedAt: now,
-              projectId: 'child',
+              projectId: 'caldo',
             ),
             Chat(
               id: 'b',
@@ -2199,7 +2190,7 @@ void main() {
         final gray = dark ? palette.panel : palette.panelHi;
         expect(background(grouped), gray);
         expect(background(ungrouped), gray);
-        expect(find.textContaining('Caldo › Sync'), findsOneWidget);
+        expect(find.textContaining('Caldo'), findsOneWidget);
         final dot = find.byWidgetPredicate(
           (widget) =>
               widget is DecoratedBox &&
@@ -2384,9 +2375,9 @@ void main() {
         );
         const sync = AgentProject(
           id: 'q',
-          parentId: 'p',
           name: 'Sync with the server',
           context: 'Supabase.',
+          sources: ['~/notes/sync'],
         );
         Agents.instance.projects = const [caldo, sync];
         await pump(tester, code, const NewChatScreen());
@@ -2399,7 +2390,7 @@ void main() {
         // The form's list, not a field's own scroll inside it.
         final list = find.byType(Scrollable).first;
         await tester.scrollUntilVisible(
-          find.text('${caldo.name} › ${sync.name}'),
+          find.text(sync.name),
           300,
           scrollable: list,
         );
@@ -2424,11 +2415,10 @@ void main() {
         await pump(tester, code, const ProjectsScreen());
         expect(find.text(sync.name), findsOneWidget);
         await pump(tester, code, const ProjectScreen(project: sync));
-        // What it takes from above, then its own.
-        expect(find.text(caldo.context), findsOneWidget);
-        expect(find.text('~/dev/src/Caldo'), findsWidgets);
-        await pump(tester, code, const ProjectScreen(parent: caldo));
-        expect(find.text(s.newSubproject), findsOneWidget);
+        expect(find.text(sync.context), findsOneWidget);
+        expect(find.text('~/notes/sync'), findsWidgets);
+        await pump(tester, code, const ProjectScreen());
+        expect(find.text(s.newProject), findsWidgets);
         Agents.instance.projects = const [];
         await pump(tester, code, const ProjectsScreen());
         expect(find.text(s.noProjects), findsOneWidget);

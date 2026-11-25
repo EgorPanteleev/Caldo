@@ -174,6 +174,10 @@ const Map<String, Object> de = {
   'notesField': "Notizen (optional)",
   'sectionSubtasks': "TEILAUFGABEN",
   'addSubtask': "Teilaufgabe hinzufügen",
+  'sectionChecklist': "CHECKLISTE",
+  'addStep': "Schritt hinzufügen",
+  'partOf': "Teil von",
+  'subtasksGoToo': "Ihre Teilaufgaben werden mit gelöscht.",
   'sectionAttachments': "ANHÄNGE",
   'attachPhoto': "Foto",
   'attachCamera': "Kamera",
@@ -673,7 +677,6 @@ const Map<String, Object> de = {
   'usageResetSince': "Inzwischen zurückgesetzt",
   'agentProjects': "Projekte",
   'newProject': "Neues Projekt",
-  'newSubproject': "Neues Unterprojekt",
   'editProject': "Projekt",
   'editProjects': "Projekte bearbeiten…",
   'noProjects': "Noch keine Projekte",
@@ -688,11 +691,9 @@ const Map<String, Object> de = {
   'projectSourcesHint':
       "Ordner auf dem Computer, etwa ~/dev/src/Caldo. Ein Git-Repository bekommt jeder Chat als Worktree auf einem eigenen Branch; jeder andere Ordner wird geteilt, wie er ist.",
   'projectAddSource': "Ordner hinzufügen",
-  'projectFrom': "Aus {name}",
-  'projectSubprojects': "Unterprojekte",
   'deleteProjectQuestion': "Dieses Projekt löschen?",
   'deleteProjectHint':
-      "Seine Unterprojekte gehen mit. Chats, die darin begonnen wurden, behalten, was ihnen gesagt wurde.",
+      "Chats, die darin begonnen wurden, behalten, was ihnen gesagt wurde.",
   'chatProject': "Projekt",
   'chatNoProject': "Keins",
   'chatOwnFolderHint':

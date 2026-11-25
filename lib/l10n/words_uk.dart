@@ -173,6 +173,10 @@ const Map<String, Object> uk = {
   'notesField': "Нотатки (необов’язково)",
   'sectionSubtasks': "ПІДЗАВДАННЯ",
   'addSubtask': "Додати підзавдання",
+  'sectionChecklist': "ЧЕК-ЛИСТ",
+  'addStep': "Додати пункт",
+  'partOf': "Частина завдання",
+  'subtasksGoToo': "Його підзавдання видаляться разом з ним.",
   'sectionAttachments': "ВКЛАДЕННЯ",
   'attachPhoto': "Фото",
   'attachCamera': "Камера",
@@ -696,7 +700,6 @@ const Map<String, Object> uk = {
   'usageResetSince': "Уже скинуто",
   'agentProjects': "Проєкти",
   'newProject': "Новий проєкт",
-  'newSubproject': "Новий підпроєкт",
   'editProject': "Проєкт",
   'editProjects': "Змінити проєкти…",
   'noProjects': "Проєктів поки немає",
@@ -711,11 +714,8 @@ const Map<String, Object> uk = {
   'projectSourcesHint':
       "Теки на комп'ютері, наприклад ~/dev/src/Caldo. Git-репозиторій кожен чат отримує як worktree на власній гілці; будь-яка інша тека спільна.",
   'projectAddSource': "Додати теку",
-  'projectFrom': "З «{name}»",
-  'projectSubprojects': "Підпроєкти",
   'deleteProjectQuestion': "Видалити проєкт?",
-  'deleteProjectHint':
-      "Його підпроєкти видаляться разом з ним. Розпочаті в ньому чати збережуть те, що їм сказали.",
+  'deleteProjectHint': "Розпочаті в ньому чати збережуть те, що їм сказали.",
   'chatProject': "Проєкт",
   'chatNoProject': "Без проєкту",
   'chatOwnFolderHint':

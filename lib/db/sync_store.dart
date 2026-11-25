@@ -76,7 +76,10 @@ class SyncStore {
   /// What a row carries that is this device's alone, or put into a uuid.
   static const _local = {'id', 'uuid', 'updated_at', 'dirty'};
   static const _links = {
-    'tasks': {'list_id': ('lists', 'list_uuid')},
+    'tasks': {
+      'list_id': ('lists', 'list_uuid'),
+      'parent_id': ('tasks', 'parent_uuid'),
+    },
     'completions': {
       'list_id': ('lists', 'list_uuid'),
       'task_id': ('tasks', 'task_uuid'),
@@ -227,15 +230,30 @@ class SyncStore {
       final ordered = [
         for (final t in _tables) ...rows.where((r) => r.table == t),
       ];
+      final unlinked = <(int, String, String)>[];
       await _quiet(txn, () async {
         for (final r in ordered) {
           try {
-            if (await _applyOne(txn, r, columns[r.table]!)) changed = true;
+            if (await _applyOne(txn, r, columns[r.table]!, unlinked)) {
+              changed = true;
+            }
           } on DatabaseException {
             // A row this version cannot hold (a column it has no default
             // for, missing) is passed over rather than holding up the rest
             // for good.
           }
+        }
+        // A subtask can come down before its parent — the parent changed
+        // after it was made — so its link is made once every row is in.
+        for (final (id, column, uuid) in unlinked) {
+          final parent = await _idOf(txn, 'tasks', uuid);
+          if (parent == null) continue;
+          await txn.update(
+            'tasks',
+            {column: parent},
+            where: 'id = ?',
+            whereArgs: [id],
+          );
         }
         await txn.update('sync_state', {'cursor': cursor});
       });
@@ -259,6 +277,7 @@ class SyncStore {
     Transaction txn,
     SyncRow r,
     Set<String> columns,
+    List<(int, String, String)> unlinked,
   ) async {
     if (!_tables.contains(r.table)) return false;
     final here = (await txn.query(
@@ -309,12 +328,17 @@ class SyncStore {
       'dirty': 0,
     };
     if (r.table == 'tasks') _fromDay(values);
+    final later = <(String, String)>[];
     for (final MapEntry(key: column, value: (target, name))
         in (_links[r.table] ?? const {}).entries) {
       final linked = r.data?[name] as String?;
       var id = linked == null ? null : await _idOf(txn, target, linked);
       // A task needs a group; a tick may outlive its task.
       if (id == null && target == 'lists') id = await _defaultList(txn);
+      // A task's parent may be further on in this pull.
+      if (id == null && linked != null && r.table == target) {
+        later.add((column, linked));
+      }
       values[column] = id;
     }
     final int written;
@@ -323,6 +347,9 @@ class SyncStore {
     } else {
       written = here['id'] as int;
       await txn.update(r.table, values, where: 'id = ?', whereArgs: [written]);
+    }
+    for (final (column, uuid) in later) {
+      unlinked.add((written, column, uuid));
     }
     if (r.table == 'tasks') touchedTasks.add(written);
     return true;

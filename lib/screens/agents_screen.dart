@@ -73,18 +73,16 @@ class _AgentsScreenState extends State<AgentsScreen> {
 
   bool _picking() => _picked.isNotEmpty;
 
-  /// The project whose chats alone are listed, its subprojects' with
-  /// them; null for every chat.
+  /// The project whose chats alone are listed; null for every chat.
   String? _only;
 
   /// The chats listed: all, or those of the project chosen.
   List<Chat> get _shown {
     final only = _agents.project(_only);
     if (only == null) return _agents.chats;
-    final family = _agents.familyOf(only.id);
     return [
       for (final c in _agents.chats)
-        if (family.contains(c.projectId)) c,
+        if (c.projectId == only.id) c,
     ];
   }
 
@@ -100,8 +98,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
       selected: _agents.project(_only)?.id ?? all,
       options: [
         Option(all, s.allProjects),
-        for (final p in _agents.projects)
-          Option(p.id, '${'   ' * _agents.depthOf(p)}${p.name.trim()}'),
+        for (final p in _agents.projects) Option(p.id, p.name.trim()),
         Option(edit, s.editProjects, icon: Icons.edit_outlined),
       ],
     );
@@ -359,7 +356,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
             ],
           )
         : ScreenHeader(
-            title: only != null ? _agents.pathOf(only) : s.agents,
+            title: only != null ? only.name.trim() : s.agents,
             actions: [
               if (_agents.signedIn)
                 IconButton(
@@ -1048,7 +1045,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
               : plugins.toList(),
           skills: _skills.toList(),
           rules: rules,
-          prompt: taskMessage(task, said),
+          prompt: taskMessage(task, said, parents: provider.parentsOf(task)),
           task: uuid,
           account: _ready(_account) ? _account : null,
           cols: cols,
@@ -1272,7 +1269,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                           ),
                           for (final project in _agents.projects)
                             _Pick(
-                              label: _agents.pathOf(project),
+                              label: project.name.trim(),
                               dot: _projectColour(project),
                               selected: project.id == _project,
                               onTap: () =>

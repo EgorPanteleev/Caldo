@@ -53,6 +53,10 @@ class TaskProvider extends ChangeNotifier {
   /// fall on.
   Map<DateTime, List<Task>> _allByDay = {};
 
+  /// Every task that has a subtask or is one, by id, in the order they
+  /// were made ([parentsOf], [subtasksOf]).
+  Map<int, Task> _families = const {};
+
   /// Open tasks whose due date has already passed.
   List<Task> _allOverdue = [];
 
@@ -337,6 +341,29 @@ class TaskProvider extends ChangeNotifier {
   }
 
   /// Tasks due on [day], open ones first.
+  /// The title of the task [task] is a subtask of, or null for one standing
+  /// alone — or whose parent has gone.
+  String? parentTitleOf(Task task) => _families[task.parentId]?.title;
+
+  /// The tasks [task] sits under, the outermost first. A parent gone
+  /// (deleted on another device) ends the line there.
+  List<Task> parentsOf(Task task) {
+    final line = <Task>[];
+    final seen = {?task.id};
+    var above = _families[task.parentId];
+    while (above != null && seen.add(above.id!)) {
+      line.insert(0, above);
+      above = _families[above.parentId];
+    }
+    return line;
+  }
+
+  /// The tasks right under task [id], in the order they were made.
+  List<Task> subtasksOf(int id) => [
+    for (final t in _families.values)
+      if (t.parentId == id) t,
+  ];
+
   List<Task> tasksForDay(DateTime day) => _byDay[dayOf(day)] ?? const [];
 
   /// Loads what the Tasks screen shows: the overdue backlog, the next
@@ -373,6 +400,7 @@ class TaskProvider extends ChangeNotifier {
       to.millisecondsSinceEpoch,
     );
     final undated = await _db.getUndated();
+    _families = {for (final t in await _db.getFamilies()) t.id!: t};
     _allOverdue = overdue;
     _allUpcoming = upcoming;
     _allUndated = undated;

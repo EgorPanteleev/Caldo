@@ -1,8 +1,8 @@
 part of 'agents_screen.dart';
 
-/// The colour [project] wears: its own, else its nearest parent's.
+/// The colour [project] wears.
 Color _projectColour(AgentProject project) =>
-    ListStyle.byId(Agents.instance.colourOf(project)).color;
+    ListStyle.byId(project.colour).color;
 
 /// The colour [chat] wears in the list: its project's as it is now, else
 /// as it was when the chat began; null for a chat in none.
@@ -15,9 +15,8 @@ Color? _chatColour(Chat chat) {
 
 /// [chat]'s project's name: as it is now, else as it was.
 String? _chatProjectName(Chat chat) {
-  final agents = Agents.instance;
-  final project = agents.project(chat.projectId);
-  return project != null ? agents.pathOf(project) : chat.projectName;
+  final project = Agents.instance.project(chat.projectId);
+  return project != null ? project.name.trim() : chat.projectName;
 }
 
 class _Dot extends StatelessWidget {
@@ -35,7 +34,7 @@ class _Dot extends StatelessWidget {
   );
 }
 
-/// The projects chats are begun in, each under its parent: what a chat is
+/// The projects chats are begun in: what a chat is
 /// about, told to its agent, and the folders it works on. Asked for in
 /// place of choosing a chat's folder by hand, each chat working in a
 /// folder of its own ([Workspace] on the worker).
@@ -124,22 +123,17 @@ Future<void> openProjects(BuildContext context) => Navigator.of(
   context,
 ).push(MaterialPageRoute<void>(builder: (_) => const ProjectsScreen()));
 
-/// Project [project] to change, or a new one, under [parent] if given.
-Future<void> openProject(
-  BuildContext context, {
-  AgentProject? project,
-  AgentProject? parent,
-}) => Navigator.of(context).push(
-  MaterialPageRoute<void>(
-    builder: (_) => ProjectScreen(project: project, parent: parent),
-  ),
-);
+/// Project [project] to change, or a new one.
+Future<void> openProject(BuildContext context, {AgentProject? project}) =>
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ProjectScreen(project: project)),
+    );
 
 /// A project's name, or a word for one without.
 String _projectName(S s, AgentProject project) =>
     project.name.trim().isEmpty ? s.untitledProject : project.name.trim();
 
-/// A project in the list, set in under its parent, in its colour.
+/// A project in the list, in its colour.
 class _ProjectRow extends StatelessWidget {
   final AgentProject project;
 
@@ -150,56 +144,52 @@ class _ProjectRow extends StatelessWidget {
     final p = AppTheme.of(context);
     final s = S.of(context);
     final colour = _projectColour(project);
-    final depth = Agents.instance.depthOf(project);
     final about = project.context.trim().isNotEmpty
         ? project.context.trim()
         : project.sources.join('  ');
-    return Padding(
-      padding: EdgeInsets.only(left: 18.0 * depth.clamp(0, 6)),
-      child: Material(
-        color: Color.alphaBlend(colour.withValues(alpha: 0.16), p.panel),
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => openProject(context, project: project),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 5),
-                  child: _Dot(colour: colour, size: 10),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _projectName(s, project),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: p.text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+    return Material(
+      color: Color.alphaBlend(colour.withValues(alpha: 0.16), p.panel),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => openProject(context, project: project),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: _Dot(colour: colour, size: 10),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _projectName(s, project),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
-                      if (about.isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          about,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: p.muted, fontSize: 13),
-                        ),
-                      ],
+                    ),
+                    if (about.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        about,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: p.muted, fontSize: 13),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -207,17 +197,12 @@ class _ProjectRow extends StatelessWidget {
   }
 }
 
-/// One project written or changed: its name, colour, context and folders,
-/// with what it takes from the projects above it shown, and the projects
-/// under it.
+/// One project written or changed: its name, colour, context and folders.
 class ProjectScreen extends StatefulWidget {
   /// Null for a new one.
   final AgentProject? project;
 
-  /// What a new one is made under; null for one under none.
-  final AgentProject? parent;
-
-  const ProjectScreen({super.key, this.project, this.parent});
+  const ProjectScreen({super.key, this.project});
 
   @override
   State<ProjectScreen> createState() => _ProjectScreenState();
@@ -231,12 +216,8 @@ class _ProjectScreenState extends State<ProjectScreen> {
     text: widget.project?.sources.join('\n'),
   );
 
-  /// Null takes the parent's.
   String? _colour;
   bool _saving = false;
-
-  AgentProject? get _parent =>
-      widget.parent ?? _agents.project(widget.project?.parentId);
 
   @override
   void initState() {
@@ -245,7 +226,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
     _name.addListener(_changed);
     _sources.addListener(_changed);
     _colour = widget.project?.colour;
-    if (widget.project == null && _parent == null) _colour = _freeColour();
+    if (widget.project == null) _colour = _freeColour();
   }
 
   @override
@@ -261,11 +242,11 @@ class _ProjectScreenState extends State<ProjectScreen> {
     if (mounted) setState(() {});
   }
 
-  /// The first colour of the palette no project at the top wears yet, so
-  /// projects are told apart without choosing.
+  /// The first colour of the palette no project wears yet, so projects are
+  /// told apart without choosing.
   String _freeColour() {
     final worn = {
-      for (final p in _agents.childrenOf(null))
+      for (final p in _agents.projects)
         if (p.colour != null) p.colour,
     };
     final free = ListStyle.presets.where((s) => !worn.contains(s.id));
@@ -304,7 +285,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
     try {
       await _agents.saveProject(
         id: widget.project?.id,
-        parentId: _parent?.id,
         name: _name.text.trim(),
         colour: _colour,
         context: _context.text.trim(),
@@ -347,13 +327,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final project = widget.project;
-    final parent = _parent;
-    final above = parent == null
-        ? const <AgentProject>[]
-        : _agents.lineOf(parent);
-    final children = project == null
-        ? const <AgentProject>[]
-        : _agents.childrenOf(project.id);
     final lines = _sourceLines;
     return Scaffold(
       backgroundColor: p.bg,
@@ -363,11 +336,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
           children: [
             DeskColumn(
               child: ScreenHeader(
-                title: project != null
-                    ? s.editProject
-                    : parent != null
-                    ? s.newSubproject
-                    : s.newProject,
+                title: project != null ? s.editProject : s.newProject,
                 showBack: true,
                 actions: [
                   if (project != null)
@@ -390,19 +359,11 @@ class _ProjectScreenState extends State<ProjectScreen> {
                     24 + KeyboardGap.of(context),
                   ),
                   children: [
-                    if (parent != null) ...[
-                      _Section(s.projectFrom(_agents.pathOf(parent))),
-                      _Inherited(line: above),
-                    ],
                     _Section(s.projectName),
                     _Field(controller: _name),
                     _Section(s.projectColour),
                     ColourSelector(
                       value: _colour,
-                      // A subproject may wear its parent's colour.
-                      groupColour: parent == null
-                          ? null
-                          : _projectColour(parent),
                       sample: _name.text.trim().isEmpty
                           ? s.newProject
                           : _name.text.trim(),
@@ -440,26 +401,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
                       s.projectSourcesHint,
                       style: TextStyle(color: p.faint, fontSize: 12.5),
                     ),
-                    if (project != null) ...[
-                      _Section(s.projectSubprojects),
-                      _Picks(
-                        children: [
-                          for (final c in children)
-                            _Pick(
-                              label: _projectName(s, c),
-                              dot: _projectColour(c),
-                              selected: false,
-                              onTap: () => openProject(context, project: c),
-                            ),
-                          _Pick(
-                            label: s.newSubproject,
-                            icon: Icons.add,
-                            selected: false,
-                            onTap: () => openProject(context, parent: project),
-                          ),
-                        ],
-                      ),
-                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 48,
@@ -476,81 +417,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// What a subproject takes from the projects above it: their words, the
-/// whole project's first, and their folders.
-class _Inherited extends StatelessWidget {
-  final List<AgentProject> line;
-
-  const _Inherited({required this.line});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    final s = S.of(context);
-    final sources = {for (final project in line) ...project.sources};
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: p.panel,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final project in line)
-            if (project.context.trim().isNotEmpty) ...[
-              Row(
-                children: [
-                  _Dot(colour: _projectColour(project), size: 8),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _projectName(s, project),
-                      style: TextStyle(
-                        color: p.text,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                project.context.trim(),
-                maxLines: 8,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: p.muted, fontSize: 13),
-              ),
-              const SizedBox(height: 10),
-            ],
-          for (final dir in sources)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Row(
-                children: [
-                  Icon(Icons.folder_outlined, size: 14, color: p.faint),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      dir,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: p.muted, fontSize: 13),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (sources.isEmpty &&
-              line.every((project) => project.context.trim().isEmpty))
-            Text('—', style: TextStyle(color: p.faint, fontSize: 13)),
-        ],
       ),
     );
   }

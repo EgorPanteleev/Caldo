@@ -174,6 +174,10 @@ const Map<String, Object> nl = {
   'notesField': "Notities (optioneel)",
   'sectionSubtasks': "SUBTAKEN",
   'addSubtask': "Subtaak toevoegen",
+  'sectionChecklist': "CHECKLIST",
+  'addStep': "Stap toevoegen",
+  'partOf': "Onderdeel van",
+  'subtasksGoToo': "De subtaken worden mee verwijderd.",
   'sectionAttachments': "BIJLAGEN",
   'attachPhoto': "Foto",
   'attachCamera': "Camera",
@@ -670,7 +674,6 @@ const Map<String, Object> nl = {
   'usageResetSince': "Inmiddels gereset",
   'agentProjects': "Projecten",
   'newProject': "Nieuw project",
-  'newSubproject': "Nieuw subproject",
   'editProject': "Project",
   'editProjects': "Projecten bewerken…",
   'noProjects': "Nog geen projecten",
@@ -685,11 +688,9 @@ const Map<String, Object> nl = {
   'projectSourcesHint':
       "Mappen op de computer, zoals ~/dev/src/Caldo. Een git-repository krijgt elke chat als worktree op een eigen branch; elke andere map wordt gedeeld zoals hij is.",
   'projectAddSource': "Map toevoegen",
-  'projectFrom': "Uit {name}",
-  'projectSubprojects': "Subprojecten",
   'deleteProjectQuestion': "Dit project verwijderen?",
   'deleteProjectHint':
-      "Zijn subprojecten gaan mee. Chats die erin zijn begonnen, houden wat hun is verteld.",
+      "Chats die erin zijn begonnen, houden wat hun is verteld.",
   'chatProject': "Project",
   'chatNoProject': "Geen",
   'chatOwnFolderHint':

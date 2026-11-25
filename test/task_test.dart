@@ -545,6 +545,40 @@ void main() {
       );
     });
 
+    test('a subtask is told what it is part of, the outermost first', () {
+      const top = Task(
+        listId: 1,
+        title: 'Release 3.0',
+        notes: 'Ship by Friday.',
+        createdAt: 0,
+        subtasks: [Subtask('Notes', done: true)],
+      );
+      const middle = Task(listId: 1, title: 'Sync', createdAt: 0);
+      const task = Task(listId: 1, title: 'Fix the cursor', createdAt: 0);
+      expect(
+        taskMessage(task, 'Be brief.', parents: const [top, middle]),
+        'Be brief.\n\n'
+        'This task is a subtask. What it is part of, the outermost first:\n'
+        '\n'
+        'Parent task: Release 3.0\n'
+        'Notes:\n'
+        'Ship by Friday.\n'
+        'Checklist:\n'
+        '- [x] Notes\n'
+        '\n'
+        'Parent task: Sync\n'
+        '\n'
+        'Task from Caldo: Fix the cursor',
+      );
+    });
+
+    test('keeps its parent through a copy and a round trip', () {
+      const task = Task(listId: 1, title: 'x', createdAt: 0, parentId: 7);
+      expect(Task.fromMap(task.toMap()).parentId, 7);
+      expect(task.copyWith(title: 'y').parentId, 7);
+      expect(task.copyWith(clearParentId: true).parentId, isNull);
+    });
+
     test('its next round has not been worked on', () {
       final weekly = Task(
         listId: 1,

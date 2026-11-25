@@ -296,13 +296,31 @@ abstract final class AgentState {
 }
 
 /// What a task's chat is told first: [said] for every task sent together,
-/// then the task as its card holds it — title, when it is due, notes and
-/// checklist. Here rather than in the app, as the worker says it again for
-/// a task left to start when due, with whatever it holds by then.
-String taskMessage(Task task, String said) {
+/// then, for a subtask, the tasks it is part of ([parents], the outermost
+/// first) — what it is a piece of is its context — and last the task as its
+/// card holds it: title, when it is due, notes and checklist. Here rather
+/// than in the app, as the worker says it again for a task left to start
+/// when due, with whatever it holds by then.
+String taskMessage(Task task, String said, {List<Task> parents = const []}) {
   final out = StringBuffer();
   if (said.trim().isNotEmpty) out.write('${said.trim()}\n\n');
-  out.writeln('Task from Caldo: ${task.title.trim()}');
+  if (parents.isNotEmpty) {
+    out.writeln(
+      'This task is a subtask. What it is part of, the outermost first:',
+    );
+    for (final parent in parents) {
+      out.writeln();
+      _describe(out, 'Parent task', parent);
+    }
+    out.writeln();
+  }
+  _describe(out, 'Task from Caldo', task);
+  return out.toString().trim();
+}
+
+/// [task] under [heading]: its title, when it is due, notes and checklist.
+void _describe(StringBuffer out, String heading, Task task) {
+  out.writeln('$heading: ${task.title.trim()}');
   final due = task.due;
   if (due != null) {
     out.writeln(
@@ -316,7 +334,6 @@ String taskMessage(Task task, String said) {
       out.writeln('- [${step.done ? 'x' : ' '}] ${step.title}');
     }
   }
-  return out.toString().trim();
 }
 
 /// A day as an agent reads it best, whatever language the app is in:
@@ -520,6 +537,11 @@ class Task {
   /// an unsigned device's — says it with nothing more to ask.
   final String? agentState;
 
+  /// The task this one is a subtask of, or null for one standing alone. A
+  /// subtask is a task like any other — its own day, colour, tick and agent —
+  /// that an agent sent it is told its parents of ([taskMessage]).
+  final int? parentId;
+
   /// [remindBefore] for a task that is never announced.
   static const silent = -1;
 
@@ -546,6 +568,7 @@ class Task {
     this.claude,
     this.agent,
     this.agentState,
+    this.parentId,
   });
 
   /// When a timed task with a length ends, or null.
@@ -703,6 +726,8 @@ class Task {
     bool clearAgent = false,
     String? agentState,
     bool clearAgentState = false,
+    int? parentId,
+    bool clearParentId = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -731,6 +756,7 @@ class Task {
       claude: clearClaude ? null : (claude ?? this.claude),
       agent: clearAgent ? null : (agent ?? this.agent),
       agentState: clearAgentState ? null : (agentState ?? this.agentState),
+      parentId: clearParentId ? null : (parentId ?? this.parentId),
     );
   }
 
@@ -758,6 +784,7 @@ class Task {
       'claude': claude,
       'agent': agent,
       'agent_state': agentState,
+      'parent_id': parentId,
     };
   }
 
@@ -788,6 +815,7 @@ class Task {
       claude: map['claude'] as String?,
       agent: map['agent'] as String?,
       agentState: map['agent_state'] as String?,
+      parentId: map['parent_id'] as int?,
     );
   }
 

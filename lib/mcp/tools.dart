@@ -250,8 +250,14 @@ class Caldo {
   Future<String> task(Map<String, Object?> args) async {
     final h = _task(args['id']);
     final t = h.task;
-    final out = StringBuffer()
-      ..writeln('[${h.id}] ${t.title}')
+    final out = StringBuffer()..writeln('[${h.id}] ${t.title}');
+    final parents = book.parentsOf(h);
+    if (parents.isNotEmpty) {
+      out.writeln(
+        'Part of: ${parents.map((p) => '[${p.id}] ${p.task.title}').join(' › ')}',
+      );
+    }
+    out
       ..writeln('Group: ${_groupName(h.group)}')
       ..writeln('Due: ${_due(t)}')
       ..writeln('Status: ${_status(t)}');
@@ -269,6 +275,13 @@ class Caldo {
       out.writeln('Checklist:');
       for (final (i, s) in t.subtasks.indexed) {
         out.writeln('  ${i + 1}. [${s.done ? 'x' : ' '}] ${s.title}');
+      }
+    }
+    final under = book.subtasksOf(h);
+    if (under.isNotEmpty) {
+      out.writeln('Subtasks:');
+      for (final c in under) {
+        out.writeln('  ${_line(c, date: true)}');
       }
     }
     if (t.attachments.isNotEmpty) {
@@ -336,7 +349,13 @@ class Caldo {
   Future<String> addTask(Map<String, Object?> args) async {
     final title = (args['title'] as String? ?? '').trim();
     if (title.isEmpty) throw const Refusal('A task needs a title.');
-    final group = args['group'] == null ? _home : _group(args['group']);
+    final parent = args['parent'] == null ? null : _task(args['parent']);
+    // A subtask goes where its parent is unless told otherwise.
+    final group = args['group'] != null
+        ? _group(args['group'])
+        : parent != null
+        ? book.group(parent.group) ?? _home
+        : _home;
     var task = Task(
       listId: 0,
       title: title,
@@ -349,11 +368,13 @@ class Caldo {
       ServerRow(
         table: 'tasks',
         uuid: uuid,
-        data: Book.dataOf(task, group.uuid),
+        data: {...Book.dataOf(task, group.uuid), 'parent_uuid': ?parent?.uuid},
         updatedAt: _ms,
       ),
     ]);
-    return 'Added ${_line(Held(uuid, group.uuid, task), date: true, bullet: false)}';
+    final held = Held(uuid, group.uuid, task, parent: parent?.uuid);
+    return 'Added ${_line(held, date: true, bullet: false)}'
+        '${parent == null ? '' : ' under [${parent.id}] ${parent.task.title}'}';
   }
 
   Future<String> updateTask(Map<String, Object?> args) async {
@@ -480,16 +501,25 @@ class Caldo {
 
   Future<String> deleteTask(Map<String, Object?> args) async {
     final h = _task(args['id']);
-    final row = book.row('tasks', h.uuid)!;
+    // Its subtasks with it, to any depth, as the app deletes them.
+    final gone = [h];
+    for (var i = 0; i < gone.length; i++) {
+      for (final c in book.subtasksOf(gone[i])) {
+        if (!gone.any((g) => g.uuid == c.uuid)) gone.add(c);
+      }
+    }
     await _write([
-      ServerRow(
-        table: 'tasks',
-        uuid: h.uuid,
-        updatedAt: _stamp(row.updatedAt),
-        deleted: true,
-      ),
+      for (final g in gone)
+        ServerRow(
+          table: 'tasks',
+          uuid: g.uuid,
+          updatedAt: _stamp(book.row('tasks', g.uuid)!.updatedAt),
+          deleted: true,
+        ),
     ]);
-    return 'Deleted [${h.id}] ${h.task.title}.';
+    final also = gone.length - 1;
+    return 'Deleted [${h.id}] ${h.task.title}'
+        '${also == 0 ? '' : ' and its $also subtask${also == 1 ? '' : 's'}'}.';
   }
 
   Future<String> addSpecialDay(Map<String, Object?> args) async {
@@ -1025,7 +1055,7 @@ class Caldo {
     Tool(
       'task',
       'Everything about one task: notes, checklist, repeat, reminder, '
-          'status.',
+          'status, the task it is part of and its subtasks.',
       _shape({'id': _id}, ['id']),
       task,
       reads: true,
@@ -1066,7 +1096,15 @@ class Caldo {
           'notes': {'type': 'string'},
           'group': {
             'type': 'string',
-            'description': 'Group name; the default group if left out.',
+            'description':
+                'Group name; the parent\'s, else the default group, if left '
+                'out.',
+          },
+          'parent': {
+            'type': 'string',
+            'description':
+                'Id of the task this is a subtask of. An agent sent a '
+                'subtask is told its parent tasks too.',
           },
           ..._fields,
         },
@@ -1118,7 +1156,8 @@ class Caldo {
     ),
     Tool(
       'delete_task',
-      'Deletes a task on every device. Ask the user first.',
+      'Deletes a task, and its subtasks, on every device. Ask the user '
+          'first.',
       _shape({'id': _id}, ['id']),
       deleteTask,
     ),

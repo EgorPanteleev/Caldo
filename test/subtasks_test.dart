@@ -109,6 +109,134 @@ void main() {
     expect(await db.getTasks(query: 'title'), isEmpty);
   });
 
+  test('a subtask hangs from its parent and is deleted with it', () async {
+    final db = AppDatabase.instance;
+    final top = await db.insert(
+      const Task(listId: 1, title: 'Release', createdAt: 0),
+    );
+    final mid = await db.insert(
+      Task(listId: 1, title: 'Sync', createdAt: 1, parentId: top.id),
+    );
+    final leaf = await db.insert(
+      Task(listId: 1, title: 'Cursor', createdAt: 2, parentId: mid.id),
+    );
+    await db.insert(
+      Task(listId: 1, title: 'Notes', createdAt: 3, parentId: top.id),
+    );
+    final other = await db.insert(
+      const Task(listId: 1, title: 'Call mum', createdAt: 4),
+    );
+
+    expect((await db.getFamilies()).map((t) => t.title), [
+      'Release',
+      'Sync',
+      'Cursor',
+      'Notes',
+    ]);
+    final provider = TaskProvider();
+    await provider.readAgenda();
+    expect(provider.subtasksOf(top.id!).map((t) => t.title), ['Sync', 'Notes']);
+    expect(provider.parentsOf(leaf).map((t) => t.title), ['Release', 'Sync']);
+    expect(provider.parentTitleOf(leaf), 'Sync');
+    expect(provider.parentTitleOf(top), isNull);
+
+    await db.deleteAll([top.id!]);
+    expect((await db.getTasks()).map((t) => t.id), [other.id]);
+    // Each one gone is told to the other devices.
+    final buried = await (await db.database).query('tombstones');
+    expect(buried, hasLength(4));
+  });
+
+  test('a parent deleted elsewhere leaves its subtask standing', () async {
+    final db = AppDatabase.instance;
+    final orphan = await db.insert(
+      const Task(listId: 1, title: 'Cursor', createdAt: 0, parentId: 99),
+    );
+    final provider = TaskProvider();
+    await provider.readAgenda();
+    expect(provider.parentsOf(orphan), isEmpty);
+    expect(provider.parentTitleOf(orphan), isNull);
+  });
+
+  testWidgets(
+    'the form lists a task\'s subtasks and says what one is part of',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 2.625;
+      addTearDown(tester.view.reset);
+      final provider = TaskProvider();
+      late Task top, child;
+      await tester.runAsync(() async {
+        final db = AppDatabase.instance;
+        top = await db.insert(
+          const Task(listId: 1, title: 'Release', createdAt: 0),
+        );
+        child = await db.insert(
+          Task(
+            listId: 1,
+            title: 'Write the notes',
+            createdAt: 1,
+            parentId: top.id,
+          ),
+        );
+        await provider.loadLists();
+        await provider.readAgenda();
+      });
+      Future<void> show(Widget form) async {
+        // A fresh app each time: one whose home changes keeps its first page.
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<TaskProvider>.value(value: provider),
+              ChangeNotifierProvider(create: (_) => SettingsProvider()),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.dark(AppAccent.presets.first),
+              home: form,
+            ),
+          ),
+        );
+      }
+
+      await show(TaskEditScreen(key: const ValueKey(1), task: top));
+      await tester.scrollUntilVisible(
+        find.text('Add a subtask'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('SUBTASKS'), findsOneWidget);
+      expect(find.text('CHECKLIST'), findsOneWidget);
+      expect(find.text('Write the notes'), findsOneWidget);
+
+      await show(TaskEditScreen(key: const ValueKey(2), task: child));
+      expect(find.text('Part of'), findsOneWidget);
+      expect(find.text('Release'), findsOneWidget);
+
+      // A new one made from its parent's form goes under it.
+      final capture = _Capture();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<TaskProvider>.value(value: capture),
+            ChangeNotifierProvider(create: (_) => SettingsProvider()),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark(AppAccent.presets.first),
+            home: TaskEditScreen(key: const ValueKey(3), parent: top),
+          ),
+        ),
+      );
+      expect(find.text('Release'), findsOneWidget);
+      await tester.enterText(find.byType(TextFormField).first, 'Tag it');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      expect(capture.added?.parentId, top.id);
+    },
+  );
+
   test(
     'a repeating task comes round again with its checklist unticked',
     () async {
