@@ -513,6 +513,9 @@ const Map<String, Object> pl = {
   ],
   'chatDefault': "Domyślnie",
   'chatOffline': "offline",
+  'chatAway': "Offline",
+  'chatAwayHint':
+      "{name} jest offline od {when}. To, co tu wyślesz, poczeka, aż jego worker znów ruszy.",
   'chatOther': "Inny…",
   'chatMessage': "Wiadomość",
   'chatStop': "Zatrzymaj",

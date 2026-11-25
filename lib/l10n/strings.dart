@@ -345,6 +345,9 @@ class S {
   String chatsStarted(int n) => _count('chatsStarted', n);
   String get chatDefault => _word('chatDefault');
   String get chatOffline => _word('chatOffline');
+  String get chatAway => _word('chatAway');
+  String chatAwayHint(String name, String when) =>
+      _fill('chatAwayHint', {'name': name, 'when': when});
   String get chatOther => _word('chatOther');
   String get chatMessage => _word('chatMessage');
   String get chatStop => _word('chatStop');

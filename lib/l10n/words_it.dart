@@ -487,6 +487,9 @@ const Map<String, Object> it = {
   'chatsStarted': ["{n} chat avviata", "{n} chat avviate"],
   'chatDefault': "Predefinito",
   'chatOffline': "offline",
+  'chatAway': "Offline",
+  'chatAwayHint':
+      "{name} è offline da {when}. Ciò che invii qui aspetta che il suo worker torni attivo.",
   'chatOther': "Altro…",
   'chatMessage': "Messaggio",
   'chatStop': "Ferma",

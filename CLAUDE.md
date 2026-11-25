@@ -750,6 +750,12 @@ the app, a terminal beside them; anything else a terminal.
   asked 2026-11-25). All take a message (`Chat.live`, `Worker._ready`).
   `…_chat_finished.sql`, `…_chat_your_turn.sql` and `…_chat_limited.sql`
   widen the check; an older app reads the newer states as Starting.
+- **A chat whose computer is away reads Offline, whatever it last said**
+  (`Agents.away`: worker unseen 90s; a cloud-off mark, `_Away` over the
+  field with the time it was last seen; ended and failed chats stay as
+  they ended). A dead worker left chats "Working", taking messages that
+  waited in `chat_in` unseen (asked 2026-11-25: "nothing showed, just
+  nothing worked").
 - **A turn that ends asking or offering is `your_turn`, not `finished`**
   (asked 2026-11-25: "agents ask me smth in the end or offer me, but chat
   writes finished"): `asksBack` reads the last paragraph (and the one
