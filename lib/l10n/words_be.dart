@@ -658,7 +658,6 @@ const Map<String, Object> be = {
       "Уласныя ўваходы Claude і Codex кожнага камп'ютара з'явяцца тут пасля пераўсталёўкі яго воркера. Дадайце яшчэ, каб запускаць чаты пад імі.",
   'accountsReinstall':
       "Пераўсталюйце caldo-mcp на камп'ютары (tool/mcp/install.sh і watch.sh), каб дадаваць там акаўнты.",
-  'accountOwn': "Уласны акаўнт камп'ютара",
   'accountStarting': "Запуск…",
   'accountSigningIn': "Уваход…",
   'accountReady': "Уваход выкананы",

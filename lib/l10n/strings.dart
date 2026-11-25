@@ -482,7 +482,6 @@ class S {
   String get accountsNone => _word('accountsNone');
   String get accountsNoneHint => _word('accountsNoneHint');
   String get accountsReinstall => _word('accountsReinstall');
-  String get accountOwn => _word('accountOwn');
   String get accountStarting => _word('accountStarting');
   String get accountSigningIn => _word('accountSigningIn');
   String get accountReady => _word('accountReady');

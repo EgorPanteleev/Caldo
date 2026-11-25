@@ -640,7 +640,6 @@ const Map<String, Object> de = {
       "Die eigenen Claude- und Codex-Anmeldungen jedes Computers erscheinen hier, sobald sein Worker neu installiert ist. Füge weitere hinzu, um Chats darunter laufen zu lassen.",
   'accountsReinstall':
       "Installiere caldo-mcp auf deinem Computer neu (tool/mcp/install.sh und watch.sh), um dort Konten hinzuzufügen.",
-  'accountOwn': "Eigenes Konto des Computers",
   'accountStarting': "Startet…",
   'accountSigningIn': "Anmeldung…",
   'accountReady': "Angemeldet",

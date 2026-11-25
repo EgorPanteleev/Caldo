@@ -105,6 +105,8 @@ flutter:
 
   assets:
     - assets/grain.png
+    - assets/icon/claude.png
+    - assets/icon/codex.png
 
   # The agents' terminal. No-ligature cut: a terminal draws cell by cell.
   fonts:

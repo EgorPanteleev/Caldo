@@ -128,12 +128,11 @@ List<AgentWorker> _accountWorkers(Agents agents) => [
     if (w.agents.any((a) => a.accounts)) w,
 ];
 
-/// What an account is called: its own name, else whom it is signed in as,
-/// else the computer's own login, else the agent.
-String accountTitle(S s, AgentAccount a) {
+/// Prefer the account's chosen name, then its email, then the agent name.
+String accountTitle(AgentAccount a) {
   if (a.name.trim().isNotEmpty) return a.name.trim();
   if (a.email case final email? when email.isNotEmpty) return email;
-  return a.main ? s.accountOwn : _agentLabel(a.agent);
+  return _agentLabel(a.agent);
 }
 
 String? _filled(String? s) => s == null || s.isEmpty ? null : s;
@@ -168,7 +167,9 @@ class _AccountCard extends StatelessWidget {
         content: TextField(
           controller: name,
           autofocus: true,
-          decoration: InputDecoration(hintText: account.email ?? s.accountOwn),
+          decoration: InputDecoration(
+            hintText: _filled(account.email) ?? _agentLabel(account.agent),
+          ),
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
@@ -192,7 +193,7 @@ class _AccountCard extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(s.accountRemoveQuestion(accountTitle(s, account))),
+        title: Text(s.accountRemoveQuestion(accountTitle(account))),
         content: Text(s.accountRemoveHint(worker.name)),
         actions: [
           TextButton(
@@ -215,12 +216,17 @@ class _AccountCard extends StatelessWidget {
     final p = AppTheme.of(context);
     final a = account;
     final usage = a.usage;
+    final title = accountTitle(a);
+    final agentLabel = _agentLabel(a.agent);
+    final icon = switch (a.agent) {
+      'claude' => 'assets/icon/claude.png',
+      'codex' => 'assets/icon/codex.png',
+      _ => null,
+    };
     final line = [
-      _agentLabel(a.agent),
+      if (title != agentLabel) agentLabel,
       ?_filled(a.plan),
       if (a.name.trim().isNotEmpty && (a.email ?? '').isNotEmpty) a.email!,
-      if (a.main && a.name.trim().isEmpty && (a.email ?? '').isNotEmpty)
-        s.accountOwn,
       if (!a.ready) _accountState(s, a.state),
     ].join(' · ');
     final age = usage == null ? null : limitsAge(context, usage);
@@ -235,12 +241,21 @@ class _AccountCard extends StatelessWidget {
           children: [
             Row(
               children: [
+                if (icon != null) ...[
+                  Image.asset(
+                    icon,
+                    width: 28,
+                    height: 28,
+                    excludeFromSemantics: true,
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        accountTitle(s, a),
+                        title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -249,13 +264,15 @@ class _AccountCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        line,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: p.muted, fontSize: 12.5),
-                      ),
+                      if (line.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          line,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: p.muted, fontSize: 12.5),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -662,9 +679,7 @@ List<Widget> accountPicks(
   final main = all.where((a) => a.main).firstOrNull;
   String label(AgentAccount a) {
     final limits = a.usage == null ? '' : limitsLine(s, a.usage!);
-    return limits.isEmpty
-        ? accountTitle(s, a)
-        : '${accountTitle(s, a)} · $limits';
+    return limits.isEmpty ? accountTitle(a) : '${accountTitle(a)} · $limits';
   }
 
   return [

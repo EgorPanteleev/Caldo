@@ -667,7 +667,6 @@ const Map<String, Object> pl = {
       "Własne logowania Claude i Codex każdego komputera pojawią się tu po ponownej instalacji jego workera. Dodaj kolejne, by uruchamiać w nich czaty.",
   'accountsReinstall':
       "Zainstaluj ponownie caldo-mcp na komputerze (tool/mcp/install.sh i watch.sh), by dodawać tam konta.",
-  'accountOwn': "Własne konto komputera",
   'accountStarting': "Uruchamianie…",
   'accountSigningIn': "Logowanie…",
   'accountReady': "Zalogowano",

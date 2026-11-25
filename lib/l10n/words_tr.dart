@@ -622,7 +622,6 @@ const Map<String, Object> tr = {
       "Her bilgisayarın kendi Claude ve Codex girişleri, worker'ı yeniden kurulunca burada görünür. Sohbetleri onlarla çalıştırmak için daha fazlasını ekleyin.",
   'accountsReinstall':
       "Oraya hesap eklemek için bilgisayarınızda caldo-mcp'yi yeniden kurun (tool/mcp/install.sh ve watch.sh).",
-  'accountOwn': "Bilgisayarın kendi hesabı",
   'accountStarting': "Başlatılıyor…",
   'accountSigningIn': "Giriş yapılıyor…",
   'accountReady': "Giriş yapıldı",

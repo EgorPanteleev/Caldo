@@ -637,7 +637,6 @@ const Map<String, Object> it = {
       "Gli accessi Claude e Codex di ogni computer compaiono qui una volta reinstallato il suo worker. Aggiungine altri per eseguirci delle chat.",
   'accountsReinstall':
       "Reinstalla caldo-mcp sul computer (tool/mcp/install.sh e watch.sh) per aggiungervi account.",
-  'accountOwn': "Account del computer",
   'accountStarting': "Avvio…",
   'accountSigningIn': "Accesso…",
   'accountReady': "Accesso eseguito",
