@@ -2032,6 +2032,58 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
     }
 
+    testWidgets('restores each chat draft after leaving the chat', (
+      tester,
+    ) async {
+      final agents = Agents.instance;
+      final previous = agents.chats;
+      const ids = ['draft-chat-a', 'draft-chat-b'];
+      agents.chats = [
+        for (final id in ids)
+          Chat(
+            id: id,
+            title: id,
+            agent: 'shell',
+            state: ChatState.idle,
+            updatedAt: DateTime.now(),
+          ),
+      ];
+      addTearDown(() {
+        agents.chats = previous;
+        for (final id in ids) {
+          agents.draftOf(id).value = '';
+        }
+      });
+      final field = find.byType(TextField);
+      String input() => tester.widget<TextField>(field).controller!.text;
+
+      Future<void> open(String id) => pump(tester, 'en', ChatScreen(chat: id));
+
+      Future<void> leave() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(field, findsNothing);
+      }
+
+      await open(ids.first);
+      await tester.enterText(field, 'first line\nsecond line  ');
+      await leave();
+      await open(ids.last);
+      expect(input(), isEmpty);
+      await tester.enterText(field, 'another chat');
+      await leave();
+
+      await open(ids.first);
+      expect(input(), 'first line\nsecond line  ');
+      await tester.enterText(field, '');
+      await leave();
+      await open(ids.first);
+      expect(input(), isEmpty);
+      await leave();
+      await open(ids.last);
+      expect(input(), 'another chat');
+      await leave();
+    });
+
     testWidgets('searches Codex models by ID and allows a custom model', (
       tester,
     ) async {

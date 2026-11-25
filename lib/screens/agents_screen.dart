@@ -1622,6 +1622,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _controller = TerminalController();
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
+  late final ValueNotifier<String> _draft;
   ChatFeed? _feed;
   TalkFeed? _talk;
   double _font = _TermFont.standard;
@@ -1634,6 +1635,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _draft = _agents.draftOf(widget.chat)..addListener(_restoreDraft);
+    _restoreDraft();
+    _input.addListener(_saveDraft);
     _agents.addListener(_changed);
     _agents.watch();
     Push.looking(widget.chat);
@@ -1644,6 +1648,17 @@ class _ChatScreenState extends State<ChatScreen> {
     _TermFont.read().then((size) {
       if (mounted) setState(() => _font = size);
     });
+  }
+
+  void _saveDraft() => _draft.value = _input.text;
+
+  void _restoreDraft() {
+    final text = _draft.value;
+    if (_input.text == text) return;
+    _input.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 
   /// Muted, or heard again; a refusal said, not lost.
@@ -1670,6 +1685,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _sizing?.cancel();
     _flushing?.cancel();
     _laterCheck?.cancel();
+    _draft.removeListener(_restoreDraft);
     _input.dispose();
     _inputFocus.dispose();
     _controller.dispose();
@@ -1900,13 +1916,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendWithFiles() async {
     if (_sending) return;
     final files = _files;
-    final text = _input.text.trimRight();
+    final draft = _input.text;
     final chat = _chat;
     setState(() => _sending = true);
     try {
       await _agents.line(
         widget.chat,
-        text,
+        draft.trimRight(),
         over: chat != null && chat.inChat ? _talk : null,
         files: files,
       );
@@ -1920,9 +1936,9 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     files.forEach(_letGo);
-    if (!mounted) return;
     // Only what was sent is cleared: words typed meanwhile stay.
-    if (_input.text.trimRight() == text) _input.clear();
+    if (_draft.value == draft) _draft.value = '';
+    if (!mounted) return;
     setState(() {
       _sending = false;
       _files = [
@@ -1966,7 +1982,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// What is written, left to be said later: when is asked first.
   Future<void> _sendLater() async {
-    final text = _input.text.trim();
+    final draft = _input.text;
+    final text = draft.trim();
     if (text.isEmpty) return;
     final at = await _whenLater();
     if (at == null || !mounted) return;
@@ -1980,7 +1997,7 @@ class _ChatScreenState extends State<ChatScreen> {
       unawaited(_readLater());
     } catch (_) {
       // Not kept: the words go back where they were written.
-      if (mounted && _input.text.isEmpty) _input.text = text;
+      if (_draft.value.isEmpty) _draft.value = draft;
     }
   }
 
