@@ -3,6 +3,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/strings.dart';
+import '../mcp/usage.dart' show CarryOn;
 import '../services/agents.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -134,7 +135,9 @@ class _TalkViewState extends State<TalkView> {
     }
     // Only the latest stop at the limit can be ticked, and only until the
     // user writes again: what was said after it stands in for carrying on.
-    var live = items.lastIndexWhere((item) => item.kind == 'limit');
+    var live = items.lastIndexWhere(
+      (item) => CarryOn.stops(item.kind, item.body),
+    );
     if (live >= 0 && items.skip(live + 1).any((item) => item.kind == 'user')) {
       live = -1;
     }
@@ -210,7 +213,7 @@ class _TalkViewState extends State<TalkView> {
           body: item.body,
           onAnswer: (choice) => widget.onAnswer(item.id, choice, const {}),
         ),
-        'limit' => _Limit(
+        _ when CarryOn.stops(item.kind, item.body) => _Limit(
           resets: item.body['resets'] is num
               ? DateTime.fromMillisecondsSinceEpoch(
                   (item.body['resets'] as num).round(),

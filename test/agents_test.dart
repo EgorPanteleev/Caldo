@@ -2288,8 +2288,12 @@ void main() {
             ChatItem(
               id: 'l1',
               seq: 1,
-              kind: 'limit',
-              body: {'resets': resets.millisecondsSinceEpoch},
+              kind: 'note',
+              body: {
+                'text': 'Stopped at the usage limit.',
+                'limit': true,
+                'resets': resets.millisecondsSinceEpoch,
+              },
             ),
           ];
           final asked = <String>[];

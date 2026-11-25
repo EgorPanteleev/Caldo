@@ -2224,6 +2224,13 @@ class _Talker implements TalkSink {
           final db = await worker._db;
           await db.from('chat_items').upsert(rows);
         } catch (e) {
+          // A row the server will never take (a kind it doesn't know):
+          // each tried alone and the refused one dropped, or it would hold
+          // back every item of the chat after it for ever.
+          if (_never(e)) {
+            await _postEach(rows);
+            continue;
+          }
           worker.log('[${_short(ask.id)}] items not sent: $e');
           for (final row in rows) {
             _queue.putIfAbsent(row['id'] as String, () => row);
@@ -2233,6 +2240,33 @@ class _Talker implements TalkSink {
       }
     } finally {
       _posting = false;
+    }
+  }
+
+  /// Refused for what the row is (a check or a key broken), not for the
+  /// way to the server: sent again, it would be refused again.
+  static bool _never(Object e) =>
+      e is PostgrestException && (e.code?.startsWith('23') ?? false);
+
+  /// [rows] sent one at a time, those the server refuses dropped; the
+  /// rest put back for the next try if the way to it fails meanwhile.
+  Future<void> _postEach(List<Map<String, Object?>> rows) async {
+    final db = await worker._db;
+    for (final (i, row) in rows.indexed) {
+      try {
+        await db.from('chat_items').upsert(row);
+      } catch (e) {
+        if (_never(e)) {
+          worker.log('[${_short(ask.id)}] item ${row['id']} refused: $e');
+          continue;
+        }
+        worker.log('[${_short(ask.id)}] items not sent: $e');
+        for (final left in rows.skip(i)) {
+          _queue.putIfAbsent(left['id'] as String, () => left);
+        }
+        await Future<void>.delayed(const Duration(seconds: 2));
+        return;
+      }
     }
   }
 
@@ -2376,7 +2410,9 @@ class _Talker implements TalkSink {
           .inFilter('id', [for (final row in left) row['id']]);
     }
     _booked = null;
-    item('l${now.microsecondsSinceEpoch}', 'limit', {
+    item('l${now.microsecondsSinceEpoch}', 'note', {
+      'text': 'Stopped at the usage limit.',
+      'limit': true,
       if (told) 'resets': resets.millisecondsSinceEpoch,
     });
     stands(
