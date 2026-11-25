@@ -716,4 +716,24 @@ const Map<String, Object> be = {
       "Кожны чат працуе ў сваёй папцы на камп'ютары, з папкамі свайго праекта.",
   'allProjects': "Усе праекты",
   'untitledProject': "Праект без назвы",
+  'projectAllContext': "Увесь кантэкст",
+  'projectAllContextHint':
+      "Што даведваецца чат, пачаты ў «{name}»: словы, захаваныя тут, а потым тое, што Claude чытае на камп'ютары, — файлы CLAUDE.md і сваю памяць.",
+  'contextInCaldo': "У Caldo",
+  'contextOnWorker': "На {worker}",
+  'contextOnComputer': "На камп'ютары",
+  'contextNoWorker':
+      "Няма ўключанага камп'ютара, з якога можна прачытаць файлы.",
+  'contextNoAnswer': "Камп'ютар не адказаў. Ці запушчаны на ім воркер?",
+  'contextChanged':
+      "Яго тым часам змянілі на камп'ютары, таму ён пакінуты як быў. Вось ён цяпер.",
+  'contextUserFile': "Ваш, чытаецца ў кожнай тэчцы",
+  'contextMemory': "Памяць",
+  'contextMissing': "Яшчэ не напісаны",
+  'contextNothing': "Нічога не напісана",
+  'contextUncommitted': "Не закамічаны: новыя чаты яго пакуль не бачаць",
+  'contextWords':
+      "Захоўваецца ў Caldo, яго даведваецца кожны чат, пачаты ў праекце",
+  'contextDeleteQuestion': "Выдаліць гэты ўспамін?",
+  'contextReadAgain': "Прачытаць зноў",
 };

@@ -721,4 +721,24 @@ const Map<String, Object> uk = {
       "Кожен чат працює у власній теці на комп'ютері, з теками свого проєкту.",
   'allProjects': "Усі проєкти",
   'untitledProject': "Проєкт без назви",
+  'projectAllContext': "Увесь контекст",
+  'projectAllContextHint':
+      "Що дізнається чат, розпочатий у «{name}»: слова, збережені тут, а потім те, що Claude читає на комп'ютері, — файли CLAUDE.md і свою пам'ять.",
+  'contextInCaldo': "У Caldo",
+  'contextOnWorker': "На {worker}",
+  'contextOnComputer': "На комп'ютері",
+  'contextNoWorker':
+      "Немає увімкненого комп'ютера, з якого можна прочитати файли.",
+  'contextNoAnswer': "Комп'ютер не відповів. Чи запущено на ньому воркер?",
+  'contextChanged':
+      "Його тим часом змінили на комп'ютері, тож його залишено як було. Ось він зараз.",
+  'contextUserFile': "Ваш, читається в кожній теці",
+  'contextMemory': "Пам'ять",
+  'contextMissing': "Ще не написано",
+  'contextNothing': "Нічого не написано",
+  'contextUncommitted': "Не закомічено: нові чати його поки не бачать",
+  'contextWords':
+      "Зберігається в Caldo, його дізнається кожен чат, розпочатий у проєкті",
+  'contextDeleteQuestion': "Видалити цей спогад?",
+  'contextReadAgain': "Прочитати знову",
 };

@@ -694,4 +694,22 @@ const Map<String, Object> nl = {
       "Elke chat werkt in een eigen map op de computer, met de mappen van zijn project erin.",
   'allProjects': "Alle projecten",
   'untitledProject': "Naamloos project",
+  'projectAllContext': "Alle context",
+  'projectAllContextHint':
+      "Wat een chat die in {name} begint te horen krijgt: de woorden die hier bewaard zijn, daarna wat Claude op de computer leest — CLAUDE.md-bestanden en zijn geheugen.",
+  'contextInCaldo': "In Caldo",
+  'contextOnWorker': "Op {worker}",
+  'contextOnComputer': "Op de computer",
+  'contextNoWorker': "Er staat geen computer aan om de bestanden van te lezen.",
+  'contextNoAnswer': "De computer antwoordde niet. Draait zijn worker?",
+  'contextChanged':
+      "Het is intussen op de computer gewijzigd en daarom gelaten zoals het was. Hier is het zoals het nu is.",
+  'contextUserFile': "De jouwe, in elke map gelezen",
+  'contextMemory': "Geheugen",
+  'contextMissing': "Nog niet geschreven",
+  'contextNothing': "Niets geschreven",
+  'contextUncommitted': "Niet gecommit: nieuwe chats zien het nog niet",
+  'contextWords': "Bewaard in Caldo, verteld aan elke chat die erin begint",
+  'contextDeleteQuestion': "Deze herinnering verwijderen?",
+  'contextReadAgain': "Opnieuw lezen",
 };
