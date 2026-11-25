@@ -523,6 +523,11 @@ const Map<String, Object> pl = {
   'chatPin': "Przypnij",
   'chatUnpin': "Odepnij",
   'chatPinned': "Przypięty",
+  'chatMute': "Wycisz",
+  'chatUnmute': "Wyłącz wyciszenie",
+  'chatMuted': "Wyciszony",
+  'agentsChannel': "Agenci",
+  'agentsChannelHint': "Czat czeka na ciebie albo jego agent daje znać.",
   'chatSelectAll': "Zaznacz wszystkie",
   'deleteChatsQuestion': [
     "Usunąć {n} czat?",

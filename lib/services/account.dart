@@ -12,6 +12,7 @@ import '../theme/tweaks.dart';
 import '../utils/platform.dart';
 import 'caldo_server.dart';
 import 'file_sync.dart';
+import 'push.dart';
 import 'sync.dart';
 
 /// Signing in, and the server a signed-in device syncs with.
@@ -207,6 +208,7 @@ class Account {
     email.value = session.user.email;
     if (_quiet) return;
     _listen();
+    unawaited(Push.signedIn(_client!));
     unawaited(_askAdmin());
     unawaited(_book(true));
   }
@@ -306,6 +308,7 @@ class Account {
   /// Signs out. Everything stays on this device, and is sent again if it
   /// signs in to another account.
   Future<void> signOut() async {
+    await Push.signingOut(client);
     try {
       await _client?.auth.signOut(scope: SignOutScope.local);
     } catch (_) {

@@ -315,6 +315,11 @@ class S {
   String get chatPin => _word('chatPin');
   String get chatUnpin => _word('chatUnpin');
   String get chatPinned => _word('chatPinned');
+  String get chatMute => _word('chatMute');
+  String get chatUnmute => _word('chatUnmute');
+  String get chatMuted => _word('chatMuted');
+  String get agentsChannel => _word('agentsChannel');
+  String get agentsChannelHint => _word('agentsChannelHint');
   String get chatSelectAll => _word('chatSelectAll');
   String get chatAsked => _word('chatAsked');
   String get chatRunning => _word('chatRunning');

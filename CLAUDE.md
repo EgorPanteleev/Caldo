@@ -19,7 +19,8 @@ Linux and in tests), `shared_preferences`, `intl`,
 `flutter_local_notifications` + `timezone` + `flutter_timezone`. Platform
 font. `path_provider_linux`, `file_selector_linux` on the desktop. Native
 home-screen widget (`TodayWidget.kt`, plain `RemoteViews`). Network only for
-the GitHub release check/download and Supabase (Cloud for now).
+the GitHub release check/download, Supabase (Cloud for now) and Firebase
+pushes (`firebase-messaging`, Kotlin only).
 
 ## Layout
 
@@ -936,6 +937,24 @@ the app, a terminal beside them; anything else a terminal.
   worker against the local stack with `Tmux(socket: 'caldoe2e')` — never
   the user's `caldo` socket. Look for tasks with `claude` set first: a
   test worker takes them up at once.
+- **Pushes** (asked for 2026-11-25; `Push`, `Push.kt`, Edge Function
+  `push`, `push_tokens`): FCM data messages, drawn by `PushService` with
+  the app closed or not, one per chat, none for the chat on screen; a tap
+  opens the chat over Agents. Asked for as the user, never by a trigger:
+  the worker tells a chat waiting (`Notices`: a question at once; a turn
+  *the user* began, 20s after it ends unless another begins — turns begun
+  by another chat or an event are quiet, or the reviewer would ring all
+  day); an agent's own word is the MCP tool `notify`. **Muting a chat
+  (`chats.muted`) silences its waiting, not `notify`**, as a mention gets
+  through. Firebase is set up from `~/keys/caldo-google-services.json` at
+  build time as resource strings (no google-services plugin; override with
+  `CALDO_FIREBASE_CONFIG`); a build without it has no pushes. The function's
+  key is the secret `FCM_SERVICE_ACCOUNT`; `FCM_URL`/`GOOGLE_TOKEN_URL`
+  point it at a stand-in to try it. Not on the desktop. Try the drawing on
+  the emulator as root: `am broadcast -n
+  com.igor.caldo/com.google.firebase.iid.FirebaseInstanceIdReceiver -a
+  com.google.android.c2dm.intent.RECEIVE --es chat <uuid> --es title …
+  --es text …` (signed in, or it is dropped).
 
 ### Android platform bits
 
@@ -1105,7 +1124,9 @@ flutter build apk --release --split-per-abi --target-platform android-arm,androi
 
 **Signing**: `~/keys/caldo-release.jks` via `android/key.properties` (both
 outside git). Lose them and no update installs over Caldo again. A release
-build without `key.properties` fails on purpose.
+build without `key.properties` fails on purpose. **Firebase**:
+`~/keys/caldo-google-services.json`, also outside git; without it a build
+still succeeds, with no pushes (a warning says so).
 
 **Release only when asked.** Commit each change; don't bump, build or
 publish unprompted (the updater ships whatever is latest). A release is
@@ -1165,7 +1186,8 @@ API `http://127.0.0.1:54321` (emulator: `10.0.2.2:54321`), dashboard
 :54323, Mailpit :54324. If docker access fails, `newgrp docker`.
 
 **The cloud project** is linked (`supabase/.temp`): `supabase db push
---remote` applies migrations. **Never `config push` the repo's
+--remote` applies migrations; `supabase functions deploy <name> --use-api`
+the Edge Functions (`supabase/functions`). **Never `config push` the repo's
 `config.toml`** (it is the local stack's): push a file declaring only what
 is meant, with `--workdir` on a scratch directory. `supabase db query
 --remote` writes to the live database — ask first; `--read-only` needs no

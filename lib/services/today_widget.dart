@@ -39,19 +39,24 @@ class TodayWidget {
 
   /// Has [open] called for each tap on the widget that asks for a form —
   /// with a task's id for one of its rows, with null for its add button —
-  /// and [invited] for each invite link followed (caldo://invite/…),
-  /// including the one the app was started by, if it was. The launches come
-  /// down one channel, the widget's being the first there was.
+  /// [invited] for each invite link followed (caldo://invite/…), and
+  /// [chat] for each chat's notification tapped (`Push.kt`), including the
+  /// one the app was started by, if it was. The launches come down one
+  /// channel, the widget's being the first there was.
   static Future<void> listen(
     void Function(int? task) open, {
     required void Function(String invite) invited,
+    required void Function(String chat) chat,
   }) async {
     if (!_enabled) return;
     void take(Object? request) {
       if (request is! Map) return;
       final invite = request['invite'];
+      final asked = request['chat'];
       if (invite is String) {
         invited(invite);
+      } else if (asked is String) {
+        chat(asked);
       } else {
         open(request['task'] as int?);
       }

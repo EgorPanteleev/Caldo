@@ -17,6 +17,33 @@ val keyProperties = Properties().apply {
     if (file.exists()) file.inputStream().use(::load)
 }
 
+// Firebase, for the Agents tab's pushes (Push.kt): what the project's
+// google-services.json says, written as the strings Firebase reads when the
+// app starts — what Google's own plugin writes, without the plugin, so a
+// build without the file still builds, only with no pushes. Kept beside the
+// release key, out of git: the repository is public.
+val firebaseConfig = System.getenv("CALDO_FIREBASE_CONFIG")?.let(::File)
+    ?: File(System.getProperty("user.home"), "keys/caldo-google-services.json")
+
+/** google-services.json's strings for this app, by the names Firebase reads. */
+fun firebaseStrings(file: File): Map<String, String> {
+    @Suppress("UNCHECKED_CAST")
+    val json = groovy.json.JsonSlurper().parse(file) as Map<String, Any?>
+    val project = json["project_info"] as Map<String, Any?>
+    val client = (json["client"] as List<Map<String, Any?>>).first {
+        val info = it["client_info"] as Map<String, Any?>
+        (info["android_client_info"] as Map<String, Any?>)["package_name"] == "com.igor.caldo"
+    }
+    val info = client["client_info"] as Map<String, Any?>
+    val key = (client["api_key"] as List<Map<String, Any?>>).first()
+    return mapOf(
+        "google_app_id" to info["mobilesdk_app_id"] as String,
+        "google_api_key" to key["current_key"] as String,
+        "gcm_defaultSenderId" to project["project_number"] as String,
+        "project_id" to project["project_id"] as String,
+    )
+}
+
 android {
     namespace = "com.igor.caldo"
     compileSdk = flutter.compileSdkVersion
@@ -45,6 +72,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        if (firebaseConfig.exists()) {
+            firebaseStrings(firebaseConfig).forEach { (name, value) -> resValue("string", name, value) }
+        }
     }
 
     signingConfigs {
@@ -71,6 +101,9 @@ android {
 // unsigned. Asked for a release with no key, say so and stop.
 gradle.taskGraph.whenReady {
     val release = allTasks.any { it.project == project && it.name.endsWith("Release") }
+    if (release && !firebaseConfig.exists()) {
+        logger.warn("$firebaseConfig is missing: this build gets no pushes (Push.kt).")
+    }
     if (release && keyProperties.isEmpty) {
         throw GradleException(
             "android/key.properties is missing: it names the keystore every " +
@@ -87,4 +120,6 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     // The daily sync round while the app is closed (DailySync).
     implementation("androidx.work:work-runtime-ktx:2.10.5")
+    // The Agents tab's pushes (Push).
+    implementation("com.google.firebase:firebase-messaging:26.0.2")
 }

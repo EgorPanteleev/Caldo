@@ -19,6 +19,7 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../services/account.dart';
 import '../services/agents.dart';
+import '../services/push.dart';
 import '../services/attachments.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
@@ -135,6 +136,18 @@ class _AgentsScreenState extends State<AgentsScreen> {
     _drop();
     try {
       await _agents.pin([for (final c in chats) c.id], pinned: pinned);
+    } catch (e) {
+      _failed(e);
+    }
+  }
+
+  /// Muted all, unless all are already, which lets them be heard again.
+  Future<void> _mutePicked() async {
+    final chats = _pickedChats;
+    final muted = !chats.every((c) => c.muted);
+    _drop();
+    try {
+      await _agents.mute([for (final c in chats) c.id], muted: muted);
     } catch (e) {
       _failed(e);
     }
@@ -269,6 +282,21 @@ class _AgentsScreenState extends State<AgentsScreen> {
                   icon: Icon(Icons.push_pin_outlined, color: p.muted),
                   tooltip: s.chatPin,
                   onPressed: _pinPicked,
+                ),
+              if (picked.every((c) => c.muted))
+                IconButton(
+                  icon: Icon(
+                    Icons.notifications_active_outlined,
+                    color: p.muted,
+                  ),
+                  tooltip: s.chatUnmute,
+                  onPressed: _mutePicked,
+                )
+              else
+                IconButton(
+                  icon: Icon(Icons.notifications_off_outlined, color: p.muted),
+                  tooltip: s.chatMute,
+                  onPressed: _mutePicked,
                 ),
               if (picked.any((c) => c.live))
                 IconButton(
@@ -487,6 +515,15 @@ class _ChatRow extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
+                        if (chat.muted) ...[
+                          Icon(
+                            Icons.notifications_off_outlined,
+                            size: 13,
+                            color: p.faint,
+                            semanticLabel: s.chatMuted,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         if (chat.pinned) ...[
                           Icon(
                             Icons.push_pin,
@@ -1415,6 +1452,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _agents.addListener(_changed);
     _agents.watch();
+    Push.looking(widget.chat);
     _terminal.onOutput = _typed;
     _terminal.onResize = (cols, rows, _, _) => _sized(cols, rows);
     _follow();
@@ -1424,8 +1462,23 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// Muted, or heard again; a refusal said, not lost.
+  Future<void> _mute() async {
+    final chat = _chat;
+    if (chat == null) return;
+    try {
+      await _agents.mute([chat.id], muted: !chat.muted);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   @override
   void dispose() {
+    Push.left(widget.chat);
     _agents.removeListener(_changed);
     _agents.unwatch();
     _feed?.close();
@@ -2032,6 +2085,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   : null,
               onDelete: _delete,
               onSettings: _settings,
+              onMute: _mute,
               asChat: talks ? asChat : null,
               onView: (chat) => setState(() => _asChat = chat),
             ),
@@ -2292,6 +2346,7 @@ class _Head extends StatelessWidget {
   final VoidCallback? onClear;
   final VoidCallback onDelete;
   final VoidCallback onSettings;
+  final VoidCallback onMute;
 
   /// Which side is on show, for a chat with both; null for a terminal only.
   final bool? asChat;
@@ -2306,6 +2361,7 @@ class _Head extends StatelessWidget {
     required this.onClear,
     required this.onDelete,
     required this.onSettings,
+    required this.onMute,
     required this.asChat,
     required this.onView,
   });
@@ -2377,6 +2433,8 @@ class _Head extends StatelessWidget {
                   onClear?.call();
                 case 'settings':
                   onSettings();
+                case 'mute':
+                  onMute();
                 case 'attach':
                   Clipboard.setData(
                     ClipboardData(
@@ -2393,8 +2451,13 @@ class _Head extends StatelessWidget {
                 PopupMenuItem(value: 'bigger', child: Text(s.chatBigger)),
                 PopupMenuItem(value: 'smaller', child: Text(s.chatSmaller)),
               ],
-              if (chat != null)
+              if (chat != null) ...[
                 PopupMenuItem(value: 'settings', child: Text(s.chatSettings)),
+                PopupMenuItem(
+                  value: 'mute',
+                  child: Text(chat.muted ? s.chatUnmute : s.chatMute),
+                ),
+              ],
               if (onClear != null)
                 PopupMenuItem(value: 'clear', child: Text(s.chatClear)),
               if (chat != null && chat.live)

@@ -235,6 +235,16 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
     }
 
+    override fun onResume() {
+        super.onResume()
+        Push.inFront = true
+    }
+
+    override fun onPause() {
+        Push.inFront = false
+        super.onPause()
+    }
+
     override fun onStop() {
         super.onStop()
         overLock(false)
@@ -312,6 +322,7 @@ class MainActivity : FlutterActivity() {
                         result.success(launchRequest(intent))
                         intent.removeExtra(TodayWidget.EXTRA_OPEN_TASK)
                         intent.removeExtra(TodayWidget.EXTRA_NEW_TASK)
+                        intent.removeExtra(Push.EXTRA_OPEN_CHAT)
                         intent.data = null
                     } else {
                         result.notImplemented()
@@ -397,6 +408,26 @@ class MainActivity : FlutterActivity() {
             this.recording = recording
             channel.setMethodCallHandler { call, result -> recording.call(call, result) }
         }
+        Push.dart = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PUSH_CHANNEL)
+            .apply {
+                setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "token" -> Push.token(
+                            applicationContext,
+                            call.argument<String>("name"),
+                            call.argument<String>("hint"),
+                            result,
+                        )
+                        "looking" -> {
+                            val chat = call.arguments as String?
+                            Push.looking = chat
+                            if (chat != null) Push.seen(applicationContext, chat)
+                            result.success(null)
+                        }
+                        else -> result.notImplemented()
+                    }
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -412,6 +443,7 @@ class MainActivity : FlutterActivity() {
         // Gone with the engine: a round asked of it now would never answer,
         // and the widget's engine takes the session over.
         DailySync.app = null
+        Push.dart = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -704,7 +736,8 @@ class MainActivity : FlutterActivity() {
     /**
      * What a tap on the widget asked for: a task's form (its id), the form
      * for a new one (no id), or nothing beyond the app itself (null). Or an
-     * invite link followed, caldo://invite/<code>.
+     * invite link followed, caldo://invite/<code>, or a chat's notification
+     * tapped (Push).
      */
     private fun launchRequest(intent: Intent?): Map<String, Any?>? {
         intent ?: return null
@@ -712,6 +745,7 @@ class MainActivity : FlutterActivity() {
         if (intent.action == Intent.ACTION_VIEW && link?.scheme == "caldo" && link.host == "invite") {
             return link.lastPathSegment?.let { mapOf("invite" to it) }
         }
+        intent.getStringExtra(Push.EXTRA_OPEN_CHAT)?.let { return mapOf("chat" to it) }
         if (intent.getBooleanExtra(TodayWidget.EXTRA_NEW_TASK, false)) return mapOf("task" to null)
         val id = intent.getLongExtra(TodayWidget.EXTRA_OPEN_TASK, -1)
         return if (id >= 0) mapOf("task" to id) else null
@@ -1072,6 +1106,7 @@ class MainActivity : FlutterActivity() {
         const val SYNC_CHANNEL = "caldo/sync"
         const val VAULT_CHANNEL = "caldo/vault"
         const val RECORD_CHANNEL = "caldo/record"
+        const val PUSH_CHANNEL = "caldo/push"
 
         /** What the notification plugin calls the intent on a reminder. */
         const val REMINDER_ACTION = "SELECT_NOTIFICATION"
