@@ -402,6 +402,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
       },
       child: Scaffold(
         body: GlassTop(
+          fade: 0,
           head: DeskColumn(child: head),
           body: Builder(builder: (context) => body),
         ),
