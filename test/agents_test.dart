@@ -1947,6 +1947,61 @@ void main() {
   });
 
   group('the tab', () {
+    test('groups chats by priority and promotes a newly finished turn', () {
+      final now = DateTime.utc(2026, 11, 25);
+      Chat chat(String id, ChatState state, int minutes, {int? pinned}) => Chat(
+        id: id,
+        agent: 'codex',
+        state: state,
+        updatedAt: now.add(Duration(minutes: minutes)),
+        pinnedAt: pinned == null ? null : now.add(Duration(minutes: pinned)),
+      );
+
+      final chats = [
+        chat('finished', ChatState.finished, 5),
+        chat('limited', ChatState.limited, 4),
+        chat('working', ChatState.running, 3),
+        chat('your turn', ChatState.yourTurn, 1),
+        chat('question', ChatState.asking, 2),
+        chat('pinned earlier', ChatState.asking, 7, pinned: 0),
+        chat('pinned later', ChatState.finished, 0, pinned: 1),
+        chat('ready', ChatState.idle, 8),
+      ];
+      List<String> ids(Iterable<Chat> chats) => [
+        for (final chat in Chat.listOrder(chats)) chat.id,
+      ];
+
+      expect(ids(chats), [
+        'pinned later',
+        'pinned earlier',
+        'question',
+        'your turn',
+        'working',
+        'limited',
+        'ready',
+        'finished',
+      ]);
+      expect(
+        ids([
+          for (final current in chats)
+            if (current.id == 'working')
+              chat('working', ChatState.finished, 9)
+            else
+              current,
+        ]),
+        [
+          'pinned later',
+          'pinned earlier',
+          'question',
+          'your turn',
+          'limited',
+          'ready',
+          'working',
+          'finished',
+        ],
+      );
+    });
+
     setUp(() => SharedPreferences.setMockInitialValues({}));
     tearDown(() {
       S.use('en');
@@ -2957,7 +3012,7 @@ void main() {
               agents: const [AgentKind(id: 'claude', label: 'Claude')],
             ),
           ]
-          ..chats = Chat.pinnedFirst([
+          ..chats = Chat.listOrder([
             Chat(
               id: 'a',
               workerId: 'w',
