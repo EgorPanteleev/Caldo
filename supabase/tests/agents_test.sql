@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(42);
+select plan(44);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -36,6 +36,12 @@ select throws_ok(
 select lives_ok(
   $$update public.chats set state = 'finished'$$,
   'a chat says its turn has finished');
+select lives_ok(
+  $$update public.chats set state = 'your_turn'$$,
+  'or that it ended asking the user something');
+select lives_ok(
+  $$update public.chats set state = 'limited'$$,
+  'a chat says the usage limit stopped it');
 select lives_ok(
   $$update public.chats set state = 'waiting', preface = 'Be brief.'$$,
   'a task''s chat waits for the task to be due, with what was said first');
