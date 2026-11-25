@@ -800,8 +800,11 @@ the app, a terminal beside them; anything else a terminal.
   turn's stand-in message `error: "rate_limit"`, and its last
   `rate_limit_event` (`rejected`) says `resetsAt`; Codex fails the turn
   with `codexErrorInfo: usageLimitExceeded` (from its types, unseen). The
-  worker posts a `limit` item (`resets` in ms); `TalkView` draws it with
-  an unticked box, live on the latest one until the user writes. Ticking
+  worker posts a `note` marked `limit: true` (`resets` in ms;
+  `CarryOn.stops`) — **not a kind of its own: `chat_items_kind_check`
+  refuses unknown kinds**, and a refused row used to hold back the chat's
+  every later item (now dropped alone, `_postEach`). `TalkView` draws it
+  with an unticked box, live on the latest one until the user writes. Ticking
   leaves `CarryOn.words` in `chat_later` (key `limit…`, `CarryOn.at`: a
   minute after the reset, else 15 min on); ticking again takes it back.
   Refused again while one waits, the worker moves it. A turn that goes
