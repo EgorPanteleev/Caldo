@@ -162,7 +162,11 @@ class SupabaseRemote implements Remote {
       }
       final stored = Session.fromJson(jsonDecode(kept.session));
       try {
-        if (stored != null && !stored.isExpired) {
+        // Taken up only well short of the client's own 30s margin: a
+        // session it finds expired, with renewing off, it signs out on the
+        // server, ending it for every device. A worker held up between
+        // the two looks met that once and sat signed out for 9 hours.
+        if (stored != null && !_endingSoon(stored)) {
           // Still good (renewed by another server, perhaps): taken up as
           // it is.
           await _client.auth.recoverSession(kept.session);

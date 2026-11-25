@@ -142,9 +142,9 @@ class _Live {
     required this.lastSnap,
     required this.line,
   }) {
-    decoder = const Utf8Decoder(
-      allowMalformed: true,
-    ).startChunkedConversion(StringConversionSink.fromStringSink(pending));
+    decoder = const Utf8Decoder(allowMalformed: true).startChunkedConversion(
+      StringConversionSink.fromStringSink(_NoNul(pending)),
+    );
   }
 
   Map<String, int> get kept => {
@@ -154,6 +154,35 @@ class _Live {
     'snap': snap,
     'last_snap': lastSnap,
   };
+}
+
+/// [into] less NULs: a terminal's output goes up as text, which Postgres
+/// refuses with one in it, and a refused piece stopped the terminal for
+/// good. A terminal draws nothing for one anyway.
+class _NoNul implements StringSink {
+  final StringSink into;
+  _NoNul(this.into);
+
+  @override
+  void write(Object? object) {
+    final text = '$object';
+    into.write(text.contains('\u0000') ? text.replaceAll('\u0000', '') : text);
+  }
+
+  @override
+  void writeAll(Iterable<Object?> objects, [String separator = '']) =>
+      write(objects.join(separator));
+
+  @override
+  void writeCharCode(int charCode) {
+    if (charCode != 0) into.writeCharCode(charCode);
+  }
+
+  @override
+  void writeln([Object? object = '']) {
+    write(object);
+    into.writeln();
+  }
 }
 
 /// Runs the agents the app asks this computer for, each in a terminal of
@@ -2615,7 +2644,7 @@ class _Talker implements TalkSink {
       'id': id,
       'seq': seq,
       'kind': kind,
-      'body': body,
+      'body': withoutNul(body),
     };
     _queue[id] = row;
     if (kind == 'tool' && body['done'] == true) {
@@ -2667,7 +2696,9 @@ class _Talker implements TalkSink {
   /// Refused for what the row is (a check or a key broken), not for the
   /// way to the server: sent again, it would be refused again.
   static bool _never(Object e) =>
-      e is PostgrestException && (e.code?.startsWith('23') ?? false);
+      e is PostgrestException &&
+      ((e.code?.startsWith('23') ?? false) ||
+          (e.code?.startsWith('22') ?? false));
 
   /// [rows] sent one at a time, those the server refuses dropped; the
   /// rest put back for the next try if the way to it fails meanwhile.
@@ -2928,6 +2959,26 @@ class _Talker implements TalkSink {
 }
 
 String _short(String id) => id.substring(0, 8);
+
+/// [value] with every NUL taken out of its strings, at any depth: Postgres
+/// refuses one in text or JSON (22P05), and a refused row was tried again
+/// every 2s for ever, holding back each item of its chat after it. What has
+/// none is handed back as it is.
+Object? withoutNul(Object? value) => switch (value) {
+  String s when s.contains('\u0000') => s.replaceAll('\u0000', ''),
+  Map m when _holdsNul(m) => {
+    for (final MapEntry(:key, :value) in m.entries) key: withoutNul(value),
+  },
+  List l when _holdsNul(l) => [for (final v in l) withoutNul(v)],
+  _ => value,
+};
+
+bool _holdsNul(Object? value) => switch (value) {
+  String s => s.contains('\u0000'),
+  Map m => m.values.any(_holdsNul),
+  List l => l.any(_holdsNul),
+  _ => false,
+};
 
 /// An answer as the app writes it: "choice item", and after them, to
 /// questions asked of the user, the answers as JSON by each question's
