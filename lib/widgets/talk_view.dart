@@ -141,6 +141,21 @@ class _TalkViewState extends State<TalkView> {
     if (live >= 0 && items.skip(live + 1).any((item) => item.kind == 'user')) {
       live = -1;
     }
+    // Times under the user's words and under the agent's last answer to
+    // them, not under every answer between its tools; the last turn's only
+    // once it has ended, or the time would hop down as it went on.
+    final stamped = <int>{};
+    var answered = !widget.working;
+    for (var i = items.length - 1; i >= 0; i--) {
+      final kind = items[i].kind;
+      if (kind == 'user') {
+        stamped.add(i);
+        answered = true;
+      } else if (kind == 'text' && answered) {
+        stamped.add(i);
+        answered = false;
+      }
+    }
     return SelectionArea(
       child: CustomScrollView(
         controller: _scroll,
@@ -149,7 +164,8 @@ class _TalkViewState extends State<TalkView> {
             padding: EdgeInsets.only(top: widget.padding.top + 8),
             sliver: SliverList.builder(
               itemCount: items.length,
-              itemBuilder: (context, i) => _tile(items, i, live),
+              itemBuilder: (context, i) =>
+                  _tile(items, i, live, stamped.contains(i)),
             ),
           ),
           SliverToBoxAdapter(
@@ -179,58 +195,104 @@ class _TalkViewState extends State<TalkView> {
   }
 
   /// [list]'s item [i], spaced from the one above it: tools in a run sit
-  /// close, as one block of work.
-  Widget _tile(List<ChatItem> list, int i, int live) {
+  /// close, as one block of work. With [stamp], when it was said under it.
+  Widget _tile(List<ChatItem> list, int i, int live, bool stamp) {
     final item = list[i];
     final above = i > 0 ? list[i - 1] : null;
     final close = above != null && _small(above) && _small(item);
+    final at = item.at;
+    final shown = _shown(item, i, live);
     return _Spaced(
       key: ValueKey(item.id),
       top: above == null ? 0 : (close ? 4 : 14),
-      child: switch (item.kind) {
-        'user' => _Said(
-          text: item.text,
-          files: item.body['files'],
-          sender: item.body['sender'],
-        ),
-        'text' => _Answer(text: item.text),
-        'thinking' => _Thinking(
-          text: item.text,
-          open: _open.contains(item.id),
-          onTap: () => _toggle(item.id),
-        ),
-        'tool' => _Tool(
-          body: item.body,
-          open: _open.contains(item.id),
-          onTap: () => _toggle(item.id),
-        ),
-        'ask' when item.body['questions'] is List => _Questions(
-          body: item.body,
-          onAnswer: (choice, answers) =>
-              widget.onAnswer(item.id, choice, answers),
-        ),
-        'ask' => _Ask(
-          body: item.body,
-          onAnswer: (choice) => widget.onAnswer(item.id, choice, const {}),
-        ),
-        _ when CarryOn.stops(item.kind, item.body) => _Limit(
-          resets: item.body['resets'] is num
-              ? DateTime.fromMillisecondsSinceEpoch(
-                  (item.body['resets'] as num).round(),
-                )
-              : null,
-          carrying: i == live && widget.carrying,
-          onTap: i == live && widget.onCarry != null
-              ? () => widget.onCarry!(item)
-              : null,
-        ),
-        _ => _Note(text: item.text, error: item.body['error'] == true),
-      },
+      child: stamp && at != null
+          ? _Stamped(at: at, right: item.kind == 'user', child: shown)
+          : shown,
     );
   }
 
+  Widget _shown(ChatItem item, int i, int live) => switch (item.kind) {
+    'user' => _Said(
+      text: item.text,
+      files: item.body['files'],
+      sender: item.body['sender'],
+    ),
+    'text' => _Answer(text: item.text),
+    'thinking' => _Thinking(
+      text: item.text,
+      open: _open.contains(item.id),
+      onTap: () => _toggle(item.id),
+    ),
+    'tool' => _Tool(
+      body: item.body,
+      open: _open.contains(item.id),
+      onTap: () => _toggle(item.id),
+    ),
+    'ask' when item.body['questions'] is List => _Questions(
+      body: item.body,
+      onAnswer: (choice, answers) => widget.onAnswer(item.id, choice, answers),
+    ),
+    'ask' => _Ask(
+      body: item.body,
+      onAnswer: (choice) => widget.onAnswer(item.id, choice, const {}),
+    ),
+    _ when CarryOn.stops(item.kind, item.body) => _Limit(
+      resets: item.body['resets'] is num
+          ? DateTime.fromMillisecondsSinceEpoch(
+              (item.body['resets'] as num).round(),
+            )
+          : null,
+      carrying: i == live && widget.carrying,
+      onTap: i == live && widget.onCarry != null
+          ? () => widget.onCarry!(item)
+          : null,
+    ),
+    _ => _Note(text: item.text, error: item.body['error'] == true),
+  };
+
   static bool _small(ChatItem item) =>
       item.kind == 'tool' || item.kind == 'thinking';
+}
+
+/// "14:05" today, "Yesterday 14:05" or "Nov 20 14:05" before — on the
+/// app's clock.
+String _when(BuildContext context, DateTime at) {
+  final time = Dates.time(at, h24: MediaQuery.alwaysUse24HourFormatOf(context));
+  return DateUtils.isSameDay(at, DateTime.now())
+      ? time
+      : '${Dates.dayWord(at) ?? Dates.shortDay(at)} $time';
+}
+
+/// [child] with when it was said under it, faint, on its side: kept out
+/// of a selection, so words copied from the chat come without times.
+class _Stamped extends StatelessWidget {
+  final DateTime at;
+  final bool right;
+  final Widget child;
+
+  const _Stamped({required this.at, required this.right, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Column(
+      crossAxisAlignment: right
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        child,
+        Padding(
+          padding: EdgeInsets.only(top: 4, left: right ? 0 : 2, right: 6),
+          child: SelectionContainer.disabled(
+            child: Text(
+              _when(context, at),
+              style: TextStyle(color: p.faint, fontSize: 11.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Spaced extends StatelessWidget {
@@ -1081,15 +1143,7 @@ class _Limit extends StatelessWidget {
     if (onTap == null) return note;
     final at = resets;
     String? when;
-    if (at != null && at.isAfter(DateTime.now())) {
-      final time = Dates.time(
-        at,
-        h24: MediaQuery.alwaysUse24HourFormatOf(context),
-      );
-      when = DateUtils.isSameDay(at, DateTime.now())
-          ? time
-          : '${Dates.dayWord(at) ?? Dates.shortDay(at)} $time';
-    }
+    if (at != null && at.isAfter(DateTime.now())) when = _when(context, at);
     return Column(
       children: [
         note,

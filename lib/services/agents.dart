@@ -1538,11 +1538,17 @@ class ChatItem {
   final String kind;
   final Map<String, dynamic> body;
 
+  /// When it was first said, in local time: the server's stamp, or until
+  /// the row brings one, when this device first heard it. Null for items
+  /// from before chats kept times.
+  final DateTime? at;
+
   const ChatItem({
     required this.id,
     required this.seq,
     required this.kind,
     required this.body,
+    this.at,
   });
 
   String get text => body['text'] as String? ?? '';
@@ -1552,6 +1558,7 @@ class ChatItem {
     seq: json['seq'] as int,
     kind: json['kind'] as String,
     body: Map<String, dynamic>.from(json['body'] as Map? ?? const {}),
+    at: DateTime.tryParse('${json['at']}')?.toLocal(),
   );
 }
 
@@ -1591,7 +1598,13 @@ class TalkFeed extends ChangeNotifier {
       _release = null {
     _take([
       for (final i in items)
-        {'id': i.id, 'seq': i.seq, 'kind': i.kind, 'body': i.body},
+        {
+          'id': i.id,
+          'seq': i.seq,
+          'kind': i.kind,
+          'body': i.body,
+          'at': i.at?.toIso8601String(),
+        },
     ]);
     loaded = true;
   }
@@ -1660,9 +1673,12 @@ class TalkFeed extends ChangeNotifier {
         from = items.isEmpty ? 0 : items.last.seq - late;
       }
       while (!_closed) {
+        // Every column, not a list of them: a server yet to have one the
+        // app reads (`at`) still answers, rather than the chat never
+        // loading.
         final rows = await client
             .from('chat_items')
-            .select('id, seq, kind, body')
+            .select()
             .eq('chat_id', chat)
             .gte('seq', from)
             .order('seq', ascending: true)
@@ -1686,9 +1702,25 @@ class TalkFeed extends ChangeNotifier {
     var moved = false;
     var writing = pieces.value;
     for (final row in rows) {
-      final item = ChatItem.fromJson(row);
+      var item = ChatItem.fromJson(row);
       final was = _byId[item.id];
-      if (was != null && mapEquals(was.body, item.body)) continue;
+      // A broadcast comes without the server's stamp, ahead of the row
+      // that has it: heard now, then set right by the row. One already
+      // here keeps what it had — none, if from before chats kept times.
+      final at =
+          item.at ?? (was != null ? was.at : (loaded ? DateTime.now() : null));
+      if (was != null && mapEquals(was.body, item.body) && was.at == at) {
+        continue;
+      }
+      if (at != item.at) {
+        item = ChatItem(
+          id: item.id,
+          seq: item.seq,
+          kind: item.kind,
+          body: item.body,
+          at: at,
+        );
+      }
       _byId[item.id] = item;
       changed = true;
       moved |= was == null || was.seq != item.seq;

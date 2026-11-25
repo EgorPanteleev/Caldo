@@ -17,6 +17,7 @@ import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/widgets/chat_usage.dart';
 import 'package:caldo/widgets/selection.dart';
 import 'package:caldo/widgets/task_card.dart' show ClaudeMark;
+import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/talk_view.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -712,6 +713,95 @@ void main() {
       'payload': {'id': 'm:0', 'at': 9, 'text': '!'},
     });
     expect(feed.pieces.value, {'m:0': 'Hello'});
+  });
+
+  test('an item keeps the time it was first heard', () {
+    final feed = TalkFeed.held('c', [
+      const ChatItem(id: 'old', seq: 0, kind: 'text', body: {'text': 'Hi'}),
+    ]);
+    addTearDown(feed.dispose);
+    // From before chats kept times: none, even read again.
+    expect(feed.items.single.at, isNull);
+    feed.said('Go on', 'k');
+    final heard = feed.items.last.at;
+    expect(heard, isNotNull);
+    // Its echo, without the server's stamp.
+    feed.said('Go on', 'k');
+    expect(feed.items.last.at, heard);
+  });
+
+  testWidgets('a chat says when its words were said', (tester) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day, 9, 5);
+    final before = DateTime(now.year, now.month, now.day - 3, 14, 30);
+    final feed = TalkFeed.held('c', [
+      ChatItem(
+        id: 'u1',
+        seq: 0,
+        kind: 'user',
+        body: const {'text': 'Make it red'},
+        at: before,
+      ),
+      ChatItem(
+        id: 'm1',
+        seq: 1,
+        kind: 'text',
+        body: const {'text': 'Looking.'},
+        at: before,
+      ),
+      ChatItem(
+        id: 't1',
+        seq: 2,
+        kind: 'tool',
+        body: const {'name': 'Read', 'line': 'a.dart'},
+        at: before,
+      ),
+      ChatItem(
+        id: 'm2',
+        seq: 3,
+        kind: 'text',
+        body: const {'text': 'Made it red.'},
+        at: before.add(const Duration(minutes: 1)),
+      ),
+      ChatItem(
+        id: 'u2',
+        seq: 4,
+        kind: 'user',
+        body: const {'text': 'Thanks'},
+        at: today,
+      ),
+      ChatItem(
+        id: 'm3',
+        seq: 5,
+        kind: 'text',
+        body: const {'text': 'On it'},
+        at: today,
+      ),
+    ]);
+    addTearDown(feed.dispose);
+    Future<void> show({required bool working}) => tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(alwaysUse24HourFormat: true),
+          child: Scaffold(
+            body: TalkView(
+              feed: feed,
+              working: working,
+              onAnswer: (_, _, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await show(working: true);
+    final day = Dates.shortDay(before);
+    // The user's words, and the agent's last answer to them, not the
+    // one between its tools; the turn still going has none yet.
+    expect(find.text('$day 14:30'), findsOneWidget);
+    expect(find.text('$day 14:31'), findsOneWidget);
+    expect(find.text('09:05'), findsOneWidget);
+    await show(working: false);
+    expect(find.text('09:05'), findsNWidgets(2));
   });
 
   testWidgets("a swipe over Claude's own screen scrolls it", (tester) async {
