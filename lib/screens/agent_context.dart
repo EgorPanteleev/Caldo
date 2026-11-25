@@ -235,6 +235,32 @@ class _ProjectContextScreenState extends State<ProjectContextScreen> {
     );
   }
 
+  /// [file]'s path under its folder, which heads it; whole if above it.
+  static String _within(ContextFile file) {
+    final source = file.source;
+    return source != null && file.path.startsWith('$source/')
+        ? file.path.substring(source.length + 1)
+        : file.path;
+  }
+
+  /// What a memory file says: its description and words, without the
+  /// frontmatter they are filed under.
+  static String? _gist(String? body) {
+    if (body == null || !body.startsWith('---\n')) return body;
+    final end = body.indexOf('\n---', 4);
+    if (end < 0) return body;
+    final description = RegExp(
+      r'^description:\s*(.*)$',
+      multiLine: true,
+    ).firstMatch(body.substring(4, end))?.group(1)?.trim();
+    final rest = body.substring(end + 4).trim();
+    return [
+      if (description != null && description.isNotEmpty)
+        description.replaceAll(RegExp(r'''^["']|["']$'''), ''),
+      if (rest.isNotEmpty) rest,
+    ].join('\n');
+  }
+
   static String _why(S s, Object e) =>
       e is TimeoutException ? s.contextNoAnswer : '$e';
 
@@ -264,9 +290,9 @@ class _ProjectContextScreenState extends State<ProjectContextScreen> {
       }
     }
     Widget tile(ContextFile f, {String? title}) => _ContextTile(
-      title: title ?? f.path,
+      title: title ?? _within(f),
       icon: f.memory ? Icons.lightbulb_outline : Icons.description_outlined,
-      body: f.body,
+      body: f.memory ? _gist(f.body) : f.body,
       empty: f.body == null ? s.contextMissing : s.contextNothing,
       badge: f.uncommitted ? s.contextUncommitted : null,
       onTap: () => _editFile(f),
@@ -500,6 +526,8 @@ class _ContextEditorState extends State<_ContextEditor> {
     final p = AppTheme.of(context);
     return Scaffold(
       backgroundColor: p.bg,
+      // The field ends above the keys by [KeyboardGap] alone.
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         maintainBottomViewPadding: true,
         child: Column(
