@@ -2647,6 +2647,15 @@ void main() {
           find.text('someone.with.a.long.address@example.com'),
           findsOneWidget,
         );
+        Finder accountIcon(String agent) => find.byWidgetPredicate(
+          (widget) =>
+              widget is Image &&
+              widget.image is AssetImage &&
+              (widget.image as AssetImage).assetName ==
+                  'assets/icon/$agent.png',
+        );
+        expect(find.text('Claude · max'), findsOneWidget);
+        expect(accountIcon('claude'), findsWidgets);
         expect(find.text('65%'), findsOneWidget);
         expect(find.text('0%'), findsOneWidget);
         expect(find.text(s.usageResetSince), findsOneWidget);
@@ -2662,6 +2671,7 @@ void main() {
           100,
           scrollable: list,
         );
+        expect(accountIcon('codex'), findsWidgets);
         await tester.scrollUntilVisible(
           find.text(s.accountSignIn),
           100,

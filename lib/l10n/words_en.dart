@@ -620,7 +620,6 @@ const Map<String, Object> en = {
       "Each computer's own Claude and Codex logins show here once its worker is reinstalled. Add more to run chats under them.",
   'accountsReinstall':
       "Reinstall caldo-mcp on your computer (tool/mcp/install.sh and watch.sh) to add accounts there.",
-  'accountOwn': "This computer's own",
   'accountStarting': "Starting…",
   'accountSigningIn': "Signing in…",
   'accountReady': "Signed in",

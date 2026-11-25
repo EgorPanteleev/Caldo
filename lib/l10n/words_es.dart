@@ -638,7 +638,6 @@ const Map<String, Object> es = {
       "Los accesos propios de Claude y Codex de cada ordenador aparecen aquí cuando se reinstala su worker. Añade más para ejecutar chats con ellas.",
   'accountsReinstall':
       "Reinstala caldo-mcp en tu ordenador (tool/mcp/install.sh y watch.sh) para añadir cuentas allí.",
-  'accountOwn': "Cuenta propia del ordenador",
   'accountStarting': "Iniciando…",
   'accountSigningIn': "Iniciando sesión…",
   'accountReady': "Sesión iniciada",

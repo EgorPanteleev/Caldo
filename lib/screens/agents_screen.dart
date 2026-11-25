@@ -2386,7 +2386,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     String? accountName() {
       final account = _agents.accountOf(_chat ?? chat);
-      return account == null ? null : accountTitle(S.of(context), account);
+      return account == null ? null : accountTitle(account);
     }
 
     Widget strip(ChatUsage? usage) => usage == null || usage.isEmpty

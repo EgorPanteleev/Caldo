@@ -628,7 +628,6 @@ const Map<String, Object> kk = {
       "Әр компьютердің өз Claude және Codex кірулері оның воркері қайта орнатылғаннан кейін осында көрінеді. Чаттарды солардың атынан іске қосу үшін тағы қосыңыз.",
   'accountsReinstall':
       "Аккаунттарды қосу үшін компьютерде caldo-mcp қайта орнатыңыз (tool/mcp/install.sh және watch.sh).",
-  'accountOwn': "Компьютердің өз аккаунты",
   'accountStarting': "Іске қосылуда…",
   'accountSigningIn': "Кіру…",
   'accountReady': "Кірді",
