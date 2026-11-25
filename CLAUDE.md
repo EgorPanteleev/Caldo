@@ -1073,7 +1073,13 @@ So an assistant can read and change the tasks.
   caps memory at 65% of physical RAM and swap at 1 GiB, with no
   `MemoryHigh`: with swap capped it could only throttle, and the slice
   stalled (64 of 120 minutes; chats 7s to start). Existing chats move into the slice the next time their
-  agent or terminal starts. **A task is sent
+  agent or terminal starts. **Agents wait for memory**: the PR and
+  Reviewer rules run builds, tests, emulators and Supabase through
+  `caldo-room GB command…` (`tool/mcp/room.sh`, installed by
+  `install.sh`): it waits until the machine and every limit above it have
+  that much free, one check at a time, the next held 30s while the last
+  takes its memory. Measured: full `flutter test` 2.8 GB, an APK build
+  ~4 GB (Gradle's caps), the emulator 2.2 GB. **A task is sent
   by naming a model on it** (`Task.claude`, schema v14: opus, sonnet, haiku
   or fable, `ClaudeModels`): a ✦ chip by the add field's group chip
   (`_ClaudeButton`, reset each opening), a form row, or the tools'
