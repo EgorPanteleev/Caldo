@@ -23,6 +23,7 @@ class AgentKind {
   final String id;
   final String label;
   final List<String> models;
+  final Map<String, String> modelLabels;
   final List<String> efforts;
   final List<String> permissions;
   final List<String> plugins;
@@ -70,6 +71,7 @@ class AgentKind {
     required this.id,
     required this.label,
     this.models = const [],
+    this.modelLabels = const {},
     this.efforts = const [],
     this.permissions = const [],
     this.plugins = const [],
@@ -92,6 +94,15 @@ class AgentKind {
     id: json['id'] as String,
     label: json['label'] as String? ?? json['id'] as String,
     models: _strings(json['models']),
+    modelLabels: {
+      if (json['model_labels'] case final Map labels)
+        for (final entry in labels.entries)
+          if (entry case MapEntry(
+            key: final String id,
+            value: final String label,
+          ))
+            id: label,
+    },
     efforts: _strings(json['efforts']),
     permissions: _strings(json['permissions']),
     plugins: _strings(json['plugins']),

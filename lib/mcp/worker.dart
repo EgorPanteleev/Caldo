@@ -10,6 +10,7 @@ import 'accounts.dart';
 import 'agents.dart';
 import 'asks_back.dart';
 import 'kept.dart';
+import 'model_catalog.dart';
 import 'notices.dart';
 import 'remote.dart';
 import 'subscriptions.dart';
@@ -259,14 +260,21 @@ class Worker {
     }
   }
 
+  final _modelCatalog = ModelCatalog();
+
   /// Says this worker is here, and what it can run.
   Future<void> _hello() async {
     final db = await _db;
+    final agents = book.read();
+    await _modelCatalog.refresh(agents);
     await db.from('workers').upsert({
       'id': state.id,
       'name': name,
       'home': home,
-      'agents': [for (final a in book.read()) a.toJson()],
+      'agents': [
+        for (final a in agents)
+          a.toJson(modelLabels: _modelCatalog.labelsFor(a)),
+      ],
       'dirs': book.dirs(),
       'seen_at': DateTime.now().toUtc().toIso8601String(),
     });
