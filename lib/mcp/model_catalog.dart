@@ -4,13 +4,18 @@ import 'dart:io';
 
 import 'agents.dart';
 
+typedef _Models = ({Map<String, String> labels, String? defaultModel});
+
 /// The worker's model choices, refreshed separately from starting chats.
 class ModelCatalog {
-  final _labels = <String, Map<String, String>>{};
+  final _models = <String, _Models>{};
   DateTime? _nextRefresh;
 
   Map<String, String> labelsFor(AgentSpec agent) =>
-      agent.talks ? _labels[agent.id] ?? const {} : const {};
+      agent.talks ? _models[agent.id]?.labels ?? const {} : const {};
+
+  String? defaultFor(AgentSpec agent) =>
+      agent.talks ? _models[agent.id]?.defaultModel : null;
 
   Future<void> refresh(List<AgentSpec> agents) async {
     final now = DateTime.now();
@@ -52,12 +57,12 @@ class ModelCatalog {
         process.stdout.transform(utf8.decoder).transform(const LineSplitter()),
       );
       try {
-        final labels =
+        final models =
             await (claude
                     ? _claudeModels(process.stdin, lines)
                     : _codexModels(process.stdin, lines))
                 .timeout(const Duration(seconds: 8));
-        if (labels.isNotEmpty) _labels[agent] = labels;
+        if (models.labels.isNotEmpty) _models[agent] = models;
       } finally {
         process.kill();
         await lines.cancel();
@@ -69,7 +74,7 @@ class ModelCatalog {
   }
 }
 
-Future<Map<String, String>> _claudeModels(
+Future<_Models> _claudeModels(
   IOSink input,
   StreamIterator<String> lines,
 ) async {
@@ -86,13 +91,26 @@ Future<Map<String, String>> _claudeModels(
   });
   final body = response['response'];
   final payload = body is Map ? body['response'] : null;
-  return _labels(payload is Map ? payload['models'] : null, 'value');
+  final rows = _rows(payload is Map ? payload['models'] : null);
+  final resolvedDefault = rows
+      .where((row) => row['value'] == 'default')
+      .firstOrNull?['resolvedModel'];
+  final labels = _labels(rows, 'value');
+  String? defaultModel;
+  if (resolvedDefault is String && resolvedDefault.isNotEmpty) {
+    for (final row in rows) {
+      if (row['value'] case final String id
+          when row['resolvedModel'] == resolvedDefault &&
+              labels.containsKey(id)) {
+        defaultModel = id;
+        break;
+      }
+    }
+  }
+  return (labels: labels, defaultModel: defaultModel);
 }
 
-Future<Map<String, String>> _codexModels(
-  IOSink input,
-  StreamIterator<String> lines,
-) async {
+Future<_Models> _codexModels(IOSink input, StreamIterator<String> lines) async {
   Future<Object?> request(int id, String method, Map params) async {
     input.writeln(jsonEncode({'id': id, 'method': method, 'params': params}));
     final response = await _reply(lines, (line) => line['id'] == id);
@@ -108,6 +126,7 @@ Future<Map<String, String>> _codexModels(
   input.writeln('{"method":"initialized"}');
   final labels = <String, String>{};
   final seen = <String>{};
+  String? defaultModel;
   String? cursor;
   var id = 2;
   do {
@@ -118,11 +137,18 @@ Future<Map<String, String>> _codexModels(
     if (page is! Map || page['data'] is! List) {
       throw const FormatException('Invalid Codex model catalog');
     }
-    labels.addAll(_labels(page['data'], 'model'));
+    final rows = _rows(page['data']);
+    labels.addAll(_labels(rows, 'model'));
+    for (final row in rows) {
+      if (row['model'] case final String id
+          when row['isDefault'] == true && labels.containsKey(id)) {
+        defaultModel = id;
+      }
+    }
     final next = page['nextCursor'];
     cursor = next is String && next.isNotEmpty && seen.add(next) ? next : null;
   } while (cursor != null);
-  return labels;
+  return (labels: labels, defaultModel: defaultModel);
 }
 
 Future<Map> _reply(
@@ -140,12 +166,14 @@ Future<Map> _reply(
   throw const FormatException('Model catalog response missing');
 }
 
-Map<String, String> _labels(Object? rows, String key) => {
-  for (final row in rows is List ? rows : const [])
-    if (row is Map)
-      if (row[key] case final String id when id.isNotEmpty && id != 'default')
-        id: switch (row['displayName']) {
-          final String name when name.isNotEmpty => name,
-          _ => id,
-        },
+Iterable<Map> _rows(Object? rows) =>
+    rows is List ? rows.whereType<Map>() : const [];
+
+Map<String, String> _labels(Iterable<Map> rows, String key) => {
+  for (final row in rows)
+    if (row[key] case final String id when id.isNotEmpty && id != 'default')
+      id: switch (row['displayName']) {
+        final String name when name.isNotEmpty => name,
+        _ => id,
+      },
 };

@@ -273,7 +273,10 @@ class Worker {
       'home': home,
       'agents': [
         for (final a in agents)
-          a.toJson(modelLabels: _modelCatalog.labelsFor(a)),
+          a.toJson(
+            modelLabels: _modelCatalog.labelsFor(a),
+            defaultModel: _modelCatalog.defaultFor(a),
+          ),
       ],
       'dirs': book.dirs(),
       'seen_at': DateTime.now().toUtc().toIso8601String(),
