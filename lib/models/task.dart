@@ -272,6 +272,70 @@ abstract final class ClaudeModels {
       model.isEmpty ? model : model[0].toUpperCase() + model.substring(1);
 }
 
+/// Where an agent stands with a task sent to it ([Task.agentState]):
+/// sent, to start once due or once its computer takes it; at work; held
+/// up on a question or a permission only the user can give; answered and
+/// waiting for the user to look it over and tick it off; or stopped
+/// without an answer. The words are what is stored.
+abstract final class AgentState {
+  static const waiting = 'waiting';
+  static const working = 'working';
+  static const asking = 'asking';
+  static const review = 'review';
+  static const failed = 'failed';
+
+  /// What a chat's state on the server says of its task
+  /// while it runs, or null for a state that says nothing new: an idle or
+  /// finished chat's answer is told by its turn's end instead.
+  static String? ofChat(String state) => switch (state) {
+    'running' => working,
+    'asking' => asking,
+    'failed' => failed,
+    _ => null,
+  };
+}
+
+/// What a task's chat is told first: [said] for every task sent together,
+/// then the task as its card holds it — title, when it is due, notes and
+/// checklist. Here rather than in the app, as the worker says it again for
+/// a task left to start when due, with whatever it holds by then.
+String taskMessage(Task task, String said) {
+  final out = StringBuffer();
+  if (said.trim().isNotEmpty) out.write('${said.trim()}\n\n');
+  out.writeln('Task from Caldo: ${task.title.trim()}');
+  final due = task.due;
+  if (due != null) {
+    out.writeln(
+      'Due: ${_dayName(due)}${task.hasTime ? ', ${_clock(due)}' : ''}',
+    );
+  }
+  if (task.notes.trim().isNotEmpty) out.write('Notes:\n${task.notes.trim()}\n');
+  if (task.subtasks.isNotEmpty) {
+    out.writeln('Checklist:');
+    for (final step in task.subtasks) {
+      out.writeln('- [${step.done ? 'x' : ' '}] ${step.title}');
+    }
+  }
+  return out.toString().trim();
+}
+
+/// A day as an agent reads it best, whatever language the app is in:
+/// "Wednesday 25 November 2026".
+String _dayName(DateTime d) {
+  const days = [
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+    'Sunday', //
+  ];
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June', 'July',
+    'August', 'September', 'October', 'November', 'December', //
+  ];
+  return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]} ${d.year}';
+}
+
+String _clock(DateTime d) =>
+    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
 /// Where a task stands on the board: not begun, under way, or finished.
 /// Only the middle one is stored ([Task.startedAt]); the other two are
 /// whether the task is done.
@@ -450,6 +514,12 @@ class Task {
   /// does by [claude].
   final String? agent;
 
+  /// Where the agent the task went to stands with it ([AgentState]), as
+  /// the worker running it last wrote, or null for one never sent. Kept
+  /// on the task, not read from its chat, so every card — the widget's,
+  /// an unsigned device's — says it with nothing more to ask.
+  final String? agentState;
+
   /// [remindBefore] for a task that is never announced.
   static const silent = -1;
 
@@ -475,6 +545,7 @@ class Task {
     this.duration,
     this.claude,
     this.agent,
+    this.agentState,
   });
 
   /// When a timed task with a length ends, or null.
@@ -483,6 +554,16 @@ class Task {
     final minutes = duration;
     if (!hasTime || d == null || minutes == null) return null;
     return d.add(Duration(minutes: minutes));
+  }
+
+  /// Whether it has come due by [now]: one with no date at once, an
+  /// all-day one on its day, a timed one at its time.
+  bool isDueBy(DateTime now) {
+    final d = due;
+    if (d == null) return true;
+    return hasTime
+        ? !d.isAfter(now)
+        : !dueDay!.isAfter(DateTime(now.year, now.month, now.day));
   }
 
   /// Whether ticking this task off rolls it on to its next date rather than
@@ -504,6 +585,8 @@ class Task {
         completedAt: now,
         clearSnoozedUntil: true,
         clearStartedAt: true,
+        // Its next time round has not been worked on by anyone.
+        clearAgentState: true,
         // Its next time round starts with nothing on the checklist done.
         subtasks: [for (final s in subtasks) s.copyWith(done: false)],
       );
@@ -618,6 +701,8 @@ class Task {
     bool clearClaude = false,
     String? agent,
     bool clearAgent = false,
+    String? agentState,
+    bool clearAgentState = false,
   }) {
     return Task(
       id: id ?? this.id,
@@ -645,6 +730,7 @@ class Task {
       duration: clearDuration ? null : (duration ?? this.duration),
       claude: clearClaude ? null : (claude ?? this.claude),
       agent: clearAgent ? null : (agent ?? this.agent),
+      agentState: clearAgentState ? null : (agentState ?? this.agentState),
     );
   }
 
@@ -671,6 +757,7 @@ class Task {
       'duration': duration,
       'claude': claude,
       'agent': agent,
+      'agent_state': agentState,
     };
   }
 
@@ -700,6 +787,7 @@ class Task {
       duration: map['duration'] as int?,
       claude: map['claude'] as String?,
       agent: map['agent'] as String?,
+      agentState: map['agent_state'] as String?,
     );
   }
 

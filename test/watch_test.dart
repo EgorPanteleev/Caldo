@@ -80,33 +80,41 @@ void main() {
     scratch.deleteSync(recursive: true);
   });
 
-  test('a task handed to Claude is worked on, answered and ticked', () async {
-    await add('Tidy the downloads', notes: 'Only the PDFs', claude: 'sonnet');
-    await phone.round();
-
-    Task? during;
-    meanwhile = () async {
+  test(
+    'a task handed to Claude is worked on, answered and left for review',
+    () async {
+      await add('Tidy the downloads', notes: 'Only the PDFs', claude: 'sonnet');
       await phone.round();
-      during = await phone.named('Tidy the downloads');
-    };
-    expect(await watcher().once(), 1);
 
-    // The phone's board showed it In progress while Claude worked.
-    expect(during!.stage, Stage.inProgress);
-    expect(asked.single.prompt, contains('Task: Tidy the downloads'));
-    expect(asked.single.prompt, contains('Only the PDFs'));
-    expect(asked.single.dir, scratch.path);
-    expect(asked.single.model, 'sonnet');
-    expect(asked.single.resume, isNull);
+      Task? during;
+      meanwhile = () async {
+        await phone.round();
+        during = await phone.named('Tidy the downloads');
+      };
+      expect(await watcher().once(), 1);
 
-    await phone.round();
-    final after = await phone.named('Tidy the downloads');
-    expect(after.done, isTrue);
-    expect(after.notes, startsWith('Only the PDFs\n\n— Claude, '));
-    expect(after.notes, endsWith('—\nDone it.'));
-    // Ticked as the app ticks: a line in the Done log.
-    expect(await phone.count('select count(*) from completions'), 1);
-  });
+      // The phone's board showed it In progress while Claude worked.
+      expect(during!.stage, Stage.inProgress);
+      expect(during!.agentState, AgentState.working);
+      expect(asked.single.prompt, contains('Task: Tidy the downloads'));
+      expect(asked.single.prompt, contains('Only the PDFs'));
+      expect(asked.single.dir, scratch.path);
+      expect(asked.single.model, 'sonnet');
+      expect(asked.single.resume, isNull);
+
+      await phone.round();
+      final after = await phone.named('Tidy the downloads');
+      // Not ticked off: the user looks it over and does that.
+      expect(after.done, isFalse);
+      expect(after.stage, Stage.inProgress);
+      expect(after.agentState, AgentState.review);
+      expect(after.notes, startsWith('Only the PDFs\n\n— Claude, '));
+      expect(after.notes, endsWith('—\nDone it.'));
+      expect(await phone.count('select count(*) from completions'), 0);
+      // And not taken up again while it waits there.
+      expect(await watcher().once(), 0);
+    },
+  );
 
   test('only what is handed over, waiting and due, is taken up', () async {
     await add('Not for Claude', claude: null);
@@ -147,6 +155,7 @@ void main() {
       await phone.round();
       var task = await phone.named('Fix the build');
       expect(task.stage, Stage.inProgress);
+      expect(task.agentState, AgentState.failed);
       expect(task.notes, contains('The tests need a database.'));
       expect(task.notes, contains('Not allowed: Bash.'));
       expect(task.notes, contains('Move it back to Not started'));
@@ -167,7 +176,7 @@ void main() {
 
       await phone.round();
       task = await phone.named('Fix the build');
-      expect(task.done, isTrue);
+      expect(task.agentState, AgentState.review);
       expect(task.notes, endsWith('—\nFixed.'));
     },
   );

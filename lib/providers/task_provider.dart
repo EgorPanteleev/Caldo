@@ -746,14 +746,25 @@ class TaskProvider extends ChangeNotifier {
 
   /// Marks each of [sent] with what it was sent to and puts it in
   /// progress, as the board says of a task an agent is working on: a done
-  /// one is opened again, one in progress already keeps its start.
-  Future<void> sentToAgents(Map<Task, String> sent) async {
+  /// one is opened again, one in progress already keeps its start. Those
+  /// [later] wait for their day as they are, until their worker takes them
+  /// up. Either way each waits ([AgentState.waiting]) until its worker
+  /// says otherwise: a computer that is off has not begun.
+  Future<void> sentToAgents(
+    Map<Task, String> sent, {
+    Set<Task> later = const {},
+  }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final MapEntry(key: task, value: label) in sent.entries) {
-      final started = task.stage == Stage.inProgress
+      final started = later.contains(task)
+          ? (task.done ? task.toStage(Stage.notStarted, now) : task)
+          : task.stage == Stage.inProgress
           ? task
           : task.toStage(Stage.inProgress, now);
-      final marked = started.copyWith(agent: label);
+      final marked = started.copyWith(
+        agent: label,
+        agentState: AgentState.waiting,
+      );
       task.done ? await _db.untick(marked) : await _db.update(marked);
     }
     rearranging.value++;

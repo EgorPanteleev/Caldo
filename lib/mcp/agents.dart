@@ -95,6 +95,10 @@ class AgentSpec {
     // It signs in to accounts asked for in the app and runs a chat under
     // the one chosen (`agent_accounts`).
     'accounts': id == 'claude' || id == 'codex',
+    // It starts a task's chat left waiting once the task is due, and says
+    // on the task where the chat stands, its answer in the notes: an app
+    // offers "When due" only to a worker that does.
+    'tasks': true,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part

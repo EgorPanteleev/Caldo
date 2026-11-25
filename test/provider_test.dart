@@ -74,6 +74,22 @@ void main() {
     final again = await taskNamed('Ship');
     expect(again.agent, 'Sonnet');
     expect(again.startedAt, shipAfter.startedAt);
+    // Waiting for its worker to take it up.
+    expect(again.agentState, AgentState.waiting);
+  });
+
+  test('a task sent to start when due waits as it is', () async {
+    final provider = await seedProvider();
+    final ship = await taskNamed('Ship');
+    expect(ship.stage, Stage.notStarted);
+
+    await provider.sentToAgents({ship: 'Opus'}, later: {ship});
+
+    final after = await taskNamed('Ship');
+    expect(after.agent, 'Opus');
+    expect(after.agentState, AgentState.waiting);
+    // Not begun: its worker puts it in progress once it starts it.
+    expect(after.stage, Stage.notStarted);
   });
 
   test('high priority leads a day nobody has arranged', () async {

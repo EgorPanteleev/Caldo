@@ -1755,6 +1755,55 @@ void main() {
           scrollable: list,
         );
         expect(find.text(s.chatForEach.toUpperCase()), findsOneWidget);
+        // Both due already: nothing to wait for.
+        expect(find.text(s.chatStarts.toUpperCase()), findsNothing);
+      });
+
+      testWidgets('offers to start when due in ${S.names[code]}', (
+        tester,
+      ) async {
+        final s = S.forCode(code);
+        AgentWorker worker({required bool tasks}) => AgentWorker(
+          id: 'w',
+          name: 'desk',
+          home: '/home/someone',
+          seenAt: DateTime.now(),
+          dirs: const [],
+          agents: [AgentKind(id: 'claude', label: 'Claude', tasks: tasks)],
+        );
+        final provider = TaskProvider();
+        addTearDown(provider.dispose);
+        final tomorrow = DateTime.now().add(const Duration(days: 1));
+        Future<void> open() => pump(
+          tester,
+          code,
+          ChangeNotifierProvider.value(
+            value: provider,
+            child: NewChatScreen(
+              tasks: [
+                Task(
+                  id: 1,
+                  listId: 1,
+                  title: 'Renew the domain',
+                  dueAt: tomorrow.millisecondsSinceEpoch,
+                  createdAt: 0,
+                ),
+              ],
+            ),
+          ),
+        );
+        // A worker from before could never start a chat left waiting.
+        Agents.instance.workers = [worker(tasks: false)];
+        await open();
+        expect(find.text(s.chatStarts.toUpperCase()), findsNothing);
+
+        Agents.instance.workers = [worker(tasks: true)];
+        await open();
+        expect(find.text(s.chatStarts.toUpperCase()), findsOneWidget);
+        expect(find.text(s.chatStartsWhenDueHint), findsNothing);
+        await tester.tap(find.text(s.chatStartsWhenDue));
+        await tester.pump();
+        expect(find.text(s.chatStartsWhenDueHint), findsOneWidget);
       });
 
       testWidgets("shows a chat's settings in ${S.names[code]}", (

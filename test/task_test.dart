@@ -275,6 +275,14 @@ void main() {
       expect(copy.completedAt, 456);
     });
 
+    test('where its agent stands survives the round trip', () {
+      final sent = taskDue(
+        DateTime(2026, 5, 4),
+      ).copyWith(agent: 'Opus', agentState: AgentState.review);
+      expect(Task.fromMap(sent.toMap()).agentState, AgentState.review);
+      expect(sent.copyWith(clearAgentState: true).agentState, isNull);
+    });
+
     test('copyWith can clear the colour a task was given', () {
       final task = const Task(
         listId: 1,
@@ -502,6 +510,56 @@ void main() {
       expect(Dates.lead(3 * Duration.minutesPerDay), '3 days before');
       expect(Dates.lead(7 * Duration.minutesPerDay), '1 week before');
       expect(Dates.lead(14 * Duration.minutesPerDay), '2 weeks before');
+    });
+  });
+
+  group('a task sent to an agent', () {
+    test('comes due on its day, or at its time', () {
+      final now = DateTime(2026, 11, 25, 14, 30);
+      Task at(DateTime? due, {bool timed = false}) => Task(
+        listId: 1,
+        title: 'x',
+        dueAt: due?.millisecondsSinceEpoch,
+        hasTime: timed,
+        createdAt: 0,
+      );
+      expect(at(null).isDueBy(now), isTrue);
+      expect(at(DateTime(2026, 11, 25)).isDueBy(now), isTrue);
+      expect(at(DateTime(2026, 11, 26)).isDueBy(now), isFalse);
+      expect(at(DateTime(2026, 11, 25, 14), timed: true).isDueBy(now), isTrue);
+      expect(at(DateTime(2026, 11, 25, 15), timed: true).isDueBy(now), isFalse);
+    });
+
+    test('is told its day and time in words any agent reads', () {
+      final task = Task(
+        listId: 1,
+        title: 'Renew the domain',
+        dueAt: DateTime(2026, 11, 25, 9, 5).millisecondsSinceEpoch,
+        hasTime: true,
+        createdAt: 0,
+      );
+      expect(
+        taskMessage(task, ''),
+        'Task from Caldo: Renew the domain\n'
+        'Due: Wednesday 25 November 2026, 09:05',
+      );
+    });
+
+    test('its next round has not been worked on', () {
+      final weekly = Task(
+        listId: 1,
+        title: 'Report',
+        dueAt: DateTime(2026, 11, 25).millisecondsSinceEpoch,
+        repeat: Repeat.weekly,
+        agent: 'Opus',
+        agentState: AgentState.review,
+        createdAt: 0,
+      );
+      final next = weekly.completed(
+        DateTime(2026, 11, 25, 12).millisecondsSinceEpoch,
+      );
+      expect(next.done, isFalse);
+      expect(next.agentState, isNull);
     });
   });
 }
