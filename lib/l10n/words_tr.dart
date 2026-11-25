@@ -681,4 +681,22 @@ const Map<String, Object> tr = {
       "Her sohbet bilgisayarda kendi klasöründe, projesinin klasörleriyle çalışır.",
   'allProjects': "Tüm projeler",
   'untitledProject': "Adsız proje",
+  'projectAllContext': "Tüm bağlam",
+  'projectAllContextHint':
+      "{name} içinde başlatılan bir sohbete söylenenler: burada saklanan sözler, ardından Claude'un bilgisayarda okudukları — CLAUDE.md dosyaları ve belleği.",
+  'contextInCaldo': "Caldo'da",
+  'contextOnWorker': "{worker} üzerinde",
+  'contextOnComputer': "Bilgisayarda",
+  'contextNoWorker': "Dosyaların okunacağı açık bir bilgisayar yok.",
+  'contextNoAnswer': "Bilgisayar yanıt vermedi. Worker'ı çalışıyor mu?",
+  'contextChanged':
+      "Bu arada bilgisayarda değiştirildi, bu yüzden olduğu gibi bırakıldı. İşte şimdiki hâli.",
+  'contextUserFile': "Sizin, her klasörde okunur",
+  'contextMemory': "Bellek",
+  'contextMissing': "Henüz yazılmadı",
+  'contextNothing': "Hiçbir şey yazılmadı",
+  'contextUncommitted': "Commit edilmedi: yeni sohbetler henüz görmüyor",
+  'contextWords': "Caldo'da saklanır, içinde başlatılan her sohbete söylenir",
+  'contextDeleteQuestion': "Bu anı silinsin mi?",
+  'contextReadAgain': "Yeniden oku",
 };

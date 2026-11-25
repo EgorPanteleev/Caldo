@@ -677,4 +677,22 @@ const Map<String, Object> en = {
       "Each chat works in a folder of its own on the computer, with its project's folders in it.",
   'allProjects': "All projects",
   'untitledProject': "Untitled project",
+  'projectAllContext': "All context",
+  'projectAllContextHint':
+      "What a chat begun in {name} is told: the words kept here, then what Claude reads on the computer — CLAUDE.md files and its memory.",
+  'contextInCaldo': "In Caldo",
+  'contextOnWorker': "On {worker}",
+  'contextOnComputer': "On the computer",
+  'contextNoWorker': "No computer is on to read the files from.",
+  'contextNoAnswer': "The computer didn't answer. Is its worker running?",
+  'contextChanged':
+      "It was changed on the computer meanwhile, so it was left as it was. Here it is as it is now.",
+  'contextUserFile': "Yours, read in every folder",
+  'contextMemory': "Memory",
+  'contextMissing': "Not written yet",
+  'contextNothing': "Nothing written",
+  'contextUncommitted': "Not committed: new chats don't see it yet",
+  'contextWords': "Kept in Caldo, told to every chat begun in it",
+  'contextDeleteQuestion': "Delete this memory?",
+  'contextReadAgain': "Read again",
 };

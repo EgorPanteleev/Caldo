@@ -318,6 +318,16 @@ class _ProjectScreenState extends State<ProjectScreen> {
     }
   }
 
+  /// Everything its chats are told, to read and change; its words changed
+  /// there are taken in here, so saving here doesn't put them back.
+  Future<void> _allContext() async {
+    final project = widget.project!;
+    final before = _agents.project(project.id)?.context ?? project.context;
+    await openProjectContext(context, project);
+    final now = _agents.project(project.id)?.context;
+    if (mounted && now != null && now != before) _context.text = now;
+  }
+
   Future<void> _delete() async {
     final s = S.of(context);
     final ok = await showDialog<bool>(
@@ -414,6 +424,19 @@ class _ProjectScreenState extends State<ProjectScreen> {
                       hint: s.projectContextHint,
                       lines: 14,
                     ),
+                    if (project != null) ...[
+                      const SizedBox(height: 8),
+                      _Picks(
+                        children: [
+                          _Pick(
+                            label: s.projectAllContext,
+                            icon: Icons.layers_outlined,
+                            selected: false,
+                            onTap: _allContext,
+                          ),
+                        ],
+                      ),
+                    ],
                     _Section(s.projectSources),
                     _Field(
                       controller: _sources,
