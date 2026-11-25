@@ -663,4 +663,32 @@ const Map<String, Object> fr = {
       "{worker} s'y connecte et le garde à part de sa propre connexion. Les chats sous ce compte partagent extensions, compétences et sessions.",
   'chatAccount': "Compte",
   'usageResetSince': "Réinitialisé depuis",
+  'agentProjects': "Projets",
+  'newProject': "Nouveau projet",
+  'newSubproject': "Nouveau sous-projet",
+  'editProject': "Projet",
+  'editProjects': "Modifier les projets…",
+  'noProjects': "Pas encore de projets",
+  'noProjectsHint':
+      "Un projet dit à ses chats de quoi il s'agit et sur quels dossiers ils travaillent.",
+  'projectName': "Nom",
+  'projectColour': "Couleur",
+  'projectContext': "Contexte",
+  'projectContextHint':
+      "Ce que chaque chat du projet doit savoir : ce que c'est, comment y travailler, à quoi ne pas toucher.",
+  'projectSources': "Dossiers",
+  'projectSourcesHint':
+      "Dossiers de l'ordinateur, comme ~/dev/src/Caldo. Chaque chat reçoit un dépôt git comme worktree sur sa propre branche ; tout autre dossier est partagé tel quel.",
+  'projectAddSource': "Ajouter un dossier",
+  'projectFrom': "De {name}",
+  'projectSubprojects': "Sous-projets",
+  'deleteProjectQuestion': "Supprimer ce projet ?",
+  'deleteProjectHint':
+      "Ses sous-projets partent avec lui. Les chats commencés dedans gardent ce qu'on leur a dit.",
+  'chatProject': "Projet",
+  'chatNoProject': "Aucun",
+  'chatOwnFolderHint':
+      "Chaque chat travaille dans son propre dossier sur l'ordinateur, avec les dossiers de son projet dedans.",
+  'allProjects': "Tous les projets",
+  'untitledProject': "Projet sans nom",
 };

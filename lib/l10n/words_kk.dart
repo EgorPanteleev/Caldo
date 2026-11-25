@@ -650,4 +650,32 @@ const Map<String, Object> kk = {
       "{worker} оған кіріп, өз кіруінен бөлек сақтайды. Оның чаттары сол плагиндерді, дағдыларды және сессияларды пайдаланады.",
   'chatAccount': "Аккаунт",
   'usageResetSince': "Қалпына келді",
+  'agentProjects': "Жобалар",
+  'newProject': "Жаңа жоба",
+  'newSubproject': "Жаңа ішкі жоба",
+  'editProject': "Жоба",
+  'editProjects': "Жобаларды өзгерту…",
+  'noProjects': "Әзірге жоба жоқ",
+  'noProjectsHint':
+      "Жоба өз чаттарына олардың не туралы екенін және қай қалталармен жұмыс істейтінін айтады.",
+  'projectName': "Атауы",
+  'projectColour': "Түсі",
+  'projectContext': "Контекст",
+  'projectContextHint':
+      "Әр чаты білуі керек нәрсе: бұл не, онымен қалай жұмыс істеу керек, нені қозғамау керек.",
+  'projectSources': "Қалталар",
+  'projectSourcesHint':
+      "Компьютердегі қалталар, мысалы ~/dev/src/Caldo. Git репозиторийін әр чат өз тармағындағы worktree ретінде алады; басқа кез келген қалта ортақ.",
+  'projectAddSource': "Қалта қосу",
+  'projectFrom': "«{name}» жобасынан",
+  'projectSubprojects': "Ішкі жобалар",
+  'deleteProjectQuestion': "Жобаны жою керек пе?",
+  'deleteProjectHint':
+      "Оның ішкі жобалары бірге жойылады. Онда басталған чаттар айтылғанды сақтайды.",
+  'chatProject': "Жоба",
+  'chatNoProject': "Жобасыз",
+  'chatOwnFolderHint':
+      "Әр чат компьютердегі өз қалтасында, жобасының қалталарымен жұмыс істейді.",
+  'allProjects': "Барлық жобалар",
+  'untitledProject': "Атаусыз жоба",
 };

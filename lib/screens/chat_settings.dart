@@ -240,6 +240,8 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                             : '${w.name} · ${s.chatOffline}',
                       ),
                       _Fact(s.chatAgent, kind?.label ?? chat.agent),
+                      if (_chatProjectName(chat) case final project?)
+                        _Fact(s.chatProject, project),
                       _Fact(
                         s.chatFolder,
                         w == null

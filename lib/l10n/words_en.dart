@@ -644,4 +644,32 @@ const Map<String, Object> en = {
       "{worker} signs in to it and keeps it apart from its own login. Chats under it share its plugins, skills and sessions.",
   'chatAccount': "Account",
   'usageResetSince': "Reset since",
+  'agentProjects': "Projects",
+  'newProject': "New project",
+  'newSubproject': "New subproject",
+  'editProject': "Project",
+  'editProjects': "Edit projects…",
+  'noProjects': "No projects yet",
+  'noProjectsHint':
+      "A project tells its chats what they are about and which folders they work on.",
+  'projectName': "Name",
+  'projectColour': "Colour",
+  'projectContext': "Context",
+  'projectContextHint':
+      "What every chat in it should know: what it is, how to work on it, what to leave alone.",
+  'projectSources': "Folders",
+  'projectSourcesHint':
+      "Folders on the computer, like ~/dev/src/Caldo. A git repository is given to each chat as a worktree on a branch of its own; any other folder is shared as it is.",
+  'projectAddSource': "Add folder",
+  'projectFrom': "From {name}",
+  'projectSubprojects': "Subprojects",
+  'deleteProjectQuestion': "Delete this project?",
+  'deleteProjectHint':
+      "Its subprojects go with it. Chats begun in it keep what they were told.",
+  'chatProject': "Project",
+  'chatNoProject': "None",
+  'chatOwnFolderHint':
+      "Each chat works in a folder of its own on the computer, with its project's folders in it.",
+  'allProjects': "All projects",
+  'untitledProject': "Untitled project",
 };

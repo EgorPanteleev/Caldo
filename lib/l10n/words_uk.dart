@@ -688,4 +688,32 @@ const Map<String, Object> uk = {
       "{worker} увійде в нього й зберігатиме окремо від свого входу. Чати під ним мають ті самі плагіни, навички й сесії.",
   'chatAccount': "Акаунт",
   'usageResetSince': "Уже скинуто",
+  'agentProjects': "Проєкти",
+  'newProject': "Новий проєкт",
+  'newSubproject': "Новий підпроєкт",
+  'editProject': "Проєкт",
+  'editProjects': "Змінити проєкти…",
+  'noProjects': "Проєктів поки немає",
+  'noProjectsHint':
+      "Проєкт каже своїм чатам, про що вони і з якими теками працюють.",
+  'projectName': "Назва",
+  'projectColour': "Колір",
+  'projectContext': "Контекст",
+  'projectContextHint':
+      "Що має знати кожен його чат: що це, як з ним працювати, чого не чіпати.",
+  'projectSources': "Теки",
+  'projectSourcesHint':
+      "Теки на комп'ютері, наприклад ~/dev/src/Caldo. Git-репозиторій кожен чат отримує як worktree на власній гілці; будь-яка інша тека спільна.",
+  'projectAddSource': "Додати теку",
+  'projectFrom': "З «{name}»",
+  'projectSubprojects': "Підпроєкти",
+  'deleteProjectQuestion': "Видалити проєкт?",
+  'deleteProjectHint':
+      "Його підпроєкти видаляться разом з ним. Розпочаті в ньому чати збережуть те, що їм сказали.",
+  'chatProject': "Проєкт",
+  'chatNoProject': "Без проєкту",
+  'chatOwnFolderHint':
+      "Кожен чат працює у власній теці на комп'ютері, з теками свого проєкту.",
+  'allProjects': "Усі проєкти",
+  'untitledProject': "Проєкт без назви",
 };

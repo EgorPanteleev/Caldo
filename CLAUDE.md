@@ -775,6 +775,23 @@ the app, a terminal beside them; anything else a terminal.
   left out of the insert when none. A chat left without a first message
   starts with the chosen rules' openings (`firstMessage`, shown as the
   hint; app only). Errands take none.
+- **Projects, not folders** (asked for in place of the form's folder):
+  `agent_projects` (name, colour, context, `sources` from `~`), under one
+  another to any depth (`parent_id`, a trigger refuses loops and others'
+  parents); edited under Agents › Projects (`ProjectsScreen`,
+  `ProjectScreen`, `agent_projects.dart`). A chat keeps a copy
+  (`chats.project`, `Agents.snapshotOf`: path, colour, every context from
+  the top down, all folders); `project_id` is only for the list, which
+  wears each project's colour and lists one project's chats at a time.
+  The context reaches the agent after the rules (`projectText`).
+- **Every chat from the app works in a folder of its own** (`Workspace`,
+  `lib/mcp/workspace.dart`; `chats.workspace`, `{}` asked, filled by the
+  worker): `~/.local/share/caldo/work/<chat>`, each source in a git repo
+  a worktree on `caldo/<id8>` from the checkout's HEAD, any other source
+  given as it is (`--add-dir`). One worktree is the start folder (its
+  CLAUDE.md is read), else the chat's folder. `dir` is written back. Gone
+  with the chat, its branch kept if it holds unmerged work; strays swept
+  at the worker's start. Errands and chats from before keep `dir`.
 - **A chat names itself from its first message** (`Worker._name`,
   `nameChat`): Haiku (`namingArgs`: no tools, settings, MCP or session, in
   the temp dir) gives three to six words as structured output

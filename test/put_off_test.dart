@@ -36,10 +36,8 @@ void main() {
         home: Scaffold(
           body: PageView.builder(
             controller: pager,
-            itemBuilder: (_, i) => Align(
-              alignment: Alignment.topCenter,
-              child: card('Day $i'),
-            ),
+            itemBuilder: (_, i) =>
+                Align(alignment: Alignment.topCenter, child: card('Day $i')),
           ),
         ),
       ),

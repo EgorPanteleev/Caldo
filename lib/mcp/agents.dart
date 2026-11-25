@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'workspace.dart';
+
 /// One kind of agent a worker can run in a terminal: Claude, Codex, a model
 /// on this computer, a plain shell — and what the app may choose for it.
 ///
@@ -326,6 +328,20 @@ class ChatAsk {
   /// own login.
   final String? account;
 
+  /// Whether it works in a folder of its own ([Workspace]), not in [dir]
+  /// as the app or a task's notes named it.
+  final bool ownFolder;
+
+  /// The folders its project works on, as the user wrote them (from `~`).
+  final List<String> sources;
+
+  /// Its own folder, once its worker has made it; then [dir] is where in
+  /// it the program starts.
+  final Workspace? workspace;
+
+  /// The row it was read from, to read it again once placed.
+  final Map? _row;
+
   const ChatAsk({
     required this.id,
     required this.agent,
@@ -346,20 +362,66 @@ class ChatAsk {
     this.usage,
     this.language,
     this.account,
+    this.ownFolder = false,
+    this.sources = const [],
+    this.workspace,
+  }) : _row = null;
+
+  ChatAsk._read(
+    Map json, {
+    required this.id,
+    required this.agent,
+    required this.title,
+    required this.model,
+    required this.effort,
+    required this.dir,
+    required this.permission,
+    required this.plugins,
+    required this.skills,
+    required this.prompt,
+    required this.rules,
+    required this.session,
+    required this.taskUuid,
+    required this.cols,
+    required this.rows,
+    required this.mode,
+    required this.usage,
+    required this.language,
+    required this.account,
+    required this.ownFolder,
+    required this.sources,
+    required this.workspace,
+  }) : _row = json;
+
+  /// It as it is once its own folder is made: started in it, and told it.
+  ChatAsk placed(Workspace made) => ChatAsk.fromJson({
+    ...?_row,
+    'id': id,
+    'agent': agent,
+    'workspace': made.toJson(),
+    'dir': made.cwd,
   });
 
-  factory ChatAsk.fromJson(Map json) => ChatAsk(
+  /// The folders it is given besides the one it starts in.
+  List<String> get added => workspace?.added ?? const [];
+
+  factory ChatAsk.fromJson(Map json) => ChatAsk._read(
+    json,
     id: json['id'] as String,
     agent: json['agent'] as String,
     title: json['title'] as String? ?? '',
     model: _blank(json['model']),
     effort: _blank(json['effort']),
-    dir: _blank(json['dir']),
+    dir: Workspace.of(json['workspace'])?.cwd ?? _blank(json['dir']),
     permission: _blank(json['permission']),
     plugins: json['plugins'] == null ? null : _strings(json['plugins']),
     skills: _strings(json['skills']),
     prompt: json['prompt'] as String? ?? '',
-    rules: rulesText(json['rules']),
+    rules: _joined([
+      rulesText(json['rules']),
+      projectText(json['project']),
+      workspaceText(Workspace.of(json['workspace'])),
+    ]),
     session: _blank(json['session']),
     taskUuid: json['task_uuid'] as String?,
     cols: json['cols'] as int? ?? 80,
@@ -368,7 +430,25 @@ class ChatAsk {
     usage: json['usage'] is Map ? json['usage'] as Map : null,
     language: _blank(json['language']),
     account: _blank(json['account']),
+    ownFolder: json['workspace'] is Map,
+    sources: switch (json['project']) {
+      {'sources': final List sources} => [
+        for (final s in sources)
+          if (_blank(s) case final String dir) dir,
+      ],
+      _ => const [],
+    },
+    workspace: Workspace.of(json['workspace']),
   );
+}
+
+/// [parts] one after another, the empty left out; null if all are.
+String? _joined(List<String?> parts) {
+  final kept = [
+    for (final p in parts)
+      if (p != null && p.isNotEmpty) p,
+  ];
+  return kept.isEmpty ? null : kept.join('\n\n');
 }
 
 String? _blank(Object? s) => s is String && s.trim().isNotEmpty ? s : null;
@@ -612,6 +692,8 @@ List<String> claudeChoices(
     // Joined by `=`: the flag takes every word after it up to the next
     // flag, and a first message would be taken for a folder.
     if (given != null) '--add-dir=$given',
+    // The project's folders outside the one it starts in.
+    for (final dir in ask.added) '--add-dir=$dir',
   ];
 }
 

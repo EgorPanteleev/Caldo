@@ -662,4 +662,32 @@ const Map<String, Object> it = {
       "{worker} vi accede e lo tiene separato dal proprio accesso. Le chat con esso condividono plugin, skill e sessioni.",
   'chatAccount': "Account",
   'usageResetSince': "Già azzerato",
+  'agentProjects': "Progetti",
+  'newProject': "Nuovo progetto",
+  'newSubproject': "Nuovo sottoprogetto",
+  'editProject': "Progetto",
+  'editProjects': "Modifica progetti…",
+  'noProjects': "Ancora nessun progetto",
+  'noProjectsHint':
+      "Un progetto dice alle sue chat di cosa si tratta e su quali cartelle lavorano.",
+  'projectName': "Nome",
+  'projectColour': "Colore",
+  'projectContext': "Contesto",
+  'projectContextHint':
+      "Ciò che ogni chat del progetto deve sapere: cos'è, come lavorarci, cosa non toccare.",
+  'projectSources': "Cartelle",
+  'projectSourcesHint':
+      "Cartelle sul computer, come ~/dev/src/Caldo. Ogni chat riceve un repository git come worktree su un proprio ramo; ogni altra cartella è condivisa così com'è.",
+  'projectAddSource': "Aggiungi cartella",
+  'projectFrom': "Da {name}",
+  'projectSubprojects': "Sottoprogetti",
+  'deleteProjectQuestion': "Eliminare questo progetto?",
+  'deleteProjectHint':
+      "I suoi sottoprogetti vanno con lui. Le chat iniziate al suo interno conservano ciò che è stato detto loro.",
+  'chatProject': "Progetto",
+  'chatNoProject': "Nessuno",
+  'chatOwnFolderHint':
+      "Ogni chat lavora in una propria cartella sul computer, con dentro le cartelle del suo progetto.",
+  'allProjects': "Tutti i progetti",
+  'untitledProject': "Progetto senza nome",
 };

@@ -26,6 +26,7 @@ import '../utils/dates.dart';
 import '../utils/platform.dart';
 import '../widgets/chat_usage.dart';
 import '../widgets/choice_sheet.dart';
+import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
@@ -35,6 +36,7 @@ import '../widgets/selection.dart' show Selection;
 import '../widgets/talk_view.dart';
 
 part 'agent_accounts.dart';
+part 'agent_projects.dart';
 part 'agent_rules.dart';
 part 'chat_settings.dart';
 part 'chat_subscriptions.dart';
@@ -69,6 +71,46 @@ class _AgentsScreenState extends State<AgentsScreen> {
   final _picked = <String>{};
 
   bool _picking() => _picked.isNotEmpty;
+
+  /// The project whose chats alone are listed, its subprojects' with
+  /// them; null for every chat.
+  String? _only;
+
+  /// The chats listed: all, or those of the project chosen.
+  List<Chat> get _shown {
+    final only = _agents.project(_only);
+    if (only == null) return _agents.chats;
+    final family = _agents.familyOf(only.id);
+    return [
+      for (final c in _agents.chats)
+        if (family.contains(c.projectId)) c,
+    ];
+  }
+
+  /// One project's chats listed, or all again; or the projects opened to
+  /// change, from the same sheet, or at once while there are none.
+  Future<void> _chooseProject() async {
+    final s = S.of(context);
+    if (_agents.projects.isEmpty) return openProjects(context);
+    const all = '', edit = '/edit';
+    final got = await choose<String>(
+      context,
+      title: s.agentProjects,
+      selected: _agents.project(_only)?.id ?? all,
+      options: [
+        Option(all, s.allProjects),
+        for (final p in _agents.projects)
+          Option(p.id, '${'   ' * _agents.depthOf(p)}${p.name.trim()}'),
+        Option(edit, s.editProjects, icon: Icons.edit_outlined),
+      ],
+    );
+    if (got == null || !mounted) return;
+    if (got == edit) return openProjects(context);
+    setState(() {
+      _only = got == all ? null : got;
+      _picked.clear();
+    });
+  }
 
   @override
   void initState() {
@@ -215,7 +257,8 @@ class _AgentsScreenState extends State<AgentsScreen> {
   Widget build(BuildContext context) {
     final s = S.of(context);
     final p = AppTheme.of(context);
-    final chats = _agents.chats;
+    final chats = _shown;
+    final only = _agents.project(_only);
     final Widget body;
     if (!_agents.signedIn) {
       body = _empty(
@@ -232,7 +275,9 @@ class _AgentsScreenState extends State<AgentsScreen> {
         s.agentsNoWorkerHint,
       );
     } else if (chats.isEmpty) {
-      body = _empty(Icons.terminal_rounded, s.noChats, s.noChatsHint);
+      body = only != null
+          ? _empty(Icons.workspaces_outlined, s.noChats, s.chatOwnFolderHint)
+          : _empty(Icons.terminal_rounded, s.noChats, s.noChatsHint);
     } else {
       body = DeskGutter(
         builder: (context, gutter) => ListView.separated(
@@ -313,8 +358,19 @@ class _AgentsScreenState extends State<AgentsScreen> {
             ],
           )
         : ScreenHeader(
-            title: s.agents,
+            title: only != null ? _agents.pathOf(only) : s.agents,
             actions: [
+              if (_agents.signedIn)
+                IconButton(
+                  icon: Icon(
+                    Icons.workspaces_outlined,
+                    // In the project's own colour while only its chats
+                    // are listed.
+                    color: only != null ? _projectColour(only) : p.muted,
+                  ),
+                  tooltip: s.agentProjects,
+                  onPressed: _chooseProject,
+                ),
               if (_agents.signedIn && _agents.workers.isNotEmpty)
                 IconButton(
                   icon: Icon(Icons.account_circle_outlined, color: p.muted),
@@ -465,8 +521,15 @@ class _ChatRow extends StatelessWidget {
     final when = DateUtils.isSameDay(at, now)
         ? Dates.time(at)
         : Dates.shortDay(at);
+    // A chat of a project wears its colour, so projects' chats are told
+    // apart in the list at a glance.
+    final colour = _chatColour(chat);
+    final project = _chatProjectName(chat);
+    final ground = picked ? p.panelHi : p.panel;
     return Material(
-      color: picked ? p.panelHi : p.panel,
+      color: colour == null
+          ? ground
+          : Color.alphaBlend(colour.withValues(alpha: 0.16), ground),
       // Picked, a rim in the text's colour: no accent, as the task cards'
       // picks have none either.
       shape: RoundedRectangleBorder(
@@ -548,8 +611,22 @@ class _ChatRow extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      '${_stateName(s, chat)} · ${_lineOf(chat)}',
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          if (project != null)
+                            TextSpan(
+                              text: '$project · ',
+                              style: TextStyle(
+                                color: Color.lerp(colour, p.text, 0.35),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          TextSpan(
+                            text: '${_stateName(s, chat)} · ${_lineOf(chat)}',
+                          ),
+                        ],
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: p.muted, fontSize: 12.5),
@@ -672,7 +749,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
   final _agents = Agents.instance;
   final _title = TextEditingController();
   final _prompt = TextEditingController();
-  final _dir = TextEditingController();
+
+  /// The project it is begun in, by id; null for none. Every chat works in
+  /// a folder of its own on its worker, with its project's folders in it.
+  String? _project;
 
   String? _worker;
   String? _agent;
@@ -735,7 +815,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
     _agents.unwatch();
     _title.dispose();
     _prompt.dispose();
-    _dir.dispose();
     super.dispose();
   }
 
@@ -773,8 +852,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
       _effort = last['effort'] as String?;
       _permission = last['permission'] as String?;
     }
-    if (last['worker'] == _worker && last['dir'] is String) {
-      _dir.text = last['dir'] as String;
+    if (_agents.project(last['project'] as String?) != null) {
+      _project = last['project'] as String;
     }
     if (_ready(last['account'] as String?)) {
       _account = last['account'] as String;
@@ -793,7 +872,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
           'model': _model,
           'effort': _effort,
           'permission': _permission,
-          'dir': _dir.text.trim(),
+          'project': _project,
           'account': _account,
           'rules': _rules.toList(),
         }),
@@ -811,8 +890,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
   ];
   AgentKind? get _kind => _kinds.where((a) => a.id == _agent).firstOrNull;
 
-  /// The worker [id], or the first one there; its first agent, and its
-  /// home for a folder.
+  /// The worker [id], or the first one there, and its first agent.
   void _pickWorker(String? id) {
     final workers = _agents.workers;
     final online = workers.where((w) => w.online);
@@ -820,7 +898,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
     _worker = w?.id;
     if (!_ready(_account)) _account = null;
     if (w == null) return;
-    _dir.text = _short(w, w.home ?? '~');
     final keep = _kinds.where((a) => a.id == _agent).firstOrNull;
     final first = keep ?? _kinds.firstOrNull;
     if (first != null) _pickAgent(first);
@@ -875,7 +952,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
         title: _title.text.trim(),
         model: _model,
         effort: _effort,
-        dir: _dir.text.trim().isEmpty ? null : _dir.text.trim(),
+        project: _agents.project(_project),
+        ownFolder: true,
         permission: _permission,
         // Sent only if changed from what Claude has on, so a plugin turned
         // on there later is not turned off here by a choice never made.
@@ -942,7 +1020,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
           title: task.title.trim(),
           model: _model,
           effort: _effort,
-          dir: _dir.text.trim().isEmpty ? null : _dir.text.trim(),
+          project: _agents.project(_project),
+          ownFolder: true,
           permission: _permission,
           plugins: plugins == null || setEquals(plugins, {...kind.pluginsOn})
               ? null
@@ -1180,23 +1259,41 @@ class _NewChatScreenState extends State<NewChatScreen> {
                           ],
                         ),
                       ],
-                      _Section(s.chatFolder),
-                      _Field(controller: _dir, hint: '~'),
-                      if (w != null && w.dirs.length > 1) ...[
-                        const SizedBox(height: 8),
-                        _Picks(
-                          children: [
-                            for (final d in w.dirs)
-                              _Pick(
-                                label: _short(w, d),
-                                icon: Icons.folder_outlined,
-                                selected: _short(w, d) == _dir.text.trim(),
-                                onTap: () =>
-                                    setState(() => _dir.text = _short(w, d)),
-                              ),
-                          ],
-                        ),
-                      ],
+                      _Section(s.chatProject),
+                      _Picks(
+                        children: [
+                          _Pick(
+                            label: s.chatNoProject,
+                            selected: _agents.project(_project) == null,
+                            onTap: () => setState(() => _project = null),
+                          ),
+                          for (final project in _agents.projects)
+                            _Pick(
+                              label: _agents.pathOf(project),
+                              dot: _projectColour(project),
+                              selected: project.id == _project,
+                              onTap: () =>
+                                  setState(() => _project = project.id),
+                            ),
+                          _Pick(
+                            label: _agents.projects.isEmpty
+                                ? s.newProject
+                                : s.editProjects,
+                            icon: _agents.projects.isEmpty
+                                ? Icons.add
+                                : Icons.edit_outlined,
+                            selected: false,
+                            onTap: () => _agents.projects.isEmpty
+                                ? openProject(context)
+                                : openProjects(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        s.chatOwnFolderHint,
+                        style: TextStyle(color: p.faint, fontSize: 12.5),
+                      ),
                       if (kind.plugins.isNotEmpty) ...[
                         _Section(s.chatPlugins),
                         for (final plugin in kind.plugins)
@@ -1411,6 +1508,9 @@ class _Picks extends StatelessWidget {
 class _Pick extends StatelessWidget {
   final String label;
   final IconData? icon;
+
+  /// A project's colour, a dot before the label in place of an icon.
+  final Color? dot;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1419,6 +1519,7 @@ class _Pick extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.icon,
+    this.dot,
   });
 
   @override
@@ -1445,6 +1546,10 @@ class _Pick extends StatelessWidget {
               if (icon != null) ...[
                 Icon(icon, size: 15, color: selected ? p.text : p.muted),
                 const SizedBox(width: 6),
+              ],
+              if (dot != null) ...[
+                _Dot(colour: dot!, size: 9),
+                const SizedBox(width: 7),
               ],
               Flexible(
                 child: Text(

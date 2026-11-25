@@ -665,4 +665,32 @@ const Map<String, Object> de = {
       "{worker} meldet sich daran an und hält es getrennt von der eigenen Anmeldung. Chats darunter teilen Plugins, Skills und Sitzungen.",
   'chatAccount': "Konto",
   'usageResetSince': "Inzwischen zurückgesetzt",
+  'agentProjects': "Projekte",
+  'newProject': "Neues Projekt",
+  'newSubproject': "Neues Unterprojekt",
+  'editProject': "Projekt",
+  'editProjects': "Projekte bearbeiten…",
+  'noProjects': "Noch keine Projekte",
+  'noProjectsHint':
+      "Ein Projekt sagt seinen Chats, worum es geht und an welchen Ordnern sie arbeiten.",
+  'projectName': "Name",
+  'projectColour': "Farbe",
+  'projectContext': "Kontext",
+  'projectContextHint':
+      "Was jeder Chat darin wissen soll: was es ist, wie man daran arbeitet, was man lässt.",
+  'projectSources': "Ordner",
+  'projectSourcesHint':
+      "Ordner auf dem Computer, etwa ~/dev/src/Caldo. Ein Git-Repository bekommt jeder Chat als Worktree auf einem eigenen Branch; jeder andere Ordner wird geteilt, wie er ist.",
+  'projectAddSource': "Ordner hinzufügen",
+  'projectFrom': "Aus {name}",
+  'projectSubprojects': "Unterprojekte",
+  'deleteProjectQuestion': "Dieses Projekt löschen?",
+  'deleteProjectHint':
+      "Seine Unterprojekte gehen mit. Chats, die darin begonnen wurden, behalten, was ihnen gesagt wurde.",
+  'chatProject': "Projekt",
+  'chatNoProject': "Keins",
+  'chatOwnFolderHint':
+      "Jeder Chat arbeitet in einem eigenen Ordner auf dem Computer, mit den Ordnern seines Projekts darin.",
+  'allProjects': "Alle Projekte",
+  'untitledProject': "Projekt ohne Namen",
 };
