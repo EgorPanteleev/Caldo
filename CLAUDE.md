@@ -744,7 +744,7 @@ the app, a terminal beside them; anything else a terminal.
   Starting.
 - **Server-only tables, not synced rows** (`…_agents.sql`): `workers`
   (heartbeat 30s, online if seen <90s, what it offers), `chats` (state new
-  → running/asking/idle/finished → ended/failed, note, size, session), `chat_out`
+  → running/asking/idle/finished/your_turn → ended/failed, note, size, session), `chat_out`
   (pieces ≤ every 200ms; a `capture-pane -e` snapshot after 300 pieces
   once quiet, older rows deleted; the app reads from the latest snapshot),
   `chat_in` (keys, line, size, stop, start, answer, interrupt, mode;
