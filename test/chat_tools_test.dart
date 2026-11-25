@@ -90,6 +90,15 @@ class _Desk implements ChatDesk {
   @override
   Future<Map<String, dynamic>?> pullOpener(String repo, int number) async =>
       pulls['$repo#$number'];
+
+  final told = <(String, String)>[];
+  int phones = 1;
+
+  @override
+  Future<int> notify(String chat, String text) async {
+    told.add((chat, text));
+    return phones;
+  }
 }
 
 void main() {
@@ -460,6 +469,34 @@ void main() {
       expect(desk.sent, isEmpty);
       tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
       await refused({}, 'not in one of Caldo');
+    });
+  });
+  group('notify', () {
+    test("tells the user's phones, from this chat", () async {
+      final said = await run('notify', {'message': '  Released v2.24.0  '});
+      expect(said, 'Sent to their phone.');
+      expect(desk.told.single, ('aaaa1111-0000', 'Released v2.24.0'));
+      desk.phones = 0;
+      expect(
+        await run('notify', {'message': 'Again'}),
+        contains('nothing was sent'),
+      );
+    });
+
+    test('refuses nothing to say, or no chat to open', () async {
+      Future<void> refused(String why) => expectLater(
+        run('notify', {'message': 'Hi'}),
+        throwsA(
+          isA<Refusal>().having((r) => r.message, 'message', contains(why)),
+        ),
+      );
+      await expectLater(
+        run('notify', {'message': ' '}),
+        throwsA(isA<Refusal>()),
+      );
+      tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
+      await refused("Only an agent in one of Caldo's chats");
+      expect(desk.told, isEmpty);
     });
   });
 }

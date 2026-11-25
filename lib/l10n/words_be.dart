@@ -530,6 +530,11 @@ const Map<String, Object> be = {
   'chatPin': "Замацаваць",
   'chatUnpin': "Адмацаваць",
   'chatPinned': "Замацаваны",
+  'chatMute': "Заглушыць",
+  'chatUnmute': "Уключыць гук",
+  'chatMuted': "Заглушаны",
+  'agentsChannel': "Агенты",
+  'agentsChannelHint': "Чат чакае вас, або слова яго агента.",
   'chatSelectAll': "Выбраць усе",
   'deleteChatsQuestion': [
     "Выдаліць {n} чат?",

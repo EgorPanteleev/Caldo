@@ -45,6 +45,10 @@ abstract class ChatDesk {
   /// The chat that opened [repo]'s pull request [number], as its worker
   /// noted it (`chat_pulls`): `chat_id`, `url`, `created_at`; or null.
   Future<Map<String, dynamic>?> pullOpener(String repo, int number);
+
+  /// The user's phones told [text] from [chat] (the Edge Function `push`);
+  /// how many were reached.
+  Future<int> notify(String chat, String text);
 }
 
 /// [ChatDesk] on Supabase, signed in as the MCP server is.
@@ -131,6 +135,16 @@ class SupabaseChatDesk implements ChatDesk {
           .eq('repo', repo)
           .eq('number', number)
           .maybeSingle();
+
+  @override
+  Future<int> notify(String chat, String text) async {
+    final answer = await (await _db).functions.invoke(
+      'push',
+      body: {'chat': chat, 'kind': 'said', 'text': text},
+    );
+    final data = answer.data;
+    return data is Map ? (data['sent'] as num?)?.toInt() ?? 0 : 0;
+  }
 }
 
 /// Chats talking to each other: tools for an agent in one of Caldo's chats
@@ -688,6 +702,24 @@ class ChatTools {
             : '. message_chat reaches it.'}';
   }
 
+  /// What the agent says is worth the user's looking now, on their phones:
+  /// through even a muted chat, as a mention gets through elsewhere.
+  Future<String> notify(Map<String, Object?> args) async {
+    final text = '${args['message'] ?? ''}'.trim();
+    if (text.isEmpty) throw const Refusal('Say what to tell the user.');
+    final chat = self;
+    if (chat == null) {
+      throw const Refusal(
+        "Only an agent in one of Caldo's chats can notify the user: the "
+        'notification opens its chat.',
+      );
+    }
+    final sent = await desk.notify(chat, clip(text, 1000));
+    return sent == 0
+        ? 'No phone of the user\'s is signed in to be told; nothing was sent.'
+        : 'Sent to ${sent == 1 ? 'their phone' : '$sent phones'}.';
+  }
+
   static Map<String, Object?> _shape(
     Map<String, Object?> properties, [
     List<String> required = const [],
@@ -834,6 +866,27 @@ class ChatTools {
       unsubscribe,
     ),
     Tool(
+      'notify',
+      "Sends the user a notification on their phone, from this chat; a tap "
+          'opens it. Only for what is worth their looking now: you need '
+          'their answer and they may not be watching, or something they '
+          'wait on is done (a release made). They are already told when a '
+          'turn of theirs ends or you ask them something; do not repeat '
+          'that. Goes through even if they muted this chat.',
+      _shape(
+        {
+          'message': {
+            'type': 'string',
+            'description':
+                'One or two short lines, e.g. "Released v2.24.0: '
+                'pushes for waiting chats".',
+          },
+        },
+        ['message'],
+      ),
+      notify,
+    ),
+    Tool(
       'pull_chat',
       'Which of the user\'s chats opened a GitHub pull request, so you can '
           'talk to it about it with message_chat. Known for those opened '
@@ -862,5 +915,5 @@ class ChatTools {
       'message. A chat can be subscribed to pull requests on GitHub '
       '(subscribe), and is then told of new ones as they come; pull_chat '
       'says which chat opened one. clear_context clears a chat\'s context, '
-      'as /clear does.';
+      'as /clear does. notify sends the user a notification on their phone.';
 }

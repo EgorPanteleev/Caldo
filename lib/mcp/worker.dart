@@ -9,6 +9,7 @@ import '../models/task.dart';
 import 'accounts.dart';
 import 'agents.dart';
 import 'kept.dart';
+import 'notices.dart';
 import 'remote.dart';
 import 'subscriptions.dart';
 import 'talk.dart';
@@ -785,6 +786,7 @@ class Worker {
       case 'line' when talker != null:
         final text = row['data'] as String? ?? '';
         if (!_isEvent(row)) _name(talker.ask, text);
+        notices.heard(chat, row['sender'] is Map ? row['sender'] as Map : null);
         await _inTurn(chat, () async {
           await talker.say(
             text,
@@ -831,6 +833,7 @@ class Worker {
           ),
         );
       case 'keys' when live != null:
+        notices.typed(chat);
         final bytes = utf8.encode(row['data'] as String? ?? '');
         live.typing = live.typing.then((_) => tmux.keys(chat, bytes));
       case 'line' when live != null:
@@ -838,6 +841,7 @@ class Worker {
         if (!_isEvent(row)) _name(live.ask, text);
         final files = row['files'];
         final sender = row['sender'] is Map ? row['sender'] as Map : null;
+        notices.heard(chat, sender);
         live.typing = live.typing.then(
           (_) async => tmux.line(
             chat,
@@ -1542,7 +1546,12 @@ class Worker {
   /// the app can say a chat is done, both taking a message alike.
   static bool _ready(Object? state) => state == 'idle' || state == 'finished';
 
-  Future<void> _set(String chat, String to, String? note) async {
+  Future<void> _set(String chat, String to, String? note, {String? said}) {
+    notices.stands(chat, to, note: note, said: said);
+    return _setRow(chat, to, note);
+  }
+
+  Future<void> _setRow(String chat, String to, String? note) async {
     final db = await _db;
     await db.from('chats').update({'state': to, 'note': note}).eq('id', chat);
     _follow(chat, to, note);
@@ -1641,6 +1650,32 @@ class Worker {
   static String _cut(String text) => text.length <= 6000
       ? text
       : '${text.substring(0, 6000)}…\n(The rest is in its chat.)';
+
+  /// The user's phones told of a chat waiting on them.
+  late final notices = Notices(
+    tell: (chat, kind, text) => unawaited(
+      _guard(() async {
+        final db = await _db;
+        var words = text;
+        if (words.isEmpty && kind == 'waiting') {
+          // A terminal's turn may end without its words: the chat's last.
+          final last = await db
+              .from('chat_items')
+              .select('body')
+              .eq('chat_id', chat)
+              .eq('kind', 'text')
+              .order('seq', ascending: false)
+              .limit(1);
+          final body = last.firstOrNull?['body'];
+          if (body is Map) words = '${body['text'] ?? ''}';
+        }
+        await db.functions.invoke(
+          'push',
+          body: {'chat': chat, 'kind': kind, 'text': clip(words.trim(), 1000)},
+        );
+      }),
+    ),
+  );
 
   /// Reads on in every chat's files, and sends what has come if it is time.
   void _pump() {
@@ -1791,7 +1826,8 @@ class Worker {
     }
     if (to != null && (to != live.state || note != null)) {
       live.state = to;
-      unawaited(_guard(() => _set(chat, to!, note)));
+      final said = event['last_assistant_message'] as String?;
+      unawaited(_guard(() => _set(chat, to!, note, said: said)));
     }
     if (to == 'finished' && live.retune) {
       live.retune = false;
@@ -1943,6 +1979,7 @@ class Worker {
       talker.turn?.complete((answered: false, text: ''));
       talker.turn = null;
     }
+    notices.forget(chat);
     final live = _live.remove(chat);
     if (live != null) await remote.client.removeChannel(live.line);
     await tmux.kill(chat);
@@ -2088,6 +2125,9 @@ class _Talker implements TalkSink {
 
   /// What a resumed Codex thread said after this, shown when it is up.
   int? _since;
+
+  /// The last turn's answer, for the phones told it is over.
+  String _said = '';
 
   /// What the chat has spent (`ChatUsage`), as last said; and the row's
   /// copy of it, to be written.
@@ -2488,7 +2528,7 @@ class _Talker implements TalkSink {
     if (forgotten || (to == state && note == null)) return;
     state = to;
     _broadcast('state', {'state': to, 'note': note});
-    unawaited(worker._guard(() => worker._set(ask.id, to, note)));
+    unawaited(worker._guard(() => worker._set(ask.id, to, note, said: _said)));
   }
 
   @override
@@ -2553,6 +2593,7 @@ class _Talker implements TalkSink {
     if (!limited && !forgotten) {
       worker._turnDone(ask.id, answer, spec.label, failed: failed);
     }
+    _said = answer;
     final waiting = turn;
     turn = null;
     if (waiting != null && !waiting.isCompleted) {

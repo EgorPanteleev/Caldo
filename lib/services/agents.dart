@@ -336,6 +336,10 @@ class Chat {
   /// When it was pinned to the top of the list; null if it is not.
   final DateTime? pinnedAt;
 
+  /// Its phones aren't told when it waits (`push`); its agent's own
+  /// `notify` still gets through.
+  final bool muted;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -360,6 +364,7 @@ class Chat {
     this.usage,
     this.account,
     this.pinnedAt,
+    this.muted = false,
   });
 
   bool get pinned => pinnedAt != null;
@@ -408,6 +413,7 @@ class Chat {
         usage: c.usage,
         account: c.account,
         pinnedAt: c.pinnedAt,
+        muted: c.muted,
       );
 
   /// [c] pinned [at], or unpinned for null: said here at once, as a move.
@@ -436,6 +442,36 @@ class Chat {
         usage: c.usage,
         account: c.account,
         pinnedAt: at,
+        muted: c.muted,
+      );
+
+  /// [c] muted or not: said here at once, as a pin.
+  Chat._muted(Chat c, bool muted)
+    : this(
+        id: c.id,
+        workerId: c.workerId,
+        agent: c.agent,
+        title: c.title,
+        model: c.model,
+        effort: c.effort,
+        dir: c.dir,
+        permission: c.permission,
+        plugins: c.plugins,
+        skills: c.skills,
+        rules: c.rules,
+        prompt: c.prompt,
+        taskUuid: c.taskUuid,
+        state: c.state,
+        note: c.note,
+        cols: c.cols,
+        rows: c.rows,
+        session: c.session,
+        updatedAt: c.updatedAt,
+        inChat: c.inChat,
+        usage: c.usage,
+        account: c.account,
+        pinnedAt: c.pinnedAt,
+        muted: muted,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -479,6 +515,7 @@ class Chat {
       final String at => DateTime.parse(at).toLocal(),
       _ => null,
     },
+    muted: json['muted'] == true,
   );
 
   /// [chats] as the list shows them: the pinned on top, the last pinned
@@ -1100,6 +1137,24 @@ class Agents extends ChangeNotifier {
         else
           c,
     ]);
+    notifyListeners();
+  }
+
+  /// [ids] muted, or heard again: the row's, so the push function, which
+  /// tells every phone, reads it.
+  Future<void> mute(Iterable<String> ids, {required bool muted}) async {
+    final picked = ids.toSet();
+    if (picked.isEmpty) return;
+    await _client!.from('chats').update({'muted': muted}).inFilter('id', [
+      ...picked,
+    ]);
+    chats = [
+      for (final c in chats)
+        if (picked.contains(c.id) && c.muted != muted)
+          Chat._muted(c, muted)
+        else
+          c,
+    ];
     notifyListeners();
   }
 

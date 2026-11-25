@@ -157,6 +157,15 @@
                 android:resource="@xml/today_widget_info"/>
         </receiver>
 
+        <!-- The Agents tab's pushes, drawn by the app itself (Push). -->
+        <service
+            android:name=".PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+
         <!-- Holds the screen while Settings › Debug records. -->
         <service
             android:name=".RecordService"

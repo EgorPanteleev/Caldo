@@ -535,6 +535,11 @@ const Map<String, Object> uk = {
   'chatPin': "Закріпити",
   'chatUnpin': "Відкріпити",
   'chatPinned': "Закріплено",
+  'chatMute': "Вимкнути звук",
+  'chatUnmute': "Увімкнути звук",
+  'chatMuted': "Без звуку",
+  'agentsChannel': "Агенти",
+  'agentsChannelHint': "Чат чекає на вас, або його агент повідомляє щось.",
   'chatSelectAll': "Вибрати всі",
   'deleteChatsQuestion': [
     "Видалити {n} чат?",

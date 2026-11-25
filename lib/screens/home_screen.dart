@@ -136,7 +136,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => Updates.instance.look(),
     );
-    TodayWidget.listen(_openFromWidget, invited: _openInvite);
+    TodayWidget.listen(
+      _openFromWidget,
+      invited: _openInvite,
+      chat: _openChatFromPush,
+    );
     // One that started the app is already waiting by the first frame.
     Reminders.opened.addListener(_openReminder);
     WidgetsBinding.instance.addPostFrameCallback((_) => _openReminder());
@@ -252,6 +256,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       Navigator.of(context).popUntil((route) => route.isFirst);
       showJoinSheet(context, invite: Account.inviteIn(invite));
+    });
+  }
+
+  /// A chat's notification opens the chat, over the Agents tab so Back
+  /// lands among the chats — the tab shown, if it isn't hidden.
+  void _openChatFromPush(String chat) {
+    // The tap that started the app arrives before its first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      _show(_agentsPage);
+      openChat(context, chat);
     });
   }
 
