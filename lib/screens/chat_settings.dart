@@ -55,11 +55,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   Future<void> _openSub(Subscription? sub) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => SubscriptionScreen(
-          chat: widget.chat,
-          sub: sub,
-          worker: _w?.name ?? '',
-        ),
+        builder: (_) => SubscriptionScreen(chat: widget.chat, sub: sub),
       ),
     );
     await _readSubs();
