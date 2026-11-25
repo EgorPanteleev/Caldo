@@ -742,6 +742,13 @@ the app, a terminal beside them; anything else a terminal.
   (`Chat.live`, `Worker._ready`). `…_chat_finished.sql` widens the check;
   an older worker still says `idle`, an older app reads `finished` as
   Starting.
+- **A turn that ends asking or offering is `your_turn`, not `finished`**
+  (asked 2026-11-25: "agents ask me smth in the end or offer me, but chat
+  writes finished"): `asksBack` reads the last paragraph (and the one
+  before a trailing list) for a `?` outside code and links, or an offer's
+  words in the app's languages. Shown as Waiting for you (red dot), pushed
+  as a turn's end, takes a message like `finished`. A usage-limit stop
+  stays `finished`.
 - **Server-only tables, not synced rows** (`…_agents.sql`): `workers`
   (heartbeat 30s, online if seen <90s, what it offers), `chats` (state new
   → running/asking/idle/finished/your_turn → ended/failed, note, size, session), `chat_out`
