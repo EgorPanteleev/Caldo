@@ -278,7 +278,13 @@ class Worker {
         .from('chats')
         .select()
         .eq('worker_id', state.id)
-        .inFilter('state', ['running', 'asking', 'idle', 'finished']);
+        .inFilter('state', [
+          'running',
+          'asking',
+          'idle',
+          'finished',
+          'limited',
+        ]);
     for (final row in mine) {
       final ask = ChatAsk.fromJson(row);
       _know(ask);
@@ -727,7 +733,9 @@ class Worker {
     unawaited(
       _guard(() async {
         final db = await _db;
-        await db
+        // Only the rows new here come back: one shown again isn't told
+        // again.
+        final kept = await db
             .from('chat_pulls')
             .upsert(
               [
@@ -741,11 +749,15 @@ class Worker {
               ],
               onConflict: 'user_id,repo,number',
               ignoreDuplicates: true,
-            );
+            )
+            .select('repo, number');
         log(
           '[${_short(chat)}] opened '
           '${made.map((p) => '${p.repo}#${p.number}').join(', ')}',
         );
+        for (final row in kept) {
+          notices.opened(chat, '${row['repo']}#${row['number']}');
+        }
       }),
     );
   }
@@ -1544,9 +1556,11 @@ class Worker {
   }
 
   /// Whether a chat in [state] waits for the user's word: `idle` before it
-  /// has done anything, `finished` once a turn has ended — told apart so
-  /// the app can say a chat is done, both taking a message alike.
-  static bool _ready(Object? state) => state == 'idle' || state == 'finished';
+  /// has done anything, `finished` once a turn has ended, `limited` once
+  /// the account's limit refused one — told apart so the app can say what
+  /// became of a chat, all taking a message alike.
+  static bool _ready(Object? state) =>
+      state == 'idle' || state == 'finished' || state == 'limited';
 
   Future<void> _set(String chat, String to, String? note, {String? said}) {
     notices.stands(chat, to, note: note, said: said);
@@ -2651,11 +2665,13 @@ class _Talker implements TalkSink {
       'limit': true,
       if (told) 'resets': resets.millisecondsSinceEpoch,
     });
+    // A state of its own: the app says it apart from a turn finished, and
+    // the phones are told of it whoever began the turn.
     stands(
-      'finished',
+      'limited',
       note: told
-          ? 'At the usage limit: lifted ${_at(resets)}.'
-          : 'Stopped at the usage limit.',
+          ? 'Out of usage: the limit resets ${_at(resets)}.'
+          : 'Out of usage: stopped at the limit.',
     );
     worker.log('[${_short(ask.id)}] at the limit');
   }

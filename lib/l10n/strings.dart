@@ -345,6 +345,7 @@ class S {
   String get chatAsking => _word('chatAsking');
   String get chatIdle => _word('chatIdle');
   String get chatFinished => _word('chatFinished');
+  String get chatLimited => _word('chatLimited');
   String get chatEnded => _word('chatEnded');
   String get chatFailed => _word('chatFailed');
   String get chatBigger => _word('chatBigger');
@@ -401,8 +402,13 @@ class S {
       _fill('chatLaterTomorrow', {'time': time});
   String get chatLaterPick => _word('chatLaterPick');
   String get chatAtLimit => _word('chatAtLimit');
-  String chatCarryOnAt(String time) => _fill('chatCarryOnAt', {'time': time});
+  String get chatCarryOnReset => _word('chatCarryOnReset');
   String get chatCarryOnSoon => _word('chatCarryOnSoon');
+  String get chatLimitTitle => _word('chatLimitTitle');
+  String chatLimitResets(String limit, String when) =>
+      _fill('chatLimitResets', {'limit': limit, 'when': when});
+  String get chatLimitLifted => _word('chatLimitLifted');
+  String get chatCarriedOn => _word('chatCarriedOn');
   String get chatSendNow => _word('chatSendNow');
   String get chatLaterEdit => _word('chatLaterEdit');
   String get chatToTerminal => _word('chatToTerminal');

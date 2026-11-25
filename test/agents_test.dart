@@ -2528,6 +2528,11 @@ void main() {
                   working: false,
                   onAnswer: (_, _, _) {},
                   onCarry: (item) => asked.add(item.id),
+                  usage: ChatUsage(
+                    limits: [
+                      UsageLimit(name: 'five_hour', used: 1, resets: resets),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -2535,26 +2540,33 @@ void main() {
 
           await show(said);
           final s = S.forCode(code);
-          expect(find.text(s.chatAtLimit), findsOneWidget);
-          // Not asked for until ticked.
-          final box = find.textContaining(s.chatCarryOnAt('').split('(')[0]);
-          expect(box, findsOneWidget);
+          // Which limit, and when it resets.
+          expect(find.text(s.chatLimitTitle), findsOneWidget);
+          expect(find.textContaining(s.usageFiveHours), findsOneWidget);
+          // Not asked for until switched on.
+          final row = find.text(s.chatCarryOnReset);
+          expect(row, findsOneWidget);
+          expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
           expect(asked, isEmpty);
-          await tester.tap(box);
+          await tester.tap(find.byType(Switch));
           expect(asked, ['l1']);
 
-          // Once the user wrote again, it is only said.
+          // Once it carried on, or the user wrote again, it is only said;
+          // the words it was told to carry on with aren't drawn as theirs.
           await show([
             ...said,
             const ChatItem(
               id: 'u2',
               seq: 2,
               kind: 'user',
-              body: {'text': 'Well?'},
+              body: {'text': CarryOn.words},
             ),
           ]);
           expect(find.text(s.chatAtLimit), findsOneWidget);
-          expect(box, findsNothing);
+          expect(find.text(s.chatCarriedOn), findsOneWidget);
+          expect(find.text(CarryOn.words), findsNothing);
+          expect(row, findsNothing);
+          expect(find.byType(Switch), findsNothing);
         },
       );
 
