@@ -1977,6 +1977,57 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
     }
 
+    testWidgets('searches Codex models by ID and allows a custom model', (
+      tester,
+    ) async {
+      Agents.instance.workers = [
+        AgentWorker(
+          id: 'worker',
+          name: 'Worker',
+          seenAt: DateTime.now(),
+          dirs: const [],
+          agents: [
+            AgentKind.fromJson({
+              'id': 'codex',
+              'label': 'Codex',
+              'models': ['codex-fast', 'codex-deep'],
+              'model_labels': {
+                'codex-fast': 'Fast model',
+                'codex-deep': 'Deep model',
+              },
+            }),
+          ],
+        ),
+      ];
+      final s = S.forCode('en');
+      await pump(tester, 'en', const NewChatScreen());
+      await tester.tap(find.widgetWithText(ListTile, s.chatDefault));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, s.search),
+        'codex-deep',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Fast model'), findsNothing);
+      await tester.tap(find.text('Deep model'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ListTile, 'Deep model'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(s.chatOther));
+      await tester.pumpAndSettle();
+      final dialog = find.byType(AlertDialog);
+      await tester.enterText(
+        find.descendant(of: dialog, matching: find.byType(TextField)),
+        'custom-model',
+      );
+      await tester.tap(
+        find.descendant(of: dialog, matching: find.text(s.save)),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, 'custom-model'), findsOneWidget);
+    });
+
     for (final code in S.names.keys) {
       testWidgets('fits in ${S.names[code]}', (tester) async {
         final s = S.forCode(code);
@@ -2027,7 +2078,12 @@ void main() {
         );
         Agents.instance.projects = const [caldo, sync];
         await pump(tester, code, const NewChatScreen());
+        await tester.tap(find.widgetWithText(ListTile, s.chatDefault));
+        await tester.pumpAndSettle();
         expect(find.text('opus'), findsOneWidget);
+        await tester.tap(find.text('opus'));
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(ListTile, 'opus'), findsOneWidget);
         // The form's list, not a field's own scroll inside it.
         final list = find.byType(Scrollable).first;
         await tester.scrollUntilVisible(

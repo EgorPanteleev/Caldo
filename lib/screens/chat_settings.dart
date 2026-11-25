@@ -177,12 +177,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     };
   }
 
-  Future<void> _otherModel() async {
-    final got = await _askModel(context, _model);
-    if (got == null || !mounted) return;
-    setState(() => _model = got.isEmpty ? null : got);
-  }
-
   Future<void> _save() async {
     final fields = _fields;
     if (fields.isEmpty || _saving) {
@@ -209,8 +203,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final kind = _kind;
     // A worker from before this can't take them up: shown, not changed.
     final changes = kind?.settings ?? false;
-    final otherModel =
-        _model != null && !(kind?.models.contains(_model) ?? false);
     return Scaffold(
       backgroundColor: p.bg,
       body: SafeArea(
@@ -269,7 +261,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                           opacity: changes ? 1 : 0.5,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: _choices(s, p, kind, otherModel),
+                            children: _choices(s, p, kind),
                           ),
                         ),
                       ),
@@ -308,7 +300,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
   }
 
   /// What it runs with, chosen as on the new chat's form.
-  List<Widget> _choices(S s, AppPalette p, AgentKind kind, bool otherModel) => [
+  List<Widget> _choices(S s, AppPalette p, AgentKind kind) => [
     // Another account carries the same session on: one at its limit is
     // left for another.
     if (_w case final w?)
@@ -320,25 +312,10 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         onPick: (id) => setState(() => _account = id),
       ),
     _Section(s.chatModel),
-    _Picks(
-      children: [
-        _Pick(
-          label: s.chatDefault,
-          selected: _model == null,
-          onTap: () => setState(() => _model = null),
-        ),
-        for (final m in kind.models)
-          _Pick(
-            label: m,
-            selected: m == _model,
-            onTap: () => setState(() => _model = m),
-          ),
-        _Pick(
-          label: otherModel ? _model! : s.chatOther,
-          selected: otherModel,
-          onTap: _otherModel,
-        ),
-      ],
+    _ModelPicker(
+      kind: kind,
+      model: _model,
+      onPick: (model) => setState(() => _model = model),
     ),
     if (kind.efforts.isNotEmpty) ...[
       _Section(s.chatEffort),
@@ -477,31 +454,4 @@ class _Fact extends StatelessWidget {
       ),
     );
   }
-}
-
-/// A model not among those offered, written in; empty for the default,
-/// null if let be.
-Future<String?> _askModel(BuildContext context, String? model) async {
-  final s = S.of(context);
-  final field = TextEditingController(text: model ?? '');
-  final got = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(s.chatModel),
-      content: TextField(
-        controller: field,
-        autofocus: true,
-        onSubmitted: (v) => Navigator.pop(ctx, v),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.cancel)),
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, field.text),
-          child: Text(s.save),
-        ),
-      ],
-    ),
-  );
-  field.dispose();
-  return got?.trim();
 }

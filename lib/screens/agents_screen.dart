@@ -39,6 +39,7 @@ part 'agent_accounts.dart';
 part 'agent_projects.dart';
 part 'agent_rules.dart';
 part 'chat_settings.dart';
+part 'chat_model_picker.dart';
 part 'chat_subscriptions.dart';
 
 /// Chats with agents — Claude, Codex, a model of the user's own, a shell —
@@ -927,9 +928,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   void _pickAgent(AgentKind kind) {
+    if (_agent != kind.id && !kind.models.contains(_model)) _model = null;
     _agent = kind.id;
     if (!_ready(_account)) _account = null;
-    if (!kind.models.contains(_model)) _model = null;
     if (!kind.efforts.contains(_effort)) _effort = null;
     _permission = kind.permissions.contains('auto') ? 'auto' : null;
     _plugins = kind.plugins.isEmpty ? null : {...kind.pluginsOn};
@@ -942,12 +943,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
     if (home == null || home.isEmpty) return dir;
     if (dir == home) return '~';
     return dir.startsWith('$home/') ? '~${dir.substring(home.length)}' : dir;
-  }
-
-  Future<void> _otherModel() async {
-    final got = await _askModel(context, _model);
-    if (got == null || !mounted) return;
-    setState(() => _model = got.isEmpty ? null : got);
   }
 
   Future<void> _start() async {
@@ -1100,8 +1095,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final p = AppTheme.of(context);
     final w = _w;
     final kind = _kind;
-    final otherModel =
-        _model != null && !(kind?.models.contains(_model) ?? false);
     return Scaffold(
       backgroundColor: p.bg,
       body: SafeArea(
@@ -1224,25 +1217,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
                       ),
                     if (kind != null) ...[
                       _Section(s.chatModel),
-                      _Picks(
-                        children: [
-                          _Pick(
-                            label: s.chatDefault,
-                            selected: _model == null,
-                            onTap: () => setState(() => _model = null),
-                          ),
-                          for (final m in kind.models)
-                            _Pick(
-                              label: m,
-                              selected: m == _model,
-                              onTap: () => setState(() => _model = m),
-                            ),
-                          _Pick(
-                            label: otherModel ? _model! : s.chatOther,
-                            selected: otherModel,
-                            onTap: _otherModel,
-                          ),
-                        ],
+                      _ModelPicker(
+                        kind: kind,
+                        model: _model,
+                        onPick: (model) => setState(() => _model = model),
                       ),
                       if (kind.efforts.isNotEmpty) ...[
                         _Section(s.chatEffort),
