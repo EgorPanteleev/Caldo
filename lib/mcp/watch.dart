@@ -158,8 +158,10 @@ class WatchState {
 ///
 /// The board says how each stands, so the phone shows it with nothing more
 /// in the app: a task handed over is Not started until taken up; then In
-/// progress; answered, it is ticked off with the answer in its notes. One that could not be done stays In progress with the reason, and
-/// moved back to Not started — a note added, say — it is taken up again,
+/// progress; answered, it stays there with the answer in its notes and
+/// waits for the user to look it over and tick it off ([AgentState.review]
+/// on its card). One that could not be done stays In progress with the
+/// reason ([AgentState.failed]), and moved back to Not started — a note added, say — it is taken up again,
 /// in the same Claude session, which then has its earlier work in mind.
 /// A task with a date waits for its day (or its time), so an errand can be
 /// set for later, and a repeating one comes back each round.
@@ -192,20 +194,13 @@ class Watcher {
   /// The tasks waiting for Claude, earliest due first.
   List<Held> get waiting {
     final now = _now();
-    final today = DateTime(now.year, now.month, now.day);
     return [
       for (final h in caldo.book.tasks)
         if (h.task.claude != null &&
             h.task.stage == Stage.notStarted &&
-            _isDue(h.task, now, today))
+            h.task.isDueBy(now))
           h,
     ]..sort((a, b) => (a.task.dueAt ?? 0).compareTo(b.task.dueAt ?? 0));
-  }
-
-  static bool _isDue(Task t, DateTime now, DateTime today) {
-    final due = t.due;
-    if (due == null) return true;
-    return t.hasTime ? !due.isAfter(now) : !t.dueDay!.isAfter(today);
   }
 
   /// Works through what is waiting, then again whenever [heard] says the
@@ -254,6 +249,7 @@ class Watcher {
         h,
         'Interrupted: the watcher stopped before Claude had finished. '
         'Move it back to Not started to try again.',
+        AgentState.failed,
       );
     }
     state
@@ -284,6 +280,7 @@ class Watcher {
       log('[${h.id}] not taken up: $e');
       return;
     }
+    await _note(h, null, AgentState.working);
     state
       ..running = h.uuid
       ..save();
@@ -363,23 +360,19 @@ class Watcher {
         '${answer.session == null ? '' : '; Claude will remember this try'}.',
       );
     }
-    await _note(now, said.toString());
-    if (answer.ok && now.task.stage == Stage.inProgress) {
-      await caldo.completeTask({'id': h.uuid});
-    }
+    // Not ticked off: the user looks the answer over and does that.
+    await _note(
+      now,
+      said.toString(),
+      answer.ok ? AgentState.review : AgentState.failed,
+    );
   }
 
-  Future<void> _note(Held h, String text) async {
-    final at = _now();
-    final stamp =
-        '${at.day}.${at.month.toString().padLeft(2, '0')} '
-        '${at.hour.toString().padLeft(2, '0')}:'
-        '${at.minute.toString().padLeft(2, '0')}';
+  /// [text] added to the task's notes under Claude's line, if any, and the
+  /// task marked as standing at [stand].
+  Future<void> _note(Held h, String? text, String stand) async {
     try {
-      await caldo.updateTask({
-        'id': h.uuid,
-        'append_notes': '— Claude, $stamp —\n$text',
-      });
+      await caldo.agentSays(h.uuid, state: stand, note: text, who: 'Claude');
     } on Refusal catch (e) {
       log('[${h.id}] answer not written: $e');
     }

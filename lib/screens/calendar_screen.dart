@@ -1889,6 +1889,9 @@ class _DayPanel extends StatelessWidget {
                     // Held inside the calendar instead, grid and all: the
                     // month above is where it can be carried to.
                     penned: false,
+                    // A finger's gesture; a desktop's right click has the
+                    // same in a menu.
+                    swipes: !Desk.wideOf(context),
                   ),
           ),
         ),

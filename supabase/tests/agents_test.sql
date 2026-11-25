@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(39);
+select plan(40);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -36,6 +36,9 @@ select throws_ok(
 select lives_ok(
   $$update public.chats set state = 'finished'$$,
   'a chat says its turn has finished');
+select lives_ok(
+  $$update public.chats set state = 'waiting', preface = 'Be brief.'$$,
+  'a task''s chat waits for the task to be due, with what was said first');
 select lives_ok(
   $$insert into public.chat_items (chat_id, id, seq, kind, body) values
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'msg_1:0', 0, 'text',

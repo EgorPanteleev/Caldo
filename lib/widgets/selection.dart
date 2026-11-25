@@ -6,7 +6,7 @@ import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
 import '../providers/task_provider.dart';
-import '../screens/agents_screen.dart' show NewChatScreen;
+import '../screens/agents_screen.dart' show sendToAgents;
 import '../services/agents.dart';
 import '../theme/app_theme.dart';
 import 'date_time_pickers.dart' show showAppDatePicker, showAppSheet;
@@ -371,10 +371,7 @@ class _SelectionBar extends StatelessWidget {
   Future<void> _sendToAgents(BuildContext context) async {
     final tasks = _tasks(context);
     if (tasks.isEmpty) return selection.clear();
-    final started = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => NewChatScreen(tasks: tasks)),
-    );
-    if (started == true) selection.clear();
+    if (await sendToAgents(context, tasks)) selection.clear();
   }
 
   Future<void> _delete(BuildContext context) async {

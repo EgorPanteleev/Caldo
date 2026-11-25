@@ -129,6 +129,42 @@ void main() {
     },
   );
 
+  test('an agent says on its task where it stands, and answers', () async {
+    await run('add_task', {'title': 'Tidy the downloads', 'notes': 'PDFs'});
+    await caldo.refresh();
+    final uuid = caldo.book.tasks.single.uuid;
+
+    await caldo.agentSays(uuid, state: AgentState.working);
+    await phone.round();
+    var task = await phone.named('Tidy the downloads');
+    expect(task.agentState, AgentState.working);
+    // At work, it is under way on the board.
+    expect(task.stage, Stage.inProgress);
+    expect(await run('agenda'), contains('agent: working'));
+
+    await caldo.agentSays(
+      uuid,
+      state: AgentState.review,
+      note: 'Moved 12 files.',
+      who: 'Claude',
+    );
+    await phone.round();
+    task = await phone.named('Tidy the downloads');
+    expect(task.agentState, AgentState.review);
+    expect(task.notes, startsWith('PDFs\n\n— Claude, '));
+    expect(task.notes, endsWith('—\nMoved 12 files.'));
+    // Not ticked off: the user does that.
+    expect(task.done, isFalse);
+
+    // Once ticked off, the user has moved on: nothing more is written.
+    await phone.db.update(task.completed(1));
+    await phone.round();
+    await caldo.agentSays(uuid, state: AgentState.failed, note: 'Late.');
+    await phone.round();
+    task = await phone.named('Tidy the downloads');
+    expect(task.notes, isNot(contains('Late.')));
+  });
+
   test('a task handed to Claude here is handed over on the phone', () async {
     await run('add_task', {'title': 'Tidy the downloads', 'claude': 'haiku'});
     await phone.round();

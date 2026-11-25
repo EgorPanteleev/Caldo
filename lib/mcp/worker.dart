@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:supabase/supabase.dart';
 
+import '../models/task.dart';
 import 'accounts.dart';
 import 'agents.dart';
 import 'kept.dart';
@@ -12,6 +13,7 @@ import 'remote.dart';
 import 'subscriptions.dart';
 import 'talk.dart';
 import 'terminal.dart';
+import 'tools.dart';
 import 'usage.dart';
 import 'watch.dart';
 
@@ -180,10 +182,16 @@ class Worker {
     required this.book,
     required this.state,
     required this.home,
+    this.caldo,
     void Function(String line)? log,
     GitHub? github,
   }) : log = log ?? print,
        github = github ?? GitHub();
+
+  /// The account's tasks, for those its chats were sent from: where each
+  /// stands and the answer written back to it, and one left to start when
+  /// due started then. Without it a task's chat is only a chat.
+  final Caldo? caldo;
 
   /// Reads the pull requests its chats are subscribed to.
   final GitHub github;
@@ -272,6 +280,9 @@ class Worker {
         .inFilter('state', ['running', 'asking', 'idle', 'finished']);
     for (final row in mine) {
       final ask = ChatAsk.fromJson(row);
+      _know(ask);
+      // Answered before: its task has the answer already.
+      if (_ready(row['state'])) _answered.add(ask.id);
       if (ask.mode == 'chat') {
         final spec = _specOf(ask.agent);
         if (spec == null) {
@@ -439,21 +450,9 @@ class Worker {
         .eq('worker_id', state.id)
         .eq('state', 'new');
     for (final row in asked) {
-      // Taken, so a second worker started with the same id — or this one
-      // looking twice — cannot start it again.
-      final taken = await db
-          .from('chats')
-          .update({'state': 'running'})
-          .eq('id', row['id'])
-          .eq('state', 'new')
-          .select();
-      if (taken.isEmpty) continue;
-      final ask = ChatAsk.fromJson(row);
-      await _guard(
-        () async =>
-            ask.mode == 'chat' ? await _startTalk(ask) : await _start(ask),
-      );
+      await _takeAsked(row, 'new');
     }
+    await _startDue();
     final typed = await db
         .from('chat_in')
         .select('*, chats!inner(worker_id)')
@@ -462,6 +461,92 @@ class Worker {
         .limit(500);
     await _take(typed);
     await _sayLater();
+  }
+
+  /// Starts the chat [row] asks for, once taken from [from]: a second
+  /// worker started with the same id — or this one looking twice — finds
+  /// it taken and leaves it. A task's chat sent with words of its own
+  /// ([ChatAsk] `preface`) is told its task as the task is now.
+  Future<void> _takeAsked(Map<String, dynamic> row, String from) async {
+    final db = await _db;
+    final taken = await db
+        .from('chats')
+        .update({'state': 'running'})
+        .eq('id', row['id'])
+        .eq('state', from)
+        .select();
+    if (taken.isEmpty) return;
+    var ask = ChatAsk.fromJson(row);
+    _know(ask);
+    _tellTask(ask.id, AgentState.working);
+    final told = await _toldNow(row);
+    if (told != null && told != ask.prompt) {
+      await db.from('chats').update({'prompt': told}).eq('id', ask.id);
+      ask = ChatAsk.fromJson({...row, 'prompt': told});
+    }
+    await _guard(
+      () async =>
+          ask.mode == 'chat' ? await _startTalk(ask) : await _start(ask),
+    );
+  }
+
+  /// What a task's chat sent with a preface is told first, from its task
+  /// as it is now — notes added since it was sent, say — or null to keep
+  /// the words it was sent with.
+  Future<String?> _toldNow(Map row) async {
+    final preface = row['preface'] as String?;
+    final task = row['task_uuid'] as String?;
+    final caldo = this.caldo;
+    if (preface == null || task == null || caldo == null) return null;
+    try {
+      await caldo.refresh();
+    } catch (_) {
+      return null;
+    }
+    final h = caldo.book.tasks.where((t) => t.uuid == task).firstOrNull;
+    return h == null ? null : taskMessage(h.task, preface);
+  }
+
+  DateTime _dueLookedAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Starts the chats left to wait for their tasks whose day or time has
+  /// come — read from the task each time, so one moved to another day
+  /// waits for that day — and ends those whose task went meanwhile.
+  Future<void> _startDue() async {
+    final caldo = this.caldo;
+    if (caldo == null) return;
+    // Every write to a chat wakes the look, its worker's own among them:
+    // the tasks are pulled for this a few times a minute at most.
+    final now = DateTime.now();
+    if (now.difference(_dueLookedAt) < const Duration(seconds: 10)) return;
+    _dueLookedAt = now;
+    final db = await _db;
+    final waiting = await db
+        .from('chats')
+        .select()
+        .eq('worker_id', state.id)
+        .eq('state', 'waiting');
+    if (waiting.isEmpty) return;
+    await caldo.refresh();
+    for (final row in waiting) {
+      final uuid = row['task_uuid'] as String?;
+      final h = uuid == null
+          ? null
+          : caldo.book.tasks.where((t) => t.uuid == uuid).firstOrNull;
+      if (h == null || h.task.done) {
+        await _set(
+          row['id'] as String,
+          'ended',
+          h == null
+              ? 'Its task was deleted before it was due.'
+              : 'Its task was ticked off before it was due.',
+        );
+        continue;
+      }
+      if (!h.task.isDueBy(now)) continue;
+      log('[${_short(row['id'] as String)}] its task is due');
+      await _takeAsked(row, 'waiting');
+    }
   }
 
   /// Wakes [_look] when the next message left for later is due.
@@ -1165,6 +1250,7 @@ class Worker {
   /// Starts [ask] in a terminal: fresh, or with Claude's [resume] taken up
   /// and [prompt] in place of the chat's own first message.
   Future<_Live?> _start(ChatAsk ask, {String? resume, String? prompt}) async {
+    _know(ask);
     final place = await _placeOf(ask);
     if (place == null) return null;
     final (spec, dir) = place;
@@ -1307,6 +1393,7 @@ class Worker {
     String? resume,
     String? prompt,
   }) async {
+    _know(ask);
     final place = await _placeOf(ask);
     if (place == null) return null;
     final (spec, dir) = place;
@@ -1458,7 +1545,102 @@ class Worker {
   Future<void> _set(String chat, String to, String? note) async {
     final db = await _db;
     await db.from('chats').update({'state': to, 'note': note}).eq('id', chat);
+    _follow(chat, to, note);
   }
+
+  // ---- The tasks chats were sent from ---------------------------------
+
+  /// Each chat's task, by chat id, for those sent from one.
+  final Map<String, String> _taskOf = {};
+
+  /// The watcher's errands: it writes their answers itself ([Watcher]),
+  /// so only where they stand on the way is said here.
+  final Set<String> _errands = {};
+
+  /// The chats whose answer is in their task's notes already: only a
+  /// task's first answer goes there; what is said after is in the chat.
+  final Set<String> _answered = {};
+
+  /// What was last said of each chat's task, so a state said again is not
+  /// written again.
+  final Map<String, String> _toldTask = {};
+
+  /// The task writes one after another: each reads the task afresh.
+  Future<void> _taskWrites = Future.value();
+
+  void _know(ChatAsk ask) {
+    if (ask.taskUuid case final task?) _taskOf[ask.id] = task;
+  }
+
+  /// [chat] standing at [to], said of its task.
+  void _follow(String chat, String to, String? note) {
+    final stand = AgentState.ofChat(to);
+    if (stand == null) return;
+    // A failed errand is the watcher's to tell, with its reason.
+    if (stand == AgentState.failed && _errands.contains(chat)) return;
+    // Exited after answering: the answer stands.
+    if (stand == AgentState.failed && _toldTask[chat] == AgentState.review) {
+      return;
+    }
+    _tellTask(
+      chat,
+      stand,
+      note: stand == AgentState.failed
+          ? 'Not done: ${note ?? 'it stopped.'}'
+          : null,
+    );
+  }
+
+  /// A turn of [chat]'s done: its task is to be looked over, with the
+  /// first answer in its notes; or, failed, says so — unless it had
+  /// answered already, an ending that says nothing of the answer.
+  void _turnDone(
+    String chat,
+    String answer,
+    String who, {
+    bool failed = false,
+  }) {
+    if (_errands.contains(chat)) return;
+    if (failed) {
+      if (_toldTask[chat] == AgentState.review || answer.trim().isEmpty) {
+        return;
+      }
+      _tellTask(chat, AgentState.failed, note: answer, who: who);
+      return;
+    }
+    final first = _answered.add(chat);
+    _tellTask(
+      chat,
+      AgentState.review,
+      note: first
+          ? _cut(answer.trim().isEmpty ? '(Nothing said.)' : answer)
+          : null,
+      who: who,
+    );
+  }
+
+  void _tellTask(String chat, String stand, {String? note, String? who}) {
+    final task = _taskOf[chat];
+    final caldo = this.caldo;
+    if (task == null || caldo == null) return;
+    if (_toldTask[chat] == stand && note == null) return;
+    _toldTask[chat] = stand;
+    _taskWrites = _taskWrites.then(
+      (_) => _guard(
+        () => caldo.agentSays(
+          task,
+          state: stand,
+          note: note,
+          who: who ?? 'Agent',
+        ),
+      ),
+    );
+  }
+
+  /// Most of an answer a task's notes take; the rest is in its chat.
+  static String _cut(String text) => text.length <= 6000
+      ? text
+      : '${text.substring(0, 6000)}…\n(The rest is in its chat.)';
 
   /// Reads on in every chat's files, and sends what has come if it is time.
   void _pump() {
@@ -1594,6 +1776,11 @@ class Worker {
         note = event['message'] as String?;
       case 'Stop':
         to = 'finished';
+        _turnDone(
+          chat,
+          event['last_assistant_message'] as String? ?? '',
+          live.spec.label,
+        );
         final turn = live.turn;
         if (turn != null && !turn.isCompleted) {
           turn.complete((
@@ -1820,6 +2007,7 @@ class Worker {
           .single();
       chat = made['id'] as String;
     }
+    _errands.add(chat);
     final row = await db.from('chats').select().eq('id', chat).single();
     final turn = Completer<_Turn>();
     _waiting[chat] = turn;
@@ -2360,6 +2548,11 @@ class _Talker implements TalkSink {
     DateTime? resets,
   }) {
     if (_keeping != null) _keepUsage();
+    // Stopped by the limit, it carries on once lifted: its task is still
+    // under way.
+    if (!limited && !forgotten) {
+      worker._turnDone(ask.id, answer, spec.label, failed: failed);
+    }
     final waiting = turn;
     turn = null;
     if (waiting != null && !waiting.isCompleted) {

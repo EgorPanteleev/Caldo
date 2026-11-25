@@ -198,7 +198,9 @@ class TaskCard extends StatelessWidget {
     final flag = task.priority == Priority.none
         ? null
         : Icon(Icons.flag, size: 16, color: priorityColor(task.priority));
-    final started = task.stage == Stage.inProgress
+    // An agent's word on where it stands says more than In progress.
+    final agentStands = task.done ? null : task.agentState;
+    final started = task.stage == Stage.inProgress && agentStands == null
         ? const InProgressBadge()
         : null;
 
@@ -288,8 +290,14 @@ class TaskCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                         ],
-                        if (task.claude != null) ...[
-                          Icon(Icons.auto_awesome, size: 14, color: p.faint),
+                        if (task.claude != null || task.agent != null) ...[
+                          Icon(
+                            Icons.auto_awesome,
+                            size: 14,
+                            color: agentStands == null
+                                ? p.faint
+                                : ClaudeMark.colourOf(p, agentStands),
+                          ),
                           const SizedBox(width: 4),
                         ],
                         Text(
@@ -351,7 +359,18 @@ class TaskCard extends StatelessWidget {
                                   if (ClaudeMark.of(task)
                                       case final label?) ...[
                                     const SizedBox(width: 8),
-                                    ClaudeMark(label: label, color: p.muted),
+                                    // Never more than half the row: the
+                                    // day and time stay readable.
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 160,
+                                      ),
+                                      child: ClaudeMark(
+                                        label: label,
+                                        color: p.muted,
+                                        state: agentStands,
+                                      ),
+                                    ),
                                   ],
                                   if (count != null) ...[
                                     const SizedBox(width: 10),
@@ -641,13 +660,22 @@ const _leave = Duration(milliseconds: 280);
 /// screen would otherwise show it as one more open task. Jira's status
 /// lozenge, in Jira's blue for it: small capitals on a tint of their own
 /// colour, so it reads as a status rather than as the task's colour.
-/// A card's word that the task is handed to Claude, and to which model —
-/// or sent to an agent, and to which.
+/// A card's word that the task is handed to Claude, or sent to an agent,
+/// and to which — and, once sent, where the agent stands with it, in the
+/// colour the Agents tab gives its chat in that state.
 class ClaudeMark extends StatelessWidget {
   final String label;
   final Color color;
 
-  const ClaudeMark({super.key, required this.label, required this.color});
+  /// [Task.agentState], or null to say only what it went to.
+  final String? state;
+
+  const ClaudeMark({
+    super.key,
+    required this.label,
+    required this.color,
+    this.state,
+  });
 
   /// What [task]'s mark says, if it has one: the watcher's model first.
   static String? of(Task task) => switch (task.claude) {
@@ -655,16 +683,56 @@ class ClaudeMark extends StatelessWidget {
     null => task.agent,
   };
 
+  /// The colour [state] is said in: at work green, held up on the user
+  /// orange, answered as plain as text, failed red, waiting quiet.
+  static Color colourOf(AppPalette p, String state) => switch (state) {
+    AgentState.working => AppColors.holiday,
+    AgentState.asking => AppColors.overdue,
+    AgentState.review => p.text,
+    AgentState.failed => AppColors.danger,
+    _ => p.muted,
+  };
+
+  static String? nameOf(S s, String? state) => switch (state) {
+    AgentState.waiting => s.agentWaiting,
+    AgentState.working => s.agentWorking,
+    AgentState.asking => s.agentAsking,
+    AgentState.review => s.agentReview,
+    AgentState.failed => s.agentFailed,
+    _ => null,
+  };
+
   @override
-  Widget build(BuildContext context) => Row(
-    key: claudeMarkKey,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(Icons.auto_awesome, size: 13, color: color),
-      const SizedBox(width: 3),
-      Text(label, maxLines: 1, style: TextStyle(color: color, fontSize: 12.5)),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final stands = nameOf(S.of(context), state);
+    final ink = state == null ? color : colourOf(AppTheme.of(context), state!);
+    return Row(
+      key: claudeMarkKey,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.auto_awesome, size: 13, color: ink),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text.rich(
+            TextSpan(
+              text: label,
+              style: TextStyle(color: color),
+              children: [
+                if (stands != null)
+                  TextSpan(
+                    text: ' · $stands',
+                    style: TextStyle(color: ink, fontWeight: FontWeight.w600),
+                  ),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12.5),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 const claudeMarkKey = Key('claude-mark');

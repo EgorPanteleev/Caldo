@@ -13,6 +13,7 @@ import '../theme/app_theme.dart';
 import '../theme/tweaks.dart';
 import 'carry.dart';
 import 'desk.dart';
+import 'put_off.dart';
 import 'selection.dart';
 import 'slide_into_place.dart';
 import 'task_card.dart';
@@ -570,6 +571,10 @@ class ReorderableTaskList extends StatefulWidget {
   /// Draws every card on one line (`TaskCard.dense`).
   final bool dense;
 
+  /// Whether a card swipes leftwards to be put off or sent to an agent
+  /// ([PutOff]), a swipe rightwards left to the pager under the list.
+  final bool swipes;
+
   const ReorderableTaskList({
     super.key,
     required this.holidays,
@@ -592,6 +597,7 @@ class ReorderableTaskList extends StatefulWidget {
     this.physics,
     this.shrinkWrap = false,
     this.dense = false,
+    this.swipes = false,
   });
 
   @override
@@ -607,6 +613,9 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
   final _list = GlobalKey<SliverReorderableListState>();
 
   ReorderableTaskList get w => widget;
+
+  Widget _swipeable(Task task, Widget card) =>
+      w.swipes ? PutOff(task: task, leftOnly: true, child: card) : card;
 
   void _reorder(int oldIndex, int newIndex) {
     // Flutter reports the slot the card would go into before the gap it left
@@ -698,16 +707,19 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
                 scope: w.scope,
                 id: task.id ?? task,
                 trigger: w.rearranging ?? const _Never(),
-                child: AsShown(
-                  task: task,
-                  builder: (context, shown) => TaskCard(
-                    task: shown,
-                    list: w.listOf(task),
-                    onTap: () => w.onOpen(task),
-                    onToggle: () => w.onToggle(shown),
-                    ticking: w.isTicking?.call(task) ?? false,
-                    leaving: w.isLeaving?.call(task) ?? false,
-                    dense: w.dense,
+                child: _swipeable(
+                  task,
+                  AsShown(
+                    task: task,
+                    builder: (context, shown) => TaskCard(
+                      task: shown,
+                      list: w.listOf(task),
+                      onTap: () => w.onOpen(task),
+                      onToggle: () => w.onToggle(shown),
+                      ticking: w.isTicking?.call(task) ?? false,
+                      leaving: w.isLeaving?.call(task) ?? false,
+                      dense: w.dense,
+                    ),
                   ),
                 ),
               ),

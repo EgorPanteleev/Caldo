@@ -58,6 +58,10 @@ class AgentKind {
   /// Whether its worker clears a chat's context when asked (`clear`).
   final bool clears;
 
+  /// Whether its worker starts a task's chat left to wait for the task,
+  /// and says on the task where its chat stands.
+  final bool tasks;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -76,6 +80,7 @@ class AgentKind {
     this.accounts = false,
     this.events = false,
     this.clears = false,
+    this.tasks = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -96,6 +101,7 @@ class AgentKind {
     accounts: json['accounts'] == true,
     events: json['events'] == true,
     clears: json['clears'] == true,
+    tasks: json['tasks'] == true,
   );
 }
 
@@ -248,7 +254,18 @@ class AgentWorker {
 
 /// `idle` is ready, nothing done yet; `finished`, a turn has ended. Both
 /// wait for the user's next message.
-enum ChatState { asked, running, asking, idle, finished, ended, failed }
+enum ChatState {
+  asked,
+
+  /// A task's chat left to start when its task is due.
+  waiting,
+  running,
+  asking,
+  idle,
+  finished,
+  ended,
+  failed,
+}
 
 /// A rule as a chat keeps it: its words when it was chosen for the chat.
 typedef ChatRule = ({String name, String body});
@@ -422,6 +439,7 @@ class Chat {
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
+    'waiting' => ChatState.waiting,
     'running' => ChatState.running,
     'asking' => ChatState.asking,
     'idle' => ChatState.idle,
@@ -778,6 +796,8 @@ class Agents extends ChangeNotifier {
     int cols = 80,
     int rows = 24,
     bool inChat = false,
+    bool waiting = false,
+    String? preface,
   }) async {
     final made = {
       'mode': inChat ? 'chat' : 'terminal',
@@ -800,6 +820,10 @@ class Agents extends ChangeNotifier {
       // A task sent from Schedule or the calendar: the list marks the
       // chat as its task's, and the task's form opens it.
       'task_uuid': ?task,
+      // Left to start when the task is due: its worker starts it then,
+      // telling it the task as it is by then after [preface].
+      if (waiting) 'state': 'waiting',
+      'preface': ?preface,
       // Left out for the worker's own, so a server without the column
       // still starts a chat.
       'account': ?account,
@@ -971,6 +995,16 @@ class Agents extends ChangeNotifier {
   Future<void> stop(String chat) => _in(chat, 'stop');
 
   Future<void> again(String chat) => _in(chat, 'start');
+
+  /// A chat left waiting for its task started now, without waiting for
+  /// the task's day: asked of its worker as a new one is.
+  Future<void> startNow(String chat) async {
+    await _client!
+        .from('chats')
+        .update({'state': 'new'})
+        .eq('id', chat)
+        .eq('state', 'waiting');
+  }
 
   /// [choice] — `allow`, `always` or `deny`, or `answer` with [answers]
   /// by each question's words — for the question [item].
