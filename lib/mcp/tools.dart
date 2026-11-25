@@ -261,6 +261,10 @@ class Caldo {
     if (!t.repeat.isNone) out.writeln('Repeats: ${describeRepeat(t.repeat)}');
     out.writeln('Reminder: ${_reminder(t)}');
     if (t.claude != null) out.writeln('Handed to Claude: ${t.claude}');
+    if (t.agent != null) out.writeln('Sent to: ${t.agent}');
+    if (t.agentState != null && !t.done) {
+      out.writeln('Agent: ${t.agentState}');
+    }
     if (t.subtasks.isNotEmpty) {
       out.writeln('Checklist:');
       for (final (i, s) in t.subtasks.indexed) {
@@ -407,6 +411,37 @@ class Caldo {
         ? 'Ticked off [${h.id}] ${h.task.title}.'
         : 'Ticked off [${h.id}] ${h.task.title}; it repeats, so it is now '
               'due ${_due(ticked)}.';
+  }
+
+  /// What the agent running task [uuid] says of it, written as a device
+  /// would: where it stands ([AgentState]), and [note] — its answer, or
+  /// why there is none — added to the notes under a line naming [who] and
+  /// when. Once at work it is put In progress, as the board shows a task
+  /// begun. Nothing for a task deleted meanwhile, or ticked off: the user
+  /// has moved on from it.
+  Future<void> agentSays(
+    String uuid, {
+    String? state,
+    String? note,
+    String who = 'Agent',
+  }) async {
+    await refresh();
+    final h = book.tasks.where((t) => t.uuid == uuid).firstOrNull;
+    if (h == null || h.task.done) return;
+    var task = h.task;
+    if (state != null) task = task.copyWith(agentState: state);
+    if (state == AgentState.working && task.stage == Stage.notStarted) {
+      task = task.toStage(Stage.inProgress, _ms);
+    }
+    if (note != null && note.trim().isNotEmpty) {
+      task = task.copyWith(
+        notes: [
+          if (task.notes.isNotEmpty) task.notes,
+          '${agentLine(who, _now())}\n${note.trim()}',
+        ].join('\n\n'),
+      );
+    }
+    await _save(h, task, h.group, 'Updated');
   }
 
   Future<String> setStage(Map<String, Object?> args) async {
@@ -746,6 +781,7 @@ class Caldo {
         'checklist ${t.subtasksDone}/${t.subtasks.length}',
       if (t.stage == Stage.inProgress) 'in progress',
       if (t.claude != null) 'for Claude',
+      if (t.agentState != null && !t.done) 'agent: ${t.agentState}',
       if (t.notes.isNotEmpty) 'has notes',
       if (t.attachments.isNotEmpty) '${t.attachments.length} attached',
     ];
@@ -1123,3 +1159,10 @@ class Caldo {
       "times HH:MM in the user's own time zone. Tasks sit in groups (lists). "
       'Ask before deleting anything.';
 }
+
+/// The line an agent's words in a task's notes stand under: who, and when
+/// — "— Claude, 25.11 14:05 —".
+String agentLine(String who, DateTime at) =>
+    '— $who, ${at.day}.${at.month.toString().padLeft(2, '0')} '
+    '${at.hour.toString().padLeft(2, '0')}:'
+    '${at.minute.toString().padLeft(2, '0')} —';

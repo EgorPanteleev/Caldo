@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
@@ -7,27 +8,40 @@ import 'package:provider/provider.dart';
 import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../screens/agents_screen.dart' show sendToAgents;
+import '../services/agents.dart';
 import '../theme/app_theme.dart';
 import 'date_time_pickers.dart';
 import 'selection.dart';
 import 'task_card.dart';
 import 'tick_off.dart';
 
-/// A card on Schedule that can be swiped left to put its task off.
+/// A card on Schedule or under the calendar that can be swiped left to
+/// put its task off, or send it to an agent.
 ///
-/// Pulled part of the way it stays open on two actions — the next day and a
-/// day picked from the calendar sheet — and pulled most of the way across,
-/// or thrown, it does the first of them at once. Either way the card goes
-/// back to rest and then slides to its new day as the run is read back, and
-/// the add row offers the move back for four seconds, as it does a tick.
+/// Pulled part of the way it stays open on its actions — the next day, a
+/// day picked from the calendar sheet and, signed in, an agent — and pulled
+/// most of the way across, or thrown, it does the first of them at once.
+/// Either way the card goes back to rest and then slides to its new day as
+/// the run is read back, and the add row offers the move back for four
+/// seconds, as it does a tick.
 ///
-/// Schedule only: under the calendar a sideways swipe turns the day, and
-/// the board's cards are carried between lanes.
+/// Under the calendar a sideways swipe turns the day: there only a swipe
+/// leftwards is the card's ([leftOnly]), so one rightwards still turns back
+/// a day over a card. The board's cards are carried between lanes.
 class PutOff extends StatefulWidget {
   final Task task;
   final Widget child;
 
-  const PutOff({super.key, required this.task, required this.child});
+  /// Whether a swipe rightwards is left to what is under the card.
+  final bool leftOnly;
+
+  const PutOff({
+    super.key,
+    required this.task,
+    required this.child,
+    this.leftOnly = false,
+  });
 
   /// The day "the next day" means for [task]: tomorrow for anything due by
   /// today, or with no date; the day after its own for anything later,
@@ -64,10 +78,13 @@ class _PutOffState extends State<PutOff> with SingleTickerProviderStateMixin {
   /// The one card standing open, so opening another closes it.
   static _PutOffState? _open;
 
-  /// The width the two actions take behind the card, and the gap between
-  /// the card and their strip.
-  static const _actions = 168.0;
+  /// The width the actions take behind the card, and the gap between the
+  /// card and their strip.
+  double get _actions => _Action.width * (_offersAgent ? 3 : 2) + 8;
   static const _gap = 8.0;
+
+  /// Agents run through the account, so only once signed in.
+  bool get _offersAgent => Agents.instance.signedIn;
 
   /// The part of the card's width past which letting go puts it off.
   static const _through = 0.55;
@@ -143,6 +160,11 @@ class _PutOffState extends State<PutOff> with SingleTickerProviderStateMixin {
     _move(PutOff.nextDay(widget.task, DateTime.now()), Icons.redo_rounded);
   }
 
+  Future<void> _toAgent() async {
+    _settle(0);
+    await sendToAgents(context, [widget.task]);
+  }
+
   Future<void> _pickDay() async {
     _settle(0);
     final picked = await showAppDatePicker(
@@ -162,10 +184,17 @@ class _PutOffState extends State<PutOff> with SingleTickerProviderStateMixin {
     return LayoutBuilder(
       builder: (context, box) {
         _width = box.maxWidth;
-        return GestureDetector(
-          onHorizontalDragStart: _onStart,
-          onHorizontalDragUpdate: _onUpdate,
-          onHorizontalDragEnd: _onEnd,
+        return RawGestureDetector(
+          gestures: {
+            _Leftwards: GestureRecognizerFactoryWithHandlers<_Leftwards>(
+              () => _Leftwards(widget.leftOnly),
+              (drag) => drag
+                ..leftOnly = widget.leftOnly
+                ..onStart = _onStart
+                ..onUpdate = _onUpdate
+                ..onEnd = _onEnd,
+            ),
+          },
           child: Stack(
             children: [
               // The actions, in a strip of the card's shape exactly as wide
@@ -206,6 +235,12 @@ class _PutOffState extends State<PutOff> with SingleTickerProviderStateMixin {
                         label: s.pickDay,
                         onTap: _pickDay,
                       ),
+                      if (_offersAgent)
+                        _Action(
+                          icon: Icons.terminal_rounded,
+                          label: s.swipeAgent,
+                          onTap: _toAgent,
+                        ),
                       const SizedBox(width: 4),
                     ],
                   ),
@@ -244,8 +279,60 @@ class _PutOffState extends State<PutOff> with SingleTickerProviderStateMixin {
   }
 }
 
+/// A sideways drag, or — [leftOnly] — only one that sets off leftwards:
+/// one rightwards is given up before it is taken, to the pager under the
+/// card.
+class _Leftwards extends HorizontalDragGestureRecognizer {
+  bool leftOnly;
+
+  _Leftwards(this.leftOnly);
+
+  /// How far each pointer has gone across before the drag is decided.
+  final Map<int, double> _across = {};
+  final Set<int> _taken = {};
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    _across[event.pointer] = 0;
+    _taken.remove(event.pointer);
+    super.addAllowedPointer(event);
+  }
+
+  @override
+  void acceptGesture(int pointer) {
+    _taken.add(pointer);
+    super.acceptGesture(pointer);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (leftOnly &&
+        event is PointerMoveEvent &&
+        !_taken.contains(event.pointer)) {
+      final across = (_across[event.pointer] ?? 0) + event.delta.dx;
+      _across[event.pointer] = across;
+      // Rightwards by half the slop: not this card's swipe.
+      if (across > computeHitSlop(event.kind, gestureSettings) / 2) {
+        resolvePointer(event.pointer, GestureDisposition.rejected);
+        stopTrackingPointer(event.pointer);
+        return;
+      }
+    }
+    super.handleEvent(event);
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    _across.remove(pointer);
+    _taken.remove(pointer);
+    super.didStopTrackingLastPointer(pointer);
+  }
+}
+
 /// One of the actions behind a card: an icon over a word, neutral.
 class _Action extends StatelessWidget {
+  static const width = 80.0;
+
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -256,7 +343,7 @@ class _Action extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     return SizedBox(
-      width: 80,
+      width: width,
       child: InkWell(
         onTap: onTap,
         child: Column(

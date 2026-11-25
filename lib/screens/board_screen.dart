@@ -17,7 +17,7 @@ import '../widgets/desk.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom;
 import '../widgets/groups.dart';
 import '../widgets/screen_header.dart';
-import '../widgets/task_card.dart' show TaskCard;
+import '../widgets/task_card.dart' show ClaudeMark, TaskCard;
 import 'task_edit_screen.dart';
 
 /// Every task in one of three columns — not started, in progress, done — and
@@ -730,6 +730,16 @@ class BoardCard extends StatelessWidget {
         ),
       if (when != null)
         _Due(when: when, overdue: task.isOverdue && !task.done, ground: chip),
+      // Sent to an agent: to which, and where it stands with it.
+      if (ClaudeMark.of(task) case final label?)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: ClaudeMark(
+            label: label,
+            color: p.muted,
+            state: task.done ? null : task.agentState,
+          ),
+        ),
     ];
 
     final foot = <Widget>[

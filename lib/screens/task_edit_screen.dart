@@ -12,7 +12,7 @@ import '../providers/task_provider.dart';
 import '../services/attachments.dart';
 import '../db/database.dart';
 import '../services/agents.dart';
-import 'agents_screen.dart' show openChat;
+import 'agents_screen.dart' show openChat, sendToAgents;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -25,7 +25,7 @@ import '../widgets/repeat_sheet.dart';
 import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart'
     show GroundFade, KeyboardLift, KeyboardRoom;
-import '../widgets/task_card.dart' show CheckMark, TaskCard;
+import '../widgets/task_card.dart' show CheckMark, ClaudeMark, TaskCard;
 
 /// Opens the form on [task], or a new one starting on [initialDate]: a page
 /// over a phone's screen, and in the wide layout the panel down the right
@@ -367,6 +367,42 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       return;
     }
     await openChat(context, chat);
+  }
+
+  /// The task as it stands now: sent from here, its mark and state are
+  /// the provider's, not the form's.
+  Task? get _now {
+    final id = widget.task?.id;
+    if (id == null) return widget.task;
+    return context.read<TaskProvider>().taskById(id) ?? widget.task;
+  }
+
+  /// Whether the task has a chat to open: sent to an agent, or handed to
+  /// Claude by the watcher.
+  bool get _sentAlready =>
+      _chat != null || _now?.agent != null || _now?.claude != null;
+
+  /// "Opus · Working", or that it has not been sent.
+  String _agentLine(S s) {
+    final task = _now;
+    final mark = task == null ? null : ClaudeMark.of(task);
+    if (task == null || mark == null) {
+      return _chat == null ? s.agentNotSent : s.chatOpen;
+    }
+    final stands = task.done ? null : ClaudeMark.nameOf(s, task.agentState);
+    return stands == null ? mark : '$mark · $stands';
+  }
+
+  /// The form to send the task to an agent; sent, its chat is looked for
+  /// again, so the row opens it.
+  Future<void> _send() async {
+    final task = _now;
+    if (task == null) return;
+    final sent = await sendToAgents(context, [task]);
+    if (sent && mounted) {
+      setState(() {});
+      unawaited(_findChat(task.id!));
+    }
   }
 
   Future<void> _pickClaude() async {
@@ -753,18 +789,17 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                         setState(() => _claude = null);
                                       },
                               ),
-                              // Handed over already, or sent to an agent:
-                              // its chat, to watch it or say more.
-                              if ((widget.task?.claude != null ||
-                                      widget.task?.agent != null ||
-                                      _chat != null) &&
+                              // Sent to an agent, or to be: where it stands,
+                              // and its chat to watch it or say more.
+                              if (widget.task?.id != null &&
                                   Agents.instance.signedIn) ...[
                                 const SizedBox(height: 12),
                                 _FieldTile(
+                                  key: agentFieldKey,
                                   icon: Icons.terminal_rounded,
-                                  label: s.agents,
-                                  value: s.chatOpen,
-                                  onTap: _openChat,
+                                  label: s.agentLabel,
+                                  value: _agentLine(s),
+                                  onTap: _sentAlready ? _openChat : _send,
                                 ),
                               ],
                               const SizedBox(height: 22),
@@ -1256,6 +1291,9 @@ const reminderFieldKey = Key('reminder-field');
 
 /// The form's row handing the task to Claude.
 const claudeFieldKey = Key('claude-field');
+
+/// The form's row sending the task to an agent, or opening its chat.
+const agentFieldKey = Key('agent-field');
 
 /// A row of priority chips — a segmented control that wraps instead of
 /// clipping its labels on narrow screens.

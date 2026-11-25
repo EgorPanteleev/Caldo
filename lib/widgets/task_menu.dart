@@ -4,14 +4,16 @@ import 'package:provider/provider.dart';
 import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../screens/agents_screen.dart' show sendToAgents;
 import '../screens/task_edit_screen.dart';
+import '../services/agents.dart';
 import '../theme/app_theme.dart';
 import 'date_time_pickers.dart';
 import 'put_off.dart';
 import 'selection.dart';
 import 'tick_off.dart';
 
-enum _Do { edit, tick, today, nextDay, pickDay, group, select, delete }
+enum _Do { edit, tick, today, nextDay, pickDay, agent, group, select, delete }
 
 /// What a right click on a task's card offers, at the pointer: everything a
 /// phone does to a card by a gesture a mouse has no word for — the swipe
@@ -62,6 +64,9 @@ Future<void> showTaskMenu(BuildContext context, Offset at, Task task) async {
           item(_Do.today, Icons.today_outlined, s.today),
         item(_Do.nextDay, Icons.redo_rounded, later ? s.putOffDay : s.tomorrow),
         item(_Do.pickDay, Icons.event_outlined, s.pickDay),
+        // Agents run through the account, so only once signed in.
+        if (Agents.instance.signedIn)
+          item(_Do.agent, Icons.terminal_rounded, s.sendToAgent),
       ],
       if (provider.lists.length > 1)
         item(_Do.group, Icons.folder_outlined, s.moveToGroup),
@@ -94,6 +99,8 @@ Future<void> showTaskMenu(BuildContext context, Offset at, Task task) async {
       );
       if (day == null || day == task.dueDay || !context.mounted) return;
       PutOff.move(context, task, day, Icons.event_outlined);
+    case _Do.agent:
+      await sendToAgents(context, [task]);
     case _Do.group:
       final id = await pickGroup(context, current: task.listId);
       if (id != null) await provider.moveAllToGroup([task], id);

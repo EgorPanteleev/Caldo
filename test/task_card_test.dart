@@ -1,3 +1,4 @@
+import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/models/task.dart';
 import 'package:caldo/models/task_list.dart';
 import 'package:caldo/theme/app_theme.dart';
@@ -177,5 +178,63 @@ void main() {
     await pump(ticking: false);
     await tester.pumpAndSettle();
     expect(titleLine(), TextDecoration.lineThrough);
+  });
+
+  testWidgets('a task sent to an agent says where the agent stands', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(411 * 3, 400 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final s = S.forCode('en');
+    Future<void> pump(String? state) => tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(AppAccent.presets.first),
+        home: Scaffold(
+          body: TaskCard(
+            task: Task(
+              id: 1,
+              listId: 1,
+              title: 'Renew the domain before it lapses',
+              notes: 'The registrar is the one with the orange logo',
+              dueAt: DateTime(2026, 11, 25, 9).millisecondsSinceEpoch,
+              hasTime: true,
+              startedAt: 1,
+              agent: 'Codex · gpt-5.1-codex-max',
+              agentState: state,
+              createdAt: 0,
+            ),
+            list: list,
+            onTap: () {},
+            onToggle: () {},
+          ),
+        ),
+      ),
+    );
+
+    // Sent and in progress, its agent says nothing yet: the badge stays.
+    await pump(null);
+    expect(find.byType(InProgressBadge), findsOneWidget);
+
+    for (final (state, word) in [
+      (AgentState.waiting, s.agentWaiting),
+      (AgentState.working, s.agentWorking),
+      (AgentState.asking, s.agentAsking),
+      (AgentState.review, s.agentReview),
+      (AgentState.failed, s.agentFailed),
+    ]) {
+      await pump(state);
+      // Its word says more than In progress; a long label is cut, not
+      // the row overflowed.
+      expect(find.byType(InProgressBadge), findsNothing);
+      final mark = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(claudeMarkKey),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(mark.textSpan!.toPlainText(), endsWith(' · $word'));
+      expect(tester.takeException(), isNull);
+    }
   });
 }

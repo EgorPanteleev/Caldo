@@ -215,6 +215,7 @@ Future<int> _watch(SessionFile file, List<String> args) async {
 
   // Without tmux there are no terminals to run chats in: tasks are still
   // done, by `claude -p`, with nothing to watch.
+  final caldo = Caldo(remote);
   Worker? worker;
   if (Tmux.installed) {
     final state = WorkerState(File('${file.dir}/worker.json'));
@@ -227,11 +228,12 @@ Future<int> _watch(SessionFile file, List<String> args) async {
       book: AgentBook(home: home, config: file.dir),
       state: state,
       home: home,
+      caldo: caldo,
       log: log,
     );
   }
   final watcher = Watcher(
-    caldo: Caldo(remote),
+    caldo: caldo,
     dir: dir,
     state: WatchState(File('${file.dir}/watch.json')),
     hand: worker != null

@@ -367,6 +367,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
 /// app's signals, the one asking for the user the loudest.
 Color _stateColour(AppPalette p, ChatState state) => switch (state) {
   ChatState.asked => p.muted,
+  ChatState.waiting => p.faint,
   ChatState.running => AppColors.holiday,
   ChatState.asking => AppColors.overdue,
   ChatState.idle => p.muted,
@@ -399,8 +400,8 @@ class _StateMark extends StatelessWidget {
             )
           : DecoratedBox(
               decoration: BoxDecoration(
-                color: state == ChatState.idle ? null : colour,
-                border: state == ChatState.idle
+                color: _ring(state) ? null : colour,
+                border: _ring(state)
                     ? Border.all(color: colour, width: 1.4)
                     : null,
                 shape: BoxShape.circle,
@@ -410,8 +411,14 @@ class _StateMark extends StatelessWidget {
   }
 }
 
+/// A chat that has done nothing yet, ready or waiting for its task: a
+/// ring, not a dot.
+bool _ring(ChatState state) =>
+    state == ChatState.idle || state == ChatState.waiting;
+
 String _stateName(S s, ChatState state) => switch (state) {
   ChatState.asked => s.chatAsked,
+  ChatState.waiting => s.chatWaiting,
   ChatState.running => s.chatRunning,
   ChatState.asking => s.chatAsking,
   ChatState.idle => s.chatIdle,
@@ -633,6 +640,16 @@ class _TermFont {
   );
 }
 
+/// The form that sends [tasks] to agents, a chat each; true once they are
+/// sent. What a card's swipe, its menu, the form and the picked-out cards'
+/// bar all open.
+Future<bool> sendToAgents(BuildContext context, List<Task> tasks) async {
+  final sent = await Navigator.of(
+    context,
+  ).push<bool>(MaterialPageRoute(builder: (_) => NewChatScreen(tasks: tasks)));
+  return sent ?? false;
+}
+
 /// The choices for a new chat, and the last ones made, which the next
 /// starts from. Given [tasks], it starts one chat for each of them instead,
 /// all on the same computer with the same agent, model and effort, each
@@ -681,6 +698,17 @@ class _NewChatScreenState extends State<NewChatScreen> {
   /// The tasks whose chats have started, by id: a second Start after one
   /// failed goes on with the rest rather than starting these again.
   final Set<int> _sent = {};
+
+  /// Whether the tasks not due yet wait for their day or time, each its
+  /// chat made now and started by its worker then; or all start now.
+  bool _whenDue = false;
+
+  /// Whether "When due" means anything for these tasks, and the worker
+  /// chosen can keep a chat waiting.
+  bool get _canWait =>
+      _forTasks &&
+      (_kind?.tasks ?? false) &&
+      widget.tasks.any((t) => !t.isDueBy(DateTime.now()));
 
   @override
   void initState() {
@@ -882,13 +910,18 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final said = firstMessage(_prompt.text, rules);
     final provider = context.read<TaskProvider>();
     final mark = agentMark(kind, _model);
-    // Each task as it is now, not as it was picked out.
+    final whenDue = _whenDue && _canWait;
+    final now = DateTime.now();
+    // Each task as it is now, not as it was picked out; and those left to
+    // wait for their day.
     final marked = <Task, String>{};
+    final later = <Task>{};
     Chat? last;
     try {
       for (final task in widget.tasks) {
         if (_sent.contains(task.id)) continue;
         final uuid = await AppDatabase.instance.taskUuid(task.id!);
+        final waits = whenDue && !task.isDueBy(now);
         last = await _agents.start(
           worker: worker,
           agent: kind.id,
@@ -908,12 +941,17 @@ class _NewChatScreenState extends State<NewChatScreen> {
           cols: cols,
           rows: rows,
           inChat: kind.talks,
+          waiting: waits,
+          // Told the task as it is once due, after these words.
+          preface: waits ? said : null,
         );
         _sent.add(task.id!);
-        marked[provider.taskById(task.id!) ?? task] = mark;
+        final read = provider.taskById(task.id!) ?? task;
+        marked[read] = mark;
+        if (waits) later.add(read);
       }
     } catch (e) {
-      unawaited(provider.sentToAgents(marked));
+      unawaited(provider.sentToAgents(marked, later: later));
       // Those started stay started; Start again goes on with the rest.
       if (!mounted) return;
       setState(() => _starting = false);
@@ -922,10 +960,12 @@ class _NewChatScreenState extends State<NewChatScreen> {
       );
       return;
     }
-    unawaited(provider.sentToAgents(marked));
+    unawaited(provider.sentToAgents(marked, later: later));
     unawaited(_remember());
     if (!mounted) return;
-    if (widget.tasks.length == 1 && last != null) {
+    // One left waiting has nothing to show yet: back to its card, which
+    // says it waits.
+    if (widget.tasks.length == 1 && last != null && later.isEmpty) {
       final id = last.id;
       await navigator.pushReplacement(
         MaterialPageRoute<void>(builder: (_) => ChatScreen(chat: id)),
@@ -978,6 +1018,32 @@ class _NewChatScreenState extends State<NewChatScreen> {
                     if (_forTasks) ...[
                       _Section(s.tasks),
                       _TaskLines(tasks: widget.tasks),
+                    ],
+                    if (_canWait) ...[
+                      _Section(s.chatStarts),
+                      _Picks(
+                        children: [
+                          _Pick(
+                            label: s.chatStartsNow,
+                            icon: Icons.play_arrow_rounded,
+                            selected: !_whenDue,
+                            onTap: () => setState(() => _whenDue = false),
+                          ),
+                          _Pick(
+                            label: s.chatStartsWhenDue,
+                            icon: Icons.schedule_rounded,
+                            selected: _whenDue,
+                            onTap: () => setState(() => _whenDue = true),
+                          ),
+                        ],
+                      ),
+                      if (_whenDue) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          s.chatStartsWhenDueHint,
+                          style: TextStyle(color: p.muted, fontSize: 13),
+                        ),
+                      ],
                     ],
                     if (_agents.loaded && _agents.workers.isEmpty) ...[
                       _Section(s.agentsNoWorker),
@@ -1215,29 +1281,6 @@ String agentMark(AgentKind kind, String? model) => switch ((kind.id, model)) {
   (_, final m?) => '${kind.label} · $m',
   _ => kind.label,
 };
-
-/// What a task's chat is told first: [said] on the form for every one,
-/// then the task as its card holds it — title, when it is due, notes and
-/// checklist.
-String taskMessage(Task task, String said) {
-  final out = StringBuffer();
-  if (said.trim().isNotEmpty) out.write('${said.trim()}\n\n');
-  out.writeln('Task from Caldo: ${task.title.trim()}');
-  final due = task.due;
-  if (due != null) {
-    out.writeln(
-      'Due: ${Dates.longDay(due)}${task.hasTime ? ', ${Dates.time(due)}' : ''}',
-    );
-  }
-  if (task.notes.trim().isNotEmpty) out.write('Notes:\n${task.notes.trim()}\n');
-  if (task.subtasks.isNotEmpty) {
-    out.writeln('Checklist:');
-    for (final step in task.subtasks) {
-      out.writeln('- [${step.done ? 'x' : ' '}] ${step.title}');
-    }
-  }
-  return out.toString().trim();
-}
 
 /// The tasks a form is sending on, a line each in their own colour, as
 /// the day sheet's dense cards name them.
@@ -2052,6 +2095,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final talks = chat != null && chat.talks;
     final asChat = talks && (_asChat ?? chat.inChat);
     final talk = _talk;
+    final waits = chat?.state == ChatState.waiting;
     final again = chat != null && !live && chat.state != ChatState.asked
         ? Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -2059,8 +2103,10 @@ class _ChatScreenState extends State<ChatScreen> {
               width: double.infinity,
               height: 44,
               child: FilledButton.tonal(
-                onPressed: () => _agents.again(widget.chat),
-                child: Text(s.chatAgain),
+                onPressed: () => waits
+                    ? _agents.startNow(widget.chat)
+                    : _agents.again(widget.chat),
+                child: Text(waits ? s.chatStartNow : s.chatAgain),
               ),
             ),
           )
@@ -2462,7 +2508,9 @@ class _Head extends StatelessWidget {
                 PopupMenuItem(value: 'clear', child: Text(s.chatClear)),
               if (chat != null && chat.live)
                 PopupMenuItem(value: 'stop', child: Text(s.chatStop))
-              else if (chat != null && chat.state != ChatState.asked)
+              else if (chat != null &&
+                  chat.state != ChatState.asked &&
+                  chat.state != ChatState.waiting)
                 PopupMenuItem(value: 'again', child: Text(s.chatAgain)),
               if (chat != null && chat.live && !chat.inChat)
                 PopupMenuItem(
