@@ -11,6 +11,7 @@ import 'package:caldo/mcp/usage.dart';
 import 'package:caldo/mcp/workspace.dart';
 import 'package:caldo/mcp/worker.dart' show answerOf;
 import 'package:caldo/models/task.dart';
+import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/agents_screen.dart';
 import 'package:caldo/services/agents.dart';
@@ -2108,7 +2109,12 @@ void main() {
       Agents.instance.accounts = const [];
     });
 
-    Future<void> pump(WidgetTester tester, String code, Widget home) async {
+    Future<void> pump(
+      WidgetTester tester,
+      String code,
+      Widget home, {
+      ThemeData? theme,
+    }) async {
       tester.view.physicalSize = const Size(960, 1920);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
@@ -2122,11 +2128,95 @@ void main() {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          theme: AppTheme.dark(AppAccent.presets.first),
+          theme: theme ?? AppTheme.dark(AppAccent.presets.first),
           home: home,
         ),
       );
       await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    for (final dark in [false, true]) {
+      testWidgets('keeps chat cards gray in ${dark ? 'dark' : 'light'} mode', (
+        tester,
+      ) async {
+        final agents = Agents.instance;
+        final now = DateTime.now();
+        const colour = 'teal';
+        agents
+          ..signedInForTest = true
+          ..workers = [
+            AgentWorker(
+              id: 'worker',
+              name: 'Desk',
+              home: '/home/someone',
+              seenAt: now,
+              dirs: const [],
+              agents: const [AgentKind(id: 'shell', label: 'Shell')],
+            ),
+          ]
+          ..projects = const [
+            AgentProject(id: 'parent', name: 'Caldo', colour: colour),
+            AgentProject(id: 'child', name: 'Sync', parentId: 'parent'),
+          ]
+          ..chats = [
+            Chat(
+              id: 'a',
+              title: 'Grouped chat',
+              agent: 'shell',
+              state: ChatState.ended,
+              updatedAt: now,
+              projectId: 'child',
+            ),
+            Chat(
+              id: 'b',
+              title: 'Ungrouped chat',
+              agent: 'shell',
+              state: ChatState.ended,
+              updatedAt: now,
+            ),
+          ];
+        addTearDown(() {
+          agents
+            ..signedInForTest = null
+            ..chats = const [];
+        });
+
+        final accent = AppAccent.presets.first;
+        await pump(
+          tester,
+          'en',
+          const AgentsScreen(),
+          theme: dark ? AppTheme.dark(accent) : AppTheme.light(accent),
+        );
+        final grouped = find.text('Grouped chat');
+        final ungrouped = find.text('Ungrouped chat');
+        Color? background(Finder title) => tester
+            .element(title)
+            .findAncestorWidgetOfExactType<Material>()!
+            .color;
+
+        final palette = AppTheme.of(tester.element(grouped));
+        final gray = dark ? palette.panel : palette.panelHi;
+        expect(background(grouped), gray);
+        expect(background(ungrouped), gray);
+        expect(find.textContaining('Caldo › Sync'), findsOneWidget);
+        final dot = find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration ==
+                  BoxDecoration(
+                    color: ListStyle.byId(colour).color,
+                    shape: BoxShape.circle,
+                  ),
+        );
+        expect(dot, findsOneWidget);
+
+        await tester.longPress(grouped);
+        await tester.pump();
+        expect(background(grouped), dark ? palette.panelHi : palette.field);
+        expect(background(ungrouped), gray);
+        expect(dot, findsOneWidget);
+      });
     }
 
     testWidgets('restores each chat draft after leaving the chat', (
