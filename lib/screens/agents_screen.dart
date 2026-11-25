@@ -416,9 +416,10 @@ class _StateMark extends StatelessWidget {
 bool _ring(ChatState state) =>
     state == ChatState.idle || state == ChatState.waiting;
 
-String _stateName(S s, ChatState state) => switch (state) {
+/// [chat]'s state in words; one waiting with no task waits for the user.
+String _stateName(S s, Chat chat) => switch (chat.state) {
   ChatState.asked => s.chatAsked,
-  ChatState.waiting => s.chatWaiting,
+  ChatState.waiting => chat.taskUuid == null ? s.chatHeld : s.chatWaiting,
   ChatState.running => s.chatRunning,
   ChatState.asking => s.chatAsking,
   ChatState.idle => s.chatIdle,
@@ -548,7 +549,7 @@ class _ChatRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${_stateName(s, chat.state)} · ${_lineOf(chat)}',
+                      '${_stateName(s, chat)} · ${_lineOf(chat)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: p.muted, fontSize: 12.5),
@@ -702,6 +703,15 @@ class _NewChatScreenState extends State<NewChatScreen> {
   /// Whether the tasks not due yet wait for their day or time, each its
   /// chat made now and started by its worker then; or all start now.
   bool _whenDue = false;
+
+  /// Whether a new chat (not a task's) is only made, left for the user
+  /// to start from its screen.
+  bool _picksByHand = false;
+
+  /// Whether the chat is left for the user, and its worker would.
+  bool get _byHand => _picksByHand && _canHold;
+
+  bool get _canHold => !_forTasks && (_kind?.held ?? false);
 
   /// Whether "When due" means anything for these tasks, and the worker
   /// chosen can keep a chat waiting.
@@ -879,9 +889,13 @@ class _NewChatScreenState extends State<NewChatScreen> {
         cols: cols,
         rows: rows,
         inChat: kind.talks,
+        waiting: _byHand,
       );
       unawaited(_remember());
       if (!mounted) return;
+      // One left for later has nothing to show yet: back to the list,
+      // where it waits.
+      if (_byHand) return Navigator.of(context).pop();
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(builder: (_) => ChatScreen(chat: chat.id)),
       );
@@ -1041,6 +1055,32 @@ class _NewChatScreenState extends State<NewChatScreen> {
                         const SizedBox(height: 8),
                         Text(
                           s.chatStartsWhenDueHint,
+                          style: TextStyle(color: p.muted, fontSize: 13),
+                        ),
+                      ],
+                    ],
+                    if (_canHold) ...[
+                      _Section(s.chatStarts),
+                      _Picks(
+                        children: [
+                          _Pick(
+                            label: s.chatStartsNow,
+                            icon: Icons.play_arrow_rounded,
+                            selected: !_byHand,
+                            onTap: () => setState(() => _picksByHand = false),
+                          ),
+                          _Pick(
+                            label: s.chatStartsByHand,
+                            icon: Icons.pause_rounded,
+                            selected: _byHand,
+                            onTap: () => setState(() => _picksByHand = true),
+                          ),
+                        ],
+                      ),
+                      if (_byHand) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          s.chatStartsByHandHint,
                           style: TextStyle(color: p.muted, fontSize: 13),
                         ),
                       ],
@@ -1258,6 +1298,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
                                 ? s.chatStartEach(
                                     widget.tasks.length - _sent.length,
                                   )
+                                : _byHand
+                                ? s.chatCreate
                                 : s.chatStart,
                           ),
                         ),
@@ -2450,7 +2492,7 @@ class _Head extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${_stateName(s, chat.state)} · ${_lineOf(chat)}',
+                      '${_stateName(s, chat)} · ${_lineOf(chat)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: p.muted, fontSize: 12),

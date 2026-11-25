@@ -499,6 +499,11 @@ const Map<String, Object> de = {
   'chatStartsWhenDue': "Bei Fälligkeit",
   'chatStartsWhenDueHint':
       "Jeder Chat beginnt am Tag seiner Aufgabe oder zu ihrer Uhrzeit. Eine schon fällige Aufgabe beginnt jetzt.",
+  'chatStartsByHand': "Wenn ich ihn starte",
+  'chatStartsByHandHint':
+      "Der Chat wird mit allem hier Gewählten angelegt und wartet unter Agenten, bis du ihn öffnest und auf Jetzt starten tippst.",
+  'chatCreate': "Anlegen",
+  'chatHeld': "Nicht gestartet",
   'chatWaiting': "Wartet auf seine Aufgabe",
   'chatStartNow': "Jetzt starten",
   'agentWaiting': "Wartet",

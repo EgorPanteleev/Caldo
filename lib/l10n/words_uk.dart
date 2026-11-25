@@ -518,6 +518,11 @@ const Map<String, Object> uk = {
   'chatStartsWhenDue': "У строк",
   'chatStartsWhenDueHint':
       "Кожен чат почнеться в день завдання або в його час. Завдання, строк якого вже настав, почнеться зараз.",
+  'chatStartsByHand': "Коли я запущу",
+  'chatStartsByHandHint':
+      "Чат створюється з усім вибраним тут і чекає в Агентах, доки ви не відкриєте його й не натиснете «Почати зараз».",
+  'chatCreate': "Створити",
+  'chatHeld': "Не запущено",
   'chatWaiting': "Чекає на своє завдання",
   'chatStartNow': "Почати зараз",
   'agentWaiting': "Чекає",

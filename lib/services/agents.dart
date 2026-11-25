@@ -62,6 +62,10 @@ class AgentKind {
   /// and says on the task where its chat stands.
   final bool tasks;
 
+  /// Whether its worker leaves a chat made waiting with no task until it
+  /// is started by hand.
+  final bool held;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -81,6 +85,7 @@ class AgentKind {
     this.events = false,
     this.clears = false,
     this.tasks = false,
+    this.held = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -102,6 +107,7 @@ class AgentKind {
     events: json['events'] == true,
     clears: json['clears'] == true,
     tasks: json['tasks'] == true,
+    held: json['held'] == true,
   );
 }
 
@@ -858,7 +864,8 @@ class Agents extends ChangeNotifier {
       // chat as its task's, and the task's form opens it.
       'task_uuid': ?task,
       // Left to start when the task is due: its worker starts it then,
-      // telling it the task as it is by then after [preface].
+      // telling it the task as it is by then after [preface]. Without a
+      // task, left until started by hand ([startNow]).
       if (waiting) 'state': 'waiting',
       'preface': ?preface,
       // Left out for the worker's own, so a server without the column
@@ -1033,8 +1040,8 @@ class Agents extends ChangeNotifier {
 
   Future<void> again(String chat) => _in(chat, 'start');
 
-  /// A chat left waiting for its task started now, without waiting for
-  /// the task's day: asked of its worker as a new one is.
+  /// A chat left waiting — for its task's day, or for the user — started
+  /// now: asked of its worker as a new one is.
   Future<void> startNow(String chat) async {
     await _client!
         .from('chats')

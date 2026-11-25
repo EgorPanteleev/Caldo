@@ -495,6 +495,11 @@ const Map<String, Object> nl = {
   'chatStartsWhenDue': "Op de vervaldatum",
   'chatStartsWhenDueHint':
       "Elke chat begint op de dag van zijn taak, of op haar tijd. Een taak die al vervallen is, begint nu.",
+  'chatStartsByHand': "Als ik hem start",
+  'chatStartsByHandHint':
+      "De chat wordt gemaakt met alles wat hier gekozen is en wacht bij Agents tot je hem opent en op Nu starten tikt.",
+  'chatCreate': "Aanmaken",
+  'chatHeld': "Niet gestart",
   'chatWaiting': "Wacht op zijn taak",
   'chatStartNow': "Nu starten",
   'agentWaiting': "Wacht",

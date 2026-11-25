@@ -522,6 +522,11 @@ const Map<String, Object> pl = {
   'chatStartsWhenDue': "W terminie",
   'chatStartsWhenDueHint':
       "Każdy czat zacznie się w dniu swojego zadania albo o jego godzinie. Zadanie, którego termin już minął, zacznie się teraz.",
+  'chatStartsByHand': "Gdy go uruchomię",
+  'chatStartsByHandHint':
+      "Czat powstaje ze wszystkim wybranym tutaj i czeka w Agentach, aż go otworzysz i stukniesz Zacznij teraz.",
+  'chatCreate': "Utwórz",
+  'chatHeld': "Nie uruchomiony",
   'chatWaiting': "Czeka na swoje zadanie",
   'chatStartNow': "Zacznij teraz",
   'agentWaiting': "Czeka",

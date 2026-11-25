@@ -495,6 +495,11 @@ const Map<String, Object> es = {
   'chatStartsWhenDue': "Al vencer",
   'chatStartsWhenDueHint':
       "Cada chat empieza el día de su tarea, o a su hora. Una tarea ya vencida empieza ahora.",
+  'chatStartsByHand': "Cuando lo inicie",
+  'chatStartsByHandHint':
+      "El chat se crea con todo lo elegido aquí y espera en Agentes hasta que lo abras y toques Empezar ahora.",
+  'chatCreate': "Crear",
+  'chatHeld': "Sin iniciar",
   'chatWaiting': "Esperando a su tarea",
   'chatStartNow': "Empezar ahora",
   'agentWaiting': "Esperando",
