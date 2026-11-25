@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(44);
+select plan(49);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -117,6 +117,27 @@ select lives_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'EgorPanteleev/Caldo', 26)
     on conflict (user_id, repo, number) do nothing$$,
   'and noting it again changes nothing');
+
+update public.chats set state = 'running';
+update public.chats set updated_at = '2026-11-20 09:30+00';
+select ok(
+  public.recover_chat(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'running', 'idle', 'Interrupted.'),
+  'the worker releases a chat whose process stopped while it was away');
+select results_eq(
+  $$select state, note, updated_at from public.chats$$,
+  $$values ('idle'::text, 'Interrupted.'::text, '2026-11-20 09:30+00'::timestamptz)$$,
+  'recovery keeps the last activity time');
+select ok(
+  not public.recover_chat(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'running', 'ended', null),
+  'stale recovery leaves the current state alone');
+update public.chats set state = 'finished';
+select is(
+  (select updated_at from public.chats), now(),
+  'a later turn still updates the list normally');
 reset role;
 
 select lives_ok(
@@ -134,6 +155,11 @@ select lives_ok(
      'dddddddd-dddd-4ddd-8ddd-dddddddddddd')$$,
   'a chat runs under an account');
 select pg_temp.act_as('22222222-2222-4222-8222-222222222222');
+select ok(
+  not public.recover_chat(
+    'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'finished', 'ended', null),
+  'another account cannot change a chat through recovery');
 select is(
   (select count(*)::int from public.chats) + (select count(*)::int from public.chat_out)
     + (select count(*)::int from public.workers),

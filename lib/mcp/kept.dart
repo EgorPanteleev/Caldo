@@ -76,6 +76,9 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
   /// there is none.
   static Kept? find(String base, int offset) => _read(base, offset);
 
+  /// An old program may still have output to read after it has exited.
+  bool get hasExited => _code != null || !_alive;
+
   static Kept? _read(String base, int offset) {
     try {
       final pids = File('$base.pid').readAsStringSync().trim().split(' ');
