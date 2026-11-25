@@ -2,9 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
 import 'package:supabase/supabase.dart';
 
+import '../services/chat_files.dart';
 import 'agents.dart';
+import 'book.dart' show newUuid;
 import 'remote.dart';
 import 'subscriptions.dart';
 import 'talk.dart';
@@ -30,6 +34,15 @@ abstract class ChatDesk {
 
   /// Input for a chat, as the app sends it (`chat_in`).
   Future<void> send(Map<String, Object?> row);
+
+  /// Uploads a picture and queues it for the worker to publish in the chat.
+  Future<void> sendImage(
+    String chat,
+    File file, {
+    required String mime,
+    required int size,
+    required String caption,
+  });
 
   /// Every chat's subscriptions (`chat_subscriptions`), oldest first.
   Future<List<Map<String, dynamic>>> subscriptions();
@@ -103,6 +116,44 @@ class SupabaseChatDesk implements ChatDesk {
   @override
   Future<void> send(Map<String, Object?> row) async =>
       (await _db).from('chat_in').insert(row);
+
+  @override
+  Future<void> sendImage(
+    String chat,
+    File file, {
+    required String mime,
+    required int size,
+    required String caption,
+  }) async {
+    final db = await _db;
+    final key = '$chat/${newUuid()}';
+    final image = await ChatFiles.upload(
+      db,
+      key,
+      file,
+      name: p.basename(file.path),
+      mime: mime,
+      size: size,
+    );
+    try {
+      await db.from('chat_in').insert({
+        'chat_id': chat,
+        'kind': 'picture',
+        'data': caption,
+        'files': [image],
+      });
+    } on PostgrestException {
+      final user = db.auth.currentUser?.id;
+      if (user != null) {
+        try {
+          await db.storage.from(ChatFiles.bucket).remove(['$user/$key']);
+        } catch (_) {
+          // Chat deletion will also clean up uploads that were never shown.
+        }
+      }
+      rethrow;
+    }
+  }
 
   @override
   Future<List<Map<String, dynamic>>> subscriptions() async => (await _db)
@@ -283,7 +334,13 @@ class ChatTools {
     final said = <String>[];
     for (final item in await desk.items(chat['id'], last: last)) {
       final body = item['body'] is Map ? item['body'] as Map : const {};
-      final text = '${body['text'] ?? ''}'.trim();
+      final files = body['files'];
+      final text = [
+        if (files is List)
+          for (final file in files.whereType<Map>())
+            if (file['name'] is String) '[Attachment: ${file['name']}]',
+        '${body['text'] ?? ''}'.trim(),
+      ].join('\n').trim();
       switch (item['kind']) {
         case 'user':
           final sender = body['sender'];
@@ -720,6 +777,62 @@ class ChatTools {
         : 'Sent to ${sent == 1 ? 'their phone' : '$sent phones'}.';
   }
 
+  Future<String> sendImage(Map<String, Object?> args) async {
+    final chat = self;
+    if (chat == null) {
+      throw const Refusal('Only an agent in a Caldo chat can send a picture.');
+    }
+    final row = await _chat(chat);
+    if (row['mode'] != 'chat' || _gone.contains(row['state'])) {
+      throw const Refusal(
+        'This chat must be active in Chat mode to show a picture.',
+      );
+    }
+    final worker = (await _workers())['${row['worker_id']}'];
+    if (_kind(worker, '${row['agent']}')?['pictures'] != true) {
+      throw const Refusal(
+        'Update and restart this chat’s Caldo worker to send pictures.',
+      );
+    }
+    final path = args['path'];
+    if (path is! String || path.trim().isEmpty) {
+      throw const Refusal('Give the path to a local image file.');
+    }
+    final file = File(path);
+    final stat = await file.stat();
+    if (stat.type != FileSystemEntityType.file) {
+      throw const Refusal('Give the path to an existing image file.');
+    }
+    if (stat.size > ChatFiles.largestFile) {
+      throw const Refusal('Pictures can be at most 50 MB.');
+    }
+    final handle = await file.open();
+    final String? mime;
+    try {
+      mime = lookupMimeType('', headerBytes: await handle.read(32));
+    } finally {
+      await handle.close();
+    }
+    if (mime == null ||
+        !const {
+          'image/png',
+          'image/jpeg',
+          'image/webp',
+          'image/gif',
+          'image/bmp',
+        }.contains(mime)) {
+      throw const Refusal('Use a PNG, JPEG, WebP, GIF, or BMP image.');
+    }
+    await desk.sendImage(
+      chat,
+      file,
+      mime: mime,
+      size: stat.size,
+      caption: (args['caption'] as String? ?? '').trim(),
+    );
+    return 'Picture queued for this chat.';
+  }
+
   static Map<String, Object?> _shape(
     Map<String, Object?> properties, [
     List<String> required = const [],
@@ -735,6 +848,26 @@ class ChatTools {
   };
 
   late final List<Tool> tools = [
+    Tool(
+      'send_image',
+      'Shows a local image to the user in this Caldo chat as a picture '
+          'message, with an optional caption. Use this for screenshots, '
+          'diagrams, or other images you want them to see in the chat.',
+      _shape(
+        {
+          'path': {
+            'type': 'string',
+            'description': 'Path to the local image file.',
+          },
+          'caption': {
+            'type': 'string',
+            'description': 'Optional message under the picture.',
+          },
+        },
+        ['path'],
+      ),
+      sendImage,
+    ),
     Tool(
       'chats',
       "The user's chats with agents (Claude, Codex…) in Caldo's Agents "
@@ -915,5 +1048,6 @@ class ChatTools {
       'message. A chat can be subscribed to pull requests on GitHub '
       '(subscribe), and is then told of new ones as they come; pull_chat '
       'says which chat opened one. clear_context clears a chat\'s context, '
-      'as /clear does. notify sends the user a notification on their phone.';
+      'as /clear does. notify sends the user a notification on their phone. '
+      'Use send_image to show a local picture to the user in this chat.';
 }

@@ -85,6 +85,7 @@ class AgentSpec {
     'later': true,
     // It takes files sent with a message down from `chat-files`.
     'files': true,
+    'pictures': talks,
     // It starts a chat's program again when its settings are changed
     // (`chat_in` `settings`).
     'settings': true,
@@ -757,6 +758,7 @@ String _quoted(String s) => "'${s.replaceAll("'", r"'\''")}'";
 /// computer at [path], or, if that failed, null.
 class Given {
   final String? path;
+  final String? key;
   final String name;
   final String mime;
   final int size;
@@ -766,10 +768,16 @@ class Given {
     required this.name,
     required this.mime,
     this.size = 0,
+    this.key,
   });
 
   /// As the chat shows it: the user's own name for it, not this computer's.
-  Map<String, Object?> toJson() => {'name': name, 'mime': mime, 'size': size};
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'mime': mime,
+    'size': size,
+    'key': ?key,
+  };
 }
 
 /// What the agent is told for [text] sent with [files]: where each is on

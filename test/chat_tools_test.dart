@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:caldo/mcp/chat_tools.dart';
@@ -53,6 +55,19 @@ class _Desk implements ChatDesk {
   Future<void> send(Map<String, Object?> row) async {
     sent.add(row);
     onSend?.call(row);
+  }
+
+  final pictures = <(String, File, String, int, String)>[];
+
+  @override
+  Future<void> sendImage(
+    String chat,
+    File file, {
+    required String mime,
+    required int size,
+    required String caption,
+  }) async {
+    pictures.add((chat, file, mime, size, caption));
   }
 
   final subs = <Map<String, dynamic>>[];
@@ -135,6 +150,7 @@ void main() {
           'chats': true,
           'events': true,
           'clears': true,
+          'pictures': true,
         },
         {'id': 'codex', 'talks': true},
         {'id': 'shell', 'label': 'Shell', 'chats': true},
@@ -190,6 +206,33 @@ void main() {
       self: 'aaaa1111-0000',
       poll: const Duration(milliseconds: 1),
     );
+  });
+
+  test('send_image sends a local picture to the current chat', () async {
+    final dir = await Directory.systemTemp.createTemp('caldo-picture-');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/Screenshot.png');
+    final bytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8'
+      '/x8AAwMCAO+jf2sAAAAASUVORK5CYII=',
+    );
+    await file.writeAsBytes(bytes);
+    expect(
+      await run('send_image', {'path': file.path, 'caption': ' Here it is '}),
+      'Picture queued for this chat.',
+    );
+    final (chat, sent, mime, size, caption) = desk.pictures.single;
+    expect(
+      (chat, sent.path, mime, size, caption),
+      ('aaaa1111-0000', file.path, 'image/png', bytes.length, 'Here it is'),
+    );
+
+    await file.writeAsString('A text file with a .png name');
+    await expectLater(
+      run('send_image', {'path': file.path}),
+      throwsA(isA<Refusal>()),
+    );
+    expect(desk.pictures, hasLength(1));
   });
 
   /// Plays the worker: the message said in [chat], a turn, [answer].
