@@ -27,7 +27,7 @@ the GitHub release check/download and Supabase (Cloud for now).
 lib/
   data/holidays.dart       public holidays, computed on device
   l10n/                    strings.dart (S) + words_*.dart, a table per language
-  db/database.dart         schema v15 (+ migrations); db/sync_store.dart
+  db/database.dart         schema v16 (+ migrations); db/sync_store.dart
   models/                  task (Repeat, Priority), task_list (ListStyle,
                            colorOfTask), completion, secret, special_day
   providers/               task, settings, events, vault
@@ -209,9 +209,13 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
   (signed in only; see Agents) / Delete (asks).
   One selection across scopes; Back, group change, screen change put it
   down. Not on the board. `ClipRect` only while leaving.
-- **Swipe left on Schedule puts off** (`PutOff`, `offerUndo`,
-  `TaskProvider.putBack`): part way shows Next day / Pick day; past 55% or
-  a fling does Next day. Not done cards, not during selection.
+- **Swipe left on Schedule or under the calendar puts off** (`PutOff`,
+  `offerUndo`, `TaskProvider.putBack`): part way shows Next day / Pick day
+  and, signed in, Agent (asked for, 2026-11-25: "wanna with swipe in
+  calendar and schedule"); past 55% or a fling does Next day. Not done
+  cards, not during selection. Under the calendar only a swipe that sets
+  off leftwards is the card's (`leftOnly`, `_Leftwards`): one rightwards
+  still turns back a day over a card. Not in the day sheet.
 - **Carrying a card to another day moves it** (`Carry`, `CarryArea`,
   `CarryMark`, `moveToDay`), keeping its time, clearing `sort_order`.
   Schedule: drop in any run but Overdue. Calendar: over the month it is a
@@ -900,7 +904,36 @@ the app, a terminal beside them; anything else a terminal.
   synced, a label (`agentMark`: "Opus", "Codex · gpt-5"), worn as the
   watcher's tasks wear theirs (`ClaudeMark.of`). A mark only, apart from
   `Task.claude` on purpose: the watcher would run a task by its label.
-  Nothing is written back to the notes.
+- **Sending a task is one form from everywhere** (asked for, 2026-11-25:
+  "a better system to send tasks from calendar, schedule or kanban board
+  to agents"; the user chose the full form, review on finish, now or when
+  due): `sendToAgents` opens `NewChatScreen(tasks:)` from the picked-out
+  cards' bar, a card's swipe, a desktop's right-click menu and the form's
+  Agent row (which opens the chat once sent).
+- **Where the agent stands is on the task** (`Task.agentState`, schema
+  v16, synced; `AgentState`: waiting, working, asking, review, failed),
+  so every card says it with nothing to ask the server. The card's mark
+  reads "✦ Opus · Working" in the Agents list's colour for that state and
+  stands in for the In progress badge. The app writes `waiting` at the
+  send; the worker running the chat writes the rest (`Worker._follow`,
+  `_turnDone`, `Caldo.agentSays`), one write after another, only on a
+  change. **An answer is left for review, never ticked**: the first turn's
+  answer goes into the notes under "— Claude, d.mm hh:mm —" (once a chat;
+  later turns are in the chat) and the task stays In progress. The
+  watcher's errands are told by the watcher itself (`_errands`), which
+  also no longer ticks. A rolled-on repeat drops its state.
+- **"When due"** (`_whenDue`, offered only when a task is not due yet and
+  the worker says `tasks`): the chat is made at once `waiting`
+  (`…_chat_waiting.sql`), with what was said on the form apart in
+  `chats.preface`. Its worker (`_startDue`, at most every 10s) reads the
+  task each time — moved, it waits for the new day — starts it once
+  `Task.isDueBy`, and tells it `taskMessage` of the task as it is then;
+  a deleted or ticked-off task ends it. The chat screen offers Start now
+  (`Agents.startNow`: `waiting` → `new`, rebuilt from the preface too).
+  The worker needs the account's tasks for all this (`Worker.caldo`, the
+  watcher's `Caldo`). Tried end to end on the local stack with a stand-in
+  `claude`: now, when due with notes edited meanwhile, deleted while
+  waiting, Start now.
 - **A chat's settings can be seen and changed after it began** (asked
   for, 2026-11-22: "see and edit the chat settings, model and etc";
   `ChatSettingsScreen`, `chat_settings.dart`, from the chat's menu or a
@@ -983,7 +1016,7 @@ So an assistant can read and change the tasks.
   where tmux is installed, else `claude -p --model <it>`, prompt on stdin,
   `--output-format json`, `--permission-mode auto` by default); then the
   answer goes into the notes ("— Claude, d.mm hh:mm —", cut at 6000) and
-  it is ticked. A failure stays In progress with the reason; moved back to
+  it stays In progress for review (`AgentState.review`). A failure stays In progress with the reason; moved back to
   Not started it runs again, resuming its session (`watch.json`; not for
   repeating tasks). A dated task waits for its time. `in: ~/folder` in the
   notes picks the folder, else `--dir` (home). One task at a time, one
