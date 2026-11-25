@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'agent_scope.dart';
+
 /// A chat's program — Claude's `stream-json`, Codex's app server — run
 /// apart from the worker, so it lives on while the worker is started again
 /// (reinstalled, restarted by systemd), as a terminal's does in tmux. As
@@ -56,9 +58,17 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
       throw StateError('No pipe for it: ${pipe.stderr}'.trim());
     }
     File('$base.out').createSync();
-    await Process.start(
+    final launch = agentScope([
       'sh',
-      ['-c', _script, 'sh', base, ...argv],
+      '-c',
+      _script,
+      'sh',
+      base,
+      ...argv,
+    ], errors: '$base.err');
+    await Process.start(
+      launch.first,
+      launch.sublist(1),
       workingDirectory: cwd,
       environment: environment,
       mode: ProcessStartMode.detached,
@@ -68,7 +78,9 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
       if (kept != null) return kept;
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
-    throw StateError('${argv.first} did not start.');
+    final errors = File('$base.err');
+    final why = errors.existsSync() ? errors.readAsStringSync().trim() : '';
+    throw StateError('${argv.first} did not start. $why'.trim());
   }
 
   /// The program started at [base] by a worker before this one, read up to
@@ -238,7 +250,7 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
   /// Ends it — asked, then made to after [grace] — and clears its files.
   Future<void> stop({Duration grace = const Duration(seconds: 3)}) async {
     _stopReading();
-    Process.killPid(_pid, ProcessSignal.sigterm);
+    if (_code == null && _alive) Process.killPid(_pid, ProcessSignal.sigterm);
     final until = DateTime.now().add(grace);
     while (_code == null && _alive && DateTime.now().isBefore(until)) {
       await Future<void>.delayed(const Duration(milliseconds: 50));

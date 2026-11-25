@@ -1953,12 +1953,15 @@ class Worker {
   /// each chat's program has been read.
   Future<void> _check() async {
     var read = false;
+    final now = DateTime.now();
     for (final MapEntry(key: chat, value: talker) in _talks.entries) {
       final offset = talker.talk?.offset;
       if (offset != null && state.talks[chat] != offset) {
         state.talks[chat] = offset;
         read = true;
+        talker.lastActivity = now;
       }
+      talker.retireIfIdle(now);
     }
     if (read && _live.isEmpty) state.save();
     if (_live.isEmpty) return;
@@ -2309,11 +2312,40 @@ class _Talker implements TalkSink {
 
   Future<void>? _waking;
 
+  DateTime lastActivity = DateTime.now();
+  static const _idleFor = Duration(minutes: 5);
+
+  /// A quiet chat with a saved session can release its agent and tools.
+  /// Active turns, pending messages and questions still need their process.
+  void retireIfIdle(DateTime now) {
+    final was = talk;
+    if (was == null ||
+        forgotten ||
+        _closing ||
+        _waking != null ||
+        turn != null ||
+        _owed != 0 ||
+        !Worker._ready(state) ||
+        now.difference(lastActivity) < _idleFor ||
+        resumable(spec, worker.home, dir, session) == null) {
+      return;
+    }
+    worker.log('[${_short(ask.id)}] released idle ${spec.label}');
+    unawaited(worker._guard(() => _sleep(was)));
+  }
+
+  Future<void> _sleep(Talk was) {
+    talk = null;
+    _forgetOffset();
+    return _sleeping = was.close().whenComplete(() => _sleeping = null);
+  }
+
   Future<void> _wake() async {
-    // One being put by for new settings is ended first: two programs on
-    // one session would both write to it.
+    // Wait for the old process to finish before opening the same session.
     await _sleeping;
+    if (_closing || forgotten) throw StateError('The chat is closed.');
     if (talk != null) return;
+    lastActivity = DateTime.now();
     final made = Talk.of(
       spec,
       ask,
@@ -2327,7 +2359,6 @@ class _Talker implements TalkSink {
     if (made is CodexTalk) made.since = _since;
     made.env = worker._envOf(ask);
     _since = null;
-    _closing = false;
     talk = made;
     try {
       await made.start(
@@ -2348,6 +2379,7 @@ class _Talker implements TalkSink {
     Map? sender,
   }) async {
     if (text.trim().isEmpty && files.isEmpty) return;
+    lastActivity = DateTime.now();
     await wake();
     talk!.say(text, id: id, files: files, sender: sender);
     _owed++;
@@ -2398,11 +2430,9 @@ class _Talker implements TalkSink {
   Future<void> _putBy() {
     _sayChanged();
     final was = talk;
-    talk = null;
-    _forgetOffset();
     if (was == null) return Future.value();
     worker.log('[${_short(ask.id)}] put by for new settings');
-    return _sleeping = was.close().whenComplete(() => _sleeping = null);
+    return _sleep(was);
   }
 
   void answer(
@@ -2464,6 +2494,14 @@ class _Talker implements TalkSink {
 
   Future<void> close() async {
     _closing = true;
+    // Startup may still be opening the transport. Let it finish before
+    // closing it so a stopped chat cannot leave a newly spawned agent.
+    try {
+      await _waking;
+    } catch (_) {
+      // _wake closes its transport on failure.
+    }
+    await _sleeping;
     await talk?.close();
     talk = null;
     _forgetOffset();

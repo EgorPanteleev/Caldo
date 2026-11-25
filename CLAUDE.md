@@ -670,6 +670,8 @@ the app, a terminal beside them; anything else a terminal.
   open questions and tools, then goes on live. Items keep their seq. Dart
   can't append to a pipe: open it `FileMode.write`. A program killed with
   the session is noted "ended from outside"; the next message resumes.
+  A message chat with a resumable session releases its agent after five
+  quiet minutes between turns and resumes it on the next message.
 - **Terminals go by broadcast too**: keys and lines on `chat:<id>` beside
   their row; the worker broadcasts output every 50ms (`_castOut`, `out`)
   as well as `chat_out` rows (the record). Pieces name their run (`life`),
@@ -1058,7 +1060,13 @@ So an assistant can read and change the tasks.
   at another session.
 - **The watcher** (`caldo-mcp watch`, `lib/mcp/watch.dart`; systemd user
   service `caldo-watch` from `tool/mcp/watch.sh`, options passed through,
-  PATH baked in; rerun both scripts after changing it). **A task is sent
+  PATH baked in; rerun both scripts after changing it). New chat programs,
+  terminals and their tools run in individual systemd user scopes under
+  `caldo-agents.slice` when supported by the user manager. Scopes outlive
+  watcher restarts and are cleaned up when their command exits. The slice
+  reclaims memory at 45% of physical RAM, caps memory at 65%, and caps
+  swap at 1 GiB. Existing chats move into the slice the next time their
+  agent or terminal starts. **A task is sent
   by naming a model on it** (`Task.claude`, schema v14: opus, sonnet, haiku
   or fable, `ClaudeModels`): a ✦ chip by the add field's group chip
   (`_ClaudeButton`, reset each opening), a form row, or the tools'

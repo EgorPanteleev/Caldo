@@ -15,10 +15,11 @@
 set -euo pipefail
 
 unit="$HOME/.config/systemd/user/caldo-watch.service"
+slice="$HOME/.config/systemd/user/caldo-agents.slice"
 
 if [[ "${1:-}" == --remove ]]; then
   systemctl --user disable --now caldo-watch.service 2>/dev/null || true
-  rm -f "$unit"
+  rm -f "$unit" "$slice"
   systemctl --user daemon-reload
   echo "Removed caldo-watch."
   exit 0
@@ -31,10 +32,30 @@ command -v claude >/dev/null || { echo "No claude on the PATH." >&2; exit 1; }
 command -v tmux >/dev/null ||
   echo "No tmux: tasks will still be done, but the Agents tab can't run chats here." >&2
 
+agent_scope=
+if systemd-run --user --scope --quiet --collect --expand-environment=no \
+    --property=OOMPolicy=stop -- true; then
+  agent_scope=Environment=CALDO_AGENT_SLICE=caldo-agents.slice
+else
+  echo "Could not start a systemd user scope. Agent memory limits are unavailable." >&2
+fi
+
 args=""
 for a in "$@"; do args+=" $(printf '%q' "$a")"; done
 
 mkdir -p "$(dirname "$unit")"
+cat > "$slice" <<'UNIT'
+[Unit]
+Description=Caldo agent chats and their tools
+
+[Slice]
+# Reclaim cache and throttle the workload before applying the hard limit.
+# Percentages refer to physical RAM.
+MemoryHigh=45%
+MemoryMax=65%
+MemorySwapMax=1G
+UNIT
+
 cat > "$unit" <<UNIT
 [Unit]
 Description=Caldo: hand Claude the tasks handed to it in the app
@@ -47,9 +68,9 @@ WorkingDirectory=%h
 ExecStart=$mcp watch$args
 Restart=on-failure
 RestartSec=30
-# Only the watcher itself is stopped: the tmux server its chats run in
-# stays, so a restart takes them up again rather than ending them.
+# Keep the tmux server and chat wrappers for reattachment after restart.
 KillMode=process
+$agent_scope
 Environment="PATH=$HOME/.local/bin:$PATH"
 
 [Install]
