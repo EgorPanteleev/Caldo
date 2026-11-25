@@ -611,6 +611,7 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
   // one place.
   final _lastHoliday = GlobalKey();
   final _list = GlobalKey<SliverReorderableListState>();
+  final _doneList = GlobalKey<SliverReorderableListState>();
 
   ReorderableTaskList get w => widget;
 
@@ -619,8 +620,9 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
 
   void _reorder(int oldIndex, int newIndex) {
     // Flutter reports the slot the card would go into before the gap it left
-    // behind is closed up. No clamping: the reorderable sliver holds the
-    // day's tasks and nothing else, so there is nowhere else to land.
+    // behind is closed up. No clamping: each reorderable sliver holds the
+    // day's open or done tasks and nothing else, so there is nowhere else to
+    // land.
     final to = newIndex > oldIndex ? newIndex - 1 : newIndex;
     if (to == oldIndex) return;
     final ordered = [...w.tasks];
@@ -650,6 +652,12 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
       w.events,
       dense: w.dense,
     );
+    // Done tasks come after the open ones (`TaskProvider._compare`), under a
+    // line of their own where there are open ones to tell them from. Read
+    // from the list as given, not as shown: a card being ticked stays above
+    // the line until its tick is over and it slides down.
+    final firstDone = w.tasks.indexWhere((t) => t.done);
+    final open = firstDone < 0 ? w.tasks.length : firstDone;
     return CustomScrollView(
       controller: w.controller,
       shrinkWrap: w.shrinkWrap,
@@ -664,70 +672,89 @@ class _ReorderableTaskListState extends State<ReorderableTaskList> {
             child: fixed[i],
           ),
         ),
-        SliverReorderableList(
-          key: _list,
-          itemCount: w.tasks.length,
-          onReorder: _reorder,
-          onReorderStart: (i) {
-            // A mouse's drag picks nothing out; Ctrl and a click does.
-            if (!Desk.isWide(context)) {
-              Selection.maybeOf(context)?.lifted(w.tasks[i]);
-            }
-            w.carry?.begin(
-              w.tasks[i],
-              () => _list.currentState?.cancelReorder(),
-            );
-          },
-          onReorderEnd: (_) => w.carry?.end(),
-          proxyDecorator: (child, index, animation) => liftedCard(
-            context,
-            w.ground,
-            child,
-            animation,
-            // A card that can leave the list is not held below its
-            // holidays: up past them is the way to the month.
-            under: fixed.isEmpty || !w.penned ? null : _lastHoliday,
-            carry: w.carry,
-            chip: (
-              title: w.tasks[index].title,
-              colour: colorOfTask(
-                w.tasks[index],
-                w.listOf(w.tasks[index]),
-                fallback: AppTheme.accentOf(context).color,
+        _section(context, fixed, 0, open, _list),
+        if (open < w.tasks.length) ...[
+          if (open > 0)
+            SliverToBoxAdapter(
+              child: DoneDivider(count: w.tasks.length - open, dense: w.dense),
+            ),
+          _section(context, fixed, open, w.tasks.length, _doneList),
+        ],
+        SliverToBoxAdapter(child: SizedBox(height: w.padding.bottom)),
+      ],
+    );
+  }
+
+  /// The day's tasks from [from] to [to] as a reorderable sliver under
+  /// [key]: the open ones, or the done ones. Two lists rather than one with
+  /// the line in it, so a carried card's gap never opens on the line's
+  /// wrong side and the line is never picked up with a card.
+  Widget _section(
+    BuildContext context,
+    List<Widget> fixed,
+    int from,
+    int to,
+    GlobalKey<SliverReorderableListState> key,
+  ) {
+    return SliverReorderableList(
+      key: key,
+      itemCount: to - from,
+      onReorder: (a, b) => _reorder(from + a, from + b),
+      onReorderStart: (i) {
+        final task = w.tasks[from + i];
+        // A mouse's drag picks nothing out; Ctrl and a click does.
+        if (!Desk.isWide(context)) {
+          Selection.maybeOf(context)?.lifted(task);
+        }
+        w.carry?.begin(task, () => key.currentState?.cancelReorder());
+      },
+      onReorderEnd: (_) => w.carry?.end(),
+      proxyDecorator: (child, index, animation) => liftedCard(
+        context,
+        w.ground,
+        child,
+        animation,
+        // A card that can leave the list is not held below its
+        // holidays: up past them is the way to the month.
+        under: fixed.isEmpty || !w.penned ? null : _lastHoliday,
+        carry: w.carry,
+        chip: (
+          title: w.tasks[from + index].title,
+          colour: colorOfTask(
+            w.tasks[from + index],
+            w.listOf(w.tasks[from + index]),
+            fallback: AppTheme.accentOf(context).color,
+          ),
+        ),
+      ),
+      itemBuilder: (context, i) {
+        final task = w.tasks[from + i];
+        return pickUpListener(
+          context,
+          key: ValueKey('task-${task.id}'),
+          index: i,
+          child: SlideIntoPlace(
+            scope: w.scope,
+            id: task.id ?? task,
+            trigger: w.rearranging ?? const _Never(),
+            child: _swipeable(
+              task,
+              AsShown(
+                task: task,
+                builder: (context, shown) => TaskCard(
+                  task: shown,
+                  list: w.listOf(task),
+                  onTap: () => w.onOpen(task),
+                  onToggle: () => w.onToggle(shown),
+                  ticking: w.isTicking?.call(task) ?? false,
+                  leaving: w.isLeaving?.call(task) ?? false,
+                  dense: w.dense,
+                ),
               ),
             ),
           ),
-          itemBuilder: (context, i) {
-            final task = w.tasks[i];
-            return pickUpListener(
-              context,
-              key: ValueKey('task-${task.id}'),
-              index: i,
-              child: SlideIntoPlace(
-                scope: w.scope,
-                id: task.id ?? task,
-                trigger: w.rearranging ?? const _Never(),
-                child: _swipeable(
-                  task,
-                  AsShown(
-                    task: task,
-                    builder: (context, shown) => TaskCard(
-                      task: shown,
-                      list: w.listOf(task),
-                      onTap: () => w.onOpen(task),
-                      onToggle: () => w.onToggle(shown),
-                      ticking: w.isTicking?.call(task) ?? false,
-                      leaving: w.isLeaving?.call(task) ?? false,
-                      dense: w.dense,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        SliverToBoxAdapter(child: SizedBox(height: w.padding.bottom)),
-      ],
+        );
+      },
     );
   }
 }

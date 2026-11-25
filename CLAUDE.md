@@ -167,6 +167,12 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
 - **Order**: done after open, in tick order (`completed_at`); high priority
   leads an unarranged day; **hand placement (`sort_order`, null until
   dragged) is read before the date** (`_order`).
+- **A "Done N" line parts a day's open tasks from its done ones**
+  (`DoneDivider`; asked 2026-11-25: hard to tell done from open), only
+  where both are there; Schedule, the day panel, the day sheet, Search.
+  Open and done are two reorderable slivers, so the line is never carried
+  with a card; placed by the list as read, so a ticking card crosses it
+  only when it slides.
 - **A repeating task ticked late rolls on to today or later**
   (`Task._nextRound`). **Repeat is a rule** (`Repeat`, `RepeatUnit`,
   `showRepeatSheet`): every N units, weekdays, month day or last day, end
