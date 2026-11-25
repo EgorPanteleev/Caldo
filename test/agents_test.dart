@@ -805,6 +805,103 @@ void main() {
     expect(find.text('09:05'), findsNWidgets(2));
   });
 
+  testWidgets('a chat distinguishes subscription and assistant messages', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    DateTime at(int minute) =>
+        DateTime(now.year, now.month, now.day, 9, minute);
+    final feed = TalkFeed.held('c', [
+      ChatItem(
+        id: 'user',
+        seq: 0,
+        kind: 'user',
+        body: const {'text': 'Please review the change.'},
+        at: at(1),
+      ),
+      ChatItem(
+        id: 'agent',
+        seq: 1,
+        kind: 'user',
+        body: const {
+          'text': 'The checks passed.',
+          'sender': {'chat': 'a', 'title': 'Reviewer'},
+        },
+        at: at(2),
+      ),
+      ChatItem(
+        id: 'event',
+        seq: 2,
+        kind: 'user',
+        body: const {
+          'text': 'Pull request #42 opened.',
+          'sender': {'event': 'github', 'title': 'egor/Caldo'},
+        },
+        at: at(3),
+      ),
+      const ChatItem(
+        id: 'outside',
+        seq: 3,
+        kind: 'user',
+        body: {
+          'text': CarryOn.words,
+          'sender': {'chat': null},
+        },
+      ),
+      const ChatItem(
+        id: 'answer',
+        seq: 4,
+        kind: 'text',
+        body: {'text': 'I will take a look.'},
+      ),
+    ]);
+    addTearDown(feed.dispose);
+    final s = S.forCode('en');
+    for (final theme in [
+      AppTheme.light(AppAccent.presets.first),
+      AppTheme.dark(AppAccent.presets.first),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          home: MediaQuery(
+            data: const MediaQueryData(alwaysUse24HourFormat: true),
+            child: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 340,
+                  child: TalkView(
+                    feed: feed,
+                    working: false,
+                    onAnswer: (_, _, _) {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text(s.chatFrom('Reviewer')), findsOneWidget);
+      expect(find.text(s.chatFromEvent('egor/Caldo')), findsOneWidget);
+      expect(find.text(s.chatFromOutside), findsOneWidget);
+      expect(find.text(CarryOn.words), findsOneWidget);
+      expect(find.text('I will take a look.'), findsOneWidget);
+
+      final user = tester.getRect(find.text('Please review the change.'));
+      final agent = tester.getRect(find.text('The checks passed.'));
+      final event = tester.getRect(find.text('Pull request #42 opened.'));
+      expect(agent.left, lessThan(user.left));
+      expect(event.width, greaterThan(user.width));
+
+      final agentTime = tester.getRect(find.text('09:02'));
+      final eventTime = tester.getRect(find.text('09:03'));
+      final userTime = tester.getRect(find.text('09:01'));
+      expect(agentTime.left, eventTime.left);
+      expect(userTime.right, greaterThan(eventTime.right));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
   testWidgets("a swipe over Claude's own screen scrolls it", (tester) async {
     final out = <String>[];
     final t = Terminal(maxLines: 1000)

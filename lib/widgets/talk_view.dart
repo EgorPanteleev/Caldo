@@ -210,7 +210,11 @@ class _TalkViewState extends State<TalkView> {
       key: ValueKey(item.id),
       top: above == null ? 0 : (close ? 4 : 14),
       child: stamp && at != null && !_carriedOn(item)
-          ? _Stamped(at: at, right: item.kind == 'user', child: shown)
+          ? _Stamped(
+              at: at,
+              right: item.kind == 'user' && item.body['sender'] is! Map,
+              child: shown,
+            )
           : shown,
     );
   }
@@ -270,7 +274,9 @@ class _TalkViewState extends State<TalkView> {
   /// The words a chat is told to carry on with once the limit is lifted:
   /// the app's doing, not the user's, so not drawn as theirs.
   static bool _carriedOn(ChatItem item) =>
-      item.kind == 'user' && item.text.trim() == CarryOn.words;
+      item.kind == 'user' &&
+      item.body['sender'] is! Map &&
+      item.text.trim() == CarryOn.words;
 }
 
 /// "14:05" today, "Yesterday 14:05" or "Nov 20 14:05" before — on the
@@ -325,14 +331,10 @@ class _Spaced extends StatelessWidget {
       Padding(padding: EdgeInsets.fromLTRB(16, top, 16, 0), child: child);
 }
 
-/// The user's words, on the right in a raised bubble, and under them
-/// what was sent with them, by name: the files are on the worker's
-/// computer now, not here.
+/// A chat input from the user, a subscription, or another assistant.
 class _Said extends StatelessWidget {
   final String text;
   final Object? files;
-
-  /// Who sent it if not the user: another chat's agent (`withSender`).
   final Object? sender;
 
   const _Said({required this.text, this.files, this.sender});
@@ -340,27 +342,59 @@ class _Said extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final said = _bubble(p);
     final from = sender;
-    if (from is! Map) return said;
+    if (from is! Map) {
+      return _bubble(
+        right: true,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 9, 14, 10),
+          decoration: BoxDecoration(
+            color: p.panelHi,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: _content(p, right: true),
+        ),
+      );
+    }
+
     final s = S.of(context);
     final title = '${from['title'] ?? ''}'.trim();
-    // Told of what it is subscribed to (`chat_subscriptions`).
     final event = from['event'] != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(right: 6, bottom: 4),
-          child: Row(
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent = event
+        ? (dark ? const Color(0xFF67C9BF) : const Color(0xFF176B64))
+        : (dark ? const Color(0xFFBBA7FF) : const Color(0xFF6248AC));
+    final card = Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 11),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(accent.withValues(alpha: 0.10), p.panel),
+        border: event
+            ? Border(left: BorderSide(color: accent, width: 3))
+            : null,
+        borderRadius: event
+            ? null
+            : const BorderRadius.only(
+                topLeft: Radius.circular(5),
+                topRight: Radius.circular(16),
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: event
+            ? CrossAxisAlignment.stretch
+            : CrossAxisAlignment.start,
+        children: [
+          Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                event ? Icons.call_merge : Icons.forum_outlined,
-                size: 13,
-                color: p.muted,
+                event ? Icons.call_merge : Icons.smart_toy_outlined,
+                size: 15,
+                color: accent,
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   event
@@ -370,18 +404,33 @@ class _Said extends StatelessWidget {
                       : s.chatFrom(title),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: p.muted, fontSize: 12.5),
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-        said,
-      ],
+          const SizedBox(height: 5),
+          _content(p, right: false),
+        ],
+      ),
+    );
+    return event ? card : _bubble(right: false, child: card);
+  }
+
+  Widget _bubble({required bool right, required Widget child}) {
+    final alignment = right ? Alignment.centerRight : Alignment.centerLeft;
+    return FractionallySizedBox(
+      widthFactor: 0.85,
+      alignment: alignment,
+      child: Align(alignment: alignment, child: child),
     );
   }
 
-  Widget _bubble(AppPalette p) {
+  Widget _content(AppPalette p, {required bool right}) {
     final sent = [
       for (final f in files is List ? files as List : const [])
         if (f is Map) f,
@@ -390,62 +439,40 @@ class _Said extends StatelessWidget {
       text,
       style: TextStyle(color: p.text, fontSize: 15, height: 1.35),
     );
-    return Align(
-      alignment: Alignment.centerRight,
-      child: FractionallySizedBox(
-        widthFactor: 0.85,
-        alignment: Alignment.centerRight,
-        child: Align(
-          alignment: Alignment.centerRight,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 9, 14, 10),
-            decoration: BoxDecoration(
-              color: p.panelHi,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: sent.isEmpty
-                ? words
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (final f in sent)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                '${f['mime']}'.startsWith('image/')
-                                    ? Icons.image_outlined
-                                    : Icons.insert_drive_file_outlined,
-                                size: 16,
-                                color: p.muted,
-                              ),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  '${f['name']}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: p.text,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      if (text.trim().isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        words,
-                      ],
-                    ],
+    if (sent.isEmpty) return words;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: right
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        for (final f in sent)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  '${f['mime']}'.startsWith('image/')
+                      ? Icons.image_outlined
+                      : Icons.insert_drive_file_outlined,
+                  size: 16,
+                  color: p.muted,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    '${f['name']}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: p.text, fontSize: 13.5),
                   ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        if (text.trim().isNotEmpty) ...[const SizedBox(height: 2), words],
+      ],
     );
   }
 }
