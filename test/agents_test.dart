@@ -1189,22 +1189,47 @@ void main() {
       });
       expect(codex.takesRules, isTrue);
       final argv = launchOf(codex, ask);
-      expect(argv[1], '-c');
-      expect(argv[2], startsWith('developer_instructions='));
-      expect(argv[2], endsWith('Be brief.'));
+      final rules =
+          argv[argv.indexWhere(
+            (arg) => arg.startsWith('developer_instructions='),
+          )];
+      expect(rules, endsWith('Be brief."'));
       expect(argv.last, 'Go');
       expect(
         launchOf(codex, ask, resume: 'th1'),
-        containsAllInOrder(['resume', '-c', argv[2], 'th1']),
+        containsAllInOrder(['resume', '-c', rules, 'th1']),
       );
       expect(
         launchOf(codex, const ChatAsk(id: 'x', agent: 'codex', prompt: 'Go')),
-        ['codex', 'Go'],
+        [
+          'codex',
+          '-c',
+          'approval_policy="on-request"',
+          '--sandbox',
+          'workspace-write',
+          'Go',
+        ],
       );
 
       const shell = AgentSpec(id: 'shell', label: 'Shell', command: ['bash']);
       expect(shell.takesRules, isFalse);
       expect(launchOf(shell, ask), ['bash']);
+    });
+
+    test('keeps Codex read-only in a fresh and a resumed terminal', () {
+      const codex = AgentSpec(id: 'codex', label: 'Codex', command: ['codex']);
+      const ask = ChatAsk(id: 'x', agent: 'codex', permission: 'read-only');
+      for (final resume in [null, 'thread-id']) {
+        expect(
+          launchOf(codex, ask, resume: resume),
+          containsAllInOrder([
+            '-c',
+            'approval_policy="on-request"',
+            '--sandbox',
+            'read-only',
+          ]),
+        );
+      }
     });
   });
 

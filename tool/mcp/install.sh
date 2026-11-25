@@ -24,5 +24,6 @@ SH
 chmod +x "$bin/caldo-mcp"
 
 echo "Installed $bin/caldo-mcp."
-echo "Next: caldo-mcp login, then"
+echo "Next: caldo-mcp login, then register with your client:"
 echo "  claude mcp add --scope user caldo -- $bin/caldo-mcp"
+echo "  codex mcp add caldo -- $bin/caldo-mcp"

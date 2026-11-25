@@ -491,8 +491,8 @@ String? rulesText(Object? rules) {
       '${parts.join('\n\n')}';
 }
 
-/// The words that start [ask] with [spec]: Claude's built here, every other
-/// from its command line. With [resume], Claude takes up that session.
+/// The words that start [ask] with [spec]. With [resume], Claude and
+/// Codex take up that session.
 /// [events] is the file Claude's hooks write to, so the worker hears when
 /// it is waiting; [given], where the files sent to the chat are kept.
 List<String> launchOf(
@@ -504,27 +504,39 @@ List<String> launchOf(
   String? given,
 }) {
   final first = prompt ?? ask.prompt;
-  if (spec.id == 'codex' && resume != null) {
-    // Its thread taken up in its own terminal, with the chat's choices.
-    return [
-      'codex',
-      'resume',
-      if (ask.model != null) ...['-m', ask.model!],
-      if (ask.effort != null) ...['-c', 'model_reasoning_effort=${ask.effort}'],
-      if (ask.rules != null) ...['-c', 'developer_instructions=${ask.rules}'],
-      resume,
-    ];
-  }
   if (!spec.isClaude) {
-    return spec.argv({
+    if (spec.id == 'codex' && resume != null) {
+      return [
+        'codex',
+        'resume',
+        ..._codexPermissions(ask.permission),
+        if (ask.model != null) ...['-m', ask.model!],
+        if (ask.effort != null) ...[
+          '-c',
+          'model_reasoning_effort=${ask.effort}',
+        ],
+        if (ask.rules != null) ...[
+          '-c',
+          'developer_instructions=${jsonEncode(ask.rules)}',
+        ],
+        resume,
+      ];
+    }
+    final argv = spec.argv({
       'model': ask.model,
       'effort': ask.effort,
       'permission': ask.permission,
       'dir': ask.dir,
       'title': ask.title,
-      'rules': ask.rules,
+      'rules': spec.id == 'codex' && ask.rules != null
+          ? jsonEncode(ask.rules)
+          : ask.rules,
       'prompt': spec.prompt == 'arg' ? first : null,
     });
+    if (spec.id == 'codex' && argv.firstOrNull == 'codex') {
+      argv.insertAll(1, _codexPermissions(ask.permission));
+    }
+    return argv;
   }
   return [
     'claude',
@@ -571,6 +583,20 @@ const _languageNames = {
   'tr': 'Turkish',
   'uk': 'Ukrainian',
 };
+
+(String, String) codexPolicy(String? permission) => switch (permission) {
+  'untrusted' => ('untrusted', 'workspace-write'),
+  'never' => ('never', 'workspace-write'),
+  'read-only' => ('on-request', 'read-only'),
+  'full-access' => ('never', 'danger-full-access'),
+  _ => ('on-request', 'workspace-write'),
+};
+
+List<String> _codexPermissions(String? permission) {
+  final (approval, sandbox) = codexPolicy(permission);
+  // The CLI flag only lists on-request and never in newer releases.
+  return ['-c', 'approval_policy="$approval"', '--sandbox', sandbox];
+}
 
 /// How a chat is named from its first message, as Claude's own app names
 /// its chats: Haiku, with none of the user's settings, tools or MCP

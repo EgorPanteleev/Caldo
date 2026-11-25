@@ -847,6 +847,8 @@ class CodexTalk extends Talk {
 
   String? _thread;
   String? _turn;
+  Future<void> _sending = Future.value();
+  var _completedTurns = 0;
   var _next = 0;
   final _waiting = <int, Completer<Map>>{};
   final _asks = <String, ({Object id, bool legacy, Map body})>{};
@@ -855,16 +857,6 @@ class CodexTalk extends Talk {
   /// The times after which what a resumed thread holds is shown: what was
   /// said in its terminal meanwhile.
   int? since;
-
-  /// What the chat's permission choice comes to: when Codex asks, and what
-  /// its sandbox lets it touch.
-  static (String, String) policyOf(String? permission) => switch (permission) {
-    'untrusted' => ('untrusted', 'workspace-write'),
-    'never' => ('never', 'workspace-write'),
-    'read-only' => ('on-request', 'read-only'),
-    'full-access' => ('never', 'danger-full-access'),
-    _ => ('on-request', 'workspace-write'),
-  };
 
   @override
   void _wrote(Map line) {
@@ -889,7 +881,7 @@ class CodexTalk extends Talk {
       'capabilities': null,
     });
     _write({'method': 'initialized'});
-    final (approval, sandbox) = policyOf(ask.permission);
+    final (approval, sandbox) = codexPolicy(ask.permission);
     final settings = {
       'cwd': dir,
       'approvalPolicy': approval,
@@ -932,7 +924,9 @@ class CodexTalk extends Talk {
     final id = _next++;
     final done = _waiting[id] = Completer<Map>();
     _write({'method': method, 'id': id, 'params': params});
-    return done.future.timeout(const Duration(seconds: 30));
+    return done.future
+        .timeout(const Duration(seconds: 30))
+        .whenComplete(() => _waiting.remove(id));
   }
 
   @override
@@ -947,27 +941,36 @@ class CodexTalk extends Talk {
       'user',
       saidBody(text, files, sender: sender),
     );
-    sink.stands('running');
+    final input = withSender(withFiles(text, files), sender);
+    _sending = _sending.then((_) => _send(input));
+  }
+
+  Future<void> _send(String text) async {
     final thread = _thread;
-    if (thread == null) return;
-    // Said while a turn is on, it is put into that turn (Codex steers).
-    unawaited(
-      _call('turn/start', {
+    final turn = _turn;
+    try {
+      if (thread == null || _kept == null) {
+        throw StateError('Codex is disconnected.');
+      }
+      if (turn == null) sink.stands('running');
+      final completed = _completedTurns;
+      final result = await _call(turn == null ? 'turn/start' : 'turn/steer', {
         'threadId': thread,
         'input': [
-          {
-            'type': 'text',
-            'text': withSender(withFiles(text, files), sender),
-            'text_elements': <Object>[],
-          },
+          {'type': 'text', 'text': text, 'text_elements': <Object>[]},
         ],
-        'effort': ?ask.effort,
-      }).catchError((Object e) {
-        sink.item('e${_next++}', 'note', {'text': '$e', 'error': true});
+        if (turn == null) 'effort': ?ask.effort else 'expectedTurnId': turn,
+      });
+      if (turn == null && completed == _completedTurns) {
+        _turn ??= (result['turn'] as Map?)?['id'] as String?;
+      }
+    } catch (e) {
+      sink.item('e${_next++}', 'note', {'text': '$e', 'error': true});
+      if (turn == null && _turn == null) {
+        sink.turnEnded('', failed: true);
         sink.stands('idle');
-        return const <String, Object?>{};
-      }),
-    );
+      }
+    }
   }
 
   @override
@@ -1039,6 +1042,7 @@ class CodexTalk extends Talk {
     switch (method) {
       case 'turn/started':
         _turn = (params['turn'] as Map?)?['id'] as String?;
+        _last = '';
         _began = DateTime.now();
         sink.stands('running');
       case 'item/started':
@@ -1049,7 +1053,7 @@ class CodexTalk extends Talk {
         _done(params['item'] as Map? ?? const {});
       case 'turn/completed':
         final turn = params['turn'] as Map? ?? const {};
-        final failed = turn['status'] == 'failed';
+        final failed = turn['status'] != 'completed';
         if (turn['error'] case final Map error when failed) {
           sink.item('${turn['id']}:error', 'note', {
             'text': '${error['message']}',
@@ -1057,6 +1061,7 @@ class CodexTalk extends Talk {
           });
         }
         _turn = null;
+        _completedTurns++;
         final began = _began;
         _began = null;
         sink.usage(
