@@ -522,11 +522,13 @@ class Worker {
     if (now.difference(_dueLookedAt) < const Duration(seconds: 10)) return;
     _dueLookedAt = now;
     final db = await _db;
-    final waiting = await db
+    final rows = await db
         .from('chats')
         .select()
         .eq('worker_id', state.id)
         .eq('state', 'waiting');
+    // One with no task waits for the user to start it, whenever.
+    final waiting = [...rows.where((r) => r['task_uuid'] != null)];
     if (waiting.isEmpty) return;
     await caldo.refresh();
     for (final row in waiting) {

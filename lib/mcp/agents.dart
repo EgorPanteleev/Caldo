@@ -99,6 +99,10 @@ class AgentSpec {
     // on the task where the chat stands, its answer in the notes: an app
     // offers "When due" only to a worker that does.
     'tasks': true,
+    // It leaves a chat made waiting with no task until the user starts
+    // it: an app offers "When I start it" only to a worker that does,
+    // as one from before would end it for want of a task.
+    'held': true,
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part

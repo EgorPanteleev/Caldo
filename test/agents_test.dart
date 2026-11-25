@@ -1896,6 +1896,86 @@ void main() {
         expect(find.text(s.chatStartsWhenDueHint), findsOneWidget);
       });
 
+      testWidgets('offers to start by hand in ${S.names[code]}', (
+        tester,
+      ) async {
+        final s = S.forCode(code);
+        AgentWorker worker({required bool held}) => AgentWorker(
+          id: 'w',
+          name: 'desk',
+          home: '/home/someone',
+          seenAt: DateTime.now(),
+          dirs: const [],
+          agents: [AgentKind(id: 'claude', label: 'Claude', held: held)],
+        );
+        final list = find.byType(Scrollable).first;
+        // A worker from before would end a chat left with no task.
+        Agents.instance.workers = [worker(held: false)];
+        await pump(tester, code, const NewChatScreen());
+        expect(find.text(s.chatStartsByHand), findsNothing);
+
+        Agents.instance.workers = [worker(held: true)];
+        await pump(tester, code, const NewChatScreen());
+        expect(find.text(s.chatStarts.toUpperCase()), findsOneWidget);
+        expect(find.text(s.chatStartsByHandHint), findsNothing);
+        await tester.tap(find.text(s.chatStartsByHand));
+        await tester.pump();
+        expect(find.text(s.chatStartsByHandHint), findsOneWidget);
+        // Only made, so not "Start".
+        await tester.scrollUntilVisible(
+          find.text(s.chatCreate),
+          300,
+          scrollable: list,
+        );
+        expect(find.text(s.chatStart), findsNothing);
+      });
+
+      testWidgets('tells a chat left for later in ${S.names[code]}', (
+        tester,
+      ) async {
+        final s = S.forCode(code);
+        final now = DateTime.now();
+        Agents.instance
+          ..signedInForTest = true
+          ..workers = [
+            AgentWorker(
+              id: 'w',
+              name: 'desk',
+              home: '/home/someone',
+              seenAt: now,
+              dirs: const [],
+              agents: const [AgentKind(id: 'claude', label: 'Claude')],
+            ),
+          ]
+          ..chats = [
+            Chat(
+              id: 'a',
+              workerId: 'w',
+              agent: 'claude',
+              title: 'Alpha',
+              state: ChatState.waiting,
+              updatedAt: now,
+            ),
+            Chat(
+              id: 'b',
+              workerId: 'w',
+              agent: 'claude',
+              title: 'Bravo',
+              state: ChatState.waiting,
+              taskUuid: 't',
+              updatedAt: now,
+            ),
+          ];
+        addTearDown(() {
+          Agents.instance
+            ..signedInForTest = null
+            ..chats = const [];
+        });
+        await pump(tester, code, const AgentsScreen());
+        expect(find.textContaining('${s.chatHeld} · '), findsOneWidget);
+        expect(find.textContaining('${s.chatWaiting} · '), findsOneWidget);
+      });
+
       testWidgets("shows a chat's settings in ${S.names[code]}", (
         tester,
       ) async {

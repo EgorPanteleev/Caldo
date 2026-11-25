@@ -496,6 +496,11 @@ const Map<String, Object> fr = {
   'chatStartsWhenDue': "À l'échéance",
   'chatStartsWhenDueHint':
       "Chaque chat démarre le jour de sa tâche, ou à son heure. Une tâche déjà échue démarre maintenant.",
+  'chatStartsByHand': "Quand je la lance",
+  'chatStartsByHandHint':
+      "La discussion est créée avec tout ce qui est choisi ici et attend dans Agents jusqu'à ce que vous l'ouvriez et touchiez Démarrer maintenant.",
+  'chatCreate': "Créer",
+  'chatHeld': "Pas lancée",
   'chatWaiting': "Attend sa tâche",
   'chatStartNow': "Démarrer maintenant",
   'agentWaiting': "En attente",

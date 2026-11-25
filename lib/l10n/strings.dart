@@ -312,6 +312,10 @@ class S {
   String get chatStartsNow => _word('chatStartsNow');
   String get chatStartsWhenDue => _word('chatStartsWhenDue');
   String get chatStartsWhenDueHint => _word('chatStartsWhenDueHint');
+  String get chatStartsByHand => _word('chatStartsByHand');
+  String get chatStartsByHandHint => _word('chatStartsByHandHint');
+  String get chatHeld => _word('chatHeld');
+  String get chatCreate => _word('chatCreate');
   String get chatWaiting => _word('chatWaiting');
   String get chatStartNow => _word('chatStartNow');
   String get agentWaiting => _word('agentWaiting');
