@@ -18,6 +18,7 @@ import 'terminal.dart';
 import 'tools.dart';
 import 'usage.dart';
 import 'watch.dart';
+import 'workspace.dart';
 
 /// Who this worker is, kept beside the session so it is the same worker
 /// each time it starts, and where each chat it runs had got to.
@@ -221,6 +222,7 @@ class Worker {
         // Read before any chat is taken up, so each starts under its own.
         await _guard(_tendAccounts);
         await _adopt();
+        unawaited(_guard(_sweep));
         break;
       } catch (e) {
         log('worker: $e; trying again in ${wait}s');
@@ -368,6 +370,11 @@ class Worker {
             final id = (gone ? change.oldRecord : change.newRecord)['id'];
             if (gone && (_live.containsKey(id) || _talks.containsKey(id))) {
               unawaited(_guard(() => _drop(id as String)));
+            }
+            // Its own folder goes with it, whichever worker ran it: none
+            // but this computer's would be there.
+            if (gone && id is String) {
+              unawaited(_guard(() => Workspace.remove(home, id)));
             }
             if (!_wake.isCompleted) _wake.complete();
           },
@@ -1273,7 +1280,8 @@ class Worker {
     _know(ask);
     final place = await _placeOf(ask);
     if (place == null) return null;
-    final (spec, dir) = place;
+    final (spec, dir, placed) = place;
+    ask = placed;
     resume = resumable(spec, home, dir, resume);
     final first = prompt ?? (resume != null ? '' : ask.prompt);
     final argv = [
@@ -1389,20 +1397,47 @@ class Worker {
     await _start(ask, resume: session, prompt: '');
   }
 
-  /// Where [ask] is to run, or null — the chat marked failed — if this
-  /// computer has not got the agent or the folder.
-  Future<(AgentSpec, String)?> _placeOf(ChatAsk ask) async {
+  /// Where [ask] is to run, and [ask] as it is once there, or null — the
+  /// chat marked failed — if this computer has not got the agent or the
+  /// folder. A chat of the app's own is run in its own folder, made here
+  /// the first time ([Workspace]) and found again every time after.
+  Future<(AgentSpec, String, ChatAsk)?> _placeOf(ChatAsk ask) async {
     final spec = _specOf(ask.agent);
     if (spec == null) {
       await _set(ask.id, 'failed', 'There is no ${ask.agent} on $name.');
       return null;
+    }
+    if (ask.ownFolder) {
+      final Workspace made;
+      try {
+        made = await Workspace.make(home, ask.id, [
+          for (final s in ask.sources) _expand(s),
+        ]);
+      } on FileSystemException catch (e) {
+        await _set(ask.id, 'failed', '${e.message} on $name.');
+        return null;
+      } catch (e) {
+        await _set(ask.id, 'failed', '$e');
+        return null;
+      }
+      if (jsonEncode(made.toJson()) != jsonEncode(ask.workspace?.toJson())) {
+        // Written down, so the app shows where it is, and the next start
+        // finds the same folders.
+        final db = await _db;
+        await db
+            .from('chats')
+            .update({'workspace': made.toJson(), 'dir': made.cwd})
+            .eq('id', ask.id);
+        log('[${_short(ask.id)}] its own folder: ${made.root}');
+      }
+      return (spec, made.cwd, ask.placed(made));
     }
     final dir = _expand(ask.dir ?? home);
     if (!Directory(dir).existsSync()) {
       await _set(ask.id, 'failed', 'There is no folder $dir on $name.');
       return null;
     }
-    return (spec, dir);
+    return (spec, dir, ask);
   }
 
   /// Starts [ask] spoken to in messages ([Talk]): fresh, or carrying on
@@ -1416,7 +1451,8 @@ class Worker {
     _know(ask);
     final place = await _placeOf(ask);
     if (place == null) return null;
-    final (spec, dir) = place;
+    final (spec, dir, placed) = place;
+    ask = placed;
     final talker = _talks[ask.id] = await _Talker.make(
       this,
       ask,
@@ -1480,10 +1516,10 @@ class Worker {
         .eq('id', chat);
     final place = await _placeOf(ask);
     if (place == null) return;
-    final (spec, dir) = place;
+    final (spec, dir, placed) = place;
     final talker = _talks[chat] = await _Talker.make(
       this,
-      ask,
+      placed,
       spec,
       session: session,
       dir: dir,
@@ -1994,6 +2030,20 @@ class Worker {
     tmux.forget(chat);
     state.chats.remove(chat);
     state.save();
+  }
+
+  /// The folders of chats deleted while this worker was away, deleted.
+  Future<void> _sweep() async {
+    final made = Workspace.made(home);
+    if (made.isEmpty) return;
+    final db = await _db;
+    final rows = await db.from('chats').select('id').inFilter('id', made);
+    final there = {for (final r in rows) r['id'] as String};
+    for (final chat in made) {
+      if (there.contains(chat)) continue;
+      await Workspace.remove(home, chat);
+      log('[${_short(chat)}] its folder removed, the chat deleted');
+    }
   }
 
   /// A chat deleted in the app: its terminal goes with it.

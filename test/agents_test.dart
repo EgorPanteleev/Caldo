@@ -8,6 +8,7 @@ import 'package:caldo/mcp/kept.dart';
 import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/mcp/usage.dart';
+import 'package:caldo/mcp/workspace.dart';
 import 'package:caldo/mcp/worker.dart' show answerOf;
 import 'package:caldo/models/task.dart';
 import 'package:caldo/providers/task_provider.dart';
@@ -1207,6 +1208,231 @@ void main() {
     });
   });
 
+  group('projects', () {
+    tearDown(() => Agents.instance.projects = const []);
+
+    test('a subproject takes its parents\' words, colour and folders', () {
+      const caldo = AgentProject(
+        id: 'p',
+        name: 'Caldo',
+        colour: 'teal',
+        context: 'A calendar app.',
+        sources: ['~/dev/src/Caldo'],
+      );
+      const sync = AgentProject(
+        id: 'q',
+        parentId: 'p',
+        name: 'Sync',
+        context: 'Supabase.',
+        sources: ['~/dev/src/Caldo', '~/notes/sync'],
+      );
+      const files = AgentProject(id: 'r', parentId: 'q', name: 'Files');
+      Agents.instance.projects = const [caldo, sync, files];
+      final agents = Agents.instance;
+      expect(agents.pathOf(files), 'Caldo › Sync › Files');
+      expect(agents.depthOf(files), 2);
+      expect(agents.colourOf(files), 'teal');
+      expect(agents.familyOf('p'), {'p', 'q', 'r'});
+      expect(agents.familyOf('q'), {'q', 'r'});
+      expect(agents.snapshotOf(files), {
+        'name': 'Caldo › Sync › Files',
+        'colour': 'teal',
+        'context': [
+          {'name': 'Caldo', 'body': 'A calendar app.'},
+          {'name': 'Sync', 'body': 'Supabase.'},
+        ],
+        'sources': ['~/dev/src/Caldo', '~/notes/sync'],
+      });
+    });
+
+    test('reach the agent after its rules, with its own folder', () {
+      final ask = ChatAsk.fromJson({
+        'id': 'x',
+        'agent': 'claude',
+        'rules': [
+          {'name': 'Brief', 'body': 'Be brief.'},
+        ],
+        'project': {
+          'name': 'Caldo › Sync',
+          'context': [
+            {'name': 'Caldo', 'body': 'A calendar app.'},
+            {'name': 'Sync', 'body': 'Supabase.'},
+          ],
+          'sources': ['~/dev/src/Caldo', '~/notes'],
+        },
+        'workspace': {
+          'root': '/w/x',
+          'places': [
+            {
+              'source': '/h/dev/src/Caldo',
+              'path': '/w/x/Caldo',
+              'branch': 'caldo/x',
+            },
+            {'source': '/h/notes', 'path': '/h/notes'},
+          ],
+        },
+      });
+      expect(ask.ownFolder, isTrue);
+      expect(ask.sources, ['~/dev/src/Caldo', '~/notes']);
+      // The one worktree is where it starts, so its CLAUDE.md is read.
+      expect(ask.dir, '/w/x/Caldo');
+      expect(ask.added, ['/h/notes']);
+      final rules = ask.rules!;
+      expect(
+        rules.indexOf('Be brief.'),
+        lessThan(rules.indexOf('Caldo › Sync')),
+      );
+      expect(
+        rules.indexOf('## Caldo\n\nA calendar app.'),
+        lessThan(rules.indexOf('## Sync\n\nSupabase.')),
+      );
+      expect(rules, contains('caldo/x'));
+      expect(rules, contains("/h/notes is the user's own folder"));
+      const claude = AgentSpec(id: 'claude', label: 'Claude', command: []);
+      expect(claudeChoices(claude, ask), contains('--add-dir=/h/notes'));
+
+      // Asked for, not yet made: no folder to start in yet.
+      final asked = ChatAsk.fromJson({
+        'id': 'x',
+        'agent': 'claude',
+        'workspace': <String, Object?>{},
+      });
+      expect(asked.ownFolder, isTrue);
+      expect(asked.dir, isNull);
+      expect(asked.rules, isNull);
+      // A chat from before has none.
+      expect(
+        ChatAsk.fromJson({
+          'id': 'x',
+          'agent': 'claude',
+          'dir': '~/a',
+        }).ownFolder,
+        isFalse,
+      );
+    });
+
+    group('a workspace', () {
+      late String home;
+      const chat = '0f1e2d3c-4b5a-4968-8776-655443322110';
+
+      Future<String> git(String dir, List<String> args) async {
+        final r = await Process.run('git', [
+          '-c',
+          'user.name=t',
+          '-c',
+          'user.email=t@t',
+          ...args,
+        ], workingDirectory: dir);
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        return '${r.stdout}';
+      }
+
+      setUp(() async {
+        home = Directory.systemTemp.createTempSync('caldo_work').path;
+        final repo = Directory('$home/src/app/lib')
+          ..createSync(recursive: true);
+        File('${repo.path}/a.txt').writeAsStringSync('a');
+        await git('$home/src/app', ['init', '-q', '-b', 'main']);
+        await git('$home/src/app', ['add', '.']);
+        await git('$home/src/app', ['commit', '-qm', 'first']);
+        Directory('$home/notes').createSync();
+      });
+      tearDown(() => Directory(home).deleteSync(recursive: true));
+
+      test('is a worktree per repository, on a branch of its own', () async {
+        final made = await Workspace.make(home, chat, [
+          '$home/src/app',
+          '$home/src/app/lib',
+          '$home/notes',
+        ]);
+        final root = Workspace.rootOf(home, chat);
+        expect(made.root, root);
+        expect(made.places.map((p) => p.path), [
+          '$root/app',
+          '$root/app/lib',
+          '$home/notes',
+        ]);
+        expect(made.cwd, '$root/app');
+        expect(made.added, ['$home/notes']);
+        expect(File('$root/app/lib/a.txt').readAsStringSync(), 'a');
+        expect(
+          (await git('$root/app', ['branch', '--show-current'])).trim(),
+          'caldo/0f1e2d3c',
+        );
+        // The user's checkout stays where it was.
+        expect(
+          (await git('$home/src/app', ['branch', '--show-current'])).trim(),
+          'main',
+        );
+        // Made again, it is found again; gone, made again on its branch.
+        final again = await Workspace.make(home, chat, [
+          '$home/src/app',
+          '$home/src/app/lib',
+          '$home/notes',
+        ]);
+        expect(again.toJson(), made.toJson());
+        Directory('$root/app').deleteSync(recursive: true);
+        await Workspace.make(home, chat, ['$home/src/app']);
+        expect(File('$root/app/lib/a.txt').existsSync(), isTrue);
+
+        expect(Workspace.of(made.toJson())!.toJson(), made.toJson());
+        expect(Workspace.made(home), [chat]);
+      });
+
+      test('two repositories: it starts in its own folder', () async {
+        Directory('$home/src/other').createSync(recursive: true);
+        File('$home/src/other/b.txt').writeAsStringSync('b');
+        await git('$home/src/other', ['init', '-q']);
+        await git('$home/src/other', ['add', '.']);
+        await git('$home/src/other', ['commit', '-qm', 'first']);
+        final made = await Workspace.make(home, chat, [
+          '$home/src/app',
+          '$home/src/other',
+        ]);
+        expect(made.cwd, made.root);
+        expect(made.added, isEmpty);
+        // None at all: its own empty folder.
+        final none = await Workspace.make(
+          home,
+          '${chat.substring(0, 35)}9',
+          [],
+        );
+        expect(none.cwd, none.root);
+        expect(Directory(none.root).existsSync(), isTrue);
+      });
+
+      test('a folder not there is said', () async {
+        expect(
+          () => Workspace.make(home, chat, ['$home/nowhere']),
+          throwsA(isA<FileSystemException>()),
+        );
+      });
+
+      test('goes with its chat, keeping a branch with work on it', () async {
+        await Workspace.make(home, chat, ['$home/src/app']);
+        final root = Workspace.rootOf(home, chat);
+        await Workspace.remove(home, chat);
+        expect(Directory(root).existsSync(), isFalse);
+        expect(await git('$home/src/app', ['branch', '--list', 'caldo/*']), '');
+        expect(
+          (await git('$home/src/app', ['worktree', 'list'])).trim().split('\n'),
+          hasLength(1),
+        );
+
+        await Workspace.make(home, chat, ['$home/src/app']);
+        File('$root/app/c.txt').writeAsStringSync('c');
+        await git('$root/app', ['add', '.']);
+        await git('$root/app', ['commit', '-qm', 'work']);
+        await Workspace.remove(home, chat);
+        expect(Directory(root).existsSync(), isFalse);
+        expect(
+          (await git('$home/src/app', ['branch', '--list', 'caldo/*'])).trim(),
+          'caldo/0f1e2d3c',
+        );
+      });
+    });
+  });
+
   group("a chat's settings", () {
     test('are read back as the chat keeps them', () {
       final chat = Chat.fromJson({
@@ -1701,6 +1927,7 @@ void main() {
       S.use('en');
       Agents.instance.workers = const [];
       Agents.instance.rules = const [];
+      Agents.instance.projects = const [];
       Agents.instance.accounts = const [];
     });
 
@@ -1760,15 +1987,30 @@ void main() {
           body: 'Run `flutter test` and say what failed.',
         );
         Agents.instance.rules = const [rule];
+        const caldo = AgentProject(
+          id: 'p',
+          name: 'Caldo, the calendar and to-do app',
+          colour: 'teal',
+          context: 'A calendar app in Flutter.',
+          sources: ['~/dev/src/Caldo'],
+        );
+        const sync = AgentProject(
+          id: 'q',
+          parentId: 'p',
+          name: 'Sync with the server',
+          context: 'Supabase.',
+        );
+        Agents.instance.projects = const [caldo, sync];
         await pump(tester, code, const NewChatScreen());
         expect(find.text('opus'), findsOneWidget);
         // The form's list, not a field's own scroll inside it.
         final list = find.byType(Scrollable).first;
         await tester.scrollUntilVisible(
-          find.text('~/dev/src/Caldo'),
+          find.text('${caldo.name} › ${sync.name}'),
           300,
           scrollable: list,
         );
+        expect(find.text(s.chatOwnFolderHint), findsOneWidget);
         await tester.scrollUntilVisible(
           find.text(s.chatStart),
           300,
@@ -1785,6 +2027,18 @@ void main() {
         Agents.instance.rules = const [];
         await pump(tester, code, const RulesScreen());
         expect(find.text(s.noRules), findsOneWidget);
+
+        await pump(tester, code, const ProjectsScreen());
+        expect(find.text(sync.name), findsOneWidget);
+        await pump(tester, code, const ProjectScreen(project: sync));
+        // What it takes from above, then its own.
+        expect(find.text(caldo.context), findsOneWidget);
+        expect(find.text('~/dev/src/Caldo'), findsWidgets);
+        await pump(tester, code, const ProjectScreen(parent: caldo));
+        expect(find.text(s.newSubproject), findsOneWidget);
+        Agents.instance.projects = const [];
+        await pump(tester, code, const ProjectsScreen());
+        expect(find.text(s.noProjects), findsOneWidget);
       });
 
       testWidgets('sends tasks on in ${S.names[code]}', (tester) async {

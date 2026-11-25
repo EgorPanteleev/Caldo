@@ -222,6 +222,44 @@ String firstMessage(String written, Iterable<AgentRule> rules) {
   ].join('\n\n');
 }
 
+/// What chats are about, written here once: a name, a colour the list
+/// wears its chats in, the words its agents are told ([context]) and the
+/// folders on a worker they work on ([sources], from `~`). A project may
+/// sit under another ([parentId]), to any depth, and then is told its
+/// parents' words before its own and works on their folders as well
+/// ([Agents.lineOf]). A chat keeps a copy of all that as it began
+/// ([Agents.snapshotOf]).
+@immutable
+class AgentProject {
+  final String id;
+  final String? parentId;
+  final String name;
+
+  /// A palette id or `#RRGGBB`, as a task's (`ListStyle.byId`); null takes
+  /// its parent's.
+  final String? colour;
+  final String context;
+  final List<String> sources;
+
+  const AgentProject({
+    required this.id,
+    this.parentId,
+    required this.name,
+    this.colour,
+    this.context = '',
+    this.sources = const [],
+  });
+
+  factory AgentProject.fromJson(Map json) => AgentProject(
+    id: json['id'] as String,
+    parentId: json['parent_id'] as String?,
+    name: json['name'] as String? ?? '',
+    colour: json['colour'] as String?,
+    context: json['context'] as String? ?? '',
+    sources: _strings(json['sources']),
+  );
+}
+
 /// A computer that runs agents: one running `caldo-mcp watch`.
 @immutable
 class AgentWorker {
@@ -350,6 +388,13 @@ class Chat {
   /// `notify` still gets through.
   final bool muted;
 
+  /// The project it was begun in, while that is still there.
+  final String? projectId;
+
+  /// Its project's name and colour as it began, for one since deleted.
+  final String? projectName;
+  final String? projectColour;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -375,6 +420,9 @@ class Chat {
     this.account,
     this.pinnedAt,
     this.muted = false,
+    this.projectId,
+    this.projectName,
+    this.projectColour,
   });
 
   bool get pinned => pinnedAt != null;
@@ -426,6 +474,9 @@ class Chat {
         account: c.account,
         pinnedAt: c.pinnedAt,
         muted: c.muted,
+        projectId: c.projectId,
+        projectName: c.projectName,
+        projectColour: c.projectColour,
       );
 
   /// [c] pinned [at], or unpinned for null: said here at once, as a move.
@@ -455,6 +506,9 @@ class Chat {
         account: c.account,
         pinnedAt: at,
         muted: c.muted,
+        projectId: c.projectId,
+        projectName: c.projectName,
+        projectColour: c.projectColour,
       );
 
   /// [c] muted or not: said here at once, as a pin.
@@ -484,6 +538,9 @@ class Chat {
         account: c.account,
         pinnedAt: c.pinnedAt,
         muted: muted,
+        projectId: c.projectId,
+        projectName: c.projectName,
+        projectColour: c.projectColour,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -530,6 +587,15 @@ class Chat {
       _ => null,
     },
     muted: json['muted'] == true,
+    projectId: json['project_id'] as String?,
+    projectName: switch (json['project']) {
+      {'name': final String name} when name.isNotEmpty => name,
+      _ => null,
+    },
+    projectColour: switch (json['project']) {
+      {'colour': final String colour} => colour,
+      _ => null,
+    },
   );
 
   /// [chats] as the list shows them: the pinned on top, the last pinned
@@ -568,6 +634,7 @@ class Agents extends ChangeNotifier {
   List<AgentWorker> workers = const [];
   List<Chat> chats = const [];
   List<AgentRule> rules = const [];
+  List<AgentProject> projects = const [];
   List<AgentAccount> accounts = const [];
   bool loaded = false;
   Object? error;
@@ -590,6 +657,7 @@ class Agents extends ChangeNotifier {
     if (_watching++ > 0) return;
     unawaited(load());
     unawaited(loadRules());
+    unawaited(loadProjects());
     final client = _client;
     if (client == null) return;
     _channel = client
@@ -814,6 +882,157 @@ class Agents extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Read as rules are: when watching begins, and kept by this device's
+  /// own edits.
+  Future<void> loadProjects() async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      final r = await client.from('agent_projects').select();
+      projects = _treeOrder([for (final row in r) AgentProject.fromJson(row)]);
+      notifyListeners();
+    } catch (_) {
+      // A server without the table yet: no projects to choose.
+    }
+  }
+
+  AgentProject? project(String? id) =>
+      id == null ? null : projects.where((p) => p.id == id).firstOrNull;
+
+  /// [project] and the projects above it, the topmost first.
+  List<AgentProject> lineOf(AgentProject project) {
+    final out = [project];
+    final seen = {project.id};
+    var above = this.project(project.parentId);
+    while (above != null && seen.add(above.id)) {
+      out.insert(0, above);
+      above = this.project(above.parentId);
+    }
+    return out;
+  }
+
+  /// How deep [project] is: 0 for one under none.
+  int depthOf(AgentProject project) => lineOf(project).length - 1;
+
+  /// "Caldo › Sync": [project]'s name after its parents'.
+  String pathOf(AgentProject project) =>
+      [for (final p in lineOf(project)) p.name.trim()].join(' › ');
+
+  /// The colour [project] wears: its own, else the nearest parent's.
+  String? colourOf(AgentProject project) {
+    for (final p in lineOf(project).reversed) {
+      if (p.colour != null) return p.colour;
+    }
+    return null;
+  }
+
+  /// The projects right under [id]; under none for null.
+  List<AgentProject> childrenOf(String? id) => [
+    for (final p in projects)
+      if (p.parentId == id) p,
+  ];
+
+  /// [id] and every project under it, to any depth.
+  Set<String> familyOf(String id) {
+    final out = {id};
+    for (var grew = true; grew;) {
+      grew = false;
+      for (final p in projects) {
+        if (p.parentId != null && out.contains(p.parentId) && out.add(p.id)) {
+          grew = true;
+        }
+      }
+    }
+    return out;
+  }
+
+  /// What a chat begun in [project] keeps of it: its path, colour, every
+  /// word written on it and its parents, the whole project's first, and
+  /// all their folders.
+  Map<String, Object?> snapshotOf(AgentProject project) {
+    final line = lineOf(project);
+    return {
+      'name': pathOf(project),
+      'colour': colourOf(project),
+      'context': [
+        for (final p in line)
+          if (p.context.trim().isNotEmpty)
+            {'name': p.name.trim(), 'body': p.context.trim()},
+      ],
+      'sources': {
+        for (final p in line)
+          for (final s in p.sources)
+            if (s.trim().isNotEmpty) s.trim(),
+      }.toList(),
+    };
+  }
+
+  /// [projects] as the list shows them: each under its parent, by name.
+  static List<AgentProject> _treeOrder(List<AgentProject> projects) {
+    final ids = {for (final p in projects) p.id};
+    final under = <String?, List<AgentProject>>{};
+    for (final p in projects) {
+      // One whose parent is not there is shown at the top.
+      final parent = ids.contains(p.parentId) ? p.parentId : null;
+      (under[parent] ??= []).add(p);
+    }
+    final out = <AgentProject>[];
+    final seen = <String>{};
+    void walk(String? parent) {
+      final here = [...?under[parent]]
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      for (final p in here) {
+        if (!seen.add(p.id)) continue;
+        out.add(p);
+        walk(p.id);
+      }
+    }
+
+    walk(null);
+    return out;
+  }
+
+  /// Project [id] saved as given, or a new one without [id].
+  Future<AgentProject> saveProject({
+    String? id,
+    String? parentId,
+    required String name,
+    String? colour,
+    String context = '',
+    List<String> sources = const [],
+  }) async {
+    final fields = {
+      'parent_id': parentId,
+      'name': name,
+      'colour': colour,
+      'context': context,
+      'sources': sources,
+    };
+    final query = id == null
+        ? _client!.from('agent_projects').insert(fields)
+        : _client!.from('agent_projects').update(fields).eq('id', id);
+    final saved = AgentProject.fromJson(await query.select().single());
+    projects = _treeOrder([
+      for (final p in projects)
+        if (p.id != saved.id) p,
+      saved,
+    ]);
+    notifyListeners();
+    return saved;
+  }
+
+  /// Project [id] deleted, and every one under it with it; its chats keep
+  /// what they were told.
+  Future<void> removeProject(String id) async {
+    final gone = familyOf(id);
+    await _client!.from('agent_projects').delete().eq('id', id);
+    projects = [
+      for (final p in projects)
+        if (!gone.contains(p.id)) p,
+    ];
+    notifyListeners();
+  }
+
   /// The latest chat a task was done in, if any.
   Future<String?> chatOfTask(String taskUuid) async {
     final rows = await _client
@@ -837,6 +1056,8 @@ class Agents extends ChangeNotifier {
     String? model,
     String? effort,
     String? dir,
+    AgentProject? project,
+    bool ownFolder = false,
     String? permission,
     List<String>? plugins,
     List<String> skills = const [],
@@ -858,6 +1079,14 @@ class Agents extends ChangeNotifier {
       'model': model,
       'effort': effort,
       'dir': dir,
+      // Its own folder on its worker, made there, with its project's
+      // folders in it; left out for the rest, so a server without the
+      // columns still starts them.
+      if (ownFolder) 'workspace': <String, Object?>{},
+      if (project != null) ...{
+        'project_id': project.id,
+        'project': snapshotOf(project),
+      },
       'permission': permission,
       'plugins': plugins,
       'skills': skills,

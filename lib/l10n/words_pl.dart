@@ -697,4 +697,32 @@ const Map<String, Object> pl = {
       "{worker} loguje się na nie i trzyma je osobno od własnego logowania. Czaty na nim mają te same wtyczki, umiejętności i sesje.",
   'chatAccount': "Konto",
   'usageResetSince': "Już wyzerowany",
+  'agentProjects': "Projekty",
+  'newProject': "Nowy projekt",
+  'newSubproject': "Nowy podprojekt",
+  'editProject': "Projekt",
+  'editProjects': "Edytuj projekty…",
+  'noProjects': "Nie ma jeszcze projektów",
+  'noProjectsHint':
+      "Projekt mówi swoim czatom, czego dotyczą i na jakich folderach pracują.",
+  'projectName': "Nazwa",
+  'projectColour': "Kolor",
+  'projectContext': "Kontekst",
+  'projectContextHint':
+      "Co każdy czat w nim powinien wiedzieć: czym jest, jak nad nim pracować, czego nie ruszać.",
+  'projectSources': "Foldery",
+  'projectSourcesHint':
+      "Foldery na komputerze, np. ~/dev/src/Caldo. Repozytorium git każdy czat dostaje jako worktree na własnej gałęzi; każdy inny folder jest wspólny.",
+  'projectAddSource': "Dodaj folder",
+  'projectFrom': "Z {name}",
+  'projectSubprojects': "Podprojekty",
+  'deleteProjectQuestion': "Usunąć ten projekt?",
+  'deleteProjectHint':
+      "Jego podprojekty znikną razem z nim. Czaty w nim rozpoczęte zachowają to, co im powiedziano.",
+  'chatProject': "Projekt",
+  'chatNoProject': "Brak",
+  'chatOwnFolderHint':
+      "Każdy czat pracuje we własnym folderze na komputerze, z folderami swojego projektu.",
+  'allProjects': "Wszystkie projekty",
+  'untitledProject': "Projekt bez nazwy",
 };

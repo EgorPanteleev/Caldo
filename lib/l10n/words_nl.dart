@@ -666,4 +666,32 @@ const Map<String, Object> nl = {
       "{worker} meldt zich erbij aan en houdt het apart van de eigen aanmelding. Chats eronder delen plug-ins, skills en sessies.",
   'chatAccount': "Account",
   'usageResetSince': "Inmiddels gereset",
+  'agentProjects': "Projecten",
+  'newProject': "Nieuw project",
+  'newSubproject': "Nieuw subproject",
+  'editProject': "Project",
+  'editProjects': "Projecten bewerken…",
+  'noProjects': "Nog geen projecten",
+  'noProjectsHint':
+      "Een project vertelt zijn chats waar ze over gaan en in welke mappen ze werken.",
+  'projectName': "Naam",
+  'projectColour': "Kleur",
+  'projectContext': "Context",
+  'projectContextHint':
+      "Wat elke chat erin moet weten: wat het is, hoe je eraan werkt, wat je laat liggen.",
+  'projectSources': "Mappen",
+  'projectSourcesHint':
+      "Mappen op de computer, zoals ~/dev/src/Caldo. Een git-repository krijgt elke chat als worktree op een eigen branch; elke andere map wordt gedeeld zoals hij is.",
+  'projectAddSource': "Map toevoegen",
+  'projectFrom': "Uit {name}",
+  'projectSubprojects': "Subprojecten",
+  'deleteProjectQuestion': "Dit project verwijderen?",
+  'deleteProjectHint':
+      "Zijn subprojecten gaan mee. Chats die erin zijn begonnen, houden wat hun is verteld.",
+  'chatProject': "Project",
+  'chatNoProject': "Geen",
+  'chatOwnFolderHint':
+      "Elke chat werkt in een eigen map op de computer, met de mappen van zijn project erin.",
+  'allProjects': "Alle projecten",
+  'untitledProject': "Naamloos project",
 };

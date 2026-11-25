@@ -686,4 +686,32 @@ const Map<String, Object> ru = {
       "{worker} войдёт в него и будет хранить отдельно от своего входа. Чаты под ним используют те же плагины, навыки и сессии.",
   'chatAccount': "Аккаунт",
   'usageResetSince': "Уже сброшен",
+  'agentProjects': "Проекты",
+  'newProject': "Новый проект",
+  'newSubproject': "Новый подпроект",
+  'editProject': "Проект",
+  'editProjects': "Изменить проекты…",
+  'noProjects': "Проектов пока нет",
+  'noProjectsHint':
+      "Проект говорит своим чатам, о чём они и с какими папками работают.",
+  'projectName': "Название",
+  'projectColour': "Цвет",
+  'projectContext': "Контекст",
+  'projectContextHint':
+      "Что должен знать каждый его чат: что это, как с ним работать, чего не трогать.",
+  'projectSources': "Папки",
+  'projectSourcesHint':
+      "Папки на компьютере, например ~/dev/src/Caldo. Git-репозиторий каждый чат получает как worktree на своей ветке; любая другая папка общая.",
+  'projectAddSource': "Добавить папку",
+  'projectFrom': "Из «{name}»",
+  'projectSubprojects': "Подпроекты",
+  'deleteProjectQuestion': "Удалить проект?",
+  'deleteProjectHint':
+      "Его подпроекты удалятся вместе с ним. Начатые в нём чаты сохранят то, что им сказали.",
+  'chatProject': "Проект",
+  'chatNoProject': "Без проекта",
+  'chatOwnFolderHint':
+      "Каждый чат работает в своей папке на компьютере, с папками своего проекта.",
+  'allProjects': "Все проекты",
+  'untitledProject': "Проект без названия",
 };

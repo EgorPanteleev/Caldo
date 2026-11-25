@@ -652,4 +652,32 @@ const Map<String, Object> tr = {
       "{worker} bu hesaba giriş yapar ve kendi girişinden ayrı tutar. Bu hesaptaki sohbetler aynı eklentileri, becerileri ve oturumları paylaşır.",
   'chatAccount': "Hesap",
   'usageResetSince': "Sıfırlandı",
+  'agentProjects': "Projeler",
+  'newProject': "Yeni proje",
+  'newSubproject': "Yeni alt proje",
+  'editProject': "Proje",
+  'editProjects': "Projeleri düzenle…",
+  'noProjects': "Henüz proje yok",
+  'noProjectsHint':
+      "Proje, sohbetlerine ne hakkında olduklarını ve hangi klasörlerde çalıştıklarını söyler.",
+  'projectName': "Ad",
+  'projectColour': "Renk",
+  'projectContext': "Bağlam",
+  'projectContextHint':
+      "İçindeki her sohbetin bilmesi gerekenler: ne olduğu, üzerinde nasıl çalışılacağı, nelere dokunulmayacağı.",
+  'projectSources': "Klasörler",
+  'projectSourcesHint':
+      "Bilgisayardaki klasörler, örneğin ~/dev/src/Caldo. Her sohbet bir git deposunu kendi dalında bir worktree olarak alır; diğer klasörler olduğu gibi paylaşılır.",
+  'projectAddSource': "Klasör ekle",
+  'projectFrom': "{name} projesinden",
+  'projectSubprojects': "Alt projeler",
+  'deleteProjectQuestion': "Bu proje silinsin mi?",
+  'deleteProjectHint':
+      "Alt projeleri de onunla gider. İçinde başlatılan sohbetler kendilerine söyleneni korur.",
+  'chatProject': "Proje",
+  'chatNoProject': "Yok",
+  'chatOwnFolderHint':
+      "Her sohbet bilgisayarda kendi klasöründe, projesinin klasörleriyle çalışır.",
+  'allProjects': "Tüm projeler",
+  'untitledProject': "Adsız proje",
 };
