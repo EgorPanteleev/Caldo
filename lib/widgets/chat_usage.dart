@@ -290,6 +290,43 @@ String limitsLine(S s, ChatUsage usage) => [
     '${_limitShort(s, limit)} ${_percent(limit.usedNow)}',
 ].join(' · ');
 
+/// What stopped a chat at the account's limit, in brief: "5-hour limit ·
+/// resets 14:05", or that the limit has reset since; null if nothing is
+/// known. [resets] is when its worker said the limit lifts; the limit
+/// itself is the one used up in [usage] that resets then, or else last.
+String? limitBrief(BuildContext context, ChatUsage? usage, {DateTime? resets}) {
+  final s = S.of(context);
+  final spent = [
+    for (final limit in usage?.limits ?? const <UsageLimit>[])
+      if (limit.used >= 0.999) limit,
+  ];
+  UsageLimit? which;
+  for (final limit in spent) {
+    final at = limit.resets;
+    if (resets != null &&
+        at != null &&
+        at.difference(resets).abs() < const Duration(minutes: 2)) {
+      which = limit;
+      break;
+    }
+    if (which == null || (at != null && at.isAfter(which.resets ?? at))) {
+      which = limit;
+    }
+  }
+  final at = resets ?? which?.resets;
+  if (at != null && !at.isAfter(DateTime.now())) return s.chatLimitLifted;
+  final time = at == null
+      ? null
+      : _when(at, MediaQuery.alwaysUse24HourFormatOf(context));
+  final name = which == null ? null : _limitName(s, which);
+  return switch ((name, time)) {
+    (final name?, final time?) => s.chatLimitResets(name, time),
+    (null, final time?) => s.usageResets(time),
+    (final name?, null) => name,
+    _ => null,
+  };
+}
+
 /// When [usage]'s limits were heard, if long enough ago to say.
 String? limitsAge(BuildContext context, ChatUsage usage) {
   final at = usage.limitsAt;

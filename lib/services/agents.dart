@@ -259,8 +259,9 @@ class AgentWorker {
 }
 
 /// `idle` is ready, nothing done yet; `finished`, a turn has ended;
-/// `yourTurn`, one has ended asking or offering the user something. All
-/// three wait for the user's next message.
+/// `yourTurn`, one has ended asking or offering the user something;
+/// `limited`, the account's usage limit refused one. All wait for the
+/// user's next message.
 enum ChatState {
   asked,
 
@@ -271,6 +272,7 @@ enum ChatState {
   idle,
   finished,
   yourTurn,
+  limited,
   ended,
   failed,
 }
@@ -386,7 +388,8 @@ class Chat {
       state == ChatState.asking ||
       state == ChatState.idle ||
       state == ChatState.finished ||
-      state == ChatState.yourTurn;
+      state == ChatState.yourTurn ||
+      state == ChatState.limited;
 
   /// What to call it: its title, else its first message's first line.
   String get name {
@@ -490,6 +493,7 @@ class Chat {
     'idle' => ChatState.idle,
     'finished' => ChatState.finished,
     'your_turn' => ChatState.yourTurn,
+    'limited' => ChatState.limited,
     'ended' => ChatState.ended,
     'failed' => ChatState.failed,
     _ => ChatState.asked,

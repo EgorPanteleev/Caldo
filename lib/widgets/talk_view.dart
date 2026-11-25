@@ -3,12 +3,12 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/strings.dart';
-import '../mcp/usage.dart' show CarryOn;
+import '../mcp/usage.dart' show CarryOn, ChatUsage;
 import '../services/agents.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'chat_usage.dart' show limitBrief;
 import 'markdown_text.dart';
-import 'task_card.dart' show CheckMark;
 
 /// A chat with an agent as a chat: the user's words on the right, the
 /// agent's answers across the width in Markdown, each tool it used as one
@@ -36,6 +36,9 @@ class TalkView extends StatefulWidget {
   final bool carrying;
   final ValueChanged<ChatItem>? onCarry;
 
+  /// What the chat has spent, for which limit stopped it.
+  final ChatUsage? usage;
+
   /// Room left at the top and foot of the list.
   final EdgeInsets padding;
 
@@ -46,6 +49,7 @@ class TalkView extends StatefulWidget {
     required this.onAnswer,
     this.carrying = false,
     this.onCarry,
+    this.usage,
     this.padding = EdgeInsets.zero,
   });
 
@@ -205,13 +209,18 @@ class _TalkViewState extends State<TalkView> {
     return _Spaced(
       key: ValueKey(item.id),
       top: above == null ? 0 : (close ? 4 : 14),
-      child: stamp && at != null
+      child: stamp && at != null && !_carriedOn(item)
           ? _Stamped(at: at, right: item.kind == 'user', child: shown)
           : shown,
     );
   }
 
   Widget _shown(ChatItem item, int i, int live) => switch (item.kind) {
+    'user' when _carriedOn(item) => _Note(
+      text: S.of(context).chatCarriedOn,
+      error: false,
+      icon: Icons.play_arrow_rounded,
+    ),
     'user' => _Said(
       text: item.text,
       files: item.body['files'],
@@ -236,22 +245,32 @@ class _TalkViewState extends State<TalkView> {
       body: item.body,
       onAnswer: (choice) => widget.onAnswer(item.id, choice, const {}),
     ),
-    _ when CarryOn.stops(item.kind, item.body) => _Limit(
+    // Only the latest stop is drawn whole; those before are a line.
+    _ when CarryOn.stops(item.kind, item.body) && i == live => _Limit(
       resets: item.body['resets'] is num
           ? DateTime.fromMillisecondsSinceEpoch(
               (item.body['resets'] as num).round(),
             )
           : null,
-      carrying: i == live && widget.carrying,
-      onTap: i == live && widget.onCarry != null
-          ? () => widget.onCarry!(item)
-          : null,
+      usage: widget.usage,
+      carrying: widget.carrying,
+      onTap: widget.onCarry != null ? () => widget.onCarry!(item) : null,
+    ),
+    _ when CarryOn.stops(item.kind, item.body) => _Note(
+      text: S.of(context).chatAtLimit,
+      error: false,
+      icon: Icons.hourglass_bottom_rounded,
     ),
     _ => _Note(text: item.text, error: item.body['error'] == true),
   };
 
   static bool _small(ChatItem item) =>
       item.kind == 'tool' || item.kind == 'thinking';
+
+  /// The words a chat is told to carry on with once the limit is lifted:
+  /// the app's doing, not the user's, so not drawn as theirs.
+  static bool _carriedOn(ChatItem item) =>
+      item.kind == 'user' && item.text.trim() == CarryOn.words;
 }
 
 /// "14:05" today, "Yesterday 14:05" or "Nov 20 14:05" before — on the
@@ -1107,88 +1126,132 @@ class _Option extends StatelessWidget {
 class _Note extends StatelessWidget {
   final String text;
   final bool error;
+  final IconData? icon;
 
-  const _Note({required this.text, required this.error});
+  const _Note({required this.text, required this.error, this.icon});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    return Text(
+    final colour = error ? AppColors.danger : p.faint;
+    final words = Text(
       text,
       textAlign: TextAlign.center,
-      style: TextStyle(
-        color: error ? AppColors.danger : p.faint,
-        fontSize: 12.5,
-        height: 1.4,
-      ),
+      style: TextStyle(color: colour, fontSize: 12.5, height: 1.4),
+    );
+    if (icon == null) return words;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 14, color: colour),
+        const SizedBox(width: 5),
+        Flexible(child: words),
+      ],
     );
   }
 }
 
-/// A turn the account's limit refused: said as a note, and under the
-/// latest a box to tick to have the chat carry on by itself once the limit
-/// is lifted. Unticked unless the user asks.
+/// The latest turn the account's limit refused: a card saying which limit
+/// and when it resets, and a switch to have the chat carry on by itself
+/// once it has — off unless the user turns it on.
 class _Limit extends StatelessWidget {
   final DateTime? resets;
+  final ChatUsage? usage;
   final bool carrying;
+
+  /// Null where its worker can't leave messages for later.
   final VoidCallback? onTap;
 
-  const _Limit({required this.resets, required this.carrying, this.onTap});
+  const _Limit({
+    required this.resets,
+    required this.usage,
+    required this.carrying,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
     final p = AppTheme.of(context);
-    final note = _Note(text: s.chatAtLimit, error: false);
-    if (onTap == null) return note;
-    final at = resets;
-    String? when;
-    if (at != null && at.isAfter(DateTime.now())) when = _when(context, at);
-    return Column(
-      children: [
-        note,
-        const SizedBox(height: 6),
-        Center(
-          child: GestureDetector(
-            onTap: onTap,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+    final brief = limitBrief(context, usage, resets: resets);
+    return SelectionContainer.disabled(
+      // A Material, so the switch's row inks on it.
+      child: Material(
+        color: p.panel,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: p.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: carrying ? p.text : Colors.transparent,
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(
-                        color: carrying ? p.text : p.muted,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: CustomPaint(
-                      painter: CheckMark(
-                        progress: carrying ? 1 : 0,
-                        color: p.bg,
-                      ),
-                    ),
+                  Icon(
+                    Icons.hourglass_bottom_rounded,
+                    size: 20,
+                    color: p.muted,
                   ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      when == null ? s.chatCarryOnSoon : s.chatCarryOnAt(when),
-                      style: TextStyle(color: p.text, fontSize: 14),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          s.chatLimitTitle,
+                          style: TextStyle(
+                            color: p.text,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (brief != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              brief,
+                              style: TextStyle(color: p.muted, fontSize: 12.5),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
+            if (onTap case final onTap?) ...[
+              Divider(height: 1, thickness: 1, color: p.border),
+              InkWell(
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          resets == null
+                              ? s.chatCarryOnSoon
+                              : s.chatCarryOnReset,
+                          style: TextStyle(color: p.text, fontSize: 14),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Switch(
+                        value: carrying,
+                        onChanged: (_) => onTap(),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 }

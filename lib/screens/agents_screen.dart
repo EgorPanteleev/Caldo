@@ -373,13 +373,15 @@ Color _stateColour(AppPalette p, ChatState state) => switch (state) {
   ChatState.idle => p.muted,
   ChatState.finished => p.text,
   ChatState.yourTurn => AppColors.overdue,
+  ChatState.limited => p.text,
   ChatState.ended => p.faint,
   ChatState.failed => AppColors.danger,
 };
 
 /// A chat's state at a glance, [size] across: a dot; a ring while it is
-/// ready and has done nothing yet, and a tick once a turn has finished,
-/// so a finished chat is told by its shape, not a shade of grey.
+/// ready and has done nothing yet, a tick once a turn has finished, and
+/// an hourglass once the usage limit stopped one — told by shape, not a
+/// shade of grey.
 class _StateMark extends StatelessWidget {
   final ChatState state;
   final double size;
@@ -391,13 +393,19 @@ class _StateMark extends StatelessWidget {
     final colour = _stateColour(AppTheme.of(context), state);
     return SizedBox.square(
       dimension: size,
-      child: state == ChatState.finished
-          // Drawn larger than the dot, as a tick's strokes are thin; it
+      child: state == ChatState.finished || state == ChatState.limited
+          // Drawn larger than the dot, as an icon's strokes are thin; it
           // overflows its square so the row doesn't move.
           ? OverflowBox(
               maxWidth: size * 1.8,
               maxHeight: size * 1.8,
-              child: Icon(Icons.check_rounded, size: size * 1.8, color: colour),
+              child: Icon(
+                state == ChatState.limited
+                    ? Icons.hourglass_bottom_rounded
+                    : Icons.check_rounded,
+                size: size * 1.8,
+                color: colour,
+              ),
             )
           : DecoratedBox(
               decoration: BoxDecoration(
@@ -426,6 +434,7 @@ String _stateName(S s, Chat chat) => switch (chat.state) {
   ChatState.idle => s.chatIdle,
   ChatState.finished => s.chatFinished,
   ChatState.yourTurn => s.chatAsking,
+  ChatState.limited => s.chatLimited,
   ChatState.ended => s.chatEnded,
   ChatState.failed => s.chatFailed,
 };
@@ -467,6 +476,11 @@ class _ChatRow extends StatelessWidget {
     final when = DateUtils.isSameDay(at, now)
         ? Dates.time(at)
         : Dates.shortDay(at);
+    // Stopped at the limit: which, and when it resets, in the app's words
+    // rather than the worker's.
+    final note = chat.state == ChatState.limited
+        ? limitBrief(context, chat.usage)
+        : chat.note;
     return Material(
       color: picked ? p.panelHi : p.panel,
       // Picked, a rim in the text's colour: no accent, as the task cards'
@@ -561,7 +575,7 @@ class _ChatRow extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 4),
                         child: ChatUsageBrief(usage: usage),
                       ),
-                    if (chat.note case final note? when note.isNotEmpty)
+                    if (note case final note? when note.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 3),
                         child: Text(
@@ -2199,6 +2213,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         carrying: _later.any((line) => line.carriesOn),
                         onCarry: _canLater ? _carry : null,
+                        // The chat's own: the account's, newer, would
+                        // no longer show the limit spent once it resets.
+                        usage: talk.usage.value ?? chat.usage,
                       ),
                     )
                   : talks && chat.inChat
@@ -2211,12 +2228,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   ? const SizedBox.shrink()
                   : _terminalView(chat, live, p),
             ),
-            if (_later.isNotEmpty)
-              LaterList(
-                lines: _later,
-                onTap: _laterTapped,
-                onDelete: _takeBack,
-              ),
+            // Carrying on after the limit is the switch on its card, not
+            // a message of the user's left for later.
+            if (_later.where((line) => !line.carriesOn).toList()
+                case final later when later.isNotEmpty)
+              LaterList(lines: later, onTap: _laterTapped, onDelete: _takeBack),
             if (asChat) ...[
               if (!chat.inChat)
                 _MoveBar(

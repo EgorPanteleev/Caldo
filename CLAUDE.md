@@ -736,22 +736,24 @@ the app, a terminal beside them; anything else a terminal.
 - **A chat is Ready, Working, Waiting for you or Finished** (asked as "i
   dont see when chat definetly finished work", 2026-11-24): `idle` is
   only a chat that has done nothing yet (a ring); a turn's end — a
-  result, Codex's turn completed, Claude's Stop hook in the terminal, the
-  usage limit — writes `finished` (a tick, `_StateMark`), so a finished
-  chat is told by its shape, not a shade. Both take a message
-  (`Chat.live`, `Worker._ready`). `…_chat_finished.sql` widens the check;
-  an older worker still says `idle`, an older app reads `finished` as
-  Starting.
+  result, Codex's turn completed, Claude's Stop hook in the terminal —
+  writes `finished` (a tick, `_StateMark`), so a finished chat is told by
+  its shape, not a shade. **The usage limit is `limited`** (an hourglass,
+  "Out of usage", and under it which limit and when it resets,
+  `limitBrief`, from the chat's usage — not the worker's English note;
+  asked 2026-11-25). All take a message (`Chat.live`, `Worker._ready`).
+  `…_chat_finished.sql`, `…_chat_your_turn.sql` and `…_chat_limited.sql`
+  widen the check; an older app reads the newer states as Starting.
 - **A turn that ends asking or offering is `your_turn`, not `finished`**
   (asked 2026-11-25: "agents ask me smth in the end or offer me, but chat
   writes finished"): `asksBack` reads the last paragraph (and the one
   before a trailing list) for a `?` outside code and links, or an offer's
   words in the app's languages. Shown as Waiting for you (red dot), pushed
-  as a turn's end, takes a message like `finished`. A usage-limit stop
-  stays `finished`.
+  as a turn's end, takes a message like `finished`. A usage-limit stop is
+  `limited`.
 - **Server-only tables, not synced rows** (`…_agents.sql`): `workers`
   (heartbeat 30s, online if seen <90s, what it offers), `chats` (state new
-  → running/asking/idle/finished/your_turn → ended/failed, note, size, session), `chat_out`
+  → running/asking/idle/finished/your_turn/limited → ended/failed, note, size, session), `chat_out`
   (pieces ≤ every 200ms; a `capture-pane -e` snapshot after 300 pieces
   once quiet, older rows deleted; the app reads from the latest snapshot),
   `chat_in` (keys, line, size, stop, start, answer, interrupt, mode;
@@ -815,10 +817,14 @@ the app, a terminal beside them; anything else a terminal.
   worker posts a `note` marked `limit: true` (`resets` in ms;
   `CarryOn.stops`) — **not a kind of its own: `chat_items_kind_check`
   refuses unknown kinds**, and a refused row used to hold back the chat's
-  every later item (now dropped alone, `_postEach`). `TalkView` draws it
-  with an unticked box, live on the latest one until the user writes. Ticking
-  leaves `CarryOn.words` in `chat_later` (key `limit…`, `CarryOn.at`: a
-  minute after the reset, else 15 min on); ticking again takes it back.
+  every later item (now dropped alone, `_postEach`). `TalkView` draws the
+  latest as a card (`_Limit`: which limit, when it resets, and a switch,
+  off) until the user writes; older ones are a line. The switch leaves
+  `CarryOn.words` in `chat_later` (key `limit…`, `CarryOn.at`: a minute
+  after the reset, else 15 min on), **kept out of the later strip** — a
+  tick-box and a "left for later" message were seen and disliked; off
+  takes it back. Said, the words are drawn as a note ("Carried on after
+  the limit"), not as the user's.
   Refused again while one waits, the worker moves it. A turn that goes
   through first takes it back (`_Talker._unbook`). Chat mode only.
 - **Photos and files go with a message**: plus before the field
@@ -984,7 +990,9 @@ the app, a terminal beside them; anything else a terminal.
   the worker tells a chat waiting (`Notices`: a question at once; a turn
   *the user* began, 20s after it ends unless another begins — turns begun
   by another chat or an event are quiet, or the reviewer would ring all
-  day); an agent's own word is the MCP tool `notify`. **Muting a chat
+  day; a stop at the limit and a pull request opened, at once, whoever
+  began it — the pull request again in its turn's end, which replaces it
+  on the phone); an agent's own word is the MCP tool `notify`. **Muting a chat
   (`chats.muted`) silences its waiting, not `notify`**, as a mention gets
   through. Firebase is set up from `~/keys/caldo-google-services.json` at
   build time as resource strings (no google-services plugin; override with

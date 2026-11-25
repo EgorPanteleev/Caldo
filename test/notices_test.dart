@@ -72,6 +72,41 @@ void main() {
     expect(told, hasLength(2));
   });
 
+  test('tells a stop at the limit at once, in place of the end', () async {
+    notices.heard('c', {'chat': 'other'});
+    notices.stands('c', 'running');
+    // The turn ends, then the worker says why.
+    notices.stands('c', 'finished');
+    notices.stands('c', 'limited', note: 'Out of usage: resets at 14:05.');
+    notices.stands('c', 'limited', note: 'Out of usage: resets at 14:05.');
+    expect(told, [('c', 'waiting', 'Out of usage: resets at 14:05.')]);
+    await later();
+    expect(told, hasLength(1));
+    // Refused again once the user wrote: told again.
+    notices.stands('c', 'running');
+    notices.stands('c', 'limited');
+    expect(told, hasLength(2));
+  });
+
+  test('tells a pull request at once, and again at the turn end', () async {
+    notices.heard('c', null);
+    notices.stands('c', 'running');
+    notices.opened('c', 'me/app#12');
+    expect(told, [('c', 'waiting', 'Opened pull request me/app#12.')]);
+    notices.stands('c', 'finished', said: 'Done.');
+    await later();
+    expect(told.last, (
+      'c',
+      'waiting',
+      'Opened pull request me/app#12.\nDone.',
+    ));
+    // Not carried into the next turn.
+    notices.stands('c', 'running');
+    notices.stands('c', 'finished', said: 'More.');
+    await later();
+    expect(told.last.$3, 'More.');
+  });
+
   test('a chat deleted while held is not told', () async {
     notices.stands('c', 'running');
     notices.stands('c', 'finished');

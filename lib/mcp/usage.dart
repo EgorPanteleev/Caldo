@@ -261,9 +261,9 @@ List<Map<String, Object?>> codexLimitRows(Map limits) => [
 
 /// A chat stopped at the account's limit carries on only if the user asks:
 /// the worker puts a note in the chat marked `limit` (its body's `resets`
-/// in milliseconds since the epoch, if said), drawn with a box to tick —
+/// in milliseconds since the epoch, if said), drawn with a switch —
 /// a note, as the server takes no kind of item it doesn't know — and
-/// the tick leaves [words] for later under a key starting [key] — one a
+/// turning it on leaves [words] for later under a key starting [key] — one a
 /// chat, which a turn going through first takes back.
 abstract final class CarryOn {
   static const words =
