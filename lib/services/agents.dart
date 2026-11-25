@@ -667,6 +667,12 @@ class Agents extends ChangeNotifier {
   bool loaded = false;
   Object? error;
 
+  final _drafts = <String, ValueNotifier<String>>{};
+
+  /// Unsent text kept on this device while the app is open.
+  ValueNotifier<String> draftOf(String chat) =>
+      _drafts.putIfAbsent(chat, () => ValueNotifier(''));
+
   SupabaseClient? get _client => Account.instance.client;
 
   bool get signedIn => signedInForTest ?? _client != null;
@@ -1382,6 +1388,7 @@ class Agents extends ChangeNotifier {
     if (gone.isEmpty) return;
     await _client!.from('chats').delete().inFilter('id', [...gone]);
     for (final chat in gone) {
+      _drafts.remove(chat);
       unawaited(_unput(chat));
     }
     chats = [
