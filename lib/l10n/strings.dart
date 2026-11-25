@@ -403,6 +403,8 @@ class S {
   String get chatSubscribe => _word('chatSubscribe');
   String get chatSubscription => _word('chatSubscription');
   String get chatSubRepo => _word('chatSubRepo');
+  String get chatSubOtherRepo => _word('chatSubOtherRepo');
+  String get chatSubCreate => _word('chatSubCreate');
   String get chatSubRepoHint => _word('chatSubRepoHint');
   String get chatSubThisRepo => _word('chatSubThisRepo');
   String get chatSubWhen => _word('chatSubWhen');
@@ -411,7 +413,7 @@ class S {
   String get chatSubClosed => _word('chatSubClosed');
   String get chatSubNote => _word('chatSubNote');
   String get chatSubNoteHint => _word('chatSubNoteHint');
-  String chatSubHint(String worker) => _fill('chatSubHint', {'worker': worker});
+  String get chatSubHint => _word('chatSubHint');
   String get chatSubBadRepo => _word('chatSubBadRepo');
   String get chatInterrupt => _word('chatInterrupt');
   String get chatLater => _word('chatLater');
