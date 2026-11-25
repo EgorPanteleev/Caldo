@@ -2219,6 +2219,57 @@ void main() {
       });
     }
 
+    testWidgets("a chat whose computer stopped answering says so", (
+      tester,
+    ) async {
+      final agents = Agents.instance;
+      final now = DateTime.now();
+      AgentWorker desk(DateTime seen) => AgentWorker(
+        id: 'worker',
+        name: 'Desk',
+        seenAt: seen,
+        dirs: const [],
+        agents: const [AgentKind(id: 'shell', label: 'Shell')],
+      );
+      agents
+        ..signedInForTest = true
+        ..workers = [desk(now.subtract(const Duration(minutes: 5)))]
+        ..chats = [
+          Chat(
+            id: 'away-chat',
+            title: 'Left working',
+            agent: 'shell',
+            workerId: 'worker',
+            state: ChatState.running,
+            updatedAt: now,
+          ),
+        ];
+      addTearDown(() {
+        agents
+          ..signedInForTest = null
+          ..chats = const [];
+      });
+
+      await pump(tester, 'en', const AgentsScreen());
+      expect(find.textContaining('Offline · Shell · Desk'), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+
+      await pump(tester, 'en', const ChatScreen(chat: 'away-chat'));
+      expect(find.textContaining('Offline · Shell · Desk'), findsOneWidget);
+      expect(
+        find.textContaining('Desk has been offline since'),
+        findsOneWidget,
+      );
+
+      // Back, it says how the chat stands again.
+      agents
+        ..workers = [desk(now)]
+        ..load();
+      await tester.pump();
+      expect(find.textContaining('Working · Shell · Desk'), findsOneWidget);
+      expect(find.textContaining('has been offline'), findsNothing);
+    });
+
     testWidgets('restores each chat draft after leaving the chat', (
       tester,
     ) async {

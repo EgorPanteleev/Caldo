@@ -444,21 +444,31 @@ class _StateMark extends StatelessWidget {
   final ChatState state;
   final double size;
 
-  const _StateMark({required this.state, required this.size});
+  /// Its computer has stopped saying it is there (`Agents.away`).
+  final bool away;
+
+  const _StateMark({
+    required this.state,
+    required this.size,
+    this.away = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colour = _stateColour(AppTheme.of(context), state);
+    final p = AppTheme.of(context);
+    final colour = away ? p.faint : _stateColour(p, state);
     return SizedBox.square(
       dimension: size,
-      child: state == ChatState.finished || state == ChatState.limited
+      child: away || state == ChatState.finished || state == ChatState.limited
           // Drawn larger than the dot, as an icon's strokes are thin; it
           // overflows its square so the row doesn't move.
           ? OverflowBox(
               maxWidth: size * 1.8,
               maxHeight: size * 1.8,
               child: Icon(
-                state == ChatState.limited
+                away
+                    ? Icons.cloud_off_rounded
+                    : state == ChatState.limited
                     ? Icons.hourglass_bottom_rounded
                     : Icons.check_rounded,
                 size: size * 1.8,
@@ -483,19 +493,22 @@ class _StateMark extends StatelessWidget {
 bool _ring(ChatState state) =>
     state == ChatState.idle || state == ChatState.waiting;
 
-/// [chat]'s state in words; one waiting with no task waits for the user.
-String _stateName(S s, Chat chat) => switch (chat.state) {
-  ChatState.asked => s.chatAsked,
-  ChatState.waiting => chat.taskUuid == null ? s.chatHeld : s.chatWaiting,
-  ChatState.running => s.chatRunning,
-  ChatState.asking => s.chatAsking,
-  ChatState.idle => s.chatIdle,
-  ChatState.finished => s.chatFinished,
-  ChatState.yourTurn => s.chatAsking,
-  ChatState.limited => s.chatLimited,
-  ChatState.ended => s.chatEnded,
-  ChatState.failed => s.chatFailed,
-};
+/// [chat]'s state in words; one waiting with no task waits for the user,
+/// and one whose computer is away is offline, whatever it last said.
+String _stateName(S s, Chat chat) => Agents.instance.away(chat) != null
+    ? s.chatAway
+    : switch (chat.state) {
+        ChatState.asked => s.chatAsked,
+        ChatState.waiting => chat.taskUuid == null ? s.chatHeld : s.chatWaiting,
+        ChatState.running => s.chatRunning,
+        ChatState.asking => s.chatAsking,
+        ChatState.idle => s.chatIdle,
+        ChatState.finished => s.chatFinished,
+        ChatState.yourTurn => s.chatAsking,
+        ChatState.limited => s.chatLimited,
+        ChatState.ended => s.chatEnded,
+        ChatState.failed => s.chatFailed,
+      };
 
 /// "Claude · opus · desk": what runs it, and where.
 String _lineOf(Chat chat) {
@@ -572,7 +585,11 @@ class _ChatRow extends StatelessWidget {
                   color: picked ? p.text : p.faint,
                 )
               else
-                _StateMark(state: chat.state, size: 9),
+                _StateMark(
+                  state: chat.state,
+                  size: 9,
+                  away: Agents.instance.away(chat) != null,
+                ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2263,6 +2280,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final asChat = talks && (_asChat ?? chat.inChat);
     final talk = _talk;
     final waits = chat?.state == ChatState.waiting;
+    final away = chat == null ? null : _agents.away(chat);
     final again = chat != null && !live && chat.state != ChatState.asked
         ? Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -2311,7 +2329,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       valueListenable: talk.state,
                       builder: (context, heard, _) => TalkView(
                         feed: talk,
+                        // Nobody is working on a computer that is away.
                         working:
+                            away == null &&
                             chat.inChat &&
                             (heard ?? chat.state.name) == 'running',
                         onAnswer: (item, choice, answers) => _agents.answer(
@@ -2342,6 +2362,7 @@ class _ChatScreenState extends State<ChatScreen> {
             if (_later.where((line) => !line.carriesOn).toList()
                 case final later when later.isNotEmpty)
               LaterList(lines: later, onTap: _laterTapped, onDelete: _takeBack),
+            if (away != null) _Away(worker: away),
             if (asChat) ...[
               if (!chat.inChat)
                 _MoveBar(
@@ -2519,6 +2540,44 @@ class _Elsewhere extends StatelessWidget {
   }
 }
 
+/// Over the field while the chat's computer is away: since when, and that
+/// what is sent waits for it (`chat_in` keeps it; a worker started again
+/// takes it up).
+class _Away extends StatelessWidget {
+  final AgentWorker worker;
+
+  const _Away({required this.worker});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = AppTheme.of(context);
+    final seen = worker.seenAt;
+    final when = DateUtils.isSameDay(seen, DateTime.now())
+        ? Dates.time(seen)
+        : '${Dates.shortDay(seen)} ${Dates.time(seen)}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(Icons.cloud_off_rounded, size: 16, color: p.muted),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              s.chatAwayHint(worker.name, when),
+              style: TextStyle(color: p.muted, fontSize: 13, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Under the chat while the chat is in its terminal: where it is, and the
 /// way back.
 class _MoveBar extends StatelessWidget {
@@ -2598,7 +2657,11 @@ class _Head extends StatelessWidget {
           if (chat != null) ...[
             Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: _StateMark(state: chat.state, size: 8),
+              child: _StateMark(
+                state: chat.state,
+                size: 8,
+                away: Agents.instance.away(chat) != null,
+              ),
             ),
             Expanded(
               // Its name and what it runs with: a tap opens its settings.

@@ -1086,6 +1086,18 @@ class Agents extends ChangeNotifier {
   AgentWorker? worker(String? id) =>
       workers.where((w) => w.id == id).firstOrNull;
 
+  /// [chat]'s computer, if it has stopped saying it is there: its chat
+  /// then shows as offline rather than as it last stood — a chat left
+  /// "Working" by a worker that died took messages that went nowhere and
+  /// said nothing. An ended chat stays as it ended.
+  AgentWorker? away(Chat chat) {
+    if (chat.state == ChatState.ended || chat.state == ChatState.failed) {
+      return null;
+    }
+    final w = worker(chat.workerId);
+    return w == null || w.online ? null : w;
+  }
+
   Future<Chat> start({
     required String worker,
     required String agent,
