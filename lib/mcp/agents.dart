@@ -63,11 +63,15 @@ class AgentSpec {
       );
 
   /// What the app is told: everything but the command line.
-  Map<String, Object?> toJson({Map<String, String> modelLabels = const {}}) => {
+  Map<String, Object?> toJson({
+    Map<String, String> modelLabels = const {},
+    String? defaultModel,
+  }) => {
     'id': id,
     'label': label,
     'models': modelLabels.isEmpty ? models : modelLabels.keys.toList(),
     if (modelLabels.isNotEmpty) 'model_labels': modelLabels,
+    'default_model': ?defaultModel,
     'efforts': efforts,
     'permissions': permissions,
     'plugins': plugins,

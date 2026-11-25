@@ -24,6 +24,7 @@ class AgentKind {
   final String label;
   final List<String> models;
   final Map<String, String> modelLabels;
+  final String? defaultModel;
   final List<String> efforts;
   final List<String> permissions;
   final List<String> plugins;
@@ -72,6 +73,7 @@ class AgentKind {
     required this.label,
     this.models = const [],
     this.modelLabels = const {},
+    this.defaultModel,
     this.efforts = const [],
     this.permissions = const [],
     this.plugins = const [],
@@ -103,6 +105,7 @@ class AgentKind {
           ))
             id: label,
     },
+    defaultModel: json['default_model'] as String?,
     efforts: _strings(json['efforts']),
     permissions: _strings(json['permissions']),
     plugins: _strings(json['plugins']),

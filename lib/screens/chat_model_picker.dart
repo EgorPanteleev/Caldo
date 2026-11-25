@@ -58,7 +58,8 @@ class _ModelPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final s = S.of(context);
-    final label = kind.modelLabels[model] ?? model ?? s.chatDefault;
+    final id = model ?? kind.defaultModel;
+    final label = kind.modelLabels[id] ?? id ?? s.chatDefault;
     return Material(
       color: p.panel,
       shape: RoundedRectangleBorder(
@@ -72,6 +73,12 @@ class _ModelPicker extends StatelessWidget {
           label,
           style: TextStyle(color: p.text, fontWeight: FontWeight.w600),
         ),
+        subtitle: id != null && id == kind.defaultModel
+            ? Text(
+                s.chatDefault,
+                style: TextStyle(color: p.muted, fontSize: 12),
+              )
+            : null,
         trailing: Icon(Icons.unfold_more, color: p.muted, size: 20),
         onTap: () => _choose(context),
       ),
@@ -100,26 +107,32 @@ class _ModelChoicesState extends State<_ModelChoices> {
     final model = widget.model;
     final matches = [
       for (final id in kind.models)
-        if (id.toLowerCase().contains(_query) ||
-            (kind.modelLabels[id] ?? '').toLowerCase().contains(_query))
+        if (id != 'default' &&
+            (id.toLowerCase().contains(_query) ||
+                (kind.modelLabels[id] ?? '').toLowerCase().contains(_query)))
           id,
     ];
 
     Widget option(String label, {String? id, bool custom = false}) {
+      final isDefault = !custom && id != null && id == kind.defaultModel;
       final selected = custom
           ? model != null && !kind.models.contains(model)
-          : model == id;
+          : (model ?? kind.defaultModel) == id;
+      final subtitle = isDefault ? s.chatDefault : id;
       return ListTile(
         selected: selected,
         selectedColor: p.text,
         selectedTileColor: p.field,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         title: Text(label),
-        subtitle: id != null && id != label
-            ? Text(id, style: TextStyle(color: p.muted))
+        subtitle: subtitle != null && subtitle != label
+            ? Text(subtitle, style: TextStyle(color: p.muted, fontSize: 12))
             : null,
         trailing: selected ? Icon(Icons.check, color: p.text, size: 19) : null,
-        onTap: () => Navigator.pop(context, (model: id, custom: custom)),
+        onTap: () => Navigator.pop(context, (
+          model: isDefault ? null : id,
+          custom: custom,
+        )),
       );
     }
 
@@ -157,7 +170,6 @@ class _ModelChoicesState extends State<_ModelChoices> {
                 ),
               ),
             ),
-          if (_query.isEmpty) option(s.chatDefault),
           for (final id in matches) option(kind.modelLabels[id] ?? id, id: id),
           if (_query.isNotEmpty && matches.isEmpty)
             ListTile(

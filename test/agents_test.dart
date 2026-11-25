@@ -2098,6 +2098,7 @@ void main() {
               'id': 'codex',
               'label': 'Codex',
               'models': ['codex-fast', 'codex-deep'],
+              'default_model': 'codex-fast',
               'model_labels': {
                 'codex-fast': 'Fast model',
                 'codex-deep': 'Deep model',
@@ -2108,14 +2109,31 @@ void main() {
       ];
       final s = S.forCode('en');
       await pump(tester, 'en', const NewChatScreen());
-      await tester.tap(find.widgetWithText(ListTile, s.chatDefault));
+      final defaultTile = find.widgetWithText(ListTile, 'Fast model');
+      expect(tester.widget<ListTile>(defaultTile).subtitle, isA<Text>());
+      await tester.tap(defaultTile);
       await tester.pumpAndSettle();
+      final defaultChoice = tester.widget<ListTile>(defaultTile.last);
+      expect(defaultChoice.selected, isTrue);
+      expect((defaultChoice.subtitle as Text).data, s.chatDefault);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is ListTile &&
+              widget.title is Text &&
+              (widget.title as Text).data == s.chatDefault,
+        ),
+        findsNothing,
+      );
       await tester.enterText(
         find.widgetWithText(TextField, s.search),
         'codex-deep',
       );
       await tester.pumpAndSettle();
-      expect(find.text('Fast model'), findsNothing);
+      expect(
+        tester.widgetList<ListTile>(defaultTile).any((tile) => tile.selected),
+        isFalse,
+      );
       await tester.tap(find.text('Deep model'));
       await tester.pumpAndSettle();
 
