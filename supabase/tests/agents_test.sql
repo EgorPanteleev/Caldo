@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(40);
+select plan(42);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -44,6 +44,18 @@ select lives_ok(
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'msg_1:0', 0, 'text',
      '{"text": "Done."}')$$,
   'the worker says what the agent said, as an item');
+select isnt(
+  (select at from public.chat_items where id = 'msg_1:0'), null,
+  'and the server writes down when');
+update public.chat_items set at = '2026-11-20 09:30+00' where id = 'msg_1:0';
+insert into public.chat_items (chat_id, id, seq, kind, body) values
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'msg_1:0', 0, 'text',
+   '{"text": "Done, again."}')
+  on conflict (chat_id, id) do update set body = excluded.body;
+select is(
+  (select at from public.chat_items where id = 'msg_1:0'),
+  '2026-11-20 09:30+00'::timestamptz,
+  'an item said again keeps the time it was first said');
 select lives_ok(
   $$insert into public.chat_in (chat_id, kind, data) values
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'answer', 'allow ask:1')$$,
