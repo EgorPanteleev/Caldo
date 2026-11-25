@@ -302,29 +302,37 @@ class Worker {
         ]);
     for (final row in mine) {
       final ask = ChatAsk.fromJson(row);
+      final before = row['state'] as String;
       _know(ask);
       // Answered before: its task has the answer already.
-      if (_ready(row['state'])) _answered.add(ask.id);
+      if (_ready(before)) _answered.add(ask.id);
       if (ask.mode == 'chat') {
         final spec = _specOf(ask.agent);
         if (spec == null) {
-          await _set(ask.id, 'ended', 'There is no ${ask.agent} on $name.');
+          await _set(
+            ask.id,
+            'ended',
+            'There is no ${ask.agent} on $name.',
+            recoveredFrom: before,
+          );
           continue;
         }
         final talker = _talks[ask.id] = await _Talker.make(this, ask, spec)
-          ..state = row['state'] as String;
+          ..state = before;
         if (talker.takeUp()) {
           log('[${_short(ask.id)}] taken up again (chat)');
           continue;
         }
         // Its program is gone (or was the last worker's child, and went
         // with it): its session is taken up again with the next message.
-        if (!_ready(row['state'])) {
+        if (!_ready(before)) {
           await _set(
             ask.id,
             'idle',
             'Cut off when the worker on $name started again.',
+            recoveredFrom: before,
           );
+          talker.state = 'idle';
         }
         continue;
       }
@@ -346,9 +354,13 @@ class Worker {
                 lastSnap: kept['last_snap'] ?? -1,
                 line: _lineOf(ask.id),
               )
-              ..state = row['state'] as String
+              ..state = before
               ..session = row['session'] as String?;
         await _snapshot(ask.id, live);
+        if (pane.dead) {
+          await _end(ask.id, live, pane.status, recoveredFrom: before);
+          continue;
+        }
         log('[${_short(ask.id)}] taken up again');
       } else {
         state.chats.remove(ask.id);
@@ -358,6 +370,7 @@ class Worker {
           'ended',
           'Its terminal was gone when the worker '
               'on $name started again.',
+          recoveredFrom: before,
         );
       }
     }
@@ -1619,9 +1632,55 @@ class Worker {
   static String _ended(String said) =>
       asksBack(said) ? 'your_turn' : 'finished';
 
-  Future<void> _set(String chat, String to, String? note, {String? said}) {
+  Future<void> _set(
+    String chat,
+    String to,
+    String? note, {
+    String? said,
+    String? recoveredFrom,
+  }) {
     notices.stands(chat, to, note: note, said: said);
+    if (recoveredFrom != null) {
+      return _setRecovered(chat, recoveredFrom, to, note);
+    }
     return _setRow(chat, to, note);
+  }
+
+  /// Losing a process can change what the chat can do, but it does not
+  /// make the chat more recent in the list.
+  Future<void> _setRecovered(
+    String chat,
+    String before,
+    String to,
+    String? note,
+  ) async {
+    final db = await _db;
+    final bool changed;
+    try {
+      changed = await db.rpc<bool>(
+        'recover_chat',
+        params: {
+          'chat': chat,
+          'worker': state.id,
+          'before_state': before,
+          'next_state': to,
+          'reason': note,
+        },
+      );
+    } on PostgrestException catch (e) {
+      if (e.code != 'PGRST202') rethrow;
+      // An older server still needs to release the interrupted chat.
+      final rows = await db
+          .from('chats')
+          .update({'state': to, 'note': note})
+          .eq('id', chat)
+          .eq('worker_id', state.id)
+          .eq('state', before)
+          .select('id');
+      if (rows.isNotEmpty) _follow(chat, to, note);
+      return;
+    }
+    if (changed) _follow(chat, to, note);
   }
 
   Future<void> _setRow(String chat, String to, String? note) async {
@@ -2011,7 +2070,12 @@ class Worker {
 
   /// A chat whose program has ended: the last of it sent, its terminal put
   /// away.
-  Future<void> _end(String chat, _Live live, int? status) async {
+  Future<void> _end(
+    String chat,
+    _Live live,
+    int? status, {
+    String? recoveredFrom,
+  }) async {
     // Once: the check each second may find it ended while it is ended here.
     if (_live[chat] != live) return;
     _live.remove(chat);
@@ -2021,6 +2085,7 @@ class Worker {
       chat,
       failed ? 'failed' : 'ended',
       failed ? '${live.spec.label} exited with $status.' : null,
+      recoveredFrom: recoveredFrom,
     );
     final turn = live.turn;
     if (turn != null && !turn.isCompleted) {
@@ -2197,6 +2262,7 @@ class _Talker implements TalkSink {
   /// Deleted in the app: nothing more is written for it.
   bool forgotten = false;
   bool _closing = false;
+  bool _recoveringExit = false;
 
   /// The seq the next new item goes up as, and each item's own.
   int _seq;
@@ -2296,6 +2362,7 @@ class _Talker implements TalkSink {
       given: worker.tmux.givenOf(ask.id),
     );
     if (made == null) return false;
+    _recoveringExit = kept.hasExited;
     talk = made..takeUp(kept, session: session);
     return true;
   }
@@ -2469,6 +2536,7 @@ class _Talker implements TalkSink {
     _forgetOffset();
     _piecing?.cancel();
     if (_keeping != null) _keepUsage();
+    await _standing;
     await worker.remote.client.removeChannel(_channel);
   }
 
@@ -2611,14 +2679,30 @@ class _Talker implements TalkSink {
   }
 
   @override
-  void stands(String to, {String? note}) {
+  void stands(String to, {String? note, bool recovering = false}) {
     // A turn ended by the agent, not by the limit: its last words may ask.
     if (to == 'finished' && note == null) to = Worker._ended(_said);
     if (forgotten || (to == state && note == null)) return;
+    final before = state;
     state = to;
     _broadcast('state', {'state': to, 'note': note});
-    unawaited(worker._guard(() => worker._set(ask.id, to, note, said: _said)));
+    final said = _said;
+    _standing = _standing.then(
+      (_) => worker._guard(
+        () => worker._set(
+          ask.id,
+          to,
+          note,
+          said: said,
+          recoveredFrom: recovering ? before : null,
+        ),
+      ),
+    );
   }
+
+  /// A recovery write checks the previous state, which may still be on
+  /// its way to the server while the process finishes exiting.
+  Future<void> _standing = Future.value();
 
   @override
   void inSession(String id) {
@@ -2775,21 +2859,33 @@ class _Talker implements TalkSink {
   @override
   void exited(int code, String why) {
     talk = null;
+    final owed = _owed;
     _owed = 0;
     _forgetOffset();
     if (_closing || forgotten) return;
-    // Ended by itself: the chat waits to be taken up again with the next
-    // message, unless it never began.
+    final recovering = _recoveringExit || code == -1;
+    _recoveringExit = false;
+    worker.log('[${_short(ask.id)}] ${spec.label} exited ($code)');
+    // The next message can start a new process. Losing an idle process
+    // does not undo the outcome of the last turn.
+    if (Worker._ready(state) && owed == 0) {
+      if (turn != null) turnEnded('', failed: true);
+      return;
+    }
     final failed = code != 0;
+    final reason = why.isEmpty ? '${spec.label} exited with $code.' : why;
     if (failed) {
       item('x${DateTime.now().millisecondsSinceEpoch}', 'note', {
-        'text': why.isEmpty ? '${spec.label} exited with $code.' : why,
+        'text': reason,
         'error': true,
       });
     }
-    stands(session == null && failed ? 'failed' : 'idle');
+    stands(
+      session == null && failed ? 'failed' : 'idle',
+      note: recovering ? reason : null,
+      recovering: recovering,
+    );
     turnEnded('', failed: true);
-    worker.log('[${_short(ask.id)}] ${spec.label} exited ($code)');
   }
 }
 
