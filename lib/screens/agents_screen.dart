@@ -372,6 +372,7 @@ Color _stateColour(AppPalette p, ChatState state) => switch (state) {
   ChatState.asking => AppColors.overdue,
   ChatState.idle => p.muted,
   ChatState.finished => p.text,
+  ChatState.yourTurn => AppColors.overdue,
   ChatState.ended => p.faint,
   ChatState.failed => AppColors.danger,
 };
@@ -424,6 +425,7 @@ String _stateName(S s, Chat chat) => switch (chat.state) {
   ChatState.asking => s.chatAsking,
   ChatState.idle => s.chatIdle,
   ChatState.finished => s.chatFinished,
+  ChatState.yourTurn => s.chatAsking,
   ChatState.ended => s.chatEnded,
   ChatState.failed => s.chatFailed,
 };
