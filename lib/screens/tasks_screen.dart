@@ -545,6 +545,47 @@ class _RunOfDaysState extends State<_RunOfDays> {
     );
   }
 
+  /// The run's tasks from [from] to [to] as a reorderable sliver: its open
+  /// ones, or its done ones. Two lists rather than one with the line in it,
+  /// so a carried card's gap never opens on the line's wrong side and the
+  /// line is never picked up with a card.
+  Widget _section(
+    BuildContext context,
+    _Run run,
+    int from,
+    int to,
+    String list,
+  ) {
+    return SliverReorderableList(
+      key: _listOf(list),
+      itemCount: to - from,
+      onReorder: (a, b) => _move(run, from + a, from + b),
+      onReorderStart: (t) {
+        final task = run.tasks[from + t];
+        // Picked out by a long press let go where it was; a mouse's
+        // drag has no such thing, and picks out with Ctrl and a click.
+        if (!Desk.isWide(context)) {
+          Selection.maybeOf(context)?.lifted(task);
+        }
+        _carry.begin(task, () => _listOf(list).currentState?.cancelReorder());
+      },
+      onReorderEnd: (_) => _carry.end(),
+      // Held inside the schedule rather than inside its own run: every
+      // other day on it is somewhere the card can be put down.
+      proxyDecorator: (child, _, animation) =>
+          liftedCard(context, widget.ground, child, animation, carry: _carry),
+      itemBuilder: (context, t) {
+        final task = run.tasks[from + t];
+        return pickUpListener(
+          context,
+          key: ValueKey('task-${task.id}'),
+          index: t,
+          child: widget.entry(task),
+        );
+      },
+    );
+  }
+
   Widget _build(BuildContext context) {
     final slivers = <Widget>[
       SliverToBoxAdapter(child: SizedBox(height: widget.top + 4)),
@@ -571,43 +612,28 @@ class _RunOfDaysState extends State<_RunOfDays> {
           ),
         );
       }
-      slivers.add(
-        SliverReorderableList(
-          key: _listOf(run.id),
-          itemCount: run.tasks.length,
-          onReorder: (from, to) => _move(run, from, to),
-          onReorderStart: (t) {
-            // Picked out by a long press let go where it was; a mouse's
-            // drag has no such thing, and picks out with Ctrl and a click.
-            if (!Desk.isWide(context)) {
-              Selection.maybeOf(context)?.lifted(run.tasks[t]);
-            }
-            _carry.begin(
-              run.tasks[t],
-              () => _listOf(run.id).currentState?.cancelReorder(),
-            );
-          },
-          onReorderEnd: (_) => _carry.end(),
-          // Held inside the schedule rather than inside its own run: every
-          // other day on it is somewhere the card can be put down.
-          proxyDecorator: (child, _, animation) => liftedCard(
-            context,
-            widget.ground,
-            child,
-            animation,
-            carry: _carry,
-          ),
-          itemBuilder: (context, t) {
-            final task = run.tasks[t];
-            return pickUpListener(
-              context,
-              key: ValueKey('task-${task.id}'),
-              index: t,
-              child: widget.entry(task),
-            );
-          },
-        ),
-      );
+      // Done tasks come after the open ones (`TaskProvider._compare`), under
+      // a line of their own where there are open ones to tell them from.
+      // Read from the run as given, not as shown: a card being ticked stays
+      // above the line until its tick is over and it slides down.
+      final firstDone = run.tasks.indexWhere((t) => t.done);
+      final open = firstDone < 0 ? run.tasks.length : firstDone;
+      slivers.add(_section(context, run, 0, open, run.id));
+      if (open < run.tasks.length) {
+        if (open > 0) {
+          slivers.add(
+            // Keyed, so a line turning up in one run is not taken for
+            // the next run's, which would fade that one in again.
+            SliverToBoxAdapter(
+              key: ValueKey('done-${run.id}'),
+              child: DoneDivider(count: run.tasks.length - open),
+            ),
+          );
+        }
+        slivers.add(
+          _section(context, run, open, run.tasks.length, '${run.id}/done'),
+        );
+      }
     }
 
     slivers.add(
