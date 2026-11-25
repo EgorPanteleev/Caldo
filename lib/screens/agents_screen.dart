@@ -534,20 +534,18 @@ class _ChatRow extends StatelessWidget {
     final when = DateUtils.isSameDay(at, now)
         ? Dates.time(at)
         : Dates.shortDay(at);
-    // A chat of a project wears its colour, so projects' chats are told
-    // apart in the list at a glance.
     final colour = _chatColour(chat);
     final project = _chatProjectName(chat);
-    final ground = picked ? p.panelHi : p.panel;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ground = dark ? p.panel : p.panelHi;
+    final pickedGround = dark ? p.panelHi : p.field;
     // Stopped at the limit: which, and when it resets, in the app's words
     // rather than the worker's.
     final note = chat.state == ChatState.limited
         ? limitBrief(context, chat.usage)
         : chat.note;
     return Material(
-      color: colour == null
-          ? ground
-          : Color.alphaBlend(colour.withValues(alpha: 0.16), ground),
+      color: picked ? pickedGround : ground,
       // Picked, a rim in the text's colour: no accent, as the task cards'
       // picks have none either.
       shape: RoundedRectangleBorder(
@@ -632,11 +630,21 @@ class _ChatRow extends StatelessWidget {
                     Text.rich(
                       TextSpan(
                         children: [
+                          if (colour != null)
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsetsDirectional.only(
+                                  end: 5,
+                                ),
+                                child: _Dot(colour: colour, size: 7),
+                              ),
+                            ),
                           if (project != null)
                             TextSpan(
                               text: '$project · ',
                               style: TextStyle(
-                                color: Color.lerp(colour, p.text, 0.35),
+                                color: p.text,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
