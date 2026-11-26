@@ -405,6 +405,47 @@ class ProjectSync {
 /// `AGENTS.override.md` read, as it is told its context apart.
 const codexQuiet = ['-c', 'project_doc_max_bytes=0'];
 
+/// What Codex is started with in Caldo's chats: told nothing from the
+/// folder ([codexQuiet]), free to write [file], its project's info, and
+/// given Caldo's own MCP server ([codexCaldo]), as Claude has it.
+List<String> codexInCaldo(String? file) => [
+  ...codexQuiet,
+  ...codexMayWrite(file),
+  ...codexCaldo(),
+];
+
+/// Caldo's MCP server for Codex, whether or not the user set one up for
+/// it (asked 2026-11-26: "make everything for codex too"): its tools, told
+/// by `CALDO_CHAT` which chat calls them — Codex hands a server only the
+/// variables named in `env_vars` — and let to wait as long as
+/// `message_chat` may (2h), past Codex's own 60s. None if `caldo-mcp` is
+/// not on the PATH.
+List<String> codexCaldo() => switch (caldoMcp) {
+  final command? => [
+    '-c',
+    'mcp_servers.caldo.command=${jsonEncode(command)}',
+    '-c',
+    'mcp_servers.caldo.env_vars=["CALDO_CHAT"]',
+    '-c',
+    'mcp_servers.caldo.tool_timeout_sec=$caldoToolTimeout',
+  ],
+  null => const [],
+};
+
+/// How long Codex lets one of Caldo's tools run: `message_chat` waits up
+/// to two hours.
+const caldoToolTimeout = 7260;
+
+/// Where `caldo-mcp` is on this computer's PATH, looked for once.
+final String? caldoMcp = () {
+  for (final dir in (Platform.environment['PATH'] ?? '').split(':')) {
+    if (dir.isEmpty) continue;
+    final f = File('$dir/caldo-mcp');
+    if (f.existsSync()) return f.path;
+  }
+  return null;
+}();
+
 /// What Codex is started with to write [file], its project's info, which
 /// is outside the folder it works in.
 List<String> codexMayWrite(String? file) => file == null
