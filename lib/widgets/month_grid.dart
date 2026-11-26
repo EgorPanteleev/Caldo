@@ -255,8 +255,7 @@ class MonthLayout {
   /// The size of one day's cell.
   Size get cellSize => Size(_cellWidth, rowHeight);
 
-  DateTime dayOfCell(int row, int col) =>
-      addDays(first, row * 7 + col - lead);
+  DateTime dayOfCell(int row, int col) => addDays(first, row * 7 + col - lead);
 
   /// The day under [local], a point in the grid's own box.
   DateTime? dayAt(Offset local) {

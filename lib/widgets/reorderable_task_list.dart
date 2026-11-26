@@ -10,7 +10,6 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart' show dayOf;
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
-import '../theme/tweaks.dart';
 import 'carry.dart';
 import 'desk.dart';
 import 'put_off.dart';
@@ -339,7 +338,7 @@ class _ShrinkingCardState extends State<_ShrinkingCard>
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
     final cardInk = Color.alphaBlend(
-      widget.colour.withValues(alpha: 0.25 * Tweaks.cardInk),
+      widget.colour.withValues(alpha: TaskCard.inkOf(0.25)),
       widget.ground,
     );
     // Clearer than a card's ink or a chip's: the tile is small, lifted, and

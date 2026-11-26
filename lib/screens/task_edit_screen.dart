@@ -506,7 +506,8 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       // synced from another device while the form was open were otherwise
       // written back over — and, stamped later, won on every device.
       final id = existing.id;
-      final current = (id == null ? null : await provider.fresh(id)) ?? existing;
+      final current =
+          (id == null ? null : await provider.fresh(id)) ?? existing;
       T kept<T>(T mine, T was, T now) => mine == was ? now : mine;
       List<T> keptList<T>(List<T> mine, List<T> was, List<T> now) =>
           listEquals(mine, was) ? now : mine;
@@ -538,8 +539,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       final claude = kept(_claude, existing.claude, current.claude);
       // A snooze put off the reminder this task had; a new date or a new
       // lead is a new reminder, and the snooze would only stand in its way.
-      final reminderMoved =
-          dueMoved || _remindBefore != existing.remindBefore;
+      final reminderMoved = dueMoved || _remindBefore != existing.remindBefore;
       // A task moved to another day lets go of its place in the old one, as
       // a card carried there does (`TaskProvider.moveToDay`).
       final dayMoved =

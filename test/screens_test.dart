@@ -11,6 +11,7 @@ import 'package:caldo/screens/settings_screen.dart';
 import 'package:caldo/screens/task_edit_screen.dart';
 import 'package:caldo/services/account.dart';
 import 'package:caldo/theme/app_theme.dart';
+import 'package:caldo/theme/look.dart';
 import 'package:caldo/theme/tweaks.dart';
 import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/day_sheet.dart';
@@ -231,6 +232,38 @@ void main() {
     expect(find.text('Ground'), findsNWidgets(2));
     await tester.scrollUntilVisible(find.text('Reset everything'), 200);
     expect(find.text('Day chips, opened month'), findsOneWidget);
+  });
+
+  testWidgets('surfaces are set on sliders, shown as they move', (
+    tester,
+  ) async {
+    addTearDown(() => Look.current = Look.defaults);
+    await pumpScreen(tester, const SettingsScreen(), size: narrow);
+    await tester.tap(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Surfaces'));
+    await tester.pumpAndSettle();
+    expect(find.text('Water the plants'), findsOneWidget);
+    expect(find.text('17'), findsOneWidget);
+
+    // Dragged to the start, the blur is none while the finger is down and
+    // kept once let go.
+    final blur = find.byType(Slider).first;
+    await tester.drag(blur, const Offset(-600, 0));
+    await tester.pumpAndSettle();
+    expect(Look.current.blur, 0);
+    final settings = Provider.of<SettingsProvider>(
+      tester.element(find.byType(SettingsScreen, skipOffstage: false)),
+      listen: false,
+    );
+    expect(settings.look.blur, 0);
+
+    // On a small phone, so an overflow on any row fails.
+    await tester.scrollUntilVisible(find.text('Back to default'), 200);
+    expect(find.text('Corners'), findsOneWidget);
+    await tester.tap(find.text('Back to default'));
+    await tester.pumpAndSettle();
+    expect(Look.current, Look.defaults);
   });
 
   testWidgets('a screen switched off in settings leaves the tab bar', (

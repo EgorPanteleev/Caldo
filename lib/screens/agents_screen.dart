@@ -25,6 +25,7 @@ import '../services/agents.dart';
 import '../services/push.dart';
 import '../services/attachments.dart';
 import '../theme/app_theme.dart';
+import '../theme/look.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import '../widgets/background_surface.dart';
@@ -3517,9 +3518,13 @@ class _InputRow extends StatelessWidget {
       child: ClipRRect(
         borderRadius: radius,
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          enabled: Look.current.blur > 0,
+          filter: ImageFilter.blur(
+            sigmaX: Look.current.blurOf(12),
+            sigmaY: Look.current.blurOf(12),
+          ),
           child: Material(
-            color: p.field.withValues(alpha: 0.72),
+            color: p.field.withValues(alpha: Look.current.fillOf(0.72)),
             shape: RoundedRectangleBorder(
               borderRadius: radius,
               side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),

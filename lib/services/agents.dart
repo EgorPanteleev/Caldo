@@ -987,10 +987,11 @@ class Agents extends ChangeNotifier {
       _changed(table == 'chats' ? _chatRows : _workerRows, change);
 
   void _fromRows() {
-    workers = [
-      for (final r in _workerRows.values) AgentWorker.fromJson(r),
-    ]..sort((a, b) => a.name.compareTo(b.name));
-    chats = Chat.listOrder([for (final r in _chatRows.values) Chat.fromJson(r)]);
+    workers = [for (final r in _workerRows.values) AgentWorker.fromJson(r)]
+      ..sort((a, b) => a.name.compareTo(b.name));
+    chats = Chat.listOrder([
+      for (final r in _chatRows.values) Chat.fromJson(r),
+    ]);
   }
 
   Timer? _later;
@@ -1039,7 +1040,9 @@ class Agents extends ChangeNotifier {
         ..addAll({for (final r in w) r['id'] as String: r});
       _chatRows
         ..clear()
-        ..addAll({for (final r in [...recent, ...open]) r['id'] as String: r});
+        ..addAll({
+          for (final r in [...recent, ...open]) r['id'] as String: r,
+        });
       _fromRows();
       accounts = readAccounts;
       error = null;

@@ -23,6 +23,7 @@ import 'services/sync.dart';
 import 'services/today_widget.dart';
 import 'services/updates.dart';
 import 'theme/app_theme.dart';
+import 'theme/look.dart';
 import 'theme/tweaks.dart';
 import 'utils/platform.dart';
 import 'widgets/background_surface.dart';
@@ -131,6 +132,7 @@ class CaldoApp extends StatelessWidget {
               ({
                 AppAccent accent,
                 PaletteBackground background,
+                Look look,
                 ThemeMode themeMode,
                 Locale? locale,
                 bool use24Hour,
@@ -139,6 +141,7 @@ class CaldoApp extends StatelessWidget {
               selector: (_, s) => (
                 accent: s.accent,
                 background: s.background,
+                look: s.look,
                 themeMode: s.themeMode,
                 locale: s.locale,
                 use24Hour: s.use24Hour,
