@@ -744,5 +744,18 @@ const Map<String, Object> be = {
       "Для гэтага чата і яго падчатаў: як працаваць і для чаго ён.",
   'contextImport': "Узяць з CLAUDE.md",
   'contextImportNone': "У папках праекта няма CLAUDE.md.",
+  'contextHistory': "Гісторыя",
+  'historyNow': "зараз",
+  'historyByApp': "Вы, у Caldo",
+  'historyByComputer': "Файл на {computer}",
+  'historyByChat': "Чат «{title}»",
+  'historyByAssistant': "Асістэнт па-за Caldo",
+  'historyRestored': "Адноўлена",
+  'historyUnmerged': "не аб'яднана: пакінута з Caldo",
+  'historyRestore': "Аднавіць",
+  'historyRestoredDone': "Версія {n} адноўлена",
+  'historyEmpty': "Пакуль нічога не захавана",
+  'projectFolderShared':
+      "«{name}» таксама працуе ў гэтай папцы: файлам у ёй можа быць інфармацыя толькі аднаго праекта — першага па назве.",
   'contextNothing': "Нічога не напісана",
 };

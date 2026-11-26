@@ -120,10 +120,40 @@ class _Desk implements ChatDesk {
   @override
   Future<List<Map<String, dynamic>>> projects() async => projects_;
 
+  final savedBy = <String>[];
+
   @override
-  Future<void> setProjectInfo(String id, String context) async {
-    projects_.firstWhere((p) => p['id'] == id)['context'] = context;
+  Future<bool> setProjectInfo(
+    String id,
+    String context, {
+    required int version,
+    required String by,
+  }) async {
+    final p = projects_.firstWhere((p) => p['id'] == id);
+    if ((p['version'] ?? 1) != version) return false;
+    p['context'] = context;
+    p['version'] = version + 1;
+    savedBy.add(by);
+    return true;
   }
+}
+
+/// [_Desk] whose project changes between the tool's read and its save.
+class _StaleDesk extends _Desk {
+  final _Desk of;
+
+  _StaleDesk(this.of) {
+    chats_.addAll(of.chats_);
+    projects_.addAll(of.projects_);
+  }
+
+  @override
+  Future<bool> setProjectInfo(
+    String id,
+    String context, {
+    required int version,
+    required String by,
+  }) async => false;
 }
 
 void main() {
@@ -473,6 +503,21 @@ void main() {
         'text': '  A notebook.  ',
       });
       expect(desk.projects_.last['context'], 'A notebook.');
+      expect(desk.savedBy, ['chat:aaaa1111-0000', 'chat:aaaa1111-0000']);
+    });
+
+    test('refuses a change made over one it has not seen', () async {
+      tools = ChatTools(_StaleDesk(desk), self: 'aaaa1111-0000');
+      expect(
+        () => run('update_project_info', {'text': 'Mine.'}),
+        throwsA(
+          isA<Refusal>().having(
+            (r) => r.message,
+            'message',
+            contains('changed meanwhile'),
+          ),
+        ),
+      );
     });
 
     test('refuses what it cannot find', () async {

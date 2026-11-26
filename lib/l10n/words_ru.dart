@@ -740,5 +740,18 @@ const Map<String, Object> ru = {
   'contextOwnHint': "Для этого чата и его подчатов: как работать и зачем он.",
   'contextImport': "Взять из CLAUDE.md",
   'contextImportNone': "В папках проекта нет CLAUDE.md.",
+  'contextHistory': "История",
+  'historyNow': "сейчас",
+  'historyByApp': "Вы, в Caldo",
+  'historyByComputer': "Файл на {computer}",
+  'historyByChat': "Чат «{title}»",
+  'historyByAssistant': "Ассистент вне Caldo",
+  'historyRestored': "Восстановлено",
+  'historyUnmerged': "не объединено: оставлено из Caldo",
+  'historyRestore': "Восстановить",
+  'historyRestoredDone': "Версия {n} восстановлена",
+  'historyEmpty': "Пока ничего не сохранено",
+  'projectFolderShared':
+      "«{name}» тоже работает в этой папке: файлом в ней может быть информация только одного проекта — первого по имени.",
   'contextNothing': "Ничего не написано",
 };

@@ -723,5 +723,18 @@ const Map<String, Object> nl = {
       "Voor deze chat en zijn subchats: hoe te werken, waar hij voor is.",
   'contextImport': "Overnemen uit CLAUDE.md",
   'contextImportNone': "Er staat geen CLAUDE.md in de mappen van het project.",
+  'contextHistory': "Geschiedenis",
+  'historyNow': "nu",
+  'historyByApp': "Jij, in Caldo",
+  'historyByComputer': "Het bestand op {computer}",
+  'historyByChat': "Chat ‘{title}’",
+  'historyByAssistant': "Een assistent buiten Caldo",
+  'historyRestored': "Hersteld",
+  'historyUnmerged': "niet samengevoegd: die van Caldo bleef",
+  'historyRestore': "Herstellen",
+  'historyRestoredDone': "Versie {n} hersteld",
+  'historyEmpty': "Nog niets bewaard",
+  'projectFolderShared':
+      "‘{name}’ werkt ook in deze map: daar kan maar de info van één project het bestand zijn, het eerste op naam.",
   'contextNothing': "Niets geschreven",
 };

@@ -375,6 +375,13 @@ class ChatAsk {
   /// The folders its project works on, as the user wrote them (from `~`).
   final List<String> sources;
 
+  /// Its project's info as a file on this computer ([ProjectSync]), for
+  /// the agent to edit; null for a chat in no project.
+  String? get projectFile => switch (_row?['project']) {
+    {'file': final String file} => file,
+    _ => null,
+  };
+
   /// Its own folder, once its worker has made it; then [dir] is where in
   /// it the program starts. A subchat's is its parent's.
   final Workspace? workspace;
@@ -647,6 +654,7 @@ List<String> launchOf(
       return [
         'codex',
         ...codexQuiet,
+        ...codexMayWrite(ask.projectFile),
         'resume',
         ..._codexPermissions(ask.permission),
         if (ask.model != null) ...['-m', ask.model!],
@@ -673,7 +681,11 @@ List<String> launchOf(
       'prompt': spec.prompt == 'arg' ? first : null,
     });
     if (spec.id == 'codex' && argv.firstOrNull == 'codex') {
-      argv.insertAll(1, [...codexQuiet, ..._codexPermissions(ask.permission)]);
+      argv.insertAll(1, [
+        ...codexQuiet,
+        ...codexMayWrite(ask.projectFile),
+        ..._codexPermissions(ask.permission),
+      ]);
     }
     return argv;
   }
@@ -879,6 +891,8 @@ List<String> claudeChoices(
     if (given != null) '--add-dir=$given',
     // The project's folders outside the one it starts in.
     for (final dir in ask.added) '--add-dir=$dir',
+    // Its project's info, kept outside them, to edit.
+    if (ask.projectFile case final file?) '--add-dir=${File(file).parent.path}',
   ];
 }
 

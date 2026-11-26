@@ -45,8 +45,8 @@ class WorkerState {
   /// been handed on, for a worker started again to read on from.
   final Map<String, int> talks = {};
 
-  /// The folders a project's info was written into ([ProjectFiles]): one
-  /// no project names any more has its files taken away.
+  /// The folders a project's info was written into one way, before
+  /// [ProjectSync] keeps its own list: read once, for their copies to go.
   final Set<String> projectDirs = {};
 
   WorkerState(this.file) {
@@ -266,7 +266,7 @@ class Worker {
         await _adopt();
         unawaited(_guard(_sweep));
         unawaited(_guard(_sweepAsks));
-        unawaited(_guard(_writeProjects));
+        unawaited(_guard(_syncProjects));
         break;
       } catch (e) {
         log('worker: $e; trying again in ${wait}s');
@@ -279,7 +279,7 @@ class Worker {
     Timer.periodic(const Duration(seconds: 30), (_) => _guard(_hello));
     Timer.periodic(_watchEvery, (_) => _watchSoon(Duration.zero));
     // A change heard at once by realtime; this, should one be missed.
-    Timer.periodic(const Duration(minutes: 1), (_) => _guard(_writeProjects));
+    Timer.periodic(const Duration(minutes: 1), (_) => _guard(_syncProjects));
     _watchSoon(const Duration(seconds: 5));
     _tendSoon(const Duration(seconds: 20));
     while (true) {
@@ -498,7 +498,7 @@ class Worker {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'agent_projects',
-          callback: (_) => unawaited(_guard(_writeProjects)),
+          callback: (_) => unawaited(_guard(_syncProjects)),
         )
         .subscribe();
     // A project's files asked to be read or written: answered at once.
@@ -1086,74 +1086,82 @@ class Worker {
   AgentSpec? _specOf(String agent) =>
       book.read().where((a) => a.id == agent).firstOrNull;
 
-  bool _writingProjects = false;
-  bool _writeProjectsAgain = false;
+  /// The projects' files on this computer, two ways ([ProjectSync]).
+  late final projects = ProjectSync(
+    home: home,
+    store: _SupabaseProjects(this),
+    computer: name,
+    log: log,
+    linkedBefore: state.projectDirs,
+  );
 
-  /// Each project's info written into its folders here ([ProjectFiles]),
-  /// for Claude and Codex run there outside Caldo; taken away from a
-  /// folder no project names any more. One pass at a time; one asked for
-  /// meanwhile runs after it.
-  Future<void> _writeProjects() async {
-    if (_writingProjects) {
-      _writeProjectsAgain = true;
+  bool _syncing = false;
+  bool _syncAgain = false;
+
+  /// One pass of [projects], one at a time; one asked for meanwhile runs
+  /// after it. The chats here of a project whose info changed are started
+  /// again with it once their turn is done, wherever it was changed.
+  Future<void> _syncProjects() async {
+    if (_syncing) {
+      _syncAgain = true;
       return;
     }
-    _writingProjects = true;
+    _syncing = true;
     try {
       do {
-        _writeProjectsAgain = false;
-        await _writeProjectsOnce();
-      } while (_writeProjectsAgain);
-    } finally {
-      _writingProjects = false;
-    }
-  }
-
-  Future<void> _writeProjectsOnce() async {
-    final db = await _db;
-    final rows = await db
-        .from('agent_projects')
-        .select('name, context, sources')
-        .order('name');
-    final byDir = <String, List<(String, String)>>{};
-    for (final row in rows) {
-      for (final s in row['sources'] as List? ?? const []) {
-        final source = '$s'.trim();
-        if (source.isEmpty) continue;
-        final dir = _expand(source).replaceAll(RegExp(r'/+$'), '');
-        if (!Directory(dir).existsSync()) continue;
-        (byDir[dir] ??= []).add((
-          '${row['name'] ?? ''}',
-          '${row['context'] ?? ''}',
-        ));
-      }
-    }
-    final dirs = {...byDir.keys, ...state.projectDirs};
-    for (final dir in dirs) {
-      if (!Directory(dir).existsSync()) continue;
-      final kept = await ProjectFiles.write(
-        dir,
-        ProjectFiles.bodyOf(byDir[dir] ?? const []),
-      );
-      for (final path in kept) {
-        if (_keptWarned.add(path)) {
-          log('worker: $path is not Caldo\'s; left as it is');
+        _syncAgain = false;
+        final changed = await projects.run();
+        _watchProjects();
+        for (final chat in {..._talks.keys, ..._live.keys}) {
+          final ask = _talks[chat]?.ask ?? _live[chat]?.ask;
+          if (changed.contains(ask?.row?['project_id'])) {
+            unawaited(_guard(() => _retune(chat)));
+          }
         }
-      }
-    }
-    final now = byDir.keys.toSet();
-    if (now.length != state.projectDirs.length ||
-        !now.containsAll(state.projectDirs)) {
-      state.projectDirs
-        ..clear()
-        ..addAll(now);
-      state.save();
+      } while (_syncAgain);
+    } finally {
+      _syncing = false;
     }
   }
 
-  /// Files of the user's own found where a project's info would go: said
-  /// once a run.
-  final _keptWarned = <String>{};
+  /// Folders watched for a project's file edited, by path.
+  final _projectWatches = <String, StreamSubscription<FileSystemEvent>>{};
+  Timer? _settle;
+
+  /// The projects' folder and each folder linked to them watched: an edit
+  /// is saved to Caldo two seconds after the last write, so an editor's
+  /// several writes are saved once.
+  void _watchProjects() {
+    final want = {
+      projects.dir,
+      for (final folders in projects.folders.values) ...folders,
+    };
+    for (final gone in _projectWatches.keys.toSet().difference(want)) {
+      unawaited(_projectWatches.remove(gone)!.cancel());
+    }
+    for (final folder in want.difference(_projectWatches.keys.toSet())) {
+      if (!Directory(folder).existsSync()) continue;
+      _projectWatches[folder] = Directory(folder).watch().listen((event) {
+        // An editor saves by writing a file aside and moving it over:
+        // where it was moved to is the one that counts.
+        final names = [
+          event.path,
+          if (event is FileSystemMoveEvent) ?event.destination,
+        ].map((p) => p.split('/').last);
+        final ours = names.any(
+          (name) => folder == projects.dir
+              ? name.endsWith('.md')
+              : ProjectSync.names.contains(name),
+        );
+        if (!ours) return;
+        _settle?.cancel();
+        _settle = Timer(
+          const Duration(seconds: 2),
+          () => unawaited(_guard(_syncProjects)),
+        );
+      }, onError: (_) {});
+    }
+  }
 
   String _expand(String dir) => dir == '~'
       ? home
@@ -1679,6 +1687,8 @@ class Worker {
           fields['project'] = {
             ...?(row['project'] as Map?),
             'name': name,
+            // Where it is kept on this computer, for the agent to edit.
+            'file': projects.fileOf(id),
             'context': [
               if (words.isNotEmpty) {'name': name, 'body': words},
             ],
@@ -3446,4 +3456,43 @@ bool _holdsNul(Object? value) => switch (value) {
     }
   }
   return (parts[1], parts[0], answers);
+}
+
+/// [ProjectStore] on the server, signed in as the worker is.
+class _SupabaseProjects implements ProjectStore {
+  final Worker worker;
+
+  _SupabaseProjects(this.worker);
+
+  @override
+  Future<List<Map<String, dynamic>>> projects() async => (await worker._db)
+      .from('agent_projects')
+      .select('id, name, context, version, sources')
+      .order('name');
+
+  @override
+  Future<int?> save(String id, String text, int expect, String by) async {
+    final row = await (await worker._db)
+        .from('agent_projects')
+        .update({'context': text, 'changed_by': by})
+        .eq('id', id)
+        .eq('version', expect)
+        .select('version')
+        .maybeSingle();
+    return (row?['version'] as num?)?.toInt();
+  }
+
+  @override
+  Future<void> keepUnmerged(
+    String id,
+    String text,
+    int version,
+    String by,
+  ) async => (await worker._db).from('agent_project_versions').insert({
+    'project_id': id,
+    'version': version,
+    'context': text,
+    'changed_by': by,
+    'unmerged': true,
+  });
 }

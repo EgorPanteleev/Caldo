@@ -704,5 +704,18 @@ const Map<String, Object> tr = {
       "Bu sohbet ve alt sohbetleri için: nasıl çalışılacağı, ne için olduğu.",
   'contextImport': "CLAUDE.md'den al",
   'contextImportNone': "Projenin klasörlerinde CLAUDE.md yok.",
+  'contextHistory': "Geçmiş",
+  'historyNow': "şimdi",
+  'historyByApp': "Siz, Caldo'da",
+  'historyByComputer': "{computer} üzerindeki dosyası",
+  'historyByChat': "\"{title}\" sohbeti",
+  'historyByAssistant': "Caldo dışında bir asistan",
+  'historyRestored': "Geri yüklendi",
+  'historyUnmerged': "birleştirilmedi: Caldo'daki kaldı",
+  'historyRestore': "Geri yükle",
+  'historyRestoredDone': "{n}. sürüm geri yüklendi",
+  'historyEmpty': "Henüz kaydedilen bir şey yok",
+  'projectFolderShared':
+      "\"{name}\" da bu klasörde çalışıyor: oradaki dosya yalnızca bir projenin bilgisi olabilir, ada göre ilkinin.",
   'contextNothing': "Hiçbir şey yazılmadı",
 };

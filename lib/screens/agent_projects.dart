@@ -256,6 +256,21 @@ class _ProjectScreenState extends State<ProjectScreen> {
     return pick.id;
   }
 
+  /// The other projects naming one of the folders written here.
+  List<String> get _sharing {
+    final mine = {
+      for (final l in _sourceLines) l.replaceAll(RegExp(r'/+$'), ''),
+    };
+    return [
+      for (final other in _agents.projects)
+        if (other.id != widget.project?.id &&
+            other.sources.any(
+              (s) => mine.contains(s.trim().replaceAll(RegExp(r'/+$'), '')),
+            ))
+          _projectName(S.of(context), other),
+    ];
+  }
+
   List<String> get _sourceLines => [
     for (final line in _sources.text.split('\n'))
       if (line.trim().isNotEmpty) line.trim(),
@@ -389,6 +404,16 @@ class _ProjectScreenState extends State<ProjectScreen> {
                       hint: '~/dev/src/Caldo',
                       lines: 4,
                     ),
+                    // A folder has one project's info as its file: the
+                    // first's by name, as the worker links it.
+                    for (final other in _sharing)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          s.projectFolderShared(other),
+                          style: TextStyle(color: p.faint, fontSize: 12.5),
+                        ),
+                      ),
                     if (_offered case final offered
                         when offered.isNotEmpty) ...[
                       const SizedBox(height: 8),

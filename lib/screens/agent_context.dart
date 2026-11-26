@@ -42,6 +42,8 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
   void initState() {
     super.initState();
     _agents.addListener(_changed);
+    // Its file may have been edited on a computer since: read as it is.
+    unawaited(_agents.loadProjects());
   }
 
   @override
@@ -66,13 +68,17 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
     ),
   );
 
-  Future<void> _editProject(AgentProject project, {String? text}) {
+  Future<void> _editProject(AgentProject project, {String? text}) async {
     final s = S.of(context);
-    return _edit(
+    // Begun from the latest words, an agent's edit of a moment ago too.
+    await _agents.loadProjects();
+    if (!mounted) return;
+    final now = _agents.project(project.id) ?? project;
+    await _edit(
       title: s.contextProject,
-      where: s.contextProjectHint(_projectName(s, project)),
-      text: text ?? project.context,
-      save: (text) => _agents.setProjectInfo(project, text),
+      where: s.contextProjectHint(_projectName(s, now)),
+      text: text ?? now.context,
+      save: (text) => _agents.setProjectInfo(now, text),
     );
   }
 
@@ -92,7 +98,7 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
               f.path.startsWith('${f.source}/') &&
               (f.body?.trim().isNotEmpty ?? false) &&
               // Caldo's own copy of the info, not words to take in.
-              !ProjectFiles.written(f.body))
+              !ProjectSync.written(f.body))
             f.body!.trim(),
       ];
       if (!mounted) return;
@@ -173,24 +179,38 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
                         empty: s.contextNothing,
                         onTap: () => _editProject(project),
                       ),
-                      if (online && project.sources.isNotEmpty)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: _importing
-                                ? null
-                                : () => _import(project),
-                            icon: _importing
-                                ? const SizedBox.square(
-                                    dimension: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.download_outlined, size: 18),
-                            label: Text(s.contextImport),
+                      Wrap(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    ProjectHistoryScreen(project: project),
+                              ),
+                            ),
+                            icon: const Icon(Icons.history, size: 18),
+                            label: Text(s.contextHistory),
                           ),
-                        ),
+                          if (online && project.sources.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: _importing
+                                  ? null
+                                  : () => _import(project),
+                              icon: _importing
+                                  ? const SizedBox.square(
+                                      dimension: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.download_outlined,
+                                      size: 18,
+                                    ),
+                              label: Text(s.contextImport),
+                            ),
+                        ],
+                      ),
                     ],
                     _Section(s.contextOwn),
                     hint(s.contextOwnHint),
@@ -207,6 +227,281 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A project's info as it was, its last versions the latest first (asked
+/// 2026-11-26, with its file made two-way: "include history/restore, but
+/// make history a bit smaller" — the server keeps 20): who made each, and
+/// a tap to read one whole and restore it.
+class ProjectHistoryScreen extends StatefulWidget {
+  final AgentProject project;
+
+  /// Given in tests, in place of the server's.
+  final List<ProjectVersion>? versions;
+
+  const ProjectHistoryScreen({
+    super.key,
+    required this.project,
+    @visibleForTesting this.versions,
+  });
+
+  @override
+  State<ProjectHistoryScreen> createState() => _ProjectHistoryScreenState();
+}
+
+class _ProjectHistoryScreenState extends State<ProjectHistoryScreen> {
+  final _agents = Agents.instance;
+  List<ProjectVersion>? _versions;
+  Object? _failed;
+
+  AgentProject get _project =>
+      _agents.project(widget.project.id) ?? widget.project;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_read());
+  }
+
+  Future<void> _read() async {
+    if (widget.versions case final given?) {
+      return setState(() => _versions = given);
+    }
+    try {
+      final versions = await _agents.projectVersions(widget.project.id);
+      if (mounted) setState(() => _versions = versions);
+    } catch (e) {
+      if (mounted) setState(() => _failed = e);
+    }
+  }
+
+  /// The version that is the info now: the latest saved, not an edit kept
+  /// aside.
+  int? get _current => _versions?.where((v) => !v.unmerged).firstOrNull?.id;
+
+  Future<void> _open(ProjectVersion version) async {
+    final restored = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _VersionScreen(
+          project: _project,
+          version: version,
+          current: version.id == _current,
+        ),
+      ),
+    );
+    if (restored != true || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(S.of(context).historyRestoredDone(version.version)),
+      ),
+    );
+    await _read();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = AppTheme.of(context);
+    final versions = _versions;
+    return Scaffold(
+      backgroundColor: p.bg,
+      body: SafeArea(
+        maintainBottomViewPadding: true,
+        child: Column(
+          children: [
+            DeskColumn(
+              child: ScreenHeader(title: s.contextHistory, showBack: true),
+            ),
+            Expanded(
+              child: versions == null
+                  ? Center(
+                      child: _failed != null
+                          ? Text(
+                              '$_failed',
+                              style: TextStyle(color: p.muted, fontSize: 13),
+                            )
+                          : const CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : versions.isEmpty
+                  ? Center(
+                      child: Text(
+                        s.historyEmpty,
+                        style: TextStyle(color: p.faint, fontSize: 13.5),
+                      ),
+                    )
+                  : DeskGutter(
+                      builder: (context, gutter) => ListView(
+                        padding: EdgeInsets.fromLTRB(
+                          20 + gutter,
+                          4,
+                          20 + gutter,
+                          24,
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              _projectName(s, _project),
+                              style: TextStyle(color: p.faint, fontSize: 12.5),
+                            ),
+                          ),
+                          for (final v in versions)
+                            _ContextTile(
+                              title: '${v.version} · ${_versionBy(s, v)}',
+                              icon: v.unmerged
+                                  ? Icons.call_split
+                                  : Icons.history,
+                              trailing: Icons.chevron_right,
+                              body: [
+                                [
+                                  '${Dates.shortDay(v.at)} ${Dates.time(v.at)}',
+                                  if (v.id == _current) s.historyNow,
+                                  if (v.unmerged) s.historyUnmerged,
+                                ].join(' · '),
+                                v.context,
+                              ].join('\n'),
+                              empty: s.contextNothing,
+                              onTap: () => _open(v),
+                            ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Who made [v], as the history names them.
+String _versionBy(S s, ProjectVersion v) {
+  final by = v.by;
+  if (by.startsWith('computer:')) {
+    return s.historyByComputer(by.substring('computer:'.length));
+  }
+  if (by.startsWith('chat:')) {
+    final id = by.substring('chat:'.length);
+    final chat = Agents.instance.chat(id);
+    final name = chat == null
+        ? id.substring(0, id.length < 8 ? id.length : 8)
+        : chat.name.isEmpty
+        ? _lineOf(chat)
+        : chat.name;
+    return s.historyByChat(name);
+  }
+  return switch (by) {
+    'restore' => s.historyRestored,
+    'assistant' => s.historyByAssistant,
+    _ => s.historyByApp,
+  };
+}
+
+/// One version of a project's info, whole, with Restore unless it is the
+/// info now. Pops true once restored.
+class _VersionScreen extends StatefulWidget {
+  final AgentProject project;
+  final ProjectVersion version;
+  final bool current;
+
+  const _VersionScreen({
+    required this.project,
+    required this.version,
+    required this.current,
+  });
+
+  @override
+  State<_VersionScreen> createState() => _VersionScreenState();
+}
+
+class _VersionScreenState extends State<_VersionScreen> {
+  bool _restoring = false;
+
+  Future<void> _restore() async {
+    setState(() => _restoring = true);
+    try {
+      await Agents.instance.restoreProject(widget.project, widget.version);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _restoring = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final p = AppTheme.of(context);
+    final v = widget.version;
+    return Scaffold(
+      backgroundColor: p.bg,
+      body: SafeArea(
+        maintainBottomViewPadding: true,
+        child: Column(
+          children: [
+            DeskColumn(
+              child: ScreenHeader(
+                title: '${s.contextHistory} · ${v.version}',
+                showBack: true,
+              ),
+            ),
+            Expanded(
+              child: DeskGutter(
+                builder: (context, gutter) => Padding(
+                  padding: EdgeInsets.fromLTRB(20 + gutter, 0, 20 + gutter, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        [
+                          _versionBy(s, v),
+                          '${Dates.shortDay(v.at)} ${Dates.time(v.at)}',
+                          if (widget.current) s.historyNow,
+                          if (v.unmerged) s.historyUnmerged,
+                        ].join(' · '),
+                        style: TextStyle(color: p.faint, fontSize: 12.5),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: p.field,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(14),
+                            child: SelectableText(
+                              v.context.isEmpty ? s.contextNothing : v.context,
+                              style: TextStyle(
+                                color: p.text,
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (!widget.current) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 48,
+                          child: FilledButton(
+                            onPressed: _restoring ? null : _restore,
+                            child: Text(s.historyRestore),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
