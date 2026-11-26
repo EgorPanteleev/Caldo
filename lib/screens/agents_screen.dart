@@ -466,9 +466,8 @@ Color _stateColour(AppPalette p, ChatState state) => switch (state) {
 };
 
 /// A chat's state at a glance, [size] across: a dot; a ring while it is
-/// ready and has done nothing yet, a tick once a turn has finished, and
-/// an hourglass once the usage limit stopped one — told by shape, not a
-/// shade of grey.
+/// ready and has done nothing yet, a flag once a turn has finished, and
+/// a pause icon when the account has run out of usage.
 class _StateMark extends StatelessWidget {
   final Chat chat;
   final double size;
@@ -500,8 +499,8 @@ class _StateMark extends StatelessWidget {
                 away
                     ? Icons.cloud_off_rounded
                     : state == ChatState.limited
-                    ? Icons.hourglass_bottom_rounded
-                    : Icons.check_rounded,
+                    ? Icons.pause_circle_outline_rounded
+                    : Icons.flag_rounded,
                 size: size * 1.8,
                 color: colour,
               ),

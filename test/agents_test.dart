@@ -4689,6 +4689,10 @@ void main() {
               body: {'text': CarryOn.words},
             ),
           ]);
+          expect(
+            find.byIcon(Icons.pause_circle_outline_rounded),
+            findsOneWidget,
+          );
           expect(find.text(s.chatAtLimit), findsOneWidget);
           expect(find.text(s.chatCarriedOn), findsOneWidget);
           expect(find.text(CarryOn.words), findsNothing);
@@ -4771,6 +4775,7 @@ void main() {
             chat('c', 'Charlie', ChatState.asking),
             chat('d', 'Delta', ChatState.finished),
             chat('e', 'Echo', ChatState.yourTurn),
+            chat('f', 'Foxtrot', ChatState.limited),
           ];
         addTearDown(() {
           Agents.instance
@@ -4778,20 +4783,32 @@ void main() {
             ..chats = const [];
         });
         await pump(tester, code, const AgentsScreen());
-        for (final word in [s.chatIdle, s.chatRunning, s.chatFinished]) {
+        for (final word in [
+          s.chatIdle,
+          s.chatRunning,
+          s.chatFinished,
+          s.chatLimited,
+        ]) {
           expect(find.textContaining('$word · '), findsOneWidget);
         }
         // A turn ended asking the user something waits for them, as a
         // question asked does.
         expect(find.textContaining('${s.chatAsking} · '), findsNWidgets(2));
-        // A finished one is marked by a tick, not by a dot's shade.
-        final tick = find.byIcon(Icons.check_rounded);
-        expect(tick, findsOneWidget);
-        final card = find.ancestor(of: tick, matching: find.byType(InkWell));
-        expect(
-          tester.getCenter(tick).dy,
-          closeTo(tester.getCenter(card).dy, 0.001),
-        );
+        for (final (title, icon) in [
+          ('Delta', Icons.flag_rounded),
+          ('Foxtrot', Icons.pause_circle_outline_rounded),
+        ]) {
+          final card = find.ancestor(
+            of: find.text(title),
+            matching: find.byType(InkWell),
+          );
+          final mark = find.descendant(of: card, matching: find.byIcon(icon));
+          expect(mark, findsOneWidget);
+          expect(
+            tester.getCenter(mark).dy,
+            closeTo(tester.getCenter(card).dy, 0.001),
+          );
+        }
         // Finished, it still takes a message: its program runs.
         expect(chat('d', 'Delta', ChatState.finished).live, isTrue);
         expect(chat('e', 'Echo', ChatState.yourTurn).live, isTrue);

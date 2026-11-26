@@ -279,7 +279,7 @@ class _TalkViewState extends State<TalkView> {
     _ when CarryOn.stops(item.kind, item.body) => _Note(
       text: S.of(context).chatAtLimit,
       error: false,
-      icon: Icons.hourglass_bottom_rounded,
+      icon: Icons.pause_circle_outline_rounded,
     ),
     _ => _Note(text: item.text, error: item.body['error'] == true),
   };
@@ -1431,7 +1431,7 @@ class _Limit extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.hourglass_bottom_rounded,
+                    Icons.pause_circle_outline_rounded,
                     size: 20,
                     color: p.muted,
                   ),
