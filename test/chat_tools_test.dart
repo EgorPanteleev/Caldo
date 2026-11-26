@@ -17,6 +17,10 @@ class _Desk implements ChatDesk {
   final sent = <Map<String, Object?>>[];
   void Function(Map<String, Object?> row)? onSend;
 
+  /// Run once what was asked for is read, as a worker writing between
+  /// two reads would.
+  void Function()? afterItems;
+
   Map<String, dynamic> chat(String id) =>
       chats_.singleWhere((c) => c['id'] == id);
 
@@ -41,10 +45,12 @@ class _Desk implements ChatDesk {
   }) async {
     final all = items_[chat] ?? const [];
     if (last != null) return all.skip(max(0, all.length - last)).toList();
-    return [
+    final read = [
       for (final i in all)
         if ((i['seq'] as int) > (after ?? -1)) i,
     ];
+    afterItems?.call();
+    return read;
   }
 
   @override
@@ -327,6 +333,28 @@ void main() {
     expect(read, contains('Chat aaaa1111 (you): Do the tests pass?'));
     expect(read, contains('(tool: Bash flutter test)'));
     expect(read, contains('Agent: All 443 pass.'));
+  });
+
+  test('an answer written as the turn ends is not missed', () async {
+    desk.onSend = (row) {
+      final chat = row['chat_id'] as String;
+      desk.say(chat, 'u${row['key']}', 'user', {'text': row['data']});
+      desk.chat(chat)['state'] = 'running';
+      // The turn, seen under way, ends just after the tool has read what
+      // was said so far.
+      var reads = 0;
+      desk.afterItems = () {
+        if (++reads < 3) return;
+        desk.afterItems = null;
+        desk.say(chat, 't1', 'text', {'text': 'Done.'});
+        desk.chat(chat)['state'] = 'idle';
+      };
+    };
+    final said = await run('message_chat', {
+      'chat': 'bbbb',
+      'message': 'Is it done?',
+    });
+    expect(said, '"Tester" [bbbb2222] answered:\n\nDone.');
   });
 
   test('waits for a chat at work to finish before saying anything', () async {
