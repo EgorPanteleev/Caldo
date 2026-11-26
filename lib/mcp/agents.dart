@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'project_files.dart';
 import 'workspace.dart';
 
 /// One kind of agent a worker can run in a terminal: Claude, Codex, a model
@@ -645,6 +646,7 @@ List<String> launchOf(
     if (spec.id == 'codex' && resume != null) {
       return [
         'codex',
+        ...codexQuiet,
         'resume',
         ..._codexPermissions(ask.permission),
         if (ask.model != null) ...['-m', ask.model!],
@@ -671,7 +673,7 @@ List<String> launchOf(
       'prompt': spec.prompt == 'arg' ? first : null,
     });
     if (spec.id == 'codex' && argv.firstOrNull == 'codex') {
-      argv.insertAll(1, _codexPermissions(ask.permission));
+      argv.insertAll(1, [...codexQuiet, ..._codexPermissions(ask.permission)]);
     }
     return argv;
   }

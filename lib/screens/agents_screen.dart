@@ -13,6 +13,7 @@ import 'package:xterm/xterm.dart';
 import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../mcp/agents.dart' show sizeWord;
+import '../mcp/project_files.dart';
 import '../mcp/subscriptions.dart' show Subscription;
 import '../mcp/usage.dart';
 import '../models/task.dart';

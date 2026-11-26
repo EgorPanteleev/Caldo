@@ -22,6 +22,7 @@ import 'tools.dart';
 import 'usage.dart';
 import 'watch.dart';
 import 'worker_usage.dart';
+import 'project_files.dart';
 import 'workspace.dart';
 
 /// Who this worker is, kept beside the session so it is the same worker
@@ -44,6 +45,10 @@ class WorkerState {
   /// been handed on, for a worker started again to read on from.
   final Map<String, int> talks = {};
 
+  /// The folders a project's info was written into ([ProjectFiles]): one
+  /// no project names any more has its files taken away.
+  final Set<String> projectDirs = {};
+
   WorkerState(this.file) {
     try {
       final json = jsonDecode(file.readAsStringSync()) as Map;
@@ -55,6 +60,9 @@ class WorkerState {
       }
       marks.addAll((json['marks'] as Map? ?? const {}).cast<String, int>());
       talks.addAll((json['talks'] as Map? ?? const {}).cast<String, int>());
+      projectDirs.addAll([
+        for (final d in json['project_dirs'] as List? ?? const []) '$d',
+      ]);
     } catch (_) {
       id = _uuid();
     }
@@ -70,6 +78,7 @@ class WorkerState {
           'chats': chats,
           'marks': marks,
           'talks': talks,
+          'project_dirs': projectDirs.toList(),
         }),
       );
     next.renameSync(file.path);
@@ -257,6 +266,7 @@ class Worker {
         await _adopt();
         unawaited(_guard(_sweep));
         unawaited(_guard(_sweepAsks));
+        unawaited(_guard(_writeProjects));
         break;
       } catch (e) {
         log('worker: $e; trying again in ${wait}s');
@@ -268,6 +278,8 @@ class Worker {
     Timer.periodic(const Duration(seconds: 1), (_) => _guard(_check));
     Timer.periodic(const Duration(seconds: 30), (_) => _guard(_hello));
     Timer.periodic(_watchEvery, (_) => _watchSoon(Duration.zero));
+    // A change heard at once by realtime; this, should one be missed.
+    Timer.periodic(const Duration(minutes: 1), (_) => _guard(_writeProjects));
     _watchSoon(const Duration(seconds: 5));
     _tendSoon(const Duration(seconds: 20));
     while (true) {
@@ -477,6 +489,16 @@ class Worker {
           schema: 'public',
           table: 'chat_subscriptions',
           callback: (_) => _watchSoon(const Duration(seconds: 1)),
+        )
+        .subscribe();
+    // A project's info changed: its folders' files written at once.
+    remote.client
+        .channel('caldo-worker-projects')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'agent_projects',
+          callback: (_) => unawaited(_guard(_writeProjects)),
         )
         .subscribe();
     // A project's files asked to be read or written: answered at once.
@@ -1063,6 +1085,75 @@ class Worker {
 
   AgentSpec? _specOf(String agent) =>
       book.read().where((a) => a.id == agent).firstOrNull;
+
+  bool _writingProjects = false;
+  bool _writeProjectsAgain = false;
+
+  /// Each project's info written into its folders here ([ProjectFiles]),
+  /// for Claude and Codex run there outside Caldo; taken away from a
+  /// folder no project names any more. One pass at a time; one asked for
+  /// meanwhile runs after it.
+  Future<void> _writeProjects() async {
+    if (_writingProjects) {
+      _writeProjectsAgain = true;
+      return;
+    }
+    _writingProjects = true;
+    try {
+      do {
+        _writeProjectsAgain = false;
+        await _writeProjectsOnce();
+      } while (_writeProjectsAgain);
+    } finally {
+      _writingProjects = false;
+    }
+  }
+
+  Future<void> _writeProjectsOnce() async {
+    final db = await _db;
+    final rows = await db
+        .from('agent_projects')
+        .select('name, context, sources')
+        .order('name');
+    final byDir = <String, List<(String, String)>>{};
+    for (final row in rows) {
+      for (final s in row['sources'] as List? ?? const []) {
+        final source = '$s'.trim();
+        if (source.isEmpty) continue;
+        final dir = _expand(source).replaceAll(RegExp(r'/+$'), '');
+        if (!Directory(dir).existsSync()) continue;
+        (byDir[dir] ??= []).add((
+          '${row['name'] ?? ''}',
+          '${row['context'] ?? ''}',
+        ));
+      }
+    }
+    final dirs = {...byDir.keys, ...state.projectDirs};
+    for (final dir in dirs) {
+      if (!Directory(dir).existsSync()) continue;
+      final kept = await ProjectFiles.write(
+        dir,
+        ProjectFiles.bodyOf(byDir[dir] ?? const []),
+      );
+      for (final path in kept) {
+        if (_keptWarned.add(path)) {
+          log('worker: $path is not Caldo\'s; left as it is');
+        }
+      }
+    }
+    final now = byDir.keys.toSet();
+    if (now.length != state.projectDirs.length ||
+        !now.containsAll(state.projectDirs)) {
+      state.projectDirs
+        ..clear()
+        ..addAll(now);
+      state.save();
+    }
+  }
+
+  /// Files of the user's own found where a project's info would go: said
+  /// once a run.
+  final _keptWarned = <String>{};
 
   String _expand(String dir) => dir == '~'
       ? home
