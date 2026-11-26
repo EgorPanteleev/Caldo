@@ -208,7 +208,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final dirty = _fields.isNotEmpty;
     return PopScope(
       canPop: !_saving,
-      child: Scaffold(
+      child: AppScaffold(
         backgroundColor: p.bg,
         resizeToAvoidBottomInset: false,
         body: SafeArea(

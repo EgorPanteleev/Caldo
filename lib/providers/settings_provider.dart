@@ -24,6 +24,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kHiddenScreens = 'hidden_screens';
   static const _kThemeMode = 'theme_mode';
   static const _kAccent = 'accent_id';
+  static const _kBackground = 'app_background';
   static const _kWeekStart = 'week_starts_monday';
   static const _kShowCompleted = 'show_completed';
   static const _kHolidayCountry = 'holiday_country';
@@ -59,6 +60,7 @@ class SettingsProvider extends ChangeNotifier {
     _kHiddenScreens,
     _kThemeMode,
     _kAccent,
+    _kBackground,
     _kWeekStart,
     _kShowCompleted,
     _kHolidayCountry,
@@ -87,6 +89,7 @@ class SettingsProvider extends ChangeNotifier {
 
   /// The active accent colour (defaults to violet).
   AppAccent _accent = AppAccent.presets.first;
+  PaletteBackground _background = PaletteBackground.defaults;
 
   /// Whether calendar weeks start on Monday (false = Sunday).
   bool _weekStartsMonday = true;
@@ -214,6 +217,7 @@ class SettingsProvider extends ChangeNotifier {
       : chosen;
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
+  PaletteBackground get background => _background;
   bool get weekStartsMonday => _weekStartsMonday;
   bool get showCompleted => _showCompleted;
   bool get showHolidays => _showHolidays;
@@ -312,6 +316,7 @@ class SettingsProvider extends ChangeNotifier {
     _hiddenScreens = _screensFrom(prefs.getStringList(_kHiddenScreens));
     _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
     _accent = AppAccent.byId(prefs.getString(_kAccent));
+    _background = PaletteBackground.fromStorage(prefs.get(_kBackground));
     _weekStartsMonday = prefs.getBool(_kWeekStart) ?? _weekStartsMonday;
     _showCompleted = prefs.getBool(_kShowCompleted) ?? _showCompleted;
     _showHolidays = prefs.getBool(_kShowHolidays) ?? _showHolidays;
@@ -458,6 +463,7 @@ class SettingsProvider extends ChangeNotifier {
     Set<AppScreen>? hiddenScreens,
     ThemeMode? themeMode,
     AppAccent? accent,
+    PaletteBackground? background,
     bool? weekStartsMonday,
     bool? showCompleted,
     bool? showHolidays,
@@ -497,6 +503,10 @@ class SettingsProvider extends ChangeNotifier {
     if (accent != null) {
       _accent = accent;
       await prefs.setString(_kAccent, accent.id);
+    }
+    if (background != null) {
+      await prefs.setStringList(_kBackground, background.toStorage());
+      _background = background;
     }
     if (weekStartsMonday != null) {
       _weekStartsMonday = weekStartsMonday;

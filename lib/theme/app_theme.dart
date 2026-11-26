@@ -63,6 +63,70 @@ class AppColors {
   ];
 }
 
+enum BackgroundTint {
+  neutral(null),
+  indigo(Color(0xFF5D618B)),
+  teal(Color(0xFF426D66)),
+  plum(Color(0xFF76526D)),
+  amber(Color(0xFF795C40));
+
+  const BackgroundTint(this.color);
+
+  final Color? color;
+
+  Color shade(Color base, Brightness brightness) => Color.lerp(
+    base,
+    color ?? base,
+    brightness == Brightness.dark ? 0.64 : 0.12,
+  )!;
+}
+
+class PaletteBackground {
+  final BackgroundTint tint;
+  final int noise;
+
+  const PaletteBackground({this.tint = BackgroundTint.neutral, this.noise = 30})
+    : assert(noise >= 0 && noise <= 100);
+
+  factory PaletteBackground.fromStorage(Object? value) {
+    if (value case [final String name, final String strength]) {
+      return PaletteBackground(
+        tint: BackgroundTint.values.firstWhere(
+          (tint) => tint.name == name,
+          orElse: () => BackgroundTint.neutral,
+        ),
+        noise: (int.tryParse(strength) ?? defaults.noise).clamp(0, 100),
+      );
+    }
+    return defaults;
+  }
+
+  static const defaults = PaletteBackground();
+
+  List<String> toStorage() => [tint.name, noise.toString()];
+
+  PaletteBackground copyWith({BackgroundTint? tint, int? noise}) =>
+      PaletteBackground(tint: tint ?? this.tint, noise: noise ?? this.noise);
+
+  AppPalette applyTo(AppPalette p, Brightness brightness) {
+    Color shade(Color base) => tint.shade(base, brightness);
+    final tintedDark =
+        brightness == Brightness.dark && tint != BackgroundTint.neutral;
+    return p.copyWith(
+      bg: shade(p.bg),
+      sidebar: shade(p.sidebar),
+      panel: shade(p.panel),
+      panelHi: shade(p.panelHi),
+      field: shade(p.field),
+      border: shade(p.border),
+      muted: tintedDark ? Color.lerp(p.muted, p.text, 0.55) : p.muted,
+      faint: tintedDark ? Color.lerp(p.faint, p.text, 0.38) : p.faint,
+      calendar: shade(p.calendar),
+      background: this,
+    );
+  }
+}
+
 /// Extra semantic colors resolved per-brightness, exposed via [AppTheme.of].
 /// A [ThemeExtension] so the colours lerp smoothly during theme changes.
 class AppPalette extends ThemeExtension<AppPalette> {
@@ -83,6 +147,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   /// The calendar's own ground, set apart from the rest of the app.
   final Color calendar;
+  final PaletteBackground background;
 
   const AppPalette({
     required this.bg,
@@ -95,6 +160,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.muted,
     required this.faint,
     required this.calendar,
+    this.background = PaletteBackground.defaults,
   });
 
   static const dark = AppPalette(
@@ -135,6 +201,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? muted,
     Color? faint,
     Color? calendar,
+    PaletteBackground? background,
   }) => AppPalette(
     bg: bg ?? this.bg,
     sidebar: sidebar ?? this.sidebar,
@@ -146,6 +213,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     muted: muted ?? this.muted,
     faint: faint ?? this.faint,
     calendar: calendar ?? this.calendar,
+    background: background ?? this.background,
   );
 
   @override
@@ -162,6 +230,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
       muted: Color.lerp(muted, other.muted, t)!,
       faint: Color.lerp(faint, other.faint, t)!,
       calendar: Color.lerp(calendar, other.calendar, t)!,
+      background: t < 0.5 ? background : other.background,
     );
   }
 }
@@ -289,16 +358,36 @@ class AppTheme {
       Theme.of(context).extension<AccentColors>() ??
       AccentColors.from(AppAccent.presets.first);
 
-  static ThemeData dark(AppAccent accent) => _build(
+  static ThemeData dark(
+    AppAccent accent, {
+    PaletteBackground background = PaletteBackground.defaults,
+  }) => _build(
     Brightness.dark,
-    Tweaks.instance.applyTo(AppPalette.dark, 'dark'),
+    paletteFor(Brightness.dark, background),
     Tweaks.instance.applyToAccent(accent),
   );
-  static ThemeData light(AppAccent accent) => _build(
+
+  static ThemeData light(
+    AppAccent accent, {
+    PaletteBackground background = PaletteBackground.defaults,
+  }) => _build(
     Brightness.light,
-    Tweaks.instance.applyTo(AppPalette.light, 'light'),
+    paletteFor(Brightness.light, background),
     Tweaks.instance.applyToAccent(accent),
   );
+
+  static AppPalette paletteFor(
+    Brightness brightness,
+    PaletteBackground background,
+  ) {
+    final base = brightness == Brightness.dark
+        ? AppPalette.dark
+        : AppPalette.light;
+    return Tweaks.instance.applyTo(
+      background.applyTo(base, brightness),
+      brightness.name,
+    );
+  }
 
   static ThemeData _build(
     Brightness brightness,

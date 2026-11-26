@@ -476,7 +476,7 @@ class _NewAccountScreenState extends State<NewAccountScreen> {
     _worker = w?.id;
     final kinds = _kindsOf(w);
     if (!kinds.any((k) => k.id == _agent)) _agent = kinds.firstOrNull?.id;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,

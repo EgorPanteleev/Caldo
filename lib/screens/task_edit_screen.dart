@@ -19,6 +19,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import '../widgets/attachments_field.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
@@ -631,13 +632,14 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         ? _selectedListId
         : (lists.isNotEmpty ? provider.defaultGroup : null);
 
-    final form = Scaffold(
+    final form = AppScaffold(
       // The keyboard arrives over the form rather than resizing it, and the
       // foot is attached to it (`KeyboardLift`) the way the quick-add bar
       // is. Resized, the pair did what that bar used to: rode the layout's
       // idea of the inset rather than the keys themselves.
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         // Once something has been changed there is no way out but the two
         // words at the foot: an arrow beside unsaved edits is an invitation
         // to lose them.

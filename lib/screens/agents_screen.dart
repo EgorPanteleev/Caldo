@@ -27,6 +27,7 @@ import '../services/attachments.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/chat_usage.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/colour_selector.dart';
@@ -432,7 +433,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
         // must still see something picked, or it goes to the start screen.
         if (!didPop) scheduleMicrotask(() => mounted ? _drop() : null);
       },
-      child: Scaffold(
+      child: AppScaffold(
         body: GlassTop(
           fade: 0,
           head: DeskColumn(child: head),
@@ -1506,7 +1507,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final p = AppTheme.of(context);
     final w = _w;
     final kind = _kind;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -2746,7 +2747,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           )
         : null;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       resizeToAvoidBottomInset: false,
       body: SafeArea(
@@ -2940,6 +2941,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _terminal,
         controller: _controller,
         theme: _theme(p),
+        backgroundOpacity: 0,
         // An ended chat's text is made small enough for the width it was
         // written at to fit; the view's size is only told to a live one.
         textStyle: _TermFont.style(

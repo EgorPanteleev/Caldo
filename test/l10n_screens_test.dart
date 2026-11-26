@@ -86,10 +86,18 @@ void main() {
         ),
         findsOneWidget,
       );
-      await pump(const SettingsScreen());
-      expect(find.text(S.forCode(code).settings), findsOneWidget);
       await pump(TaskEditScreen(task: ship));
       expect(find.text(S.forCode(code).editTask), findsOneWidget);
+      await pump(const SettingsScreen());
+      expect(find.text(S.forCode(code).settings), findsOneWidget);
+      final s = S.forCode(code);
+      await tester.tap(find.text(s.pageAppearance));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(s.background));
+      await tester.pumpAndSettle();
+      expect(find.text(s.backgroundIndigo), findsOneWidget);
+      await tester.tap(find.text(s.cancel));
+      await tester.pumpAndSettle();
     });
   }
 }

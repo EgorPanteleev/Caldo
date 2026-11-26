@@ -20,6 +20,7 @@ import '../theme/app_theme.dart';
 import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
@@ -35,8 +36,7 @@ import 'home_screen.dart' show screenItems;
 
 part 'settings_debug.dart';
 
-/// Appearance, calendar and task preferences. Everything here applies
-/// immediately — there is nothing to save.
+/// Appearance, calendar and task preferences.
 ///
 /// The screen itself is a short list of the kinds of thing that can be set,
 /// each saying under its name how it stands, and each opens a page of its
@@ -241,11 +241,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-    if (!wide) return Scaffold(body: list);
+    if (!wide) return AppScaffold(body: list);
 
     // The page beside the list may have gone with the admin's rights.
     final page = entries[_page < entries.length ? _page : 0];
-    return Scaffold(
+    return AppScaffold(
       body: Row(
         children: [
           SizedBox(width: _listWidth, child: list),
@@ -296,7 +296,7 @@ class _Page extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    return Scaffold(
+    return AppScaffold(
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
@@ -478,9 +478,129 @@ List<Widget> _appearance(
         selected: settings.accent,
         onChanged: (accent) => settings.update(accent: accent),
       ),
+      _Row(
+        icon: Icons.texture_rounded,
+        title: s.background,
+        value: _tintName(s, settings.background.tint),
+        onTap: () async {
+          final background = await showAppSheet<PaletteBackground>(
+            context,
+            child: _BackgroundEditor(initial: settings.background),
+          );
+          if (background != null && context.mounted) {
+            await settings.update(background: background);
+          }
+        },
+      ),
     ],
   ),
 ];
+
+String _tintName(S s, BackgroundTint tint) => switch (tint) {
+  BackgroundTint.neutral => s.backgroundNeutral,
+  BackgroundTint.indigo => s.backgroundIndigo,
+  BackgroundTint.teal => s.backgroundTeal,
+  BackgroundTint.plum => s.backgroundPlum,
+  BackgroundTint.amber => s.backgroundAmber,
+};
+
+class _BackgroundEditor extends StatefulWidget {
+  final PaletteBackground initial;
+
+  const _BackgroundEditor({required this.initial});
+
+  @override
+  State<_BackgroundEditor> createState() => _BackgroundEditorState();
+}
+
+class _BackgroundEditorState extends State<_BackgroundEditor> {
+  late PaletteBackground _draft = widget.initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final theme = Theme.of(context);
+    final palette = AppTheme.of(context);
+    final preview = AppTheme.paletteFor(theme.brightness, _draft);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(s.background, style: theme.textTheme.titleLarge),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: SizedBox(
+              height: 108,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: BackgroundSurface(
+                      color: preview.bg,
+                      appearance: _draft,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                  Expanded(
+                    child: BackgroundSurface(
+                      color: preview.panel,
+                      appearance: _draft,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final tint in BackgroundTint.values)
+                ChoiceChip(
+                  label: Text(_tintName(s, tint)),
+                  selectedColor: palette.field,
+                  selected: tint == _draft.tint,
+                  onSelected: (_) => setState(() {
+                    _draft = _draft.copyWith(tint: tint);
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text('${s.backgroundGrain} · ${_draft.noise}%'),
+          Semantics(
+            label: s.backgroundGrain,
+            child: Slider(
+              value: _draft.noise.toDouble(),
+              max: 100,
+              divisions: 100,
+              label: '${_draft.noise}%',
+              onChanged: (value) => setState(() {
+                _draft = _draft.copyWith(noise: value.round());
+              }),
+            ),
+          ),
+          Wrap(
+            alignment: WrapAlignment.center,
+            children: [
+              SheetAction(label: s.cancel, onTap: () => Navigator.pop(context)),
+              SheetAction(
+                label: s.save,
+                onTap: () => Navigator.pop(context, _draft),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// The week, the holidays and the phone's own calendars, a panel each.
 List<Widget> _calendar(BuildContext context, SettingsProvider settings, S s) {
@@ -1179,15 +1299,18 @@ class _Group extends StatelessWidget {
             ),
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: Material(
+            child: BackgroundSurface(
               color: p.panel,
-              child: Column(
-                children: [
-                  for (var i = 0; i < children.length; i++) ...[
-                    if (i > 0) const _Hairline(),
-                    children[i],
+              child: Material(
+                type: MaterialType.transparency,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < children.length; i++) ...[
+                      if (i > 0) const _Hairline(),
+                      children[i],
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -1379,12 +1502,14 @@ class _AccentPicker extends StatelessWidget {
                 child: Icon(Icons.palette_outlined, size: 21, color: p.muted),
               ),
               const SizedBox(width: 16),
-              Text(
-                title,
-                style: TextStyle(
-                  color: p.text,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: p.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],

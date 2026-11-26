@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/strings.dart';
 import '../theme/app_theme.dart';
+import 'background_surface.dart';
 import 'quick_add_bar.dart' show KeyboardLift;
 
 /// The two actions pinned above the keyboard on an edited form.
@@ -32,7 +33,7 @@ class FormActions extends StatelessWidget {
       ],
     );
     return KeyboardLift(
-      child: ColoredBox(
+      child: BackgroundSurface(
         color: AppTheme.of(context).bg,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),

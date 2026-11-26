@@ -16,6 +16,7 @@ import '../services/device_calendars.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/carry.dart';
 import '../widgets/day_sheet.dart';
 import '../widgets/desk.dart';
@@ -902,7 +903,7 @@ class _CalendarScreenState extends State<CalendarScreen>
     final country = settings.effectiveHolidayCountry;
     return SelectionScope(
       child: UndoScope(
-        child: Scaffold(
+        child: AppScaffold(
           resizeToAvoidBottomInset: false,
           body: CarryArea<DateTime>(
             carry: _carry,
@@ -929,7 +930,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                     return Row(
                       children: [
                         Expanded(
-                          child: ColoredBox(
+                          child: BackgroundSurface(
                             color: p.calendar,
                             child: Column(
                               children: [
@@ -1005,36 +1006,38 @@ class _CalendarScreenState extends State<CalendarScreen>
                             color: p.panel,
                             border: Border(left: BorderSide(color: p.border)),
                           ),
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: Column(
-                              children: [
-                                Expanded(
-                                  child: Stack(
-                                    children: [
-                                      _dayPanel(
-                                        _selected,
-                                        provider,
-                                        settings,
-                                        events,
-                                        moves: false,
-                                      ),
-                                      Positioned(
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        child: GroundFade(ground: p.panel),
-                                      ),
-                                    ],
+                          child: BackgroundSurface(
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: Stack(
+                                      children: [
+                                        _dayPanel(
+                                          _selected,
+                                          provider,
+                                          settings,
+                                          events,
+                                          moves: false,
+                                        ),
+                                        Positioned(
+                                          left: 0,
+                                          right: 0,
+                                          bottom: 0,
+                                          child: GroundFade(ground: p.panel),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                QuickAddBar(
-                                  date: _selected,
-                                  controller: _quickAdd,
-                                  onSubmit: _addQuickTask,
-                                  onFullForm: () => _openEditor(),
-                                ),
-                              ],
+                                  QuickAddBar(
+                                    date: _selected,
+                                    controller: _quickAdd,
+                                    onSubmit: _addQuickTask,
+                                    onFullForm: () => _openEditor(),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -1103,7 +1106,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
     return SelectionScope(
       child: UndoScope(
-        child: Scaffold(
+        child: AppScaffold(
           // The month keeps the height it had when the keyboard arrives; the add
           // field lifts over it instead of the body being shortened underneath.
           resizeToAvoidBottomInset: false,
@@ -1115,7 +1118,7 @@ class _CalendarScreenState extends State<CalendarScreen>
             bottom: false,
             child: Column(
               children: [
-                Container(
+                BackgroundSurface(
                   color: p.calendar,
                   child: Column(
                     children: [
@@ -1230,7 +1233,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                                 offstage: !shown,
                                                 child: pager,
                                               ),
-                                          child: ColoredBox(
+                                          child: BackgroundSurface(
                                             color: p.calendar,
                                             child: PageView.builder(
                                               controller: _weekController,
@@ -1310,7 +1313,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                         // ground; the day below sits on a grey of its own,
                                         // so the month and the day it is showing read as
                                         // two surfaces rather than one dark field.
-                                        ColoredBox(
+                                        BackgroundSurface(
                                           color: p.calendar,
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
@@ -1356,7 +1359,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                         // black over the day, were both
                                         // asked off.
                                         if (t > 0)
-                                          ColoredBox(
+                                          BackgroundSurface(
                                             color: p.calendar,
                                             child: SizedBox(
                                               height: foot * math.min(1.0, t),
@@ -1371,7 +1374,7 @@ class _CalendarScreenState extends State<CalendarScreen>
                                           height:
                                               panelVisible +
                                               foot * (1 - t.clamp(0.0, 1.0)),
-                                          child: ColoredBox(
+                                          child: BackgroundSurface(
                                             color: p.panel,
                                             child: ClipRect(
                                               child: OverflowBox(
@@ -1443,9 +1446,9 @@ class _CalendarScreenState extends State<CalendarScreen>
                         _expansion,
                         KeyboardGap.instance.covered,
                       ]),
-                      builder: (context, child) => ColoredBox(
+                      builder: (context, child) => BackgroundSurface(
                         color: _groundUnderField(p, KeyboardGap.of(context)),
-                        child: child,
+                        child: child!,
                       ),
                       child: field,
                     ),
@@ -1914,8 +1917,7 @@ class _DayBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    return Container(
-      color: p.panel,
+    return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

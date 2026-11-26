@@ -7,6 +7,7 @@ import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/desk.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/task_card.dart';
@@ -48,7 +49,9 @@ Future<void> openSearch(BuildContext context) {
               clipBehavior: Clip.antiAlias,
               elevation: 12,
               shadowColor: Colors.black,
-              child: const SearchScreen(inDialog: true),
+              child: BackgroundSurface(
+                child: const SearchScreen(inDialog: true),
+              ),
             ),
           ),
         ),
@@ -224,7 +227,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ],
       );
     }
-    return Scaffold(
+    return AppScaffold(
       body: SafeArea(
         child: Column(
           children: [

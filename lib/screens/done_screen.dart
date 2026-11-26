@@ -10,6 +10,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom;
@@ -110,7 +111,7 @@ class _DoneScreenState extends State<DoneScreen> {
       const SizedBox(height: 24),
     ];
 
-    return Scaffold(
+    return AppScaffold(
       body: GlassTop(
         head: DeskColumn(
           child: ScreenHeader(title: S.of(context).done, view: AppScreen.done),

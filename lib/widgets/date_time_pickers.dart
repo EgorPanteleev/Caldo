@@ -9,6 +9,7 @@ import '../providers/task_provider.dart' show addDays, dayOf;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
+import 'background_surface.dart';
 import 'desk.dart';
 import 'month_grid.dart';
 
@@ -100,9 +101,11 @@ class _SheetDialog extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             elevation: 12,
             shadowColor: Colors.black,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(top: 10),
-              child: child,
+            child: BackgroundSurface(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(top: 10),
+                child: child,
+              ),
             ),
           ),
         ),
@@ -126,26 +129,29 @@ class PickerSheet extends StatelessWidget {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         border: Border(top: BorderSide(color: p.border)),
       ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 10, bottom: 4),
-              child: Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: p.border,
-                  borderRadius: BorderRadius.circular(2),
+      child: BackgroundSurface(
+        radius: const BorderRadius.vertical(top: Radius.circular(19)),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 4),
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: p.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            // Scrollable, so a small screen or a large font scale can never
-            // overflow the sheet — it just scrolls.
-            Flexible(child: SingleChildScrollView(child: child)),
-          ],
+              // Scrollable, so a small screen or a large font scale can never
+              // overflow the sheet — it just scrolls.
+              Flexible(child: SingleChildScrollView(child: child)),
+            ],
+          ),
         ),
       ),
     );

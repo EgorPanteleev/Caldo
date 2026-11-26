@@ -636,6 +636,13 @@ class S {
   String get themeDark => _word('themeDark');
   String get themeLight => _word('themeLight');
   String get themeSystem => _word('themeSystem');
+  String get background => _word('background');
+  String get backgroundGrain => _word('backgroundGrain');
+  String get backgroundNeutral => _word('backgroundNeutral');
+  String get backgroundIndigo => _word('backgroundIndigo');
+  String get backgroundTeal => _word('backgroundTeal');
+  String get backgroundPlum => _word('backgroundPlum');
+  String get backgroundAmber => _word('backgroundAmber');
   String get accent => _word('accent');
   String get weekStartsMonday => _word('weekStartsMonday');
   String get weeksMonSun => _word('weeksMonSun');

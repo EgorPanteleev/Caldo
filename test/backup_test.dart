@@ -5,6 +5,7 @@ import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/services/backup.dart';
+import 'package:caldo/theme/app_theme.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -95,6 +96,36 @@ void main() {
     expect(provider.hiddenScreens, {AppScreen.board});
     expect(provider.themeMode, ThemeMode.dark);
     expect(provider.hiddenCalendars, {'3'});
+  });
+
+  test('background tint and grain survive reopening and backup', () async {
+    final settings = SettingsProvider();
+    await settings.load();
+    expect(settings.background.tint, BackgroundTint.neutral);
+    expect(settings.background.noise, greaterThan(0));
+
+    await settings.update(
+      background: const PaletteBackground(
+        tint: BackgroundTint.indigo,
+        noise: 0,
+      ),
+    );
+    await (await SharedPreferences.getInstance()).reload();
+    final reopened = SettingsProvider();
+    await reopened.load();
+    expect(reopened.background.tint, BackgroundTint.indigo);
+    expect(reopened.background.noise, 0);
+
+    final backup = Backup.decode((await Backup.take()).encode());
+    SharedPreferences.setMockInitialValues({});
+    final restored = SettingsProvider();
+    await backup.restore(restored, TaskProvider());
+    expect(restored.background.tint, BackgroundTint.indigo);
+    expect(restored.background.noise, 0);
+
+    await restored.restore({});
+    expect(restored.background.tint, BackgroundTint.neutral);
+    expect(restored.background.noise, PaletteBackground.defaults.noise);
   });
 
   test(
