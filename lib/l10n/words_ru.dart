@@ -658,6 +658,7 @@ const Map<String, Object> ru = {
   'usageDays': "Лимит на {n} дн.",
   'usageHoursLimit': "Лимит на {n} ч",
   'usageWeekShort': "Неделя",
+  'agentWorkers': "Компьютеры",
   'agentAccounts': "Аккаунты",
   'addAccount': "Добавить аккаунт",
   'accountsNone': "Аккаунтов пока нет",

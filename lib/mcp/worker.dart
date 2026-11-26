@@ -21,6 +21,7 @@ import 'terminal.dart';
 import 'tools.dart';
 import 'usage.dart';
 import 'watch.dart';
+import 'worker_usage.dart';
 import 'workspace.dart';
 
 /// Who this worker is, kept beside the session so it is the same worker
@@ -294,13 +295,16 @@ class Worker {
   }
 
   final _modelCatalog = ModelCatalog();
+  final _usage = WorkerUsage();
 
   /// Says this worker is here, and what it can run.
   Future<void> _hello() async {
     final db = await _db;
     final agents = book.read();
     await _modelCatalog.refresh(agents);
-    await db.from('workers').upsert({
+    final usage = await _usage.read();
+    final seenAt = DateTime.now().toUtc().toIso8601String();
+    final fields = <String, Object?>{
       'id': state.id,
       'name': name,
       'home': home,
@@ -312,8 +316,18 @@ class Worker {
           ),
       ],
       'dirs': book.dirs(),
-      'seen_at': DateTime.now().toUtc().toIso8601String(),
-    });
+      'seen_at': seenAt,
+    };
+    try {
+      await db.from('workers').upsert({
+        ...fields,
+        'resources': usage.isEmpty ? null : {...usage, 'sampled_at': seenAt},
+      });
+    } on PostgrestException catch (e) {
+      // A worker can still register while its server awaits the migration.
+      if (e.code != 'PGRST204' || !e.message.contains('resources')) rethrow;
+      await db.from('workers').upsert(fields);
+    }
   }
 
   /// Takes up the chats still running in tmux from before this worker

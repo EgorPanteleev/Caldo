@@ -620,6 +620,7 @@ const Map<String, Object> en = {
   'usageDays': "{n}-day limit",
   'usageHoursLimit': "{n}-hour limit",
   'usageWeekShort': "Week",
+  'agentWorkers': "Workers",
   'agentAccounts': "Accounts",
   'addAccount': "Add account",
   'accountsNone': "No accounts yet",

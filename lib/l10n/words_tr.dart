@@ -624,6 +624,7 @@ const Map<String, Object> tr = {
   'usageDays': "{n} günlük sınır",
   'usageHoursLimit': "{n} saatlik sınır",
   'usageWeekShort': "Hafta",
+  'agentWorkers': "Bilgisayarlar",
   'agentAccounts': "Hesaplar",
   'addAccount': "Hesap ekle",
   'accountsNone': "Henüz hesap yok",

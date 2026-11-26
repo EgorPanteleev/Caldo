@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(49);
+select plan(50);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -17,6 +17,12 @@ select lives_ok(
   $$insert into public.workers (id, name) values
     ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'desk')$$,
   'a worker says it is there');
+update public.workers
+  set resources = jsonb_build_object('cpu_percent', 25, 'sampled_at', seen_at)
+  where name = 'desk';
+select is(
+  (select resources->>'cpu_percent' from public.workers where name = 'desk'),
+  '25', 'the worker can publish a reading to its own row');
 select lives_ok(
   $$insert into public.chats (id, worker_id, agent) values
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
