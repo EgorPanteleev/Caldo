@@ -327,11 +327,35 @@ class Reminders {
   /// the plugin rewrites its whole store of alarms for each one it sets, all
   /// on the platform's main thread — which is where frames come from, so the
   /// card sliding into place after a tick stuttered through it.
-  Future<void> sync(List<Task> tasks, {List<SpecialDay>? days}) async {
-    if (!_ready) return;
+  ///
+  /// One pass at a time, on the latest lists: every read of the agenda ends
+  /// here, and two passes interleaved across the platform calls could each
+  /// cancel what the other had just set — an alarm gone until the next
+  /// read. Asked again while one runs, it runs once more after it, on what
+  /// it was last handed.
+  Future<void> sync(List<Task> tasks, {List<SpecialDay>? days}) {
+    if (!_ready) return Future.value();
     _last = tasks;
     _lastDays = days ?? _lastDays;
     _synced = true;
+    if (_syncing case final running?) {
+      _syncAgain = true;
+      return running;
+    }
+    return _syncing = _syncRounds().whenComplete(() => _syncing = null);
+  }
+
+  Future<void>? _syncing;
+  bool _syncAgain = false;
+
+  Future<void> _syncRounds() async {
+    do {
+      _syncAgain = false;
+      await _syncOnce(_last, _lastDays);
+    } while (_syncAgain);
+  }
+
+  Future<void> _syncOnce(List<Task> tasks, List<SpecialDay> days) async {
     try {
       final wanted = <int, (DateTime, Task, String)>{};
       final special = <int, (DateTime, SpecialDay, String)>{};
@@ -354,7 +378,7 @@ class Reminders {
           );
         }
         final today = dayOf(now);
-        for (final day in _lastDays) {
+        for (final day in days) {
           if (!day.remind || day.id == null) continue;
           final on = day.nextFrom(today);
           final at = DateTime(on.year, on.month, on.day, 0, _allDayMinutes);

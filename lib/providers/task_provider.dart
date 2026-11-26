@@ -12,6 +12,7 @@ import '../services/reminders.dart';
 import '../services/sync.dart';
 import '../services/today_widget.dart';
 import '../utils/days.dart';
+import 'settings_provider.dart';
 
 export '../utils/days.dart';
 
@@ -421,12 +422,37 @@ class TaskProvider extends ChangeNotifier {
     await Reminders.instance.sync([
       ..._allOverdue,
       ..._allUpcoming,
+      // Only read when there are alarms to set from it.
+      if (Reminders.instance.ready) ...await remindedAhead(),
     ], days: _specialDays);
     await TodayWidget.publish(this);
     // The same reasoning brings the account in: whatever changed here, a
     // round goes up shortly after.
     Sync.instance.soon();
   }
+
+  /// The tasks past the agenda's last day that may still be announced
+  /// within it: one due in five weeks, asked to be reminded two weeks
+  /// before, had no alarm until the app was next opened after its reminder
+  /// came within the agenda — too late, if it was not opened in time.
+  @visibleForTesting
+  Future<List<Task>> remindedAhead() async {
+    final today = _readOn ?? dayOf(DateTime.now());
+    final from = addDays(today, agendaDays);
+    final to = addDays(today, agendaDays + _longestLead + 1);
+    final tasks = await _db.getTasksInRange(
+      from.millisecondsSinceEpoch,
+      to.millisecondsSinceEpoch,
+    );
+    return [
+      for (final task in tasks)
+        if (!task.done && (task.remindBefore ?? 0) > 0) task,
+    ];
+  }
+
+  /// The furthest ahead a task can ask to be reminded, in days.
+  static final _longestLead =
+      SettingsProvider.dayLeads.last ~/ Duration.minutesPerDay;
 
   /// The dated tasks grouped into days, ordered soonest first.
   Map<DateTime, List<Task>> get upcomingByDay => _upcomingByDay;
