@@ -513,9 +513,12 @@ class ChatTools {
     var begun = false;
     var quiet = 0;
     while (true) {
-      final after = await desk.items(id, after: from);
+      // The state first, then what was said: a turn ending between the two
+      // reads, read the other way round, was a chat found idle with its
+      // answer not yet among the items — "said nothing back".
       chat = await _chat(id);
       final state = '${chat['state']}';
+      final after = await desk.items(id, after: from);
       if (after.isNotEmpty || _busy.contains(state)) begun = true;
       // Idle with nothing said a while: it took it up and said nothing.
       if (!_busy.contains(state)) quiet++;
