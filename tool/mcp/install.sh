@@ -26,6 +26,26 @@ chmod +x "$bin/caldo-mcp"
 install -m 755 "$here/tool/mcp/room.sh" "$bin/caldo-room"
 
 echo "Installed $bin/caldo-mcp."
-echo "Next: caldo-mcp login, then register with your client:"
-echo "  claude mcp add --scope user caldo -- $bin/caldo-mcp"
-echo "  codex mcp add caldo -- $bin/caldo-mcp"
+
+# Registered with Claude and Codex, so either run anywhere has Caldo's
+# tools — update_project_info among them — and Caldo's chats know which
+# chat they are (CALDO_CHAT). Left as it is where one is there already.
+if command -v claude >/dev/null && ! claude mcp get caldo >/dev/null 2>&1; then
+  claude mcp add --scope user caldo -- "$bin/caldo-mcp" >/dev/null &&
+    echo "Registered with Claude."
+fi
+if command -v codex >/dev/null && ! codex mcp get caldo >/dev/null 2>&1; then
+  # Written by hand: `codex mcp add` can't name the variables Codex passes
+  # on (env_vars), nor let message_chat wait past its 60s.
+  config="${CODEX_HOME:-$HOME/.codex}/config.toml"
+  mkdir -p "$(dirname "$config")"
+  {
+    [ -s "$config" ] && echo
+    echo '[mcp_servers.caldo]'
+    echo "command = \"$bin/caldo-mcp\""
+    echo 'env_vars = ["CALDO_CHAT"]'
+    echo 'tool_timeout_sec = 7260'
+  } >> "$config"
+  echo "Registered with Codex."
+fi
+echo "Next, if not signed in yet: caldo-mcp login"

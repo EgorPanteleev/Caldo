@@ -653,8 +653,7 @@ List<String> launchOf(
     if (spec.id == 'codex' && resume != null) {
       return [
         'codex',
-        ...codexQuiet,
-        ...codexMayWrite(ask.projectFile),
+        ...codexInCaldo(ask.projectFile),
         'resume',
         ..._codexPermissions(ask.permission),
         if (ask.model != null) ...['-m', ask.model!],
@@ -682,8 +681,7 @@ List<String> launchOf(
     });
     if (spec.id == 'codex' && argv.firstOrNull == 'codex') {
       argv.insertAll(1, [
-        ...codexQuiet,
-        ...codexMayWrite(ask.projectFile),
+        ...codexInCaldo(ask.projectFile),
         ..._codexPermissions(ask.permission),
       ]);
     }

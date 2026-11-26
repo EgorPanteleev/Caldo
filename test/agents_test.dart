@@ -1724,7 +1724,7 @@ void main() {
         launchOf(codex, const ChatAsk(id: 'x', agent: 'codex', prompt: 'Go')),
         [
           'codex',
-          ...codexQuiet,
+          ...codexInCaldo(null),
           '-c',
           'approval_policy="on-request"',
           '--sandbox',
@@ -2125,6 +2125,23 @@ void main() {
         await again.run();
         expect(store.saved.single.$1, 'Edited while it was down.');
       });
+    });
+
+    test("Caldo's Codex has Caldo's tools, knowing its chat", () {
+      final args = codexCaldo();
+      if (caldoMcp == null) {
+        expect(args, isEmpty);
+        return;
+      }
+      expect(args, [
+        '-c',
+        'mcp_servers.caldo.command="$caldoMcp"',
+        '-c',
+        'mcp_servers.caldo.env_vars=["CALDO_CHAT"]',
+        '-c',
+        'mcp_servers.caldo.tool_timeout_sec=7260',
+      ]);
+      expect(codexInCaldo(null), containsAllInOrder([...codexQuiet, ...args]));
     });
 
     test("Caldo's Codex reads no project files", () {

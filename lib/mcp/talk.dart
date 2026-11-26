@@ -1008,8 +1008,7 @@ class CodexTalk extends Talk {
   }) async {
     await _run(files, [
       'codex',
-      ...codexQuiet,
-      ...codexMayWrite(ask.projectFile),
+      ...codexInCaldo(ask.projectFile),
       'app-server',
     ]);
     await _call('initialize', {
