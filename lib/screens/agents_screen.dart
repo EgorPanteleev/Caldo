@@ -735,12 +735,12 @@ class _ChatRow extends StatelessWidget {
                 right: 8,
                 top: 14,
                 bottom: 14,
-                width: 4,
+                width: 7,
                 child: DecoratedBox(
                   key: const ValueKey('projectBar'),
                   decoration: BoxDecoration(
                     color: colour,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(3.5),
                   ),
                 ),
               ),
