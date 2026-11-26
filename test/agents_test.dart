@@ -7,6 +7,7 @@ import 'package:caldo/mcp/accounts.dart';
 import 'package:caldo/mcp/agents.dart';
 import 'package:caldo/mcp/context_files.dart';
 import 'package:caldo/mcp/kept.dart';
+import 'package:caldo/mcp/project_files.dart';
 import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/mcp/usage.dart';
@@ -1691,6 +1692,7 @@ void main() {
         launchOf(codex, const ChatAsk(id: 'x', agent: 'codex', prompt: 'Go')),
         [
           'codex',
+          ...codexQuiet,
           '-c',
           'approval_policy="on-request"',
           '--sandbox',
@@ -1879,6 +1881,71 @@ void main() {
       expect(settingsChanged(ask, changed), 'Settings changed: context.');
       final ruled = ChatAsk.fromJson({...ask.row!, 'rules': <Object>[]});
       expect(settingsChanged(ask, ruled), 'Settings changed: no rules.');
+    });
+
+    test("a project's info is written into its folders, out of git", () async {
+      final dir = Directory.systemTemp.createTempSync('project');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      await Process.run('git', ['init', '-q'], workingDirectory: dir.path);
+      final sub = Directory('${dir.path}/app')..createSync();
+      final body = ProjectFiles.bodyOf([
+        ('Caldo', 'A calendar app.'),
+        ('Empty', '  '),
+        ('Sync', 'Supabase.'),
+      ]);
+      expect(ProjectFiles.written(body), isTrue);
+      expect(body, contains('"Caldo", "Sync"'));
+      expect(
+        body.indexOf('A calendar app.'),
+        lessThan(body.indexOf('Supabase.')),
+      );
+      expect(ProjectFiles.bodyOf([('Empty', '')]), isEmpty);
+
+      expect(await ProjectFiles.write(sub.path, body), isEmpty);
+      for (final name in ProjectFiles.names) {
+        expect(File('${sub.path}/$name').readAsStringSync(), '$body\n');
+      }
+      final ignored = await Process.run('git', [
+        'status',
+        '--porcelain',
+        '--untracked-files=all',
+      ], workingDirectory: dir.path);
+      expect('${ignored.stdout}', isEmpty);
+      // Written again: the exclude lines are not added twice.
+      await ProjectFiles.write(sub.path, ProjectFiles.bodyOf([('C', 'New.')]));
+      final exclude = File('${dir.path}/.git/info/exclude').readAsStringSync();
+      expect('/app/CLAUDE.local.md'.allMatches(exclude), hasLength(1));
+      expect(
+        File('${sub.path}/AGENTS.override.md').readAsStringSync(),
+        contains('New.'),
+      );
+
+      // A file of the user's own is neither written over nor removed.
+      File('${sub.path}/CLAUDE.local.md').writeAsStringSync('Mine.');
+      expect(await ProjectFiles.write(sub.path, body), [
+        '${sub.path}/CLAUDE.local.md',
+      ]);
+      expect(File('${sub.path}/CLAUDE.local.md').readAsStringSync(), 'Mine.');
+      await ProjectFiles.write(sub.path, '');
+      expect(File('${sub.path}/CLAUDE.local.md').existsSync(), isTrue);
+      expect(File('${sub.path}/AGENTS.override.md').existsSync(), isFalse);
+    });
+
+    test("Caldo's Codex reads no project files", () {
+      const codex = AgentSpec(
+        id: 'codex',
+        label: 'Codex',
+        command: ['codex', '{prompt}'],
+      );
+      final ask = ChatAsk.fromJson({'id': 'c', 'agent': 'codex'});
+      for (final argv in [
+        launchOf(codex, ask, prompt: 'hi'),
+        launchOf(codex, ask, resume: 't1'),
+      ]) {
+        final at = argv.indexOf('project_doc_max_bytes=0');
+        expect(at, greaterThan(0));
+        expect(argv[at - 1], '-c');
+      }
     });
 
     test("Claude is told it from a file, rendered afresh when resumed", () {

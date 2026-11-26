@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'agents.dart';
+import 'project_files.dart';
 import 'kept.dart';
 import 'usage.dart';
 
@@ -1005,7 +1006,7 @@ class CodexTalk extends Talk {
     String? resume,
     bool fork = false,
   }) async {
-    await _run(files, ['codex', 'app-server']);
+    await _run(files, ['codex', ...codexQuiet, 'app-server']);
     await _call('initialize', {
       'clientInfo': {'name': 'caldo', 'title': 'Caldo', 'version': '1'},
       'capabilities': null,

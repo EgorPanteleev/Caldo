@@ -90,7 +90,9 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
           if (f.kind == 'folder' &&
               f.source != null &&
               f.path.startsWith('${f.source}/') &&
-              (f.body?.trim().isNotEmpty ?? false))
+              (f.body?.trim().isNotEmpty ?? false) &&
+              // Caldo's own copy of the info, not words to take in.
+              !ProjectFiles.written(f.body))
             f.body!.trim(),
       ];
       if (!mounted) return;
