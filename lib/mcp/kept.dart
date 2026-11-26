@@ -191,31 +191,74 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
   RandomAccessFile? _out;
   final _part = <int>[];
 
+  void Function(String line)? _onLine;
+  void Function(int code, String why)? _onExit;
+
+  /// Reads in a row that found nothing new.
+  int _quiet = 0;
+  DateTime _looked = DateTime.now();
+
   /// Hands on each whole line of its output as it comes, every few
   /// milliseconds, and [onExit] once it has ended and all of it is read.
+  ///
+  /// Read every 30ms while it writes, less often the longer it has been
+  /// quiet, down to four times a second: a program waiting between turns
+  /// was looked at 33 times a second for hours, on the thread that also
+  /// sends what the others write. Anything written to it ([write]) has it
+  /// read briskly again, as an answer is on its way.
   void listen(
     void Function(String line) onLine,
     void Function(int code, String why) onExit,
   ) {
-    var ticks = 0;
-    _reading = Timer.periodic(const Duration(milliseconds: 30), (_) {
-      // Its status first: once there, all it wrote is in its file.
-      final code = _code;
-      _readOn(onLine);
-      // A second's worth of reads between looks for the shell.
-      final gone = code == null && ++ticks % 33 == 0 && !_alive;
-      if (code == null && !gone) return;
-      _stopReading();
-      onExit(code ?? -1, gone ? 'It was ended from outside.' : _why());
-    });
+    _onLine = onLine;
+    _onExit = onExit;
+    _quiet = 0;
+    _readSoon();
   }
 
-  void _readOn(void Function(String line) onLine) {
+  static Duration _gapAfter(int quiet) => Duration(
+    milliseconds: quiet < 10
+        ? 30
+        : quiet < 40
+        ? 100
+        : 250,
+  );
+
+  void _readSoon() {
+    _reading?.cancel();
+    _reading = Timer(_gapAfter(_quiet), _readNow);
+  }
+
+  void _readNow() {
+    final onLine = _onLine;
+    final onExit = _onExit;
+    if (onLine == null || onExit == null) return;
+    // Its status first: once there, all it wrote is in its file.
+    final code = _code;
+    final read = _readOn(onLine);
+    // A look for the shell about once a second.
+    var gone = false;
+    final now = DateTime.now();
+    if (code == null && now.difference(_looked) >= const Duration(seconds: 1)) {
+      _looked = now;
+      gone = !_alive;
+    }
+    if (code == null && !gone) {
+      _quiet = read ? 0 : _quiet + 1;
+      _readSoon();
+      return;
+    }
+    _stopReading();
+    onExit(code ?? -1, gone ? 'It was ended from outside.' : _why());
+  }
+
+  /// Whether anything was read.
+  bool _readOn(void Function(String line) onLine) {
     try {
       final out = _out ??= File('$base.out').openSync();
       out.setPositionSync(offset);
       final more = out.lengthSync() - offset;
-      if (more <= 0) return;
+      if (more <= 0) return false;
       final bytes = out.readSync(more);
       offset += bytes.length;
       var from = 0;
@@ -228,8 +271,10 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
         onLine(line);
       }
       _part.addAll(bytes.sublist(from));
+      return true;
     } on FileSystemException {
       // Its files cleared under it: it is being ended.
+      return false;
     }
   }
 
@@ -246,6 +291,8 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
   void _stopReading() {
     _reading?.cancel();
     _reading = null;
+    _onLine = null;
+    _onExit = null;
     _out?.closeSync();
     _out = null;
   }
@@ -257,6 +304,10 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
   /// opened read-write, as a seek on it would be refused and a write-only
   /// open would wait for a reader that has gone.
   void write(String line) {
+    if (_onLine != null && _quiet > 0) {
+      _quiet = 0;
+      _readSoon();
+    }
     _writing = _writing
         .then((_) async {
           final into = _in ??= await File(
