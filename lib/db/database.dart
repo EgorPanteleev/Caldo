@@ -19,7 +19,7 @@ class AppDatabase {
   factory AppDatabase.named(String name) => AppDatabase._(name);
 
   final String _dbName;
-  static const _dbVersion = 16;
+  static const _dbVersion = 17;
   static const _lists = 'lists';
   static const _tasks = 'tasks';
   static const _completions = 'completions';
@@ -84,11 +84,13 @@ class AppDatabase {
             duration INTEGER,
             claude TEXT,
             agent TEXT,
-            agent_state TEXT
+            agent_state TEXT,
+            parent_id INTEGER
           )
         ''');
         await db.execute('CREATE INDEX idx_tasks_due ON $_tasks (due_at)');
         await db.execute('CREATE INDEX idx_tasks_list ON $_tasks (list_id)');
+        await _addParents(db);
         await _createCompletions(db);
         // The same steps an upgrade takes, so a new install and an old one
         // cannot come out with different triggers.
@@ -189,9 +191,18 @@ class AppDatabase {
           // v15 -> where the agent a task was sent to stands with it.
           await db.execute('ALTER TABLE $_tasks ADD COLUMN agent_state TEXT');
         }
+        if (oldVersion < 17) {
+          // v16 -> a task can sit under another, as its subtask. Null for
+          // every task there already is: each stood alone.
+          await db.execute('ALTER TABLE $_tasks ADD COLUMN parent_id INTEGER');
+          await _addParents(db);
+        }
       },
     );
   }
+
+  static Future<void> _addParents(DatabaseExecutor db) =>
+      db.execute('CREATE INDEX idx_tasks_parent ON $_tasks (parent_id)');
 
   /// Now in epoch millis, in SQL. `unixepoch('subsec')` would say it more
   /// plainly but needs SQLite 3.42, newer than older Androids carry.
@@ -573,10 +584,9 @@ class AppDatabase {
     );
   }
 
-  Future<void> delete(int id) async {
-    final db = await database;
-    await db.delete(_tasks, where: 'id = ?', whereArgs: [id]);
-  }
+  /// Deletes task [id] and its subtasks, to any depth: a subtask is a piece
+  /// of its parent's work, and left behind it would be a piece of nothing.
+  Future<void> delete(int id) => deleteAll([id]);
 
   /// Writes back every one of [tasks] in one transaction — for what is
   /// done to several picked out at once, which should not be left half done
@@ -591,14 +601,32 @@ class AppDatabase {
     await batch.commit(noResult: true);
   }
 
+  /// Deletes every one of [ids], with their subtasks, as [delete] does.
   Future<void> deleteAll(List<int> ids) async {
     if (ids.isEmpty) return;
     final db = await database;
-    await db.delete(
-      _tasks,
-      where: 'id IN (${List.filled(ids.length, '?').join(',')})',
-      whereArgs: ids,
+    await db.rawDelete(
+      'WITH RECURSIVE gone(id) AS ('
+      'SELECT id FROM $_tasks '
+      'WHERE id IN (${List.filled(ids.length, '?').join(',')}) '
+      'UNION SELECT t.id FROM $_tasks t JOIN gone g ON t.parent_id = g.id) '
+      'DELETE FROM $_tasks WHERE id IN (SELECT id FROM gone)',
+      ids,
     );
+  }
+
+  /// Every task that has a subtask or is one: few, and what a subtask's
+  /// card, its form and an agent it is sent to need of the rest.
+  Future<List<Task>> getFamilies() async {
+    final db = await database;
+    final rows = await db.query(
+      _tasks,
+      where:
+          'parent_id IS NOT NULL OR id IN '
+          '(SELECT parent_id FROM $_tasks WHERE parent_id IS NOT NULL)',
+      orderBy: 'created_at ASC, id ASC',
+    );
+    return rows.map(Task.fromMap).toList();
   }
 
   // ---- Ticks ---------------------------------------------------------------

@@ -168,6 +168,10 @@ const Map<String, Object> tr = {
   'notesField': "Notlar (isteğe bağlı)",
   'sectionSubtasks': "ALT GÖREVLER",
   'addSubtask': "Alt görev ekle",
+  'sectionChecklist': "KONTROL LİSTESİ",
+  'addStep': "Adım ekle",
+  'partOf': "Şunun parçası",
+  'subtasksGoToo': "Alt görevleri de onunla birlikte silinir.",
   'sectionAttachments': "EKLER",
   'attachPhoto': "Fotoğraf",
   'attachCamera': "Kamera",
@@ -658,7 +662,6 @@ const Map<String, Object> tr = {
   'usageResetSince': "Sıfırlandı",
   'agentProjects': "Projeler",
   'newProject': "Yeni proje",
-  'newSubproject': "Yeni alt proje",
   'editProject': "Proje",
   'editProjects': "Projeleri düzenle…",
   'noProjects': "Henüz proje yok",
@@ -673,11 +676,9 @@ const Map<String, Object> tr = {
   'projectSourcesHint':
       "Bilgisayardaki klasörler, örneğin ~/dev/src/Caldo. Her sohbet bir git deposunu kendi dalında bir worktree olarak alır; diğer klasörler olduğu gibi paylaşılır.",
   'projectAddSource': "Klasör ekle",
-  'projectFrom': "{name} projesinden",
-  'projectSubprojects': "Alt projeler",
   'deleteProjectQuestion': "Bu proje silinsin mi?",
   'deleteProjectHint':
-      "Alt projeleri de onunla gider. İçinde başlatılan sohbetler kendilerine söyleneni korur.",
+      "İçinde başlatılan sohbetler kendilerine söyleneni korur.",
   'chatProject': "Proje",
   'chatNoProject': "Yok",
   'chatOwnFolderHint':

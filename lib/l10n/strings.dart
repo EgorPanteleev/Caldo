@@ -279,7 +279,6 @@ class S {
   String get chatFolder => _word('chatFolder');
   String get agentProjects => _word('agentProjects');
   String get newProject => _word('newProject');
-  String get newSubproject => _word('newSubproject');
   String get editProject => _word('editProject');
   String get editProjects => _word('editProjects');
   String get noProjects => _word('noProjects');
@@ -291,7 +290,6 @@ class S {
   String get projectSources => _word('projectSources');
   String get projectSourcesHint => _word('projectSourcesHint');
   String get projectAddSource => _word('projectAddSource');
-  String get projectSubprojects => _word('projectSubprojects');
   String get deleteProjectQuestion => _word('deleteProjectQuestion');
   String get deleteProjectHint => _word('deleteProjectHint');
   String get chatProject => _word('chatProject');
@@ -317,7 +315,6 @@ class S {
   String get contextWords => _word('contextWords');
   String get contextDeleteQuestion => _word('contextDeleteQuestion');
   String get contextReadAgain => _word('contextReadAgain');
-  String projectFrom(String name) => _fill('projectFrom', {'name': name});
   String get chatPermission => _word('chatPermission');
   String get chatPlugins => _word('chatPlugins');
   String get chatSkills => _word('chatSkills');
@@ -742,6 +739,10 @@ class S {
   String get notesField => _word('notesField');
   String get sectionSubtasks => _word('sectionSubtasks');
   String get addSubtask => _word('addSubtask');
+  String get sectionChecklist => _word('sectionChecklist');
+  String get addStep => _word('addStep');
+  String get partOf => _word('partOf');
+  String get subtasksGoToo => _word('subtasksGoToo');
   String get sectionAttachments => _word('sectionAttachments');
   String get attachPhoto => _word('attachPhoto');
   String get attachCamera => _word('attachCamera');

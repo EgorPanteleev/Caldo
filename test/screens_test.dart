@@ -1733,6 +1733,9 @@ void main() {
     // is actually on top rather than which ones exist.
     expect(find.byKey(monthTitleKey), findsOneWidget);
     expect(find.byKey(screenTitleKey), findsNothing);
+    // Each read of the agenda's goes on only at a frame.
+    await drainDatabase(tester);
+    await tester.pump();
     await drainDatabase(tester);
   });
 

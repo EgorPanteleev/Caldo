@@ -104,7 +104,6 @@ class _ProjectContextScreenState extends State<ProjectContextScreen> {
     text: project.context,
     save: (text) => _agents.saveProject(
       id: project.id,
-      parentId: project.parentId,
       name: project.name,
       colour: project.colour,
       context: text.trim(),
@@ -193,18 +192,17 @@ class _ProjectContextScreenState extends State<ProjectContextScreen> {
                   padding: EdgeInsets.fromLTRB(20 + gutter, 4, 20 + gutter, 24),
                   children: [
                     Text(
-                      s.projectAllContextHint(_agents.pathOf(project)),
+                      s.projectAllContextHint(_projectName(s, project)),
                       style: TextStyle(color: p.faint, fontSize: 12.5),
                     ),
                     _Section(s.contextInCaldo),
-                    for (final above in _agents.lineOf(project))
-                      _ContextTile(
-                        title: _projectName(s, above),
-                        dot: _projectColour(above),
-                        body: above.context,
-                        empty: s.contextNothing,
-                        onTap: () => _editWords(above),
-                      ),
+                    _ContextTile(
+                      title: _projectName(s, project),
+                      dot: _projectColour(project),
+                      body: project.context,
+                      empty: s.contextNothing,
+                      onTap: () => _editWords(project),
+                    ),
                     if (online.length > 1) ...[
                       const SizedBox(height: 12),
                       _Picks(

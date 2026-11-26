@@ -28,7 +28,7 @@ pushes (`firebase-messaging`, Kotlin only).
 lib/
   data/holidays.dart       public holidays, computed on device
   l10n/                    strings.dart (S) + words_*.dart, a table per language
-  db/database.dart         schema v16 (+ migrations); db/sync_store.dart
+  db/database.dart         schema v17 (+ migrations); db/sync_store.dart
   models/                  task (Repeat, Priority), task_list (ListStyle,
                            colorOfTask), completion, secret, special_day
   providers/               task, settings, events, vault
@@ -181,7 +181,23 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
 - **Checklist** (`Subtask`, JSON in the task row) so Undo and roll-on carry
   it; "☑ 2/5" pill opens steps. **Open steps hold back the card's first
   tick** (`_WithChecklist._tick` shakes and opens them); other tick paths
-  don't. Search filters the JSON in Dart.
+  don't. Search filters the JSON in Dart. The form calls it Checklist
+  ("Add a step"), apart from subtasks.
+- **Subtasks are tasks under a task** (asked for 2026-11-25 in place of
+  subprojects: "every task can have subtasks … each subtask has context of
+  parent task"): `Task.parentId`, schema v17, any depth; its own day,
+  colour, tick and agent. Synced as `parent_uuid` (`SyncStore._links`),
+  linked after the whole pull, since a parent edited later comes down
+  after its subtask. Deleting a task deletes its subtasks (`deleteAll`, a
+  recursive CTE; the MCP's `delete_task` too); a parent deleted elsewhere
+  leaves the subtask standing alone. `TaskProvider` keeps every task with
+  a parent or a child (`getFamilies`, read with the agenda) for the card's
+  "↳ parent" and the form's "Part of" line and SUBTASKS panel (existing
+  tasks only; Add opens a new form with `parent`, in the parent's group).
+  **An agent sent a subtask is told its parents first** (`taskMessage`'s
+  `parents`, outermost first: title, due, notes, checklist), from the app
+  and from the worker (`Book.parentsOf`). The MCP's `add_task` takes
+  `parent`; `task` names both ways.
 - **Attachments** (`Attachment` JSON, `Attachments`, `Attachments.kt`,
   `AttachmentsField`): Photo (picker, images only), Camera, File; copied to
   `files/attachments/<uuid>/<name>`; >100MB refused; opened through a
@@ -803,17 +819,17 @@ the app, a terminal beside them; anything else a terminal.
   starts with the chosen rules' openings (`firstMessage`, shown as the
   hint; app only). Errands take none.
 - **Projects, not folders** (asked for in place of the form's folder):
-  `agent_projects` (name, colour, context, `sources` from `~`), under one
-  another to any depth (`parent_id`, a trigger refuses loops and others'
-  parents); edited under Agents › Projects (`ProjectsScreen`,
-  `ProjectScreen`, `agent_projects.dart`). A chat keeps a copy
-  (`chats.project`, `Agents.snapshotOf`: path, colour, every context from
-  the top down, all folders); `project_id` is only for the list, which
-  wears each project's colour and lists one project's chats at a time.
-  The context reaches the agent after the rules (`projectText`).
+  `agent_projects` (name, colour, context, `sources` from `~`), side by
+  side — **no subprojects** (taken out 2026-11-25, `…_flat_projects.sql`;
+  a subtask carries its parents' words instead); edited under Agents ›
+  Projects (`ProjectsScreen`, `ProjectScreen`, `agent_projects.dart`). A
+  chat keeps a copy (`chats.project`, `Agents.snapshotOf`: name, colour,
+  context, folders); `project_id` is only for the list, which wears each
+  project's colour and lists one project's chats at a time. The context
+  reaches the agent after the rules (`projectText`).
 - **A project's whole context** (`ProjectContextScreen`,
-  `agent_context.dart`; "All context" on a project): its words and its
-  parents', each changed in place, then what Claude reads on a worker —
+  `agent_context.dart`; "All context" on a project): its words,
+  changed in place, then what Claude reads on a worker —
   `~/.claude/CLAUDE.md`, the sources' `CLAUDE.md` files from `~` down, and
   the memory of each source's main checkout (`ContextFiles`,
   `lib/mcp/context_files.dart`). Asked on rows of `agent_context_asks`

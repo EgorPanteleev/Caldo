@@ -588,7 +588,13 @@ class Worker {
       return null;
     }
     final h = caldo.book.tasks.where((t) => t.uuid == task).firstOrNull;
-    return h == null ? null : taskMessage(h.task, preface);
+    return h == null
+        ? null
+        : taskMessage(
+            h.task,
+            preface,
+            parents: [for (final p in caldo.book.parentsOf(h)) p.task],
+          );
   }
 
   DateTime _dueLookedAt = DateTime.fromMillisecondsSinceEpoch(0);

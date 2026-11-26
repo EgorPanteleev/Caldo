@@ -64,15 +64,17 @@ class Group {
   });
 }
 
-/// A task with the uuids it is known by: its own and its group's. The
+/// A task with the uuids it is known by: its own, its group's and its
+/// parent's, if it is a subtask ([Task.parentId] is a device's own). The
 /// [task] is Caldo's own model, so a tick, a roll-on or a move to the board
 /// here is the app's, not a copy that could come to disagree with it.
 class Held {
   final String uuid;
   final String group;
   final Task task;
+  final String? parent;
 
-  const Held(this.uuid, this.group, this.task);
+  const Held(this.uuid, this.group, this.task, {this.parent});
 
   /// The short id a task is shown and asked for by.
   String get id => uuid.substring(0, 8);
@@ -185,8 +187,33 @@ class Book {
 
   List<Held> get tasks => [
     for (final r in _live('tasks'))
-      Held(r.uuid, _groupOf(r.data!), taskOf(r.data!)),
+      Held(
+        r.uuid,
+        _groupOf(r.data!),
+        taskOf(r.data!),
+        parent: r.data!['parent_uuid'] as String?,
+      ),
   ];
+
+  /// The tasks [held] sits under, the outermost first; a parent deleted
+  /// ends the line there.
+  List<Held> parentsOf(Held held) {
+    final all = {for (final h in tasks) h.uuid: h};
+    final line = <Held>[];
+    final seen = {held.uuid};
+    var above = all[held.parent];
+    while (above != null && seen.add(above.uuid)) {
+      line.insert(0, above);
+      above = all[above.parent];
+    }
+    return line;
+  }
+
+  /// The tasks right under [held], in the order they were made.
+  List<Held> subtasksOf(Held held) => [
+    for (final h in tasks)
+      if (h.parent == held.uuid) h,
+  ]..sort((a, b) => a.task.createdAt.compareTo(b.task.createdAt));
 
   /// A task's group; one that has gone reads as the default, where a device
   /// pulling it would put it.
@@ -229,6 +256,7 @@ class Book {
       for (final MapEntry(:key, :value) in data.entries) key: _plain(value),
       'id': null,
       'list_id': 0,
+      'parent_id': null,
       'due_at': due is String
           ? DateTime.tryParse(due)?.millisecondsSinceEpoch
           : _int(due),
@@ -240,7 +268,9 @@ class Book {
   static Map<String, Object?> dataOf(Task task, String group) {
     final data = task.toMap()
       ..remove('id')
-      ..remove('list_id');
+      ..remove('list_id')
+      // A device's own id; the server's link is `parent_uuid`.
+      ..remove('parent_id');
     data['list_uuid'] = group;
     final due = data['due_at'];
     if (!task.hasTime && due is int) {

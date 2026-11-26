@@ -173,6 +173,10 @@ const Map<String, Object> pl = {
   'notesField': "Notatki (opcjonalnie)",
   'sectionSubtasks': "PODZADANIA",
   'addSubtask': "Dodaj podzadanie",
+  'sectionChecklist': "LISTA KONTROLNA",
+  'addStep': "Dodaj krok",
+  'partOf': "Część zadania",
+  'subtasksGoToo': "Jego podzadania zostaną usunięte razem z nim.",
   'sectionAttachments': "ZAŁĄCZNIKI",
   'attachPhoto': "Zdjęcie",
   'attachCamera': "Aparat",
@@ -704,7 +708,6 @@ const Map<String, Object> pl = {
   'usageResetSince': "Już wyzerowany",
   'agentProjects': "Projekty",
   'newProject': "Nowy projekt",
-  'newSubproject': "Nowy podprojekt",
   'editProject': "Projekt",
   'editProjects': "Edytuj projekty…",
   'noProjects': "Nie ma jeszcze projektów",
@@ -719,11 +722,9 @@ const Map<String, Object> pl = {
   'projectSourcesHint':
       "Foldery na komputerze, np. ~/dev/src/Caldo. Repozytorium git każdy czat dostaje jako worktree na własnej gałęzi; każdy inny folder jest wspólny.",
   'projectAddSource': "Dodaj folder",
-  'projectFrom': "Z {name}",
-  'projectSubprojects': "Podprojekty",
   'deleteProjectQuestion': "Usunąć ten projekt?",
   'deleteProjectHint':
-      "Jego podprojekty znikną razem z nim. Czaty w nim rozpoczęte zachowają to, co im powiedziano.",
+      "Czaty w nim rozpoczęte zachowają to, co im powiedziano.",
   'chatProject': "Projekt",
   'chatNoProject': "Brak",
   'chatOwnFolderHint':

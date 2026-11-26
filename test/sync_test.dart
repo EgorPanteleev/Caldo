@@ -141,6 +141,47 @@ void main() {
     expect(await b.dirty(), 0);
   });
 
+  test('a subtask finds its parent, even one that comes after it', () async {
+    final parent = await a.add('Ship');
+    final child = await a.db.insert(
+      Task(
+        listId: 1,
+        title: 'Write the notes',
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+        parentId: parent.id,
+      ),
+    );
+    await a.sync.run();
+    expect(
+      server.dataOf(
+        'tasks',
+        await a.uuidOf('tasks', child.id!),
+      )?['parent_uuid'],
+      await a.uuidOf('tasks', parent.id!),
+    );
+    expect(
+      server.dataOf('tasks', await a.uuidOf('tasks', child.id!)),
+      isNot(contains('parent_id')),
+      reason: 'a device\'s own id means nothing to another',
+    );
+    // Changed after its subtask was made, the parent comes down after it.
+    await tick();
+    await a.db.update(parent.copyWith(title: 'Ship it'));
+    await a.sync.run();
+
+    await b.sync.run();
+    final there = (await b.named('Write the notes'))!;
+    expect(there.parentId, (await b.named('Ship it'))!.id);
+
+    // Deleted with its parent, on the other phone too.
+    await a.db.delete(parent.id!);
+    expect(await a.named('Write the notes'), isNull);
+    await a.sync.run();
+    await b.sync.run();
+    expect(await b.named('Write the notes'), isNull);
+    expect(await b.named('Ship it'), isNull);
+  });
+
   test('a round with nothing new changes nothing', () async {
     await a.add('Ship');
     await a.sync.run();

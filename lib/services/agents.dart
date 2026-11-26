@@ -240,26 +240,23 @@ String firstMessage(String written, Iterable<AgentRule> rules) {
 
 /// What chats are about, written here once: a name, a colour the list
 /// wears its chats in, the words its agents are told ([context]) and the
-/// folders on a worker they work on ([sources], from `~`). A project may
-/// sit under another ([parentId]), to any depth, and then is told its
-/// parents' words before its own and works on their folders as well
-/// ([Agents.lineOf]). A chat keeps a copy of all that as it began
-/// ([Agents.snapshotOf]).
+/// folders on a worker they work on ([sources], from `~`). Projects sit side
+/// by side, none under another: what a piece of the work needs to be told of
+/// the whole is the task's to say (a subtask is told its parents'). A chat
+/// keeps a copy of all that as it began ([Agents.snapshotOf]).
 @immutable
 class AgentProject {
   final String id;
-  final String? parentId;
   final String name;
 
-  /// A palette id or `#RRGGBB`, as a task's (`ListStyle.byId`); null takes
-  /// its parent's.
+  /// A palette id or `#RRGGBB`, as a task's (`ListStyle.byId`); null for
+  /// none.
   final String? colour;
   final String context;
   final List<String> sources;
 
   const AgentProject({
     required this.id,
-    this.parentId,
     required this.name,
     this.colour,
     this.context = '',
@@ -268,7 +265,6 @@ class AgentProject {
 
   factory AgentProject.fromJson(Map json) => AgentProject(
     id: json['id'] as String,
-    parentId: json['parent_id'] as String?,
     name: json['name'] as String? ?? '',
     colour: json['colour'] as String?,
     context: json['context'] as String? ?? '',
@@ -928,7 +924,7 @@ class Agents extends ChangeNotifier {
     if (client == null) return;
     try {
       final r = await client.from('agent_projects').select();
-      projects = _treeOrder([for (final row in r) AgentProject.fromJson(row)]);
+      projects = _byName([for (final row in r) AgentProject.fromJson(row)]);
       notifyListeners();
     } catch (_) {
       // A server without the table yet: no projects to choose.
@@ -938,110 +934,35 @@ class Agents extends ChangeNotifier {
   AgentProject? project(String? id) =>
       id == null ? null : projects.where((p) => p.id == id).firstOrNull;
 
-  /// [project] and the projects above it, the topmost first.
-  List<AgentProject> lineOf(AgentProject project) {
-    final out = [project];
-    final seen = {project.id};
-    var above = this.project(project.parentId);
-    while (above != null && seen.add(above.id)) {
-      out.insert(0, above);
-      above = this.project(above.parentId);
-    }
-    return out;
-  }
+  /// What a chat begun in [project] keeps of it: its name, colour, the
+  /// words written on it and its folders.
+  Map<String, Object?> snapshotOf(AgentProject project) => {
+    'name': project.name.trim(),
+    'colour': project.colour,
+    'context': [
+      if (project.context.trim().isNotEmpty)
+        {'name': project.name.trim(), 'body': project.context.trim()},
+    ],
+    'sources': {
+      for (final s in project.sources)
+        if (s.trim().isNotEmpty) s.trim(),
+    }.toList(),
+  };
 
-  /// How deep [project] is: 0 for one under none.
-  int depthOf(AgentProject project) => lineOf(project).length - 1;
-
-  /// "Caldo › Sync": [project]'s name after its parents'.
-  String pathOf(AgentProject project) =>
-      [for (final p in lineOf(project)) p.name.trim()].join(' › ');
-
-  /// The colour [project] wears: its own, else the nearest parent's.
-  String? colourOf(AgentProject project) {
-    for (final p in lineOf(project).reversed) {
-      if (p.colour != null) return p.colour;
-    }
-    return null;
-  }
-
-  /// The projects right under [id]; under none for null.
-  List<AgentProject> childrenOf(String? id) => [
-    for (final p in projects)
-      if (p.parentId == id) p,
-  ];
-
-  /// [id] and every project under it, to any depth.
-  Set<String> familyOf(String id) {
-    final out = {id};
-    for (var grew = true; grew;) {
-      grew = false;
-      for (final p in projects) {
-        if (p.parentId != null && out.contains(p.parentId) && out.add(p.id)) {
-          grew = true;
-        }
-      }
-    }
-    return out;
-  }
-
-  /// What a chat begun in [project] keeps of it: its path, colour, every
-  /// word written on it and its parents, the whole project's first, and
-  /// all their folders.
-  Map<String, Object?> snapshotOf(AgentProject project) {
-    final line = lineOf(project);
-    return {
-      'name': pathOf(project),
-      'colour': colourOf(project),
-      'context': [
-        for (final p in line)
-          if (p.context.trim().isNotEmpty)
-            {'name': p.name.trim(), 'body': p.context.trim()},
-      ],
-      'sources': {
-        for (final p in line)
-          for (final s in p.sources)
-            if (s.trim().isNotEmpty) s.trim(),
-      }.toList(),
-    };
-  }
-
-  /// [projects] as the list shows them: each under its parent, by name.
-  static List<AgentProject> _treeOrder(List<AgentProject> projects) {
-    final ids = {for (final p in projects) p.id};
-    final under = <String?, List<AgentProject>>{};
-    for (final p in projects) {
-      // One whose parent is not there is shown at the top.
-      final parent = ids.contains(p.parentId) ? p.parentId : null;
-      (under[parent] ??= []).add(p);
-    }
-    final out = <AgentProject>[];
-    final seen = <String>{};
-    void walk(String? parent) {
-      final here = [...?under[parent]]
+  /// [projects] as the list shows them: by name.
+  static List<AgentProject> _byName(List<AgentProject> projects) =>
+      projects
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      for (final p in here) {
-        if (!seen.add(p.id)) continue;
-        out.add(p);
-        walk(p.id);
-      }
-    }
-
-    walk(null);
-    return out;
-  }
 
   /// Project [id] saved as given, or a new one without [id].
   Future<AgentProject> saveProject({
     String? id,
-    String? parentId,
     required String name,
     String? colour,
     String context = '',
     List<String> sources = const [],
   }) async {
     final fields = {
-      'parent_id': parentId,
       'name': name,
       'colour': colour,
       'context': context,
@@ -1051,7 +972,7 @@ class Agents extends ChangeNotifier {
         ? _client!.from('agent_projects').insert(fields)
         : _client!.from('agent_projects').update(fields).eq('id', id);
     final saved = AgentProject.fromJson(await query.select().single());
-    projects = _treeOrder([
+    projects = _byName([
       for (final p in projects)
         if (p.id != saved.id) p,
       saved,
@@ -1060,14 +981,12 @@ class Agents extends ChangeNotifier {
     return saved;
   }
 
-  /// Project [id] deleted, and every one under it with it; its chats keep
-  /// what they were told.
+  /// Project [id] deleted; its chats keep what they were told.
   Future<void> removeProject(String id) async {
-    final gone = familyOf(id);
     await _client!.from('agent_projects').delete().eq('id', id);
     projects = [
       for (final p in projects)
-        if (!gone.contains(p.id)) p,
+        if (p.id != id) p,
     ];
     notifyListeners();
   }

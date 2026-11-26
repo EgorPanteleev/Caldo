@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
 import '../models/task.dart';
+import '../models/task_list.dart';
 import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/attachments.dart';
@@ -27,22 +28,24 @@ import '../widgets/quick_add_bar.dart'
     show GroundFade, KeyboardLift, KeyboardRoom;
 import '../widgets/task_card.dart' show CheckMark, ClaudeMark, TaskCard;
 
-/// Opens the form on [task], or a new one starting on [initialDate]: a page
-/// over a phone's screen, and in the wide layout the panel down the right
-/// of the window ([TaskPanel]), where the returned future does not wait for
-/// it to be closed.
+/// Opens the form on [task], or a new one starting on [initialDate] — a
+/// subtask of [parent], if given: a page over a phone's screen, and in the
+/// wide layout the panel down the right of the window ([TaskPanel]), where
+/// the returned future does not wait for it to be closed.
 Future<void> openTaskForm(
   BuildContext context, {
   Task? task,
   DateTime? initialDate,
+  Task? parent,
 }) {
   if (Desk.isWide(context)) {
-    TaskPanel.instance.open(task: task, date: initialDate);
+    TaskPanel.instance.open(task: task, date: initialDate, parent: parent);
     return Future.value();
   }
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => TaskEditScreen(task: task, initialDate: initialDate),
+      builder: (_) =>
+          TaskEditScreen(task: task, initialDate: initialDate, parent: parent),
     ),
   );
 }
@@ -64,11 +67,15 @@ class TaskEditScreen extends StatefulWidget {
   /// Pre-selected due date for a task created from the calendar.
   final DateTime? initialDate;
 
+  /// The task a new one is made a subtask of; it starts in its group.
+  final Task? parent;
+
   const TaskEditScreen({
     super.key,
     this.task,
     this.listId,
     this.initialDate,
+    this.parent,
     this.inPanel = false,
   });
 
@@ -182,14 +189,35 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       _date = dayOf(widget.initialDate!);
     }
 
-    // A new task goes into the group on show, as one quick-added does.
+    // A new task goes into the group on show, as one quick-added does; a
+    // new subtask into its parent's.
     _selectedListId =
         task?.listId ??
         widget.listId ??
+        widget.parent?.listId ??
         context.read<TaskProvider>().groupForNew;
+
     if (task?.id != null && Agents.instance.signedIn) {
       unawaited(_findChat(task!.id!));
     }
+  }
+
+  /// The tasks the task is part of, the outermost first; a new subtask's
+  /// parent's and the parent itself.
+  List<Task> _parentsIn(TaskProvider tasks) {
+    final task = widget.task;
+    final parent = widget.parent;
+    if (task != null) return tasks.parentsOf(task);
+    if (parent != null) return [...tasks.parentsOf(parent), parent];
+    return const [];
+  }
+
+  /// A new subtask of the task, in a form of its own. The phone's comes
+  /// back here; the wide layout's panel gives way to it.
+  Future<void> _addChild() async {
+    final task = _now;
+    if (task == null) return;
+    await openTaskForm(context, parent: task);
   }
 
   Future<void> _findChat(int id) async {
@@ -464,6 +492,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
           remindBefore: _remindBefore,
           duration: _time == null ? null : _duration,
           claude: _claude,
+          parentId: widget.parent?.id,
         ),
       );
     } else {
@@ -513,11 +542,19 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final task = widget.task;
     if (task?.id == null) return;
     final s = S.of(context);
+    final hasSubtasks = context
+        .read<TaskProvider>()
+        .subtasksOf(task!.id!)
+        .isNotEmpty;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(s.deleteTaskQuestion),
-        content: Text(s.willBeRemoved(task!.title)),
+        content: Text(
+          hasSubtasks
+              ? '${s.willBeRemoved(task.title)} ${s.subtasksGoToo}'
+              : s.willBeRemoved(task.title),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -531,7 +568,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
       ),
     );
     if (ok == true && mounted) {
-      await context.read<TaskProvider>().remove(task!.id!);
+      await context.read<TaskProvider>().remove(task.id!);
       if (mounted) _close();
     }
   }
@@ -543,6 +580,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
     final isEdit = widget.task != null;
     final provider = context.watch<TaskProvider>();
     final lists = provider.lists;
+    final parents = _parentsIn(provider);
+    final children = widget.task?.id == null
+        ? const <Task>[]
+        : provider.subtasksOf(widget.task!.id!);
     final validId = lists.any((l) => l.id == _selectedListId)
         ? _selectedListId
         : (lists.isNotEmpty ? provider.defaultGroup : null);
@@ -594,6 +635,13 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                           child: ListView(
                             padding: const EdgeInsets.all(20),
                             children: [
+                              if (parents.isNotEmpty) ...[
+                                _PartOf(
+                                  parents: parents,
+                                  onOpen: (t) => openTaskForm(context, task: t),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
                               TextFormField(
                                 scrollPadding: _reveal,
                                 controller: _title,
@@ -628,7 +676,7 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                               ),
                               const SizedBox(height: 22),
                               Text(
-                                s.sectionSubtasks,
+                                s.sectionChecklist,
                                 style: TextStyle(
                                   color: p.faint,
                                   fontSize: 11,
@@ -652,6 +700,28 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
                                   step.dispose();
                                 },
                               ),
+                              // Only a task already saved has an id for
+                              // its subtasks to hang from.
+                              if (isEdit) ...[
+                                const SizedBox(height: 22),
+                                Text(
+                                  s.sectionSubtasks,
+                                  style: TextStyle(
+                                    color: p.faint,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                _Children(
+                                  children: children,
+                                  lists: lists,
+                                  onOpen: (t) => openTaskForm(context, task: t),
+                                  onTick: provider.toggleDone,
+                                  onAdd: _addChild,
+                                ),
+                              ],
                               const SizedBox(height: 22),
                               Text(
                                 s.sectionAttachments,
@@ -997,6 +1067,193 @@ class _NudgedState extends State<_Nudged> with SingleTickerProviderStateMixin {
 /// inside the fade over the Cancel/Save pair, dimmed; this puts it above.
 const _reveal = EdgeInsets.fromLTRB(20, 20, 20, 20 + GroundFade.height);
 
+/// What a subtask is part of, the outermost first, each opening its own
+/// form: its context, which an agent it is sent to is told as well.
+class _PartOf extends StatelessWidget {
+  final List<Task> parents;
+  final ValueChanged<Task> onOpen;
+
+  const _PartOf({required this.parents, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: Text(s.partOf, style: TextStyle(color: p.faint, fontSize: 13)),
+        ),
+        for (final (i, parent) in parents.indexed) ...[
+          if (i > 0) Icon(Icons.chevron_right, size: 16, color: p.faint),
+          InkWell(
+            onTap: () => onOpen(parent),
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Text(
+                parent.title.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: p.muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A task's subtasks in its form: each a task of its own, ticked here and
+/// opened in a form of its own; and under them a line making the next.
+class _Children extends StatelessWidget {
+  final List<Task> children;
+  final List<TaskList> lists;
+  final ValueChanged<Task> onOpen;
+  final ValueChanged<Task> onTick;
+  final VoidCallback onAdd;
+
+  const _Children({
+    required this.children,
+    required this.lists,
+    required this.onOpen,
+    required this.onTick,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final s = S.of(context);
+    final h24 = MediaQuery.alwaysUse24HourFormatOf(context);
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: p.panel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: p.border),
+      ),
+      child: Column(
+        children: [
+          for (final child in children)
+            InkWell(
+              key: ValueKey(child.id),
+              onTap: () => onOpen(child),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => onTick(child),
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: _Tick(
+                          done: child.done,
+                          color: colorOfTask(
+                            child,
+                            lists
+                                .where((l) => l.id == child.listId)
+                                .firstOrNull,
+                            fallback: AppTheme.accentOf(context).color,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        child.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: child.done ? p.faint : p.text,
+                          fontSize: 15,
+                          decoration: child.done
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: p.faint,
+                        ),
+                      ),
+                    ),
+                    if (child.due != null) ...[
+                      const SizedBox(width: 10),
+                      Text(
+                        Dates.due(child, h24: h24),
+                        style: TextStyle(
+                          color: child.isOverdue ? AppColors.overdue : p.muted,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                    ],
+                    if (ClaudeMark.of(child) != null) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.auto_awesome,
+                        size: 14,
+                        color: child.done || child.agentState == null
+                            ? p.faint
+                            : ClaudeMark.colourOf(p, child.agentState!),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          InkWell(
+            onTap: onAdd,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(Icons.add, size: 20, color: p.faint),
+                  ),
+                  Expanded(
+                    child: Text(
+                      s.addSubtask,
+                      style: TextStyle(color: p.faint, fontSize: 15),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A subtask's round tick, in its colour.
+class _Tick extends StatelessWidget {
+  final bool done;
+  final Color color;
+
+  const _Tick({required this.done, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 20,
+    height: 20,
+    decoration: BoxDecoration(
+      color: done ? color : Colors.transparent,
+      shape: BoxShape.circle,
+      border: Border.all(color: color, width: 1.6),
+    ),
+    child: CustomPaint(
+      painter: CheckMark(progress: done ? 1 : 0, color: Colors.white),
+    ),
+  );
+}
+
 /// A step of the checklist while the form is open.
 class _Draft {
   final TextEditingController title;
@@ -1111,9 +1368,7 @@ class _Checklist extends StatelessWidget {
                   focusNode: newStepFocus,
                   textCapitalization: TextCapitalization.sentences,
                   textInputAction: TextInputAction.done,
-                  decoration: _bare.copyWith(
-                    hintText: S.of(context).addSubtask,
-                  ),
+                  decoration: _bare.copyWith(hintText: S.of(context).addStep),
                   style: TextStyle(color: p.text, fontSize: 15),
                   // Enter on a step adds it and stays for the next; on an empty line
                   // it is the way out, and the keyboard goes.

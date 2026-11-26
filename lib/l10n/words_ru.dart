@@ -173,6 +173,10 @@ const Map<String, Object> ru = {
   'notesField': "Заметки (необязательно)",
   'sectionSubtasks': "ПОДЗАДАЧИ",
   'addSubtask': "Добавить подзадачу",
+  'sectionChecklist': "ЧЕК-ЛИСТ",
+  'addStep': "Добавить пункт",
+  'partOf': "Часть задачи",
+  'subtasksGoToo': "Её подзадачи удалятся вместе с ней.",
   'sectionAttachments': "ВЛОЖЕНИЯ",
   'attachPhoto': "Фото",
   'attachCamera': "Камера",
@@ -692,7 +696,6 @@ const Map<String, Object> ru = {
   'usageResetSince': "Уже сброшен",
   'agentProjects': "Проекты",
   'newProject': "Новый проект",
-  'newSubproject': "Новый подпроект",
   'editProject': "Проект",
   'editProjects': "Изменить проекты…",
   'noProjects': "Проектов пока нет",
@@ -707,11 +710,8 @@ const Map<String, Object> ru = {
   'projectSourcesHint':
       "Папки на компьютере, например ~/dev/src/Caldo. Git-репозиторий каждый чат получает как worktree на своей ветке; любая другая папка общая.",
   'projectAddSource': "Добавить папку",
-  'projectFrom': "Из «{name}»",
-  'projectSubprojects': "Подпроекты",
   'deleteProjectQuestion': "Удалить проект?",
-  'deleteProjectHint':
-      "Его подпроекты удалятся вместе с ним. Начатые в нём чаты сохранят то, что им сказали.",
+  'deleteProjectHint': "Начатые в нём чаты сохранят то, что им сказали.",
   'chatProject': "Проект",
   'chatNoProject': "Без проекта",
   'chatOwnFolderHint':

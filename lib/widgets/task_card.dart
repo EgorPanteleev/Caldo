@@ -126,10 +126,12 @@ class TaskCard extends StatelessWidget {
   /// the list it belongs to: the tick already wears that list's colour, and
   /// under the calendar a day's tasks are usually all from the same one, so
   /// the name was the same word under every card.
-  String _subtitle(S s, bool h24) {
+  String _subtitle(S s, bool h24, String? parent) {
     final parts = [
       _when(s, h24),
       if (task.repeat != Repeat.none) s.repeatName(task.repeat),
+      // What a subtask is part of, last: cut short before the time is.
+      if (parent != null) '↳ ${parent.trim()}',
     ];
     return parts.join(' · ');
   }
@@ -338,6 +340,12 @@ class TaskCard extends StatelessWidget {
                                         MediaQuery.alwaysUse24HourFormatOf(
                                           context,
                                         ),
+                                        // Read, not watched: the card is
+                                        // built again with its run.
+                                        Provider.of<TaskProvider?>(
+                                          context,
+                                          listen: false,
+                                        )?.parentTitleOf(task),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
