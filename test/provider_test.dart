@@ -61,6 +61,36 @@ void main() {
     expect(ticked.notes, 'The answer');
   });
 
+  test('a task past the agenda is still reminded days ahead', () async {
+    final provider = await seedProvider();
+    final today = dayOf(DateTime.now());
+    final db = AppDatabase.instance;
+    // Five weeks out, reminded two weeks before: inside the agenda's reach.
+    await db.insert(
+      Task(
+        listId: 1,
+        title: 'Passport',
+        dueAt: addDays(today, 35).millisecondsSinceEpoch,
+        createdAt: 0,
+        remindBefore: 14 * Duration.minutesPerDay,
+      ),
+    );
+    // Five weeks out with no lead of its own: nothing to set yet.
+    await db.insert(
+      Task(
+        listId: 1,
+        title: 'Dentist',
+        dueAt: addDays(today, 35).millisecondsSinceEpoch,
+        createdAt: 0,
+      ),
+    );
+    await provider.loadTasks();
+    expect(provider.upcoming.map((t) => t.title), isNot(contains('Passport')));
+    expect((await provider.remindedAhead()).map((t) => t.title), [
+      'Passport',
+    ]);
+  });
+
   test('tasks sent to agents are marked and put in progress', () async {
     final provider = await seedProvider();
     await provider.toggleDone(await taskNamed('Someday idea'));
