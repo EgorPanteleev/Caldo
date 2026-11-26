@@ -1038,9 +1038,13 @@ void main() {
   testWidgets('shows pictures sent and received using private chat storage', (
     tester,
   ) async {
-    final png = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQAB'
-      'pfZFQAAAAABJRU5ErkJggg==',
+    final portrait = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAABQAAAAoCAIAAABxU02MAAAAJElEQVR4nGMICW8gGzGMah7V'
+      'PKp5VPOo5lHNo5pHNY9qJhcBAGZzpo4L92TVAAAAAElFTkSuQmCC',
+    );
+    final landscape = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAIAAABwJOjsAAAAJElEQVR4nGMICW8YEMQwavGo'
+      'xaMWj1o8avGoxaMWj1o8ciwGAOR0po4n7NN/AAAAAElFTkSuQmCC',
     );
     final requested = <String>[];
     final client = (await tester.runAsync(() async {
@@ -1051,7 +1055,10 @@ void main() {
         httpClient: MockClient((request) async {
           requested.add(request.url.path);
           expect(request.headers['authorization'], 'Bearer token');
-          return http.Response.bytes(png, 200);
+          return http.Response.bytes(
+            request.url.path.endsWith('/reply') ? landscape : portrait,
+            200,
+          );
         }),
       );
       addTearDown(client.dispose);
@@ -1064,19 +1071,22 @@ void main() {
       );
       return client;
     }))!;
-    final feed = TalkFeed.held('chat', const [
+    final now = DateTime.now();
+    final at = DateTime(now.year, now.month, now.day, 11, 7);
+    final feed = TalkFeed.held('chat', [
       ChatItem(
         id: 'reply',
         seq: 2,
         kind: 'text',
-        body: {
+        at: at,
+        body: const {
           'text': 'Here it is',
           'files': [
             {'name': 'reply.png', 'mime': 'image/png', 'key': 'chat/reply'},
           ],
         },
       ),
-      ChatItem(
+      const ChatItem(
         id: 'legacy',
         seq: 1,
         kind: 'user',
@@ -1095,6 +1105,10 @@ void main() {
         {'name': 'upload.png', 'mime': 'image/png', 'key': 'chat/upload'},
       ],
     );
+    tester.view.physicalSize = const Size(411, 731);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -1102,6 +1116,16 @@ void main() {
         ),
       ),
     );
+    await tester.runAsync(() async {
+      for (
+        var i = 0;
+        i < 100 && find.byType(Image).evaluate().length < 2;
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        await tester.pump();
+      }
+    });
     await tester.pumpAndSettle();
     expect(
       requested,
@@ -1112,14 +1136,47 @@ void main() {
     );
     expect(find.byType(Image), findsNWidgets(2));
     expect(find.text('old.png'), findsOneWidget);
-    await tester.tap(
-      find.byWidgetPredicate(
-        (widget) => widget is Image && widget.semanticLabel == 'reply.png',
-      ),
+    Finder photo(String name) => find.byWidgetPredicate(
+      (widget) => widget is Image && widget.semanticLabel == name,
     );
+    final incoming = tester.getRect(photo('reply.png'));
+    final outgoing = tester.getRect(photo('upload.png'));
+    expect(incoming.width / incoming.height, closeTo(2, 0.01));
+    expect(outgoing.width / outgoing.height, closeTo(0.5, 0.01));
+    expect(incoming.left, lessThan(outgoing.left));
+    final caption = find.text('Here it is', findRichText: true);
+    expect(tester.getTopLeft(caption).dy, closeTo(incoming.bottom + 7, 0.1));
+    final sentAt = feed.items.last.at!;
+    final time = find.text(Dates.time(sentAt, h24: false));
+    expect(
+      time.evaluate().any(
+        (element) => outgoing.contains(
+          tester.getCenter(
+            find.byElementPredicate((candidate) => candidate == element),
+          ),
+        ),
+      ),
+      isTrue,
+    );
+    await tester.tap(photo('reply.png'));
     await tester.pumpAndSettle();
     expect(find.byType(InteractiveViewer), findsOneWidget);
     expect(find.text('reply.png'), findsOneWidget);
+    final viewerCaption = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.text('Here it is'),
+    );
+    expect(viewerCaption, findsOneWidget);
+    await tester.tap(find.byType(InteractiveViewer));
+    await tester.pumpAndSettle();
+    expect(find.text('reply.png'), findsNothing);
+    expect(viewerCaption, findsNothing);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    await tester.tap(find.byType(InteractiveViewer));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsNothing);
   });
 
   testWidgets('chat history can scroll behind the composer and clear it', (
