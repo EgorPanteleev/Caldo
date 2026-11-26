@@ -725,5 +725,18 @@ const Map<String, Object> it = {
       "Per questa chat e le sue sottochat: come lavorare, a cosa serve.",
   'contextImport': "Prendi da CLAUDE.md",
   'contextImportNone': "Nelle cartelle del progetto non c'è CLAUDE.md.",
+  'contextHistory': "Cronologia",
+  'historyNow': "adesso",
+  'historyByApp': "Tu, in Caldo",
+  'historyByComputer': "Il suo file su {computer}",
+  'historyByChat': "Chat «{title}»",
+  'historyByAssistant': "Un assistente fuori da Caldo",
+  'historyRestored': "Ripristinata",
+  'historyUnmerged': "non unita: è rimasta quella di Caldo",
+  'historyRestore': "Ripristina",
+  'historyRestoredDone': "Versione {n} ripristinata",
+  'historyEmpty': "Ancora nulla di salvato",
+  'projectFolderShared':
+      "Anche «{name}» lavora in questa cartella: lì può essere il file solo delle info di un progetto, il primo per nome.",
   'contextNothing': "Niente di scritto",
 };

@@ -262,12 +262,17 @@ class AgentProject {
   final String context;
   final List<String> sources;
 
+  /// Which change of [context] this is, counted by the server: a worker
+  /// saves an edit of the project's file only on the version it saw.
+  final int version;
+
   const AgentProject({
     required this.id,
     required this.name,
     this.colour,
     this.context = '',
     this.sources = const [],
+    this.version = 1,
   });
 
   factory AgentProject.fromJson(Map json) => AgentProject(
@@ -276,6 +281,43 @@ class AgentProject {
     colour: json['colour'] as String?,
     context: json['context'] as String? ?? '',
     sources: _strings(json['sources']),
+    version: (json['version'] as num?)?.toInt() ?? 1,
+  );
+}
+
+/// One of the last versions of a project's info (`agent_project_versions`),
+/// to look back on and restore.
+@immutable
+class ProjectVersion {
+  final int id;
+  final int version;
+  final String context;
+
+  /// Who made it: `app`, `restore`, `assistant`, `computer:<name>` (its
+  /// file edited there) or `chat:<id>`.
+  final String by;
+
+  /// An edit of the file that could not be merged with a change made in
+  /// Caldo meanwhile: kept here, never the info.
+  final bool unmerged;
+  final DateTime at;
+
+  const ProjectVersion({
+    required this.id,
+    required this.version,
+    required this.context,
+    required this.by,
+    required this.at,
+    this.unmerged = false,
+  });
+
+  factory ProjectVersion.fromJson(Map json) => ProjectVersion(
+    id: (json['id'] as num).toInt(),
+    version: (json['version'] as num).toInt(),
+    context: json['context'] as String? ?? '',
+    by: json['changed_by'] as String? ?? 'app',
+    unmerged: json['unmerged'] == true,
+    at: DateTime.parse(json['created_at'] as String).toLocal(),
   );
 }
 
@@ -1130,12 +1172,16 @@ class Agents extends ChangeNotifier {
     String? colour,
     String context = '',
     List<String> sources = const [],
+    String by = 'app',
   }) async {
     final fields = {
       'name': name,
       'colour': colour,
       'context': context,
       'sources': sources,
+      // Kept with the version if [context] changed; else the server keeps
+      // who changed it last.
+      'changed_by': by,
     };
     final query = id == null
         ? _client!.from('agent_projects').insert(fields)
@@ -1153,16 +1199,35 @@ class Agents extends ChangeNotifier {
   /// Project [project]'s info written as [info]: every chat in it is told
   /// it from its next start, and those running are started again with it
   /// once their turn is done, as with changed settings.
-  Future<void> setProjectInfo(AgentProject project, String info) async {
+  Future<void> setProjectInfo(
+    AgentProject project,
+    String info, {
+    String by = 'app',
+  }) async {
     await saveProject(
       id: project.id,
       name: project.name,
       colour: project.colour,
       context: info.trim(),
       sources: project.sources,
+      by: by,
     );
     await retuneProject(project.id);
   }
+
+  /// Project [id]'s last versions, the latest first.
+  Future<List<ProjectVersion>> projectVersions(String id) async {
+    final rows = await _client!
+        .from('agent_project_versions')
+        .select()
+        .eq('project_id', id)
+        .order('id', ascending: false);
+    return [for (final r in rows) ProjectVersion.fromJson(r)];
+  }
+
+  /// [project]'s info made [version]'s words again, as a new version.
+  Future<void> restoreProject(AgentProject project, ProjectVersion version) =>
+      setProjectInfo(project, version.context, by: 'restore');
 
   /// The running chats of project [id] started again with its info as it
   /// is now, once their turn is done.

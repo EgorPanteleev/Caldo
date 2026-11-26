@@ -1006,7 +1006,12 @@ class CodexTalk extends Talk {
     String? resume,
     bool fork = false,
   }) async {
-    await _run(files, ['codex', ...codexQuiet, 'app-server']);
+    await _run(files, [
+      'codex',
+      ...codexQuiet,
+      ...codexMayWrite(ask.projectFile),
+      'app-server',
+    ]);
     await _call('initialize', {
       'clientInfo': {'name': 'caldo', 'title': 'Caldo', 'version': '1'},
       'capabilities': null,

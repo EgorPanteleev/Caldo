@@ -313,6 +313,22 @@ class S {
   String get contextOwnHint => _word('contextOwnHint');
   String get contextImport => _word('contextImport');
   String get contextImportNone => _word('contextImportNone');
+  String get contextHistory => _word('contextHistory');
+  String get historyNow => _word('historyNow');
+  String get historyByApp => _word('historyByApp');
+  String historyByComputer(String computer) =>
+      _fill('historyByComputer', {'computer': computer});
+  String historyByChat(String title) =>
+      _fill('historyByChat', {'title': title});
+  String get historyByAssistant => _word('historyByAssistant');
+  String get historyRestored => _word('historyRestored');
+  String get historyUnmerged => _word('historyUnmerged');
+  String get historyRestore => _word('historyRestore');
+  String historyRestoredDone(int n) =>
+      _fill('historyRestoredDone', {'n': '$n'});
+  String get historyEmpty => _word('historyEmpty');
+  String projectFolderShared(String name) =>
+      _fill('projectFolderShared', {'name': name});
   String get contextNoAnswer => _word('contextNoAnswer');
   String get contextNothing => _word('contextNothing');
   String get chatPermission => _word('chatPermission');

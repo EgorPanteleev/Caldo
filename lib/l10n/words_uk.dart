@@ -749,5 +749,18 @@ const Map<String, Object> uk = {
       "Для цього чату та його підчатів: як працювати і для чого він.",
   'contextImport': "Взяти з CLAUDE.md",
   'contextImportNone': "У теках проєкту немає CLAUDE.md.",
+  'contextHistory': "Історія",
+  'historyNow': "зараз",
+  'historyByApp': "Ви, у Caldo",
+  'historyByComputer': "Файл на {computer}",
+  'historyByChat': "Чат «{title}»",
+  'historyByAssistant': "Асистент поза Caldo",
+  'historyRestored': "Відновлено",
+  'historyUnmerged': "не об'єднано: залишено з Caldo",
+  'historyRestore': "Відновити",
+  'historyRestoredDone': "Версію {n} відновлено",
+  'historyEmpty': "Поки нічого не збережено",
+  'projectFolderShared':
+      "«{name}» теж працює в цій теці: файлом у ній може бути інформація лише одного проєкту — першого за назвою.",
   'contextNothing': "Нічого не написано",
 };

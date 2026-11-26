@@ -708,5 +708,18 @@ const Map<String, Object> kk = {
       "Осы чат пен оның ішкі чаттары үшін: қалай жұмыс істеу керек, не үшін керек.",
   'contextImport': "CLAUDE.md-ден алу",
   'contextImportNone': "Жоба қалталарында CLAUDE.md жоқ.",
+  'contextHistory': "Тарих",
+  'historyNow': "қазір",
+  'historyByApp': "Сіз, Caldo-да",
+  'historyByComputer': "{computer} ішіндегі файл",
+  'historyByChat': "«{title}» чаты",
+  'historyByAssistant': "Caldo-дан тыс ассистент",
+  'historyRestored': "Қалпына келтірілді",
+  'historyUnmerged': "біріктірілмеді: Caldo-дағысы қалды",
+  'historyRestore': "Қалпына келтіру",
+  'historyRestoredDone': "{n}-нұсқа қалпына келтірілді",
+  'historyEmpty': "Әзірге ештеңе сақталмаған",
+  'projectFolderShared':
+      "«{name}» да осы қалтада жұмыс істейді: ондағы файл тек бір жобаның ақпараты бола алады — аты бойынша біріншісінің.",
   'contextNothing': "Ештеңе жазылмаған",
 };

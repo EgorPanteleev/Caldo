@@ -726,5 +726,18 @@ const Map<String, Object> de = {
       "Für diesen Chat und seine Unterchats: wie zu arbeiten ist, wofür er da ist.",
   'contextImport': "Aus CLAUDE.md übernehmen",
   'contextImportNone': "In den Ordnern des Projekts gibt es keine CLAUDE.md.",
+  'contextHistory': "Verlauf",
+  'historyNow': "jetzt",
+  'historyByApp': "Du, in Caldo",
+  'historyByComputer': "Die Datei auf {computer}",
+  'historyByChat': "Chat „{title}“",
+  'historyByAssistant': "Ein Assistent außerhalb von Caldo",
+  'historyRestored': "Wiederhergestellt",
+  'historyUnmerged': "nicht zusammengeführt: die aus Caldo blieb",
+  'historyRestore': "Wiederherstellen",
+  'historyRestoredDone': "Version {n} wiederhergestellt",
+  'historyEmpty': "Noch nichts gespeichert",
+  'projectFolderShared':
+      "„{name}“ arbeitet auch in diesem Ordner: Dort kann nur die Info eines Projekts die Datei sein, des ersten nach Name.",
   'contextNothing': "Nichts geschrieben",
 };

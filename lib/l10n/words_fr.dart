@@ -724,5 +724,18 @@ const Map<String, Object> fr = {
       "Pour ce chat et ses sous-chats : comment travailler, à quoi il sert.",
   'contextImport': "Reprendre de CLAUDE.md",
   'contextImportNone': "Il n'y a pas de CLAUDE.md dans les dossiers du projet.",
+  'contextHistory': "Historique",
+  'historyNow': "actuelle",
+  'historyByApp': "Vous, dans Caldo",
+  'historyByComputer': "Son fichier sur {computer}",
+  'historyByChat': "Chat « {title} »",
+  'historyByAssistant': "Un assistant hors de Caldo",
+  'historyRestored': "Restaurée",
+  'historyUnmerged': "non fusionnée : celle de Caldo a été gardée",
+  'historyRestore': "Restaurer",
+  'historyRestoredDone': "Version {n} restaurée",
+  'historyEmpty': "Rien d'enregistré pour l'instant",
+  'projectFolderShared':
+      "« {name} » travaille aussi dans ce dossier : seules les infos d'un projet peuvent y être le fichier, le premier par nom.",
   'contextNothing': "Rien d'écrit",
 };

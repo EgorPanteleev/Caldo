@@ -101,6 +101,38 @@ Future<void> _until(bool Function() done) async {
   expect(done(), isTrue);
 }
 
+/// [ProjectStore] in memory: saves hold only on the version they name.
+class _Projects implements ProjectStore {
+  final rows = <Map<String, dynamic>>[];
+  final saved = <(String, int, String)>[];
+  final unmerged = <(String, int, String)>[];
+  bool refuse = false;
+
+  @override
+  Future<List<Map<String, dynamic>>> projects() async => [
+    for (final r in rows) {...r},
+  ];
+
+  @override
+  Future<int?> save(String id, String text, int expect, String by) async {
+    final row = rows.firstWhere((r) => r['id'] == id);
+    if (refuse || row['version'] != expect) return null;
+    saved.add((text, expect, by));
+    row
+      ..['context'] = text
+      ..['version'] = expect + 1;
+    return expect + 1;
+  }
+
+  @override
+  Future<void> keepUnmerged(
+    String id,
+    String text,
+    int version,
+    String by,
+  ) async => unmerged.add((text, version, by));
+}
+
 void main() {
   group('a talk', () {
     const ask = ChatAsk(id: 'c', agent: 'claude');
@@ -1883,52 +1915,216 @@ void main() {
       expect(settingsChanged(ask, ruled), 'Settings changed: no rules.');
     });
 
-    test("a project's info is written into its folders, out of git", () async {
-      final dir = Directory.systemTemp.createTempSync('project');
-      addTearDown(() => dir.deleteSync(recursive: true));
-      await Process.run('git', ['init', '-q'], workingDirectory: dir.path);
-      final sub = Directory('${dir.path}/app')..createSync();
-      final body = ProjectFiles.bodyOf([
-        ('Caldo', 'A calendar app.'),
-        ('Empty', '  '),
-        ('Sync', 'Supabase.'),
-      ]);
-      expect(ProjectFiles.written(body), isTrue);
-      expect(body, contains('"Caldo", "Sync"'));
-      expect(
-        body.indexOf('A calendar app.'),
-        lessThan(body.indexOf('Supabase.')),
-      );
-      expect(ProjectFiles.bodyOf([('Empty', '')]), isEmpty);
+    group("a project's file", () {
+      late Directory home;
+      late Directory repo;
+      late _Projects store;
+      late ProjectSync sync;
+      late List<String> said;
+      const id = '3a9fb51c-0000-4000-8000-000000000001';
 
-      expect(await ProjectFiles.write(sub.path, body), isEmpty);
-      for (final name in ProjectFiles.names) {
-        expect(File('${sub.path}/$name').readAsStringSync(), '$body\n');
+      String fileText() => File(sync.fileOf(id)).readAsStringSync();
+      String body(String file) =>
+          file.substring(file.indexOf('-->') + 3).trim();
+      Future<void> edit(String path, String text) async {
+        // A second later, as an editor's write would be.
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final f = File(path);
+        final now = f.readAsStringSync();
+        f.writeAsStringSync(now.replaceFirst(body(now), text));
       }
-      final ignored = await Process.run('git', [
-        'status',
-        '--porcelain',
-        '--untracked-files=all',
-      ], workingDirectory: dir.path);
-      expect('${ignored.stdout}', isEmpty);
-      // Written again: the exclude lines are not added twice.
-      await ProjectFiles.write(sub.path, ProjectFiles.bodyOf([('C', 'New.')]));
-      final exclude = File('${dir.path}/.git/info/exclude').readAsStringSync();
-      expect('/app/CLAUDE.local.md'.allMatches(exclude), hasLength(1));
-      expect(
-        File('${sub.path}/AGENTS.override.md').readAsStringSync(),
-        contains('New.'),
+
+      setUp(() async {
+        home = Directory.systemTemp.createTempSync('home');
+        repo = Directory('${home.path}/dev/Caldo')..createSync(recursive: true);
+        await Process.run('git', ['init', '-q'], workingDirectory: repo.path);
+        store = _Projects()
+          ..rows.add({
+            'id': id,
+            'name': 'Caldo',
+            'context': 'Line one.\n\nLine two.\n\nLine three.',
+            'version': 1,
+            'sources': ['~/dev/Caldo'],
+          });
+        said = [];
+        sync = ProjectSync(
+          home: home.path,
+          store: store,
+          computer: 'desk',
+          log: said.add,
+        );
+      });
+      tearDown(() => home.deleteSync(recursive: true));
+
+      test(
+        'is written, linked where Claude and Codex read, out of git',
+        () async {
+          expect(await sync.run(), isEmpty);
+          expect(
+            sync.fileOf(id),
+            '${home.path}/.local/share/caldo/projects/3a9fb51c.md',
+          );
+          expect(fileText(), startsWith(ProjectSync.mark));
+          expect(body(fileText()), 'Line one.\n\nLine two.\n\nLine three.');
+          for (final name in ProjectSync.names) {
+            expect(Link('${repo.path}/$name').targetSync(), sync.fileOf(id));
+          }
+          final status = await Process.run('git', [
+            'status',
+            '--porcelain',
+          ], workingDirectory: repo.path);
+          expect('${status.stdout}', isEmpty);
+          expect(sync.folders, {
+            id: [repo.path],
+          });
+          // Nothing changed: nothing saved, nothing told.
+          expect(await sync.run(), isEmpty);
+          expect(store.saved, isEmpty);
+        },
       );
 
-      // A file of the user's own is neither written over nor removed.
-      File('${sub.path}/CLAUDE.local.md').writeAsStringSync('Mine.');
-      expect(await ProjectFiles.write(sub.path, body), [
-        '${sub.path}/CLAUDE.local.md',
-      ]);
-      expect(File('${sub.path}/CLAUDE.local.md').readAsStringSync(), 'Mine.');
-      await ProjectFiles.write(sub.path, '');
-      expect(File('${sub.path}/CLAUDE.local.md').existsSync(), isTrue);
-      expect(File('${sub.path}/AGENTS.override.md').existsSync(), isFalse);
+      test('an edit of it is saved to Caldo, through a link too', () async {
+        await sync.run();
+        await edit('${repo.path}/CLAUDE.local.md', 'Line one.\n\nNew two.');
+        expect(await sync.run(), {id});
+        expect(store.saved, [('Line one.\n\nNew two.', 1, 'computer:desk')]);
+        expect(store.rows.single['version'], 2);
+        expect(said.last, contains('saved from its file'));
+        // Saved once: the next pass finds them agreeing.
+        expect(await sync.run(), isEmpty);
+        expect(store.saved, hasLength(1));
+      });
+
+      test("Caldo's change is written in, a deleted file put back", () async {
+        await sync.run();
+        store.rows.single
+          ..['context'] = 'From the phone.'
+          ..['version'] = 2;
+        expect(await sync.run(), {id});
+        expect(body(fileText()), 'From the phone.');
+        File(sync.fileOf(id)).deleteSync();
+        await sync.run();
+        expect(body(fileText()), 'From the phone.');
+        expect(store.saved, isEmpty);
+      });
+
+      test('changed in both, apart lines are merged', () async {
+        await sync.run();
+        await edit(sync.fileOf(id), 'Line one.\n\nLine two.\n\nFile three.');
+        store.rows.single
+          ..['context'] = 'Phone one.\n\nLine two.\n\nLine three.'
+          ..['version'] = 2;
+        await sync.run();
+        const merged = 'Phone one.\n\nLine two.\n\nFile three.';
+        expect(store.saved, [(merged, 2, 'computer:desk')]);
+        expect(body(fileText()), merged);
+      });
+
+      test("changed in both on one line, Caldo's stands", () async {
+        await sync.run();
+        await edit(sync.fileOf(id), 'File one.\n\nLine two.\n\nLine three.');
+        store.rows.single
+          ..['context'] = 'Phone one.\n\nLine two.\n\nLine three.'
+          ..['version'] = 2;
+        await sync.run();
+        expect(store.saved, isEmpty);
+        expect(store.unmerged, [
+          ('File one.\n\nLine two.\n\nLine three.', 2, 'computer:desk'),
+        ]);
+        expect(body(fileText()), startsWith('Phone one.'));
+      });
+
+      test('a save refused by a change just made waits for it', () async {
+        await sync.run();
+        await edit(sync.fileOf(id), 'Mine.');
+        store.refuse = true;
+        expect(await sync.run(), isEmpty);
+        expect(body(fileText()), 'Mine.');
+        store.refuse = false;
+        await sync.run();
+        expect(store.saved.single.$1, 'Mine.');
+      });
+
+      test(
+        "a link written over by an editor is saved and linked again",
+        () async {
+          await sync.run();
+          final place = '${repo.path}/AGENTS.override.md';
+          final edited = fileText().replaceFirst('Line three.', 'Codex three.');
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          Link(place).deleteSync();
+          File(place).writeAsStringSync(edited);
+          await sync.run();
+          expect(store.saved.single.$1, endsWith('Codex three.'));
+          expect(Link(place).targetSync(), sync.fileOf(id));
+          expect(body(fileText()), endsWith('Codex three.'));
+        },
+      );
+
+      test("the user's own files stay; one-way copies become links", () async {
+        File('${repo.path}/CLAUDE.local.md').writeAsStringSync('Mine.');
+        File('${repo.path}/AGENTS.override.md').writeAsStringSync(
+          '<!-- Written by Caldo from the project info of "Caldo". -->\n\n'
+          'Line one.\n\nLine two.\n\nLine three.\n',
+        );
+        await sync.run();
+        expect(
+          File('${repo.path}/CLAUDE.local.md').readAsStringSync(),
+          'Mine.',
+        );
+        expect(said.single, contains('not Caldo'));
+        expect(
+          Link('${repo.path}/AGENTS.override.md').targetSync(),
+          sync.fileOf(id),
+        );
+        expect(store.saved, isEmpty);
+      });
+
+      test('a folder takes the first project; gone, its links go', () async {
+        store.rows.add({
+          'id': 'ffff0000-0000-4000-8000-000000000002',
+          'name': 'Sync',
+          'context': 'Other.',
+          'version': 1,
+          'sources': ['~/dev/Caldo/'],
+        });
+        await sync.run();
+        expect(
+          body(File('${repo.path}/CLAUDE.local.md').readAsStringSync()),
+          startsWith('Line one.'),
+        );
+        expect(said.single, contains('only the first'));
+        expect(File(sync.fileOf('ffff0000')).existsSync(), isTrue);
+
+        store.rows.removeAt(0);
+        await sync.run();
+        expect(File(sync.fileOf(id)).existsSync(), isFalse);
+        expect(
+          body(File('${repo.path}/CLAUDE.local.md').readAsStringSync()),
+          'Other.',
+        );
+        store.rows.clear();
+        await sync.run();
+        for (final name in ProjectSync.names) {
+          expect(
+            FileSystemEntity.typeSync('${repo.path}/$name', followLinks: false),
+            FileSystemEntityType.notFound,
+          );
+        }
+      });
+
+      test('a worker started again knows which side changed', () async {
+        await sync.run();
+        await edit(sync.fileOf(id), 'Edited while it was down.');
+        final again = ProjectSync(
+          home: home.path,
+          store: store,
+          computer: 'desk',
+          log: said.add,
+        );
+        await again.run();
+        expect(store.saved.single.$1, 'Edited while it was down.');
+      });
     });
 
     test("Caldo's Codex reads no project files", () {
@@ -1946,6 +2142,29 @@ void main() {
         expect(at, greaterThan(0));
         expect(argv[at - 1], '-c');
       }
+      // In a project, it may write the project's file, outside its folder.
+      final inProject = ChatAsk.fromJson({
+        'id': 'c',
+        'agent': 'codex',
+        'project': {
+          'name': 'Caldo',
+          'file': '/h/.local/share/caldo/projects/a.md',
+        },
+      });
+      expect(inProject.projectFile, '/h/.local/share/caldo/projects/a.md');
+      expect(
+        launchOf(codex, inProject, prompt: 'hi'),
+        contains(
+          'sandbox_workspace_write.writable_roots=["/h/.local/share/caldo/projects"]',
+        ),
+      );
+      const claude = AgentSpec(id: 'claude', label: 'Claude', command: []);
+      expect(
+        claudeChoices(claude, inProject),
+        contains('--add-dir=/h/.local/share/caldo/projects'),
+      );
+      expect(inProject.rules, contains('edit its file, /h/.local/share'));
+      expect(ask.rules, isNull);
     });
 
     test("Claude is told it from a file, rendered afresh when resumed", () {
@@ -3435,6 +3654,81 @@ void main() {
         expect(find.text(s.noProjects), findsOneWidget);
       });
 
+      testWidgets("shows a project's history in ${S.names[code]}", (
+        tester,
+      ) async {
+        final s = S.forCode(code);
+        const caldo = AgentProject(id: 'p', name: 'Caldo', context: 'Now.');
+        final at = DateTime(2026, 11, 26, 12, 30);
+        Agents.instance.chats = [
+          Chat(
+            id: 'c1aa0000',
+            agent: 'claude',
+            state: ChatState.idle,
+            updatedAt: at,
+            title: 'Release',
+          ),
+        ];
+        addTearDown(() => Agents.instance.chats = const []);
+        await pump(
+          tester,
+          code,
+          ProjectHistoryScreen(
+            project: caldo,
+            versions: [
+              ProjectVersion(
+                id: 4,
+                version: 3,
+                context: 'Mine, not merged.',
+                by: 'computer:desk',
+                unmerged: true,
+                at: at,
+              ),
+              ProjectVersion(
+                id: 3,
+                version: 3,
+                context: 'Now.',
+                by: 'chat:c1aa0000',
+                at: at,
+              ),
+              ProjectVersion(
+                id: 2,
+                version: 2,
+                context: 'Before.',
+                by: 'restore',
+                at: at,
+              ),
+              ProjectVersion(
+                id: 1,
+                version: 1,
+                context: 'First.',
+                by: 'app',
+                at: at,
+              ),
+            ],
+          ),
+        );
+        expect(
+          find.textContaining(s.historyByComputer('desk')),
+          findsOneWidget,
+        );
+        expect(find.textContaining(s.historyByChat('Release')), findsOneWidget);
+        expect(find.textContaining(s.historyRestored), findsOneWidget);
+        expect(find.textContaining(s.historyByApp), findsOneWidget);
+        expect(find.textContaining(s.historyUnmerged), findsOneWidget);
+        // The info now is the latest saved, not the edit kept aside.
+        expect(find.textContaining(s.historyNow), findsOneWidget);
+        await tester.tap(find.textContaining('Before.'));
+        await tester.pumpAndSettle();
+        expect(find.text('Before.'), findsOneWidget);
+        expect(find.text(s.historyRestore), findsOneWidget);
+        Navigator.of(tester.element(find.text('Before.'))).pop();
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining('Now.'));
+        await tester.pumpAndSettle();
+        expect(find.text(s.historyRestore), findsNothing);
+      });
+
       testWidgets("shows a chat's context in ${S.names[code]}", (tester) async {
         final s = S.forCode(code);
         const caldo = AgentProject(
@@ -3493,6 +3787,8 @@ void main() {
           -200,
           scrollable: list,
         );
+        await tester.ensureVisible(find.text(top.context));
+        await tester.pumpAndSettle();
         await tester.tap(find.text(top.context));
         await tester.pumpAndSettle();
         expect(find.text(s.contextParents.toUpperCase()), findsNothing);
@@ -3501,6 +3797,9 @@ void main() {
           200,
           scrollable: find.byType(Scrollable).last,
         );
+        // To the end of the list, so the tile is whole on screen.
+        await tester.drag(find.byType(ListView).last, const Offset(0, -800));
+        await tester.pumpAndSettle();
         await tester.tap(find.text(top.context));
         await tester.pumpAndSettle();
         expect(find.text(s.contextOwnHint), findsWidgets);

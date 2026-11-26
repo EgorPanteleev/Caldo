@@ -256,16 +256,25 @@ String? contextText(Object? project, Object? parents, Object? own) {
   final mine = own is String ? own.trim() : '';
   if (mine.isNotEmpty) parts.add('<own-context>\n$mine\n</own-context>');
   if (parts.isEmpty) return null;
+  final file = project is Map && project['file'] is String
+      ? project['file'] as String
+      : null;
+  final change = file == null
+      ? "change it with Caldo's update_project_info tool (project_info "
+            'reads it as it is now)'
+      : 'edit its file, $file (it is saved to Caldo within seconds and '
+            "reaches every chat), or use Caldo's update_project_info tool; "
+            'read the file first, as it may have changed since this session '
+            'began';
   return [
     'This session\'s context, as the user wrote it in Caldo. It stands in '
         'for CLAUDE.md files and memory, which are not read here: what to '
         'know of the project, how to work, and what this chat is for. '
         'project-info is the project\'s, shared by every chat in it: when '
         'your work changes something it says, or it lacks something every '
-        'chat there should know, change it with Caldo\'s update_project_info '
-        'tool (project_info reads it as it is now). parent-context is that '
-        'of the chats this one is part of, outermost first; own-context is '
-        'this chat\'s alone.',
+        'chat there should know, $change. Never write a CLAUDE.md or '
+        'AGENTS.md for it. parent-context is that of the chats this one is '
+        "part of, outermost first; own-context is this chat's alone.",
     ...parts,
   ].join('\n\n');
 }

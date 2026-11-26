@@ -63,11 +63,18 @@ abstract class ChatDesk {
   /// how many were reached.
   Future<int> notify(String chat, String text);
 
-  /// Every project (`agent_projects`): id, name and its info, `context`.
+  /// Every project (`agent_projects`): id, name, its info (`context`) and
+  /// `version`.
   Future<List<Map<String, dynamic>>> projects();
 
-  /// Project [id]'s info written as [context].
-  Future<void> setProjectInfo(String id, String context);
+  /// Project [id]'s info written as [context] by [by], only if it is still
+  /// at [version]; whether it was.
+  Future<bool> setProjectInfo(
+    String id,
+    String context, {
+    required int version,
+    required String by,
+  });
 }
 
 /// [ChatDesk] on Supabase, signed in as the MCP server is.
@@ -205,13 +212,23 @@ class SupabaseChatDesk implements ChatDesk {
 
   @override
   Future<List<Map<String, dynamic>>> projects() async =>
-      (await _db).from('agent_projects').select('id, name, context');
+      (await _db).from('agent_projects').select('id, name, context, version');
 
   @override
-  Future<void> setProjectInfo(String id, String context) async => (await _db)
-      .from('agent_projects')
-      .update({'context': context})
-      .eq('id', id);
+  Future<bool> setProjectInfo(
+    String id,
+    String context, {
+    required int version,
+    required String by,
+  }) async =>
+      await (await _db)
+          .from('agent_projects')
+          .update({'context': context, 'changed_by': by})
+          .eq('id', id)
+          .eq('version', version)
+          .select('id')
+          .maybeSingle() !=
+      null;
 }
 
 /// Chats talking to each other: tools for an agent in one of Caldo's chats
@@ -680,7 +697,18 @@ class ChatTools {
       throw const Refusal('Give text (the whole info) or old and new.');
     }
     if (now == was) return 'Nothing changed.';
-    await desk.setProjectInfo('${project['id']}', now);
+    final saved = await desk.setProjectInfo(
+      '${project['id']}',
+      now,
+      version: (project['version'] as num?)?.toInt() ?? 1,
+      by: self == null ? 'assistant' : 'chat:$self',
+    );
+    if (!saved) {
+      throw const Refusal(
+        'The project info was changed meanwhile: read it again with '
+        'project_info, then make your change.',
+      );
+    }
     return 'Project "${project['name']}" info changed (${now.length} '
         'characters). Each chat in it is told it when its program next '
         'starts.';
