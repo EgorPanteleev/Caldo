@@ -1381,7 +1381,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
             : plugins.toList(),
         skills: _skills.toList(),
         rules: rules,
-        prompt: kind.prompt == 'none' ? '' : firstMessage(_prompt.text, rules),
+        prompt: kind.prompt == 'none' ? '' : firstMessage('', rules),
         account: _ready(_account) ? _account : null,
         cols: cols,
         rows: rows,
@@ -1813,17 +1813,15 @@ class _NewChatScreenState extends State<NewChatScreen> {
                         _Section(s.chatTitle),
                         _Field(controller: _title),
                       ],
-                      if (kind.prompt != 'none') ...[
-                        _Section(_forTasks ? s.chatForEach : s.chatPrompt),
+                      if (_forTasks && kind.prompt != 'none') ...[
+                        _Section(s.chatForEach),
                         // What the chosen rules begin with, if nothing is
                         // written here.
                         _Field(
                           controller: _prompt,
                           hint: firstMessage('', _picked).isNotEmpty
                               ? firstMessage('', _picked)
-                              : _forTasks
-                              ? s.chatForEachHint
-                              : null,
+                              : s.chatForEachHint,
                           lines: 6,
                         ),
                       ],
