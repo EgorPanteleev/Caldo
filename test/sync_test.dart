@@ -189,6 +189,34 @@ void main() {
     expect(await a.dirty(), 0);
   });
 
+  test('a phone knows its own rows when the server tells them back', () async {
+    // A new phone's default group is still to go up.
+    expect(await a.sync.store.hasOutgoing(), isTrue);
+    await a.sync.run();
+    expect(await a.sync.store.hasOutgoing(), isFalse);
+    await a.add('Ship');
+    expect(await a.sync.store.hasOutgoing(), isTrue);
+    await a.sync.run();
+    expect(await a.sync.store.hasOutgoing(), isFalse);
+
+    final told = await server.pull(0, 500);
+    final ship = told.singleWhere((r) => r.table == 'tasks');
+    // Its own change, heard back: nothing to fetch.
+    expect(await a.sync.store.holds(ship), isTrue);
+    // The other phone has yet to have it.
+    expect(await b.sync.store.holds(ship), isFalse);
+
+    // Edited elsewhere, the server's copy is no longer the one here.
+    await b.sync.run();
+    await tick();
+    await b.db.update((await b.named('Ship'))!.copyWith(title: 'Ship it'));
+    await b.sync.run();
+    final edited = (await server.pull(0, 500)).singleWhere(
+      (r) => r.table == 'tasks',
+    );
+    expect(await a.sync.store.holds(edited), isFalse);
+  });
+
   test('an edit and a deletion travel, and leave nothing to send', () async {
     await a.add('Ship');
     await a.sync.run();

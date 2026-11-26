@@ -427,8 +427,8 @@ class TaskProvider extends ChangeNotifier {
     ], days: _specialDays);
     await TodayWidget.publish(this);
     // The same reasoning brings the account in: whatever changed here, a
-    // round goes up shortly after.
-    Sync.instance.soon();
+    // round goes up shortly after — if anything here is still to go.
+    Sync.instance.sendSoon();
   }
 
   /// The tasks past the agenda's last day that may still be announced

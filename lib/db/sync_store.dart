@@ -181,6 +181,32 @@ class SyncStore {
     values['due_at'] = DateTime.tryParse(due)?.millisecondsSinceEpoch;
   }
 
+  /// Whether anything here is still to be sent.
+  Future<bool> hasOutgoing() async {
+    final d = await db.database;
+    for (final t in _tables) {
+      final rows = await d.rawQuery('SELECT 1 FROM $t WHERE dirty = 1 LIMIT 1');
+      if (rows.isNotEmpty) return true;
+    }
+    return (await d.rawQuery('SELECT 1 FROM tombstones LIMIT 1')).isNotEmpty;
+  }
+
+  /// Whether [row], as the server now holds it, is what is here already —
+  /// this device's own change, heard back from the server once it was
+  /// sent, which a round would only bring down to leave as it is.
+  Future<bool> holds(SyncRow row) async {
+    if (!_tables.contains(row.table)) return false;
+    final d = await db.database;
+    final here = (await d.query(
+      row.table,
+      columns: ['updated_at'],
+      where: 'uuid = ?',
+      whereArgs: [row.uuid],
+    )).firstOrNull;
+    if (row.deleted) return here == null;
+    return here != null && here['updated_at'] == row.updatedAt;
+  }
+
   /// Notes that [rows] have reached the server. Only as they were sent: a
   /// row changed again while they were on the way is still to be sent.
   Future<void> sent(List<SyncRow> rows) async {
