@@ -699,6 +699,15 @@ const Map<String, Object> nl = {
   'chatNoProject': "Geen",
   'chatOwnFolderHint':
       "Elke chat werkt in een eigen map op de computer, met de mappen van zijn project erin.",
+  'newSubchat': "Nieuwe subchat",
+  'subchatOf': "Subchat van",
+  'subchats': "Subchats",
+  'subchatHint':
+      "Een subchat werkt in de map van deze chat op dezelfde computer en begint met alles wat hier is gezegd. Wat je hieronder schrijft is zijn eigen deel van het werk.",
+  'deleteChatSubchats': [
+    "Zijn {n} subchat wordt mee verwijderd.",
+    "Zijn {n} subchats worden mee verwijderd.",
+  ],
   'allProjects': "Alle projecten",
   'untitledProject': "Naamloos project",
   'projectAllContext': "Alle context",

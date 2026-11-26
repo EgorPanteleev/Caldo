@@ -60,8 +60,17 @@ abstract class Talk {
   _Replay? _replay;
 
   /// Starts its program, its files at [files]; with [resume], carrying on
-  /// that session.
-  Future<void> start({required String files, String? resume});
+  /// that session — or, with [fork], another chat's, from which a new one
+  /// of its own is begun (a subchat's first start).
+  Future<void> start({
+    required String files,
+    String? resume,
+    bool fork = false,
+  });
+
+  /// Whether [start] began it from another chat's session, as asked: a
+  /// subchat not forked is told its parent's words instead.
+  bool forked = false;
 
   /// One line of what its program says.
   void take(Map line);
@@ -96,12 +105,15 @@ abstract class Talk {
 
   /// [text] said by the user, with [files] sent along; [id], the app's own
   /// for it, so the words it showed at once are these. [sender] if another
-  /// chat's agent sent it, not the user (`withSender`).
+  /// chat's agent sent it, not the user (`withSender`). [before] is told
+  /// the agent ahead of [text] but not shown in the chat: what a subchat
+  /// is to know of its parent's.
   void say(
     String text, {
     String? id,
     List<Given> files = const [],
     Map? sender,
+    String? before,
   });
 
   /// [choice] is `allow`, `always` or `deny`; or `answer` to questions
@@ -237,6 +249,7 @@ class ClaudeTalk extends Talk {
     AgentSpec spec,
     ChatAsk ask, {
     String? resume,
+    bool fork = false,
     String? given,
   }) => [
     'claude',
@@ -249,12 +262,20 @@ class ClaudeTalk extends Talk {
     '--include-partial-messages',
     '--permission-prompt-tool',
     'stdio',
-    ...claudeChoices(spec, ask, resume: resume, given: given),
+    ...claudeChoices(spec, ask, resume: resume, fork: fork, given: given),
   ];
 
   @override
-  Future<void> start({required String files, String? resume}) async {
-    await _run(files, argv(spec, ask, resume: resume, given: given));
+  Future<void> start({
+    required String files,
+    String? resume,
+    bool fork = false,
+  }) async {
+    await _run(
+      files,
+      argv(spec, ask, resume: resume, fork: fork, given: given),
+    );
+    forked = fork && resume != null;
     _write({
       'type': 'control_request',
       'request_id': 'init',
@@ -270,6 +291,7 @@ class ClaudeTalk extends Talk {
     String? id,
     List<Given> files = const [],
     Map? sender,
+    String? before,
   }) {
     sink.item(
       id ?? 'u${DateTime.now().microsecondsSinceEpoch}',
@@ -281,7 +303,10 @@ class ClaudeTalk extends Talk {
       'type': 'user',
       'message': {
         'role': 'user',
-        'content': withSender(withFiles(text, files), sender),
+        'content': withBefore(
+          before,
+          withSender(withFiles(text, files), sender),
+        ),
       },
       'parent_tool_use_id': null,
       'session_id': '',
@@ -874,7 +899,11 @@ class CodexTalk extends Talk {
   }
 
   @override
-  Future<void> start({required String files, String? resume}) async {
+  Future<void> start({
+    required String files,
+    String? resume,
+    bool fork = false,
+  }) async {
     await _run(files, ['codex', 'app-server']);
     await _call('initialize', {
       'clientInfo': {'name': 'caldo', 'title': 'Caldo', 'version': '1'},
@@ -894,10 +923,13 @@ class CodexTalk extends Talk {
     Map? result;
     if (resume != null) {
       try {
-        result = await _call('thread/resume', {
+        // A subchat's first start: its parent's thread, carried on as a
+        // new thread of its own.
+        result = await _call(fork ? 'thread/fork' : 'thread/resume', {
           'threadId': resume,
           ...settings,
         });
+        forked = fork;
       } on StateError {
         // A thread never spoken in may not have been kept: begun afresh.
       }
@@ -935,13 +967,17 @@ class CodexTalk extends Talk {
     String? id,
     List<Given> files = const [],
     Map? sender,
+    String? before,
   }) {
     sink.item(
       id ?? 'u${DateTime.now().microsecondsSinceEpoch}',
       'user',
       saidBody(text, files, sender: sender),
     );
-    final input = withSender(withFiles(text, files), sender);
+    final input = withBefore(
+      before,
+      withSender(withFiles(text, files), sender),
+    );
     _sending = _sending.then((_) => _send(input));
   }
 

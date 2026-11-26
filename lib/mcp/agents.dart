@@ -111,6 +111,10 @@ class AgentSpec {
     // it: an app offers "When I start it" only to a worker that does,
     // as one from before would end it for want of a task.
     'held': true,
+    // It begins a subchat (`chats.parent_id`) in its parent's folder,
+    // knowing what was said there: an app offers it only to an agent
+    // told so by its first message, as a shell would run the words.
+    'subchats': prompt != 'none' && id != 'shell',
   };
 
   /// The words to run for [blanks]: each `{name}` put in, and each part
@@ -342,8 +346,12 @@ class ChatAsk {
   final List<String> sources;
 
   /// Its own folder, once its worker has made it; then [dir] is where in
-  /// it the program starts.
+  /// it the program starts. A subchat's is its parent's.
   final Workspace? workspace;
+
+  /// The chat it is a subchat of (`chats.parent_id`): begun knowing what
+  /// was said there, in that chat's folder; null for a chat of its own.
+  final String? parentId;
 
   /// The row it was read from, to read it again once placed.
   final Map? _row;
@@ -371,6 +379,7 @@ class ChatAsk {
     this.ownFolder = false,
     this.sources = const [],
     this.workspace,
+    this.parentId,
   }) : _row = null;
 
   ChatAsk._read(
@@ -397,6 +406,7 @@ class ChatAsk {
     required this.ownFolder,
     required this.sources,
     required this.workspace,
+    required this.parentId,
   }) : _row = json;
 
   /// It as it is once its own folder is made: started in it, and told it.
@@ -407,6 +417,10 @@ class ChatAsk {
     'workspace': made.toJson(),
     'dir': made.cwd,
   });
+
+  /// It as it is with [fields] of its row changed, as written there.
+  ChatAsk withRow(Map<String, Object?> fields) =>
+      ChatAsk.fromJson({...?_row, 'id': id, 'agent': agent, ...fields});
 
   /// The folders it is given besides the one it starts in.
   List<String> get added => workspace?.added ?? const [];
@@ -426,7 +440,11 @@ class ChatAsk {
     rules: _joined([
       rulesText(json['rules']),
       projectText(json['project']),
-      workspaceText(Workspace.of(json['workspace'])),
+      if (_blank(json['parent_id']) case final parent?) subchatText(parent),
+      workspaceText(
+        Workspace.of(json['workspace']),
+        shared: _blank(json['parent_id']) != null,
+      ),
     ]),
     session: _blank(json['session']),
     taskUuid: json['task_uuid'] as String?,
@@ -436,7 +454,8 @@ class ChatAsk {
     usage: json['usage'] is Map ? json['usage'] as Map : null,
     language: _blank(json['language']),
     account: _blank(json['account']),
-    ownFolder: json['workspace'] is Map,
+    // A subchat works in its parent's folder, never one of its own.
+    ownFolder: json['workspace'] is Map && _blank(json['parent_id']) == null,
     sources: switch (json['project']) {
       {'sources': final List sources} => [
         for (final s in sources)
@@ -445,6 +464,7 @@ class ChatAsk {
       _ => const [],
     },
     workspace: Workspace.of(json['workspace']),
+    parentId: _blank(json['parent_id']),
   );
 }
 
@@ -495,6 +515,65 @@ String? rulesText(Object? rules) {
   if (parts.isEmpty) return null;
   return 'The user set these rules for this session. Follow them.\n\n'
       '${parts.join('\n\n')}';
+}
+
+/// What a subchat of chat [parent] is told it is: begun from that chat to
+/// take on a part of its work, knowing what was said there, and how to
+/// reach it, as it goes on apart.
+String subchatText(String parent) {
+  final short = parent.length < 8 ? parent : parent.substring(0, 8);
+  return 'This session is a subchat in Caldo: it was begun from chat $short '
+      'to take on a part of that chat\'s work, and knows what was said there '
+      'up to then. That chat goes on apart from this one; Caldo\'s read_chat '
+      'tool reads it as it is now, and its message_chat tool tells it what '
+      'you found or asks it something.';
+}
+
+/// What a subchat of [parent] (its `chats` row) is told of it when it
+/// can't be begun from its session — another agent, or one not spoken in
+/// yet: the messages and answers in [items] (`chat_items`, oldest first),
+/// the latest [most] characters of them, else what it was begun with.
+String parentWords(Map parent, List<Map> items, {int most = 24000}) {
+  final id = '${parent['id'] ?? ''}';
+  final short = id.length < 8 ? id : id.substring(0, 8);
+  final title = '${parent['title'] ?? ''}'.trim();
+  final named = title.isEmpty ? 'chat $short' : 'chat "$title" ($short)';
+  final said = <String>[];
+  var length = 0;
+  var cut = false;
+  for (final item in items.reversed) {
+    final body = item['body'];
+    if (body is! Map) continue;
+    final text = '${body['text'] ?? ''}'.trim();
+    if (text.isEmpty) continue;
+    final who = switch ((item['kind'], body['sender'])) {
+      ('text', _) => 'Agent',
+      (_, {'event': _}) => 'Caldo',
+      (_, Map _) => 'Another chat',
+      _ => 'User',
+    };
+    final line = '$who: $text';
+    if (length + line.length > most) {
+      // One too long alone: its end, as the latest part.
+      if (said.isEmpty) {
+        said.add('$who: …${text.substring(text.length - most)}');
+      }
+      cut = true;
+      break;
+    }
+    said.add(line);
+    length += line.length;
+  }
+  if (said.isEmpty) {
+    final prompt = '${parent['prompt'] ?? ''}'.trim();
+    return '[This chat is a subchat of $named in Caldo. Nothing was said '
+        'there yet${prompt.isEmpty ? '' : '; it was begun with:\n\n$prompt'}'
+        ']';
+  }
+  return '[This chat is a subchat of $named in Caldo, begun to take on a '
+      'part of its work. What was said there up to now'
+      '${cut ? ' (its latest part)' : ''}, for you to '
+      'carry on from:\n\n${said.reversed.join('\n\n')}]';
 }
 
 /// The words that start [ask] with [spec]. With [resume], Claude and
@@ -699,11 +778,14 @@ Future<String?> nameChat(
 }
 
 /// The choices a chat makes of Claude, for its chat ([ClaudeTalk]) and its
-/// terminal alike; [settings] go in with the plugins it chose.
+/// terminal alike; [settings] go in with the plugins it chose. With
+/// [fork], [resume] is another chat's session, carried on under a new one
+/// of this chat's own: a subchat's first start.
 List<String> claudeChoices(
   AgentSpec spec,
   ChatAsk ask, {
   String? resume,
+  bool fork = false,
   String? given,
   Map<String, Object?> settings = const {},
 }) {
@@ -717,6 +799,7 @@ List<String> claudeChoices(
     if (ask.effort != null) ...['--effort', ask.effort!],
     if (ask.permission != null) ...['--permission-mode', ask.permission!],
     if (resume != null) ...['--resume', resume],
+    if (resume != null && fork) '--fork-session',
     if (ask.title.isNotEmpty) ...['-n', ask.title],
     if (all.isNotEmpty) ...['--settings', jsonEncode(all)],
     if (_appended(ask) case final text?) ...['--append-system-prompt', text],
@@ -844,6 +927,11 @@ String withSender(String text, Map? sender) {
             'Caldo\'s message_chat tool to chat $short.';
   return '[A message from $who, not from the user. $back]\n\n$text';
 }
+
+/// [text] as the agent is told it with [before] ahead of it: a subchat's
+/// first message, after what it is to know of its parent's.
+String withBefore(String? before, String text) =>
+    before == null || before.trim().isEmpty ? text : '$before\n\n$text';
 
 /// "340 B", "12 KB", "2.1 MB".
 String sizeWord(int bytes) => bytes < 1024

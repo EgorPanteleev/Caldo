@@ -700,6 +700,15 @@ const Map<String, Object> it = {
   'chatNoProject': "Nessuno",
   'chatOwnFolderHint':
       "Ogni chat lavora in una propria cartella sul computer, con dentro le cartelle del suo progetto.",
+  'newSubchat': "Nuova sottochat",
+  'subchatOf': "Sottochat di",
+  'subchats': "Sottochat",
+  'subchatHint':
+      "Una sottochat lavora nella cartella di questa chat sullo stesso computer e inizia sapendo tutto ciò che è stato detto qui. Ciò che scrivi sotto è la sua parte del lavoro.",
+  'deleteChatSubchats': [
+    "Con essa viene eliminata la sua {n} sottochat.",
+    "Con essa vengono eliminate le sue {n} sottochat.",
+  ],
   'allProjects': "Tutti i progetti",
   'untitledProject': "Progetto senza nome",
   'projectAllContext': "Tutto il contesto",

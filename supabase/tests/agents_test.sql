@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(50);
+select plan(56);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -144,6 +144,32 @@ update public.chats set state = 'finished';
 select is(
   (select updated_at from public.chats), now(),
   'a later turn still updates the list normally');
+select lives_ok(
+  $$insert into public.chats (id, worker_id, agent, parent_id) values
+    ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude',
+     'cccccccc-cccc-4ccc-8ccc-cccccccccccc')$$,
+  'a subchat is begun from a chat');
+select throws_ok(
+  $$update public.chats set parent_id = null
+    where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'$$,
+  '23514', null, 'its parent is set when it is made');
+select throws_ok(
+  $$insert into public.chats (worker_id, agent, parent_id) values
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude',
+     '99999999-9999-4999-8999-999999999999')$$,
+  '23503', null, 'and is a chat that is there');
+select lives_ok(
+  $$insert into public.chats (id, worker_id, agent, parent_id) values
+    ('ffffffff-ffff-4fff-8fff-ffffffffffff',
+     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude',
+     'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')$$,
+  'a subchat has subchats of its own');
+delete from public.chats where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+select is(
+  (select count(*)::int from public.chats
+    where id = 'ffffffff-ffff-4fff-8fff-ffffffffffff'),
+  0, 'and goes with its parent');
 reset role;
 
 select lives_ok(
@@ -170,6 +196,11 @@ select is(
   (select count(*)::int from public.chats) + (select count(*)::int from public.chat_out)
     + (select count(*)::int from public.workers),
   0, 'another account sees none of it');
+select throws_ok(
+  $$insert into public.chats (worker_id, agent, parent_id) values
+    ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'claude',
+     'cccccccc-cccc-4ccc-8ccc-cccccccccccc')$$,
+  null, null, 'nor begins a subchat from one of its chats');
 select throws_ok(
   $$insert into public.chat_in (chat_id, kind, data) values
     ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'keys', 'rm -rf ~')$$,

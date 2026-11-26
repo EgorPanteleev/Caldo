@@ -295,6 +295,11 @@ class S {
   String get chatProject => _word('chatProject');
   String get chatNoProject => _word('chatNoProject');
   String get chatOwnFolderHint => _word('chatOwnFolderHint');
+  String get newSubchat => _word('newSubchat');
+  String get subchatOf => _word('subchatOf');
+  String get subchats => _word('subchats');
+  String get subchatHint => _word('subchatHint');
+  String deleteChatSubchats(int n) => _count('deleteChatSubchats', n);
   String get allProjects => _word('allProjects');
   String get untitledProject => _word('untitledProject');
   String get projectAllContext => _word('projectAllContext');

@@ -210,6 +210,10 @@ class _AgentsScreenState extends State<AgentsScreen> {
   Future<void> _deletePicked() async {
     final s = S.of(context);
     final ids = [..._picked];
+    // Those that go with them, not picked themselves.
+    final subchats = {
+      for (final id in ids) ..._agents.subchatsOf(id).map((c) => c.id),
+    }.difference(ids.toSet()).length;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -218,7 +222,11 @@ class _AgentsScreenState extends State<AgentsScreen> {
               ? s.deleteChatQuestion
               : s.deleteChatsQuestion(ids.length),
         ),
-        content: Text(s.cannotBeUndone),
+        content: Text(
+          subchats == 0
+              ? s.cannotBeUndone
+              : '${s.deleteChatSubchats(subchats)} ${s.cannotBeUndone}',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -260,6 +268,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final chats = _shown;
+    final family = Chat.families(chats);
     final only = _agents.project(_only);
     final Widget body;
     if (!_agents.signedIn) {
@@ -289,15 +298,23 @@ class _AgentsScreenState extends State<AgentsScreen> {
             16 + gutter,
             BarRoom.of(context) + 16,
           ),
-          itemCount: chats.length,
+          itemCount: family.length,
           separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (context, i) {
-            final chat = chats[i];
-            return _ChatRow(
-              chat: chat,
-              picking: _picked.isNotEmpty,
-              picked: _picked.contains(chat.id),
-              onPick: () => _pick(chat),
+            final (chat, depth) = family[i];
+            // Each subchat under the chat it is part of, set in a step a
+            // generation, as far as three.
+            return Padding(
+              padding: EdgeInsetsDirectional.only(
+                start: 18.0 * depth.clamp(0, 3),
+              ),
+              child: _ChatRow(
+                chat: chat,
+                sub: depth > 0,
+                picking: _picked.isNotEmpty,
+                picked: _picked.contains(chat.id),
+                onPick: () => _pick(chat),
+              ),
             );
           },
         ),
@@ -537,6 +554,9 @@ String _lineOf(Chat chat) {
 class _ChatRow extends StatelessWidget {
   final Chat chat;
 
+  /// Listed under the chat it is a subchat of.
+  final bool sub;
+
   /// Whether any chat is picked out, so a tap picks rather than opens.
   final bool picking;
   final bool picked;
@@ -544,6 +564,7 @@ class _ChatRow extends StatelessWidget {
 
   const _ChatRow({
     required this.chat,
+    this.sub = false,
     required this.picking,
     required this.picked,
     required this.onPick,
@@ -608,6 +629,15 @@ class _ChatRow extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        if (sub) ...[
+                          Icon(
+                            Icons.subdirectory_arrow_right_rounded,
+                            size: 15,
+                            color: p.muted,
+                            semanticLabel: s.subchats,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
                         if (chat.taskUuid != null) ...[
                           Icon(
                             Icons.check_box_outlined,
@@ -716,6 +746,101 @@ class _ChatRow extends StatelessWidget {
   }
 }
 
+/// Under a chat's head: the chat it is a subchat of, and those begun from
+/// it, a pill each that opens its chat; nothing for a chat with neither.
+class _Family extends StatelessWidget {
+  final Chat chat;
+
+  const _Family({required this.chat});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final agents = Agents.instance;
+    final parent = agents.chat(chat.parentId ?? '');
+    final subs = Chat.listOrder(
+      agents.chats.where((c) => c.parentId == chat.id),
+    );
+    if (parent == null && subs.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
+        children: [
+          if (parent != null)
+            _FamilyPill(
+              chat: parent,
+              icon: Icons.arrow_upward_rounded,
+              label: s.subchatOf,
+            ),
+          for (final sub in subs)
+            _FamilyPill(
+              chat: sub,
+              icon: Icons.subdirectory_arrow_right_rounded,
+              label: s.subchats,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FamilyPill extends StatelessWidget {
+  final Chat chat;
+  final IconData icon;
+
+  /// What it is to this chat, for a reader that can't see the arrow.
+  final String label;
+
+  const _FamilyPill({
+    required this.chat,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 6),
+      child: Material(
+        color: p.panel,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => openChat(context, chat.id),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 14, color: p.muted, semanticLabel: label),
+                const SizedBox(width: 6),
+                _StateMark(
+                  state: chat.state,
+                  size: 7,
+                  away: Agents.instance.away(chat) != null,
+                ),
+                const SizedBox(width: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 180),
+                  child: Text(
+                    chat.name.isEmpty ? _lineOf(chat) : chat.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: p.text, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Future<void> openChat(BuildContext context, String chat) => Navigator.of(
   context,
 ).push(MaterialPageRoute<void>(builder: (_) => ChatScreen(chat: chat)));
@@ -786,12 +911,17 @@ Future<bool> sendToAgents(BuildContext context, List<Task> tasks) async {
 /// starts from. Given [tasks], it starts one chat for each of them instead,
 /// all on the same computer with the same agent, model and effort, each
 /// told its own task as its first message and kept as that task's chat.
+/// Given [parent], it begins a subchat of that chat: on its computer, in
+/// its folder and project, with its choices to start from.
 class NewChatScreen extends StatefulWidget {
   /// Tasks picked out on Schedule or the calendar to be sent on; empty for
   /// a chat of one's own.
   final List<Task> tasks;
 
-  const NewChatScreen({super.key, this.tasks = const []});
+  /// The chat a subchat is begun from, by id; null for a chat of its own.
+  final String? parent;
+
+  const NewChatScreen({super.key, this.tasks = const [], this.parent});
 
   @override
   State<NewChatScreen> createState() => _NewChatScreenState();
@@ -830,6 +960,14 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
   bool get _forTasks => widget.tasks.isNotEmpty;
 
+  /// The chat a subchat is begun from, while it is listed.
+  Chat? get _parent => _agents.chat(widget.parent ?? '');
+
+  /// Whether the parent's choices have been taken over: once, as soon as
+  /// it and its computer are read; its rules once they are.
+  bool _seeded = false;
+  bool _rulesSeeded = false;
+
   /// The tasks whose chats have started, by id: a second Start after one
   /// failed goes on with the rest rather than starting these again.
   final Set<int> _sent = {};
@@ -859,6 +997,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
     super.initState();
     _agents.addListener(_changed);
     _agents.watch();
+    if (widget.parent != null) {
+      _seed();
+      return;
+    }
     _pickWorker(null);
     _restore();
   }
@@ -874,12 +1016,49 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
   void _changed() {
     if (!mounted) return;
+    if (widget.parent != null) return setState(_seed);
     setState(() {
       if (_worker == null || _agents.worker(_worker) == null) {
         _pickWorker(null);
       }
       _applyLast();
     });
+  }
+
+  /// A subchat's form, begun as its parent was: the same computer, agent,
+  /// model, effort, permissions, plugins, skills, account and rules.
+  void _seed() {
+    final parent = _parent;
+    if (parent == null) return;
+    if (!_seeded && _agents.worker(parent.workerId) != null) {
+      _seeded = true;
+      _worker = parent.workerId;
+      final kind = _kinds.where((a) => a.id == parent.agent).firstOrNull;
+      final first = kind ?? _kinds.firstOrNull;
+      if (first != null) _pickAgent(first);
+      if (kind != null) {
+        if (kind.models.contains(parent.model) || kind.models.isEmpty) {
+          _model = parent.model;
+        }
+        if (kind.efforts.contains(parent.effort)) _effort = parent.effort;
+        if (kind.permissions.contains(parent.permission)) {
+          _permission = parent.permission;
+        }
+        if (parent.plugins case final plugins? when kind.plugins.isNotEmpty) {
+          _plugins = {...plugins.where(kind.plugins.contains)};
+        }
+        _skills.addAll(parent.skills.where(kind.skills.contains));
+        if (_ready(parent.account)) _account = parent.account;
+      }
+    }
+    if (!_rulesSeeded && (_agents.rules.isNotEmpty || parent.rules.isEmpty)) {
+      _rulesSeeded = true;
+      final names = {for (final r in parent.rules) r.name.trim()};
+      _rules.addAll([
+        for (final r in _agents.rules)
+          if (names.contains(r.name.trim())) r.id,
+      ]);
+    }
   }
 
   Future<void> _restore() async {
@@ -940,7 +1119,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
   /// and not the shell, which would run a task's words as commands.
   List<AgentKind> get _kinds => [
     for (final a in _w?.agents ?? const <AgentKind>[])
-      if (!_forTasks || (a.prompt != 'none' && a.id != 'shell')) a,
+      if (widget.parent != null
+          ? a.subchats
+          : !_forTasks || (a.prompt != 'none' && a.id != 'shell'))
+        a,
   ];
   AgentKind? get _kind => _kinds.where((a) => a.id == _agent).firstOrNull;
 
@@ -993,6 +1175,10 @@ class _NewChatScreenState extends State<NewChatScreen> {
     if (_forTasks) return _startEach(kind, worker, cols, rows);
     final plugins = _plugins;
     final rules = _picked;
+    final parent = _parent;
+    if (widget.parent != null && parent == null) {
+      return setState(() => _starting = false);
+    }
     try {
       final chat = await _agents.start(
         worker: worker,
@@ -1000,8 +1186,11 @@ class _NewChatScreenState extends State<NewChatScreen> {
         title: _title.text.trim(),
         model: _model,
         effort: _effort,
-        project: _agents.project(_project),
-        ownFolder: true,
+        // A subchat is listed with its parent's project, and works in its
+        // parent's folder, which its worker finds.
+        project: _agents.project(parent?.projectId ?? _project),
+        ownFolder: parent == null,
+        parent: parent?.id,
         permission: _permission,
         // Sent only if changed from what Claude has on, so a plugin turned
         // on there later is not turned off here by a choice never made.
@@ -1017,7 +1206,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
         inChat: kind.talks,
         waiting: _byHand,
       );
-      unawaited(_remember());
+      // A subchat's choices are its parent's, not the next chat's.
+      if (parent == null) unawaited(_remember());
       if (!mounted) return;
       // One left for later has nothing to show yet: back to the list,
       // where it waits.
@@ -1140,7 +1330,11 @@ class _NewChatScreenState extends State<NewChatScreen> {
           children: [
             DeskColumn(
               child: ScreenHeader(
-                title: _forTasks ? s.sendToAgents : s.newChat,
+                title: _forTasks
+                    ? s.sendToAgents
+                    : widget.parent != null
+                    ? s.newSubchat
+                    : s.newChat,
                 showBack: true,
               ),
             ),
@@ -1157,6 +1351,34 @@ class _NewChatScreenState extends State<NewChatScreen> {
                     if (_forTasks) ...[
                       _Section(s.tasks),
                       _TaskLines(tasks: widget.tasks),
+                    ],
+                    if (_parent case final parent?) ...[
+                      _Section(s.subchatOf),
+                      Row(
+                        children: [
+                          _StateMark(state: parent.state, size: 8),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              parent.name.isEmpty
+                                  ? _lineOf(parent)
+                                  : parent.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: p.text,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        s.subchatHint,
+                        style: TextStyle(color: p.muted, fontSize: 13),
+                      ),
                     ],
                     if (_canWait) ...[
                       _Section(s.chatStarts),
@@ -1217,20 +1439,24 @@ class _NewChatScreenState extends State<NewChatScreen> {
                         style: TextStyle(color: p.muted, fontSize: 14),
                       ),
                     ],
-                    if (_agents.workers.isNotEmpty) _Section(s.chatWorker),
-                    _Picks(
-                      children: [
-                        for (final worker in _agents.workers)
-                          _Pick(
-                            label: worker.online
-                                ? worker.name
-                                : '${worker.name} · ${s.chatOffline}',
-                            icon: Icons.computer_outlined,
-                            selected: worker.id == _worker,
-                            onTap: () => setState(() => _pickWorker(worker.id)),
-                          ),
-                      ],
-                    ),
+                    // A subchat runs on its parent's computer.
+                    if (widget.parent == null) ...[
+                      if (_agents.workers.isNotEmpty) _Section(s.chatWorker),
+                      _Picks(
+                        children: [
+                          for (final worker in _agents.workers)
+                            _Pick(
+                              label: worker.online
+                                  ? worker.name
+                                  : '${worker.name} · ${s.chatOffline}',
+                              icon: Icons.computer_outlined,
+                              selected: worker.id == _worker,
+                              onTap: () =>
+                                  setState(() => _pickWorker(worker.id)),
+                            ),
+                        ],
+                      ),
+                    ],
                     if (w != null) ...[
                       _Section(s.chatAgent),
                       _Picks(
@@ -1290,41 +1516,44 @@ class _NewChatScreenState extends State<NewChatScreen> {
                           ],
                         ),
                       ],
-                      _Section(s.chatProject),
-                      _Picks(
-                        children: [
-                          _Pick(
-                            label: s.chatNoProject,
-                            selected: _agents.project(_project) == null,
-                            onTap: () => setState(() => _project = null),
-                          ),
-                          for (final project in _agents.projects)
+                      // A subchat's project and folder are its parent's.
+                      if (widget.parent == null) ...[
+                        _Section(s.chatProject),
+                        _Picks(
+                          children: [
                             _Pick(
-                              label: project.name.trim(),
-                              dot: _projectColour(project),
-                              selected: project.id == _project,
-                              onTap: () =>
-                                  setState(() => _project = project.id),
+                              label: s.chatNoProject,
+                              selected: _agents.project(_project) == null,
+                              onTap: () => setState(() => _project = null),
                             ),
-                          _Pick(
-                            label: _agents.projects.isEmpty
-                                ? s.newProject
-                                : s.editProjects,
-                            icon: _agents.projects.isEmpty
-                                ? Icons.add
-                                : Icons.edit_outlined,
-                            selected: false,
-                            onTap: () => _agents.projects.isEmpty
-                                ? openProject(context)
-                                : openProjects(context),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        s.chatOwnFolderHint,
-                        style: TextStyle(color: p.faint, fontSize: 12.5),
-                      ),
+                            for (final project in _agents.projects)
+                              _Pick(
+                                label: project.name.trim(),
+                                dot: _projectColour(project),
+                                selected: project.id == _project,
+                                onTap: () =>
+                                    setState(() => _project = project.id),
+                              ),
+                            _Pick(
+                              label: _agents.projects.isEmpty
+                                  ? s.newProject
+                                  : s.editProjects,
+                              icon: _agents.projects.isEmpty
+                                  ? Icons.add
+                                  : Icons.edit_outlined,
+                              selected: false,
+                              onTap: () => _agents.projects.isEmpty
+                                  ? openProject(context)
+                                  : openProjects(context),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          s.chatOwnFolderHint,
+                          style: TextStyle(color: p.faint, fontSize: 12.5),
+                        ),
+                      ],
                       if (kind.plugins.isNotEmpty) ...[
                         _Section(s.chatPlugins),
                         for (final plugin in kind.plugins)
@@ -1884,6 +2113,14 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Whether the chat's worker clears its context when asked.
   bool get _canClear => _kindOf(_chat)?.clears ?? false;
 
+  /// Whether the chat's computer begins subchats, with any of its agents.
+  bool get _canSubchat =>
+      _agents.worker(_chat?.workerId)?.agents.any((a) => a.subchats) ?? false;
+
+  void _subchat() => Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => NewChatScreen(parent: widget.chat)),
+  );
+
   AgentKind? _kindOf(Chat? chat) => chat == null
       ? null
       : _agents
@@ -2214,11 +2451,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _delete() async {
     final s = S.of(context);
+    final subchats = _agents.subchatsOf(widget.chat).length;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(s.deleteChatQuestion),
-        content: Text(s.cannotBeUndone),
+        content: Text(
+          subchats == 0
+              ? s.cannotBeUndone
+              : '${s.deleteChatSubchats(subchats)} ${s.cannotBeUndone}',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -2328,12 +2570,14 @@ class _ChatScreenState extends State<ChatScreen> {
               onDelete: _delete,
               onSettings: _settings,
               onMute: _mute,
+              onSubchat: _canSubchat ? _subchat : null,
               asChat: talks ? asChat : null,
               onView: (chat) => setState(() => _asChat = chat),
             ),
             // On either side, and once it has stopped: what a chat spent
             // is still worth reading in its terminal, or after it ended.
             if (chat != null) _usage(chat, talk),
+            if (chat != null) _Family(chat: chat),
             Expanded(
               child: asChat && talk != null
                   ? ValueListenableBuilder(
@@ -2633,6 +2877,9 @@ class _Head extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onMute;
 
+  /// A subchat begun from it; null where its computer can't.
+  final VoidCallback? onSubchat;
+
   /// Which side is on show, for a chat with both; null for a terminal only.
   final bool? asChat;
   final ValueChanged<bool> onView;
@@ -2647,6 +2894,7 @@ class _Head extends StatelessWidget {
     required this.onDelete,
     required this.onSettings,
     required this.onMute,
+    required this.onSubchat,
     required this.asChat,
     required this.onView,
   });
@@ -2724,6 +2972,8 @@ class _Head extends StatelessWidget {
                   onSettings();
                 case 'mute':
                   onMute();
+                case 'subchat':
+                  onSubchat?.call();
                 case 'attach':
                   Clipboard.setData(
                     ClipboardData(
@@ -2747,6 +2997,8 @@ class _Head extends StatelessWidget {
                   child: Text(chat.muted ? s.chatUnmute : s.chatMute),
                 ),
               ],
+              if (onSubchat != null)
+                PopupMenuItem(value: 'subchat', child: Text(s.newSubchat)),
               if (onClear != null)
                 PopupMenuItem(value: 'clear', child: Text(s.chatClear)),
               if (chat != null && chat.live)

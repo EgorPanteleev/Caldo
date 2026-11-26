@@ -730,6 +730,16 @@ const Map<String, Object> pl = {
   'chatNoProject': "Brak",
   'chatOwnFolderHint':
       "Każdy czat pracuje we własnym folderze na komputerze, z folderami swojego projektu.",
+  'newSubchat': "Nowy podczat",
+  'subchatOf': "Podczat czatu",
+  'subchats': "Podczaty",
+  'subchatHint':
+      "Podczat pracuje w folderze tego czatu na tym samym komputerze i zaczyna, znając wszystko, co tu powiedziano. To, co napiszesz poniżej, jest jego własną częścią pracy.",
+  'deleteChatSubchats': [
+    "Razem z nim zostanie usunięty {n} podczat.",
+    "Razem z nim zostaną usunięte {n} podczaty.",
+    "Razem z nim zostanie usuniętych {n} podczatów.",
+  ],
   'allProjects': "Wszystkie projekty",
   'untitledProject': "Projekt bez nazwy",
   'projectAllContext': "Cały kontekst",
