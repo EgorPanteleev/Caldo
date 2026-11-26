@@ -64,9 +64,39 @@ class Sync {
   ///
   /// Nothing at all without a server, so no timer is left behind in a test.
   void soon() {
+    _pullWanted = true;
+    _schedule();
+  }
+
+  /// A round in a moment if anything here is still to be sent: what a
+  /// change made here asks for. A read of the lists back after a round had
+  /// brought rows down asked for one more, two seconds on, which sent
+  /// nothing and brought nothing.
+  void sendSoon() => _schedule();
+
+  bool _pullWanted = false;
+
+  void _schedule() {
     if (server?.account == null) return;
     _soon?.cancel();
-    _soon = Timer(const Duration(seconds: 2), run);
+    _soon = Timer(const Duration(seconds: 2), () async {
+      final pull = _pullWanted;
+      _pullWanted = false;
+      if (pull || await store.hasOutgoing()) unawaited(run());
+    });
+  }
+
+  /// A row changed on the server, as realtime tells it. This device's own
+  /// rows come back so the moment they are sent, and a round for them only
+  /// brought them down again to be left as they were; anything else is a
+  /// change from elsewhere, and a round fetches it.
+  Future<void> heard(Map<String, dynamic> row) async {
+    try {
+      if (await store.holds(SyncRow.fromJson(row))) return;
+    } catch (_) {
+      // Not a row this can read: the round will say.
+    }
+    soon();
   }
 
   /// Runs a round, or has one run after the one under way. Says whether
