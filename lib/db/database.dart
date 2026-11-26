@@ -640,29 +640,43 @@ class AppDatabase {
   /// or an edit synced down, and writing the whole of it back lost those.
   Future<Task> complete(Task task, int now) async {
     final db = await database;
-    late Task written;
+    return db.transaction((txn) => _complete(txn, task, now));
+  }
+
+  /// Ticks off every one of [tasks] at [now], as [complete] does each, in
+  /// one transaction: several picked out and marked done are done together
+  /// or not at all.
+  Future<void> completeAll(List<Task> tasks, int now) async {
+    if (tasks.isEmpty) return;
+    final db = await database;
     await db.transaction((txn) async {
-      final rows = await txn.query(
-        _tasks,
-        where: 'id = ?',
-        whereArgs: [task.id],
-      );
-      written = (rows.isEmpty ? task : Task.fromMap(rows.first)).completed(
-        now,
-      );
-      await txn.update(
-        _tasks,
-        written.toMap(),
-        where: 'id = ?',
-        whereArgs: [task.id],
-      );
-      await txn.insert(_completions, {
-        'task_id': task.id,
-        'title': task.title,
-        'list_id': task.listId,
-        'style_id': task.styleId,
-        'done_at': now,
-      });
+      for (final task in tasks) {
+        await _complete(txn, task, now);
+      }
+    });
+  }
+
+  Future<Task> _complete(Transaction txn, Task task, int now) async {
+    final rows = await txn.query(
+      _tasks,
+      where: 'id = ?',
+      whereArgs: [task.id],
+    );
+    final written = (rows.isEmpty ? task : Task.fromMap(rows.first)).completed(
+      now,
+    );
+    await txn.update(
+      _tasks,
+      written.toMap(),
+      where: 'id = ?',
+      whereArgs: [task.id],
+    );
+    await txn.insert(_completions, {
+      'task_id': task.id,
+      'title': task.title,
+      'list_id': task.listId,
+      'style_id': task.styleId,
+      'done_at': now,
     });
     return written;
   }
@@ -670,20 +684,33 @@ class AppDatabase {
   /// Writes [task] back as it is given — not ticked, or as it was before a
   /// tick — and takes that tick out of the log. For a tick taken back and
   /// for Undo, both of which say the tick never happened.
-  Future<void> untick(Task task) async {
+  Future<void> untick(Task task) => writeTasks([task], unticked: [?task.id]);
+
+  /// Writes back every one of [tasks] as given, in one transaction, taking
+  /// the latest tick out of the log for each whose id is in [unticked] —
+  /// [untick] for several at once, beside plain writes of others.
+  Future<void> writeTasks(
+    List<Task> tasks, {
+    Iterable<int> unticked = const [],
+  }) async {
+    if (tasks.isEmpty) return;
     final db = await database;
+    final taken = unticked.toSet();
     await db.transaction((txn) async {
-      await txn.update(
-        _tasks,
-        task.toMap(),
-        where: 'id = ?',
-        whereArgs: [task.id],
-      );
-      await txn.rawDelete(
-        'DELETE FROM $_completions WHERE id = '
-        '(SELECT MAX(id) FROM $_completions WHERE task_id = ?)',
-        [task.id],
-      );
+      for (final task in tasks) {
+        await txn.update(
+          _tasks,
+          task.toMap(),
+          where: 'id = ?',
+          whereArgs: [task.id],
+        );
+        if (!taken.contains(task.id)) continue;
+        await txn.rawDelete(
+          'DELETE FROM $_completions WHERE id = '
+          '(SELECT MAX(id) FROM $_completions WHERE task_id = ?)',
+          [task.id],
+        );
+      }
     });
   }
 
@@ -699,10 +726,19 @@ class AppDatabase {
     return rows.map(Completion.fromMap).toList();
   }
 
-  /// Removes every completed task.
+  /// Removes every completed task. A subtask still open under one stays,
+  /// standing alone — as when its parent is deleted on another device —
+  /// rather than pointing at a task that is gone, or going with it: it is
+  /// work still to do.
   Future<int> clearCompleted() async {
     final db = await database;
-    return db.delete(_tasks, where: 'done = 1');
+    return db.transaction((txn) async {
+      await txn.rawUpdate(
+        'UPDATE $_tasks SET parent_id = NULL WHERE done = 0 AND parent_id IN '
+        '(SELECT id FROM $_tasks WHERE done = 1)',
+      );
+      return txn.delete(_tasks, where: 'done = 1');
+    });
   }
 
   // ---- The vault ----------------------------------------------------------
