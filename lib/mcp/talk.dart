@@ -131,15 +131,24 @@ abstract class Talk {
   void retuned(ChatAsk now) {}
 
   /// The talk for [spec], or null for one only run in a terminal; [given]
-  /// is where the files sent to it are kept.
+  /// is where the files sent to it are kept, [promptFile] where Claude's
+  /// appended prompt is written.
   static Talk? of(
     AgentSpec spec,
     ChatAsk ask,
     TalkSink sink,
     String dir, {
     String? given,
+    String? promptFile,
   }) => switch (spec.id) {
-    'claude' => ClaudeTalk(spec, ask, sink, dir: dir, given: given),
+    'claude' => ClaudeTalk(
+      spec,
+      ask,
+      sink,
+      dir: dir,
+      given: given,
+      promptFile: promptFile,
+    ),
     'codex' => CodexTalk(ask, sink, dir: dir),
     _ => null,
   };
@@ -163,7 +172,7 @@ abstract class Talk {
       files,
       [...env, ...argv],
       cwd: dir,
-      environment: {chatEnv: ask.id},
+      environment: {chatEnv: ask.id, ...quietEnv},
     ),
   );
 
@@ -238,12 +247,16 @@ class ClaudeTalk extends Talk {
   /// Where the files sent to it are kept, read without asking.
   final String? given;
 
+  /// Where what goes after its system prompt is written ([claudeChoices]).
+  final String? promptFile;
+
   ClaudeTalk(
     this.spec,
     super.ask,
     super.sink, {
     required super.dir,
     this.given,
+    this.promptFile,
   });
 
   /// The command for [ask], taking up [resume] if given; the same choices
@@ -255,6 +268,7 @@ class ClaudeTalk extends Talk {
     String? resume,
     bool fork = false,
     String? given,
+    String? promptFile,
   }) => [
     'claude',
     '-p',
@@ -266,7 +280,14 @@ class ClaudeTalk extends Talk {
     '--include-partial-messages',
     '--permission-prompt-tool',
     'stdio',
-    ...claudeChoices(spec, ask, resume: resume, fork: fork, given: given),
+    ...claudeChoices(
+      spec,
+      ask,
+      resume: resume,
+      fork: fork,
+      given: given,
+      promptFile: promptFile,
+    ),
   ];
 
   @override
@@ -277,7 +298,14 @@ class ClaudeTalk extends Talk {
   }) async {
     await _run(
       files,
-      argv(spec, ask, resume: resume, fork: fork, given: given),
+      argv(
+        spec,
+        ask,
+        resume: resume,
+        fork: fork,
+        given: given,
+        promptFile: promptFile,
+      ),
     );
     forked = fork && resume != null;
     _write({

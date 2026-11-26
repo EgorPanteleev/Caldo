@@ -283,13 +283,19 @@ class _ProjectScreenState extends State<ProjectScreen> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await _agents.saveProject(
+      final saved = await _agents.saveProject(
         id: widget.project?.id,
         name: _name.text.trim(),
         colour: _colour,
         context: _context.text.trim(),
         sources: _sourceLines,
       );
+      // Its chats read its info as it is at each start: those running
+      // are started again with it.
+      if (widget.project case final was?
+          when was.context.trim() != saved.context) {
+        await _agents.retuneProject(saved.id);
+      }
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
@@ -300,14 +306,6 @@ class _ProjectScreenState extends State<ProjectScreen> {
 
   /// Everything its chats are told, to read and change; its words changed
   /// there are taken in here, so saving here doesn't put them back.
-  Future<void> _allContext() async {
-    final project = widget.project!;
-    final before = _agents.project(project.id)?.context ?? project.context;
-    await openProjectContext(context, project);
-    final now = _agents.project(project.id)?.context;
-    if (mounted && now != null && now != before) _context.text = now;
-  }
-
   Future<void> _delete() async {
     final s = S.of(context);
     final ok = await showDialog<bool>(
@@ -379,25 +377,12 @@ class _ProjectScreenState extends State<ProjectScreen> {
                           : _name.text.trim(),
                       onChanged: (id) => setState(() => _colour = id),
                     ),
-                    _Section(s.projectContext),
+                    _Section(s.contextProject),
                     _Field(
                       controller: _context,
                       hint: s.projectContextHint,
                       lines: 14,
                     ),
-                    if (project != null) ...[
-                      const SizedBox(height: 8),
-                      _Picks(
-                        children: [
-                          _Pick(
-                            label: s.projectAllContext,
-                            icon: Icons.layers_outlined,
-                            selected: false,
-                            onTap: _allContext,
-                          ),
-                        ],
-                      ),
-                    ],
                     _Section(s.projectSources),
                     _Field(
                       controller: _sources,

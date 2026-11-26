@@ -687,7 +687,6 @@ const Map<String, Object> de = {
       "Ein Projekt sagt seinen Chats, worum es geht und an welchen Ordnern sie arbeiten.",
   'projectName': "Name",
   'projectColour': "Farbe",
-  'projectContext': "Kontext",
   'projectContextHint':
       "Was jeder Chat darin wissen soll: was es ist, wie man daran arbeitet, was man lässt.",
   'projectSources': "Ordner",
@@ -712,24 +711,20 @@ const Map<String, Object> de = {
   ],
   'allProjects': "Alle Projekte",
   'untitledProject': "Projekt ohne Namen",
-  'projectAllContext': "Gesamter Kontext",
-  'projectAllContextHint':
-      "Was ein in {name} begonnener Chat erfährt: die hier gespeicherten Worte, dann was Claude auf dem Computer liest – CLAUDE.md-Dateien und sein Gedächtnis.",
-  'contextInCaldo': "In Caldo",
-  'contextOnWorker': "Auf {worker}",
-  'contextOnComputer': "Auf dem Computer",
-  'contextNoWorker':
-      "Kein Computer ist an, von dem die Dateien gelesen werden könnten.",
   'contextNoAnswer': "Der Computer hat nicht geantwortet. Läuft sein Worker?",
-  'contextChanged':
-      "Sie wurde inzwischen auf dem Computer geändert und daher so gelassen. Hier ist sie, wie sie jetzt ist.",
-  'contextUserFile': "Deine, in jedem Ordner gelesen",
-  'contextMemory': "Gedächtnis",
-  'contextMissing': "Noch nicht geschrieben",
+  'chatContext': "Kontext",
+  'chatContextHint':
+      "Was dem Agenten dieses Chats gesagt wird. Er liest weder CLAUDE.md noch Gedächtnisdateien, nur dies.",
+  'contextParents': "Aus den Chats, zu denen er gehört",
+  'contextParentHint': "Hier nur zum Lesen: in jenem Chat ändern.",
+  'contextProject': "Projektinfo",
+  'contextProjectHint':
+      "Gilt für jeden Chat in „{name}“: Jeder erfährt eine Änderung beim nächsten Start.",
+  'contextNoProject': "Dieser Chat gehört zu keinem Projekt.",
+  'contextOwn': "Eigener Kontext des Chats",
+  'contextOwnHint':
+      "Für diesen Chat und seine Unterchats: wie zu arbeiten ist, wofür er da ist.",
+  'contextImport': "Aus CLAUDE.md übernehmen",
+  'contextImportNone': "In den Ordnern des Projekts gibt es keine CLAUDE.md.",
   'contextNothing': "Nichts geschrieben",
-  'contextUncommitted': "Nicht committet: neue Chats sehen sie noch nicht",
-  'contextWords':
-      "In Caldo gespeichert, jedem darin begonnenen Chat mitgegeben",
-  'contextDeleteQuestion': "Diese Erinnerung löschen?",
-  'contextReadAgain': "Neu lesen",
 };

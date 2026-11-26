@@ -13,7 +13,6 @@ import 'package:xterm/xterm.dart';
 import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../mcp/agents.dart' show sizeWord;
-import '../mcp/context_files.dart';
 import '../mcp/subscriptions.dart' show Subscription;
 import '../mcp/usage.dart';
 import '../models/task.dart';
@@ -3022,6 +3021,8 @@ class _Head extends StatelessWidget {
                   onClear?.call();
                 case 'settings':
                   onSettings();
+                case 'context':
+                  unawaited(openChatContext(context, chat!));
                 case 'mute':
                   onMute();
                 case 'subchat':
@@ -3044,6 +3045,7 @@ class _Head extends StatelessWidget {
               ],
               if (chat != null) ...[
                 PopupMenuItem(value: 'settings', child: Text(s.chatSettings)),
+                PopupMenuItem(value: 'context', child: Text(s.chatContext)),
                 PopupMenuItem(
                   value: 'mute',
                   child: Text(chat.muted ? s.chatUnmute : s.chatMute),

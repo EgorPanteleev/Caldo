@@ -715,7 +715,6 @@ const Map<String, Object> pl = {
       "Projekt mówi swoim czatom, czego dotyczą i na jakich folderach pracują.",
   'projectName': "Nazwa",
   'projectColour': "Kolor",
-  'projectContext': "Kontekst",
   'projectContextHint':
       "Co każdy czat w nim powinien wiedzieć: czym jest, jak nad nim pracować, czego nie ruszać.",
   'projectSources': "Foldery",
@@ -741,23 +740,20 @@ const Map<String, Object> pl = {
   ],
   'allProjects': "Wszystkie projekty",
   'untitledProject': "Projekt bez nazwy",
-  'projectAllContext': "Cały kontekst",
-  'projectAllContextHint':
-      "Co usłyszy czat zaczęty w {name}: słowa zapisane tutaj, a potem to, co Claude czyta na komputerze — pliki CLAUDE.md i swoją pamięć.",
-  'contextInCaldo': "W Caldo",
-  'contextOnWorker': "Na {worker}",
-  'contextOnComputer': "Na komputerze",
-  'contextNoWorker': "Żaden komputer nie jest włączony, by odczytać pliki.",
   'contextNoAnswer': "Komputer nie odpowiedział. Czy działa na nim worker?",
-  'contextChanged':
-      "W międzyczasie zmieniono go na komputerze, więc pozostawiono go bez zmian. Oto jak wygląda teraz.",
-  'contextUserFile': "Twój, czytany w każdym folderze",
-  'contextMemory': "Pamięć",
-  'contextMissing': "Jeszcze nienapisany",
+  'chatContext': "Kontekst",
+  'chatContextHint':
+      "To, co jest mówione agentowi tego czatu. Nie czyta CLAUDE.md ani plików pamięci, tylko to.",
+  'contextParents': "Z czatów, których jest częścią",
+  'contextParentHint': "Tu tylko do odczytu: zmień to w tamtym czacie.",
+  'contextProject': "Informacje o projekcie",
+  'contextProjectHint':
+      "Wspólne dla każdego czatu w „{name}”: każdy pozna zmianę przy następnym uruchomieniu.",
+  'contextNoProject': "Ten czat nie należy do żadnego projektu.",
+  'contextOwn': "Własny kontekst czatu",
+  'contextOwnHint':
+      "Dla tego czatu i jego podczatów: jak pracować, do czego służy.",
+  'contextImport': "Weź z CLAUDE.md",
+  'contextImportNone': "W folderach projektu nie ma CLAUDE.md.",
   'contextNothing': "Nic nie napisano",
-  'contextUncommitted': "Bez commita: nowe czaty jeszcze go nie widzą",
-  'contextWords':
-      "Zapisany w Caldo, przekazywany każdemu czatowi w nim zaczętemu",
-  'contextDeleteQuestion': "Usunąć to wspomnienie?",
-  'contextReadAgain': "Odczytaj ponownie",
 };

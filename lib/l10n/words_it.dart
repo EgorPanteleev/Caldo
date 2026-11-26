@@ -685,7 +685,6 @@ const Map<String, Object> it = {
       "Un progetto dice alle sue chat di cosa si tratta e su quali cartelle lavorano.",
   'projectName': "Nome",
   'projectColour': "Colore",
-  'projectContext': "Contesto",
   'projectContextHint':
       "Ciò che ogni chat del progetto deve sapere: cos'è, come lavorarci, cosa non toccare.",
   'projectSources': "Cartelle",
@@ -710,23 +709,21 @@ const Map<String, Object> it = {
   ],
   'allProjects': "Tutti i progetti",
   'untitledProject': "Progetto senza nome",
-  'projectAllContext': "Tutto il contesto",
-  'projectAllContextHint':
-      "Cosa viene detto a una chat iniziata in {name}: le parole salvate qui, poi ciò che Claude legge sul computer — i file CLAUDE.md e la sua memoria.",
-  'contextInCaldo': "In Caldo",
-  'contextOnWorker': "Su {worker}",
-  'contextOnComputer': "Sul computer",
-  'contextNoWorker': "Nessun computer acceso da cui leggere i file.",
   'contextNoAnswer':
       "Il computer non ha risposto. Il suo worker è in esecuzione?",
-  'contextChanged':
-      "Nel frattempo è stato cambiato sul computer, quindi è stato lasciato com'era. Eccolo com'è ora.",
-  'contextUserFile': "Il tuo, letto in ogni cartella",
-  'contextMemory': "Memoria",
-  'contextMissing': "Non ancora scritto",
+  'chatContext': "Contesto",
+  'chatContextHint':
+      "Ciò che viene detto all'agente di questa chat. Non legge CLAUDE.md né file di memoria, solo questo.",
+  'contextParents': "Dalle chat di cui fa parte",
+  'contextParentHint': "Qui è solo da leggere: si cambia in quella chat.",
+  'contextProject': "Info del progetto",
+  'contextProjectHint':
+      "Condivise da ogni chat di «{name}»: ognuna riceve una modifica al prossimo avvio.",
+  'contextNoProject': "Questa chat non è in nessun progetto.",
+  'contextOwn': "Contesto proprio della chat",
+  'contextOwnHint':
+      "Per questa chat e le sue sottochat: come lavorare, a cosa serve.",
+  'contextImport': "Prendi da CLAUDE.md",
+  'contextImportNone': "Nelle cartelle del progetto non c'è CLAUDE.md.",
   'contextNothing': "Niente di scritto",
-  'contextUncommitted': "Senza commit: le nuove chat non lo vedono ancora",
-  'contextWords': "Salvato in Caldo, detto a ogni chat iniziata qui",
-  'contextDeleteQuestion': "Eliminare questo ricordo?",
-  'contextReadAgain': "Rileggi",
 };

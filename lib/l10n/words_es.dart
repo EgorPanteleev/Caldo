@@ -683,7 +683,6 @@ const Map<String, Object> es = {
       "Un proyecto dice a sus chats de qué tratan y con qué carpetas trabajan.",
   'projectName': "Nombre",
   'projectColour': "Color",
-  'projectContext': "Contexto",
   'projectContextHint':
       "Lo que todo chat en él debe saber: qué es, cómo trabajar en él, qué no tocar.",
   'projectSources': "Carpetas",
@@ -708,23 +707,20 @@ const Map<String, Object> es = {
   ],
   'allProjects': "Todos los proyectos",
   'untitledProject': "Proyecto sin nombre",
-  'projectAllContext': "Todo el contexto",
-  'projectAllContextHint':
-      "Lo que se le dice a un chat empezado en {name}: las palabras guardadas aquí y luego lo que Claude lee en el ordenador: los archivos CLAUDE.md y su memoria.",
-  'contextInCaldo': "En Caldo",
-  'contextOnWorker': "En {worker}",
-  'contextOnComputer': "En el ordenador",
-  'contextNoWorker':
-      "No hay ningún ordenador encendido del que leer los archivos.",
   'contextNoAnswer': "El ordenador no respondió. ¿Está en marcha su worker?",
-  'contextChanged':
-      "Se cambió en el ordenador mientras tanto, así que se dejó como estaba. Aquí está como es ahora.",
-  'contextUserFile': "El tuyo, leído en cada carpeta",
-  'contextMemory': "Memoria",
-  'contextMissing': "Aún sin escribir",
+  'chatContext': "Contexto",
+  'chatContextHint':
+      "Lo que se le dice al agente de este chat. No lee CLAUDE.md ni archivos de memoria, solo esto.",
+  'contextParents': "De los chats de los que forma parte",
+  'contextParentHint': "Aquí solo se lee: cámbialo en ese chat.",
+  'contextProject': "Info del proyecto",
+  'contextProjectHint':
+      "Compartida por todos los chats de «{name}»: cada uno conoce un cambio al iniciarse de nuevo.",
+  'contextNoProject': "Este chat no está en ningún proyecto.",
+  'contextOwn': "Contexto propio del chat",
+  'contextOwnHint':
+      "Para este chat y sus subchats: cómo trabajar y para qué es.",
+  'contextImport': "Tomar de CLAUDE.md",
+  'contextImportNone': "No hay CLAUDE.md en las carpetas del proyecto.",
   'contextNothing': "Nada escrito",
-  'contextUncommitted': "Sin commit: los chats nuevos aún no lo ven",
-  'contextWords': "Guardado en Caldo, se le dice a cada chat empezado en él",
-  'contextDeleteQuestion': "¿Eliminar este recuerdo?",
-  'contextReadAgain': "Leer de nuevo",
 };

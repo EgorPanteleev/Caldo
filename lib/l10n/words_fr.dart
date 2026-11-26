@@ -685,7 +685,6 @@ const Map<String, Object> fr = {
       "Un projet dit à ses chats de quoi il s'agit et sur quels dossiers ils travaillent.",
   'projectName': "Nom",
   'projectColour': "Couleur",
-  'projectContext': "Contexte",
   'projectContextHint':
       "Ce que chaque chat du projet doit savoir : ce que c'est, comment y travailler, à quoi ne pas toucher.",
   'projectSources': "Dossiers",
@@ -710,23 +709,20 @@ const Map<String, Object> fr = {
   ],
   'allProjects': "Tous les projets",
   'untitledProject': "Projet sans nom",
-  'projectAllContext': "Tout le contexte",
-  'projectAllContextHint':
-      "Ce qu'apprend un chat commencé dans {name} : les mots gardés ici, puis ce que Claude lit sur l'ordinateur — les fichiers CLAUDE.md et sa mémoire.",
-  'contextInCaldo': "Dans Caldo",
-  'contextOnWorker': "Sur {worker}",
-  'contextOnComputer': "Sur l'ordinateur",
-  'contextNoWorker': "Aucun ordinateur allumé pour lire les fichiers.",
   'contextNoAnswer': "L'ordinateur n'a pas répondu. Son worker tourne-t-il ?",
-  'contextChanged':
-      "Il a été modifié sur l'ordinateur entre-temps, il a donc été laissé tel quel. Le voici tel qu'il est maintenant.",
-  'contextUserFile': "Le vôtre, lu dans chaque dossier",
-  'contextMemory': "Mémoire",
-  'contextMissing': "Pas encore écrit",
+  'chatContext': "Contexte",
+  'chatContextHint':
+      "Ce qui est dit à l'agent de ce chat. Il ne lit ni CLAUDE.md ni fichiers de mémoire, seulement ceci.",
+  'contextParents': "Des chats dont il fait partie",
+  'contextParentHint': "En lecture seule ici : à changer dans ce chat.",
+  'contextProject': "Infos du projet",
+  'contextProjectHint':
+      "Partagées par tous les chats de « {name} » : chacun apprend un changement à son prochain démarrage.",
+  'contextNoProject': "Ce chat n'est dans aucun projet.",
+  'contextOwn': "Contexte propre du chat",
+  'contextOwnHint':
+      "Pour ce chat et ses sous-chats : comment travailler, à quoi il sert.",
+  'contextImport': "Reprendre de CLAUDE.md",
+  'contextImportNone': "Il n'y a pas de CLAUDE.md dans les dossiers du projet.",
   'contextNothing': "Rien d'écrit",
-  'contextUncommitted':
-      "Non commité : les nouveaux chats ne le voient pas encore",
-  'contextWords': "Gardé dans Caldo, dit à chaque chat commencé dedans",
-  'contextDeleteQuestion': "Supprimer ce souvenir ?",
-  'contextReadAgain': "Relire",
 };

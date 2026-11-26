@@ -468,6 +468,10 @@ class Chat {
   /// its folder, on its computer. Null for a chat of its own.
   final String? parentId;
 
+  /// What the user wrote for it alone: told after its project's info and
+  /// its parents' context ([ChatContextScreen]).
+  final String context;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -498,6 +502,7 @@ class Chat {
     this.projectName,
     this.projectColour,
     this.parentId,
+    this.context = '',
   });
 
   bool get pinned => pinnedAt != null;
@@ -571,6 +576,7 @@ class Chat {
         projectName: c.projectName,
         projectColour: c.projectColour,
         parentId: c.parentId,
+        context: c.context,
       );
 
   /// [c] pinned [at], or unpinned for null: said here at once, as a move.
@@ -605,6 +611,7 @@ class Chat {
         projectName: c.projectName,
         projectColour: c.projectColour,
         parentId: c.parentId,
+        context: c.context,
       );
 
   /// [c] muted or not: said here at once, as a pin.
@@ -639,6 +646,7 @@ class Chat {
         projectName: c.projectName,
         projectColour: c.projectColour,
         parentId: c.parentId,
+        context: c.context,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -696,6 +704,7 @@ class Chat {
       _ => null,
     },
     parentId: json['parent_id'] as String?,
+    context: json['context'] as String? ?? '',
   );
 
   int get _listPriority => pinned
@@ -1141,6 +1150,48 @@ class Agents extends ChangeNotifier {
     return saved;
   }
 
+  /// Project [project]'s info written as [info]: every chat in it is told
+  /// it from its next start, and those running are started again with it
+  /// once their turn is done, as with changed settings.
+  Future<void> setProjectInfo(AgentProject project, String info) async {
+    await saveProject(
+      id: project.id,
+      name: project.name,
+      colour: project.colour,
+      context: info.trim(),
+      sources: project.sources,
+    );
+    await retuneProject(project.id);
+  }
+
+  /// The running chats of project [id] started again with its info as it
+  /// is now, once their turn is done.
+  Future<void> retuneProject(String id) => _retuneAll([
+    for (final c in chats)
+      if (c.projectId == id && c.live) c.id,
+  ]);
+
+  /// [chat]'s own context written as [text]; its program, and those of
+  /// its subchats, which have all it has, started again with it.
+  Future<void> setContext(Chat chat, String text) async {
+    await change(chat.id, {'context': text.trim()});
+    await _retuneAll([
+      for (final c in subchatsOf(chat.id))
+        if (c.live) c.id,
+    ]);
+  }
+
+  Future<void> _retuneAll(List<String> ids) async {
+    for (final id in ids) {
+      try {
+        await _in(id, 'settings');
+      } on PostgrestException catch (e) {
+        // A server not yet taking the word: told at its next start.
+        if (e.code != '23514') rethrow;
+      }
+    }
+  }
+
   /// Project [id] deleted; its chats keep what they were told.
   Future<void> removeProject(String id) async {
     await _client!.from('agent_projects').delete().eq('id', id);
@@ -1151,9 +1202,9 @@ class Agents extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// What Claude reads on [worker] for [project] beside the words kept on
-  /// it: the user's own `CLAUDE.md`, its folders' and their memory
-  /// ([ContextFiles]).
+  /// The `CLAUDE.md` and memory files on [worker] for [project]'s folders
+  /// ([ContextFiles]): what its info can be begun from, as chats no longer
+  /// read them.
   Future<List<ContextFile>> readContext(
     String worker,
     AgentProject project,
@@ -1166,30 +1217,6 @@ class Agents extends ChangeNotifier {
       for (final f in row['files'] as List? ?? const [])
         ContextFile.fromJson(f as Map),
     ];
-  }
-
-  /// [file] on [worker] written with [body], or taken away for null (a
-  /// memory file only). Throws [ContextChanged] if it was changed there
-  /// since it was read, and leaves it as it is.
-  Future<ContextFile> writeContext(
-    String worker,
-    ContextFile file,
-    String? body,
-  ) async {
-    final row = await _askWorker(worker, {
-      'kind': body == null ? 'remove' : 'write',
-      'path': file.path,
-      'body': body,
-      'was': file.body,
-    });
-    final written = ContextFile.fromJson((row['files'] as List).single as Map);
-    return ContextFile(
-      path: file.path,
-      kind: file.kind,
-      source: file.source,
-      body: written.body,
-      uncommitted: written.uncommitted,
-    );
   }
 
   /// [fields] asked of [worker], and the row it answered on: what is
@@ -1220,7 +1247,6 @@ class Agents extends ChangeNotifier {
         if (row == null) break;
         if (row['done_at'] == null) continue;
         return switch (row['error']) {
-          'changed' => throw ContextChanged('${fields['path']}'),
           final String error => throw StateError(error),
           _ => row,
         };

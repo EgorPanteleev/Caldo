@@ -668,7 +668,6 @@ const Map<String, Object> tr = {
       "Proje, sohbetlerine ne hakkında olduklarını ve hangi klasörlerde çalıştıklarını söyler.",
   'projectName': "Ad",
   'projectColour': "Renk",
-  'projectContext': "Bağlam",
   'projectContextHint':
       "İçindeki her sohbetin bilmesi gerekenler: ne olduğu, üzerinde nasıl çalışılacağı, nelere dokunulmayacağı.",
   'projectSources': "Klasörler",
@@ -690,22 +689,20 @@ const Map<String, Object> tr = {
   'deleteChatSubchats': ["{n} alt sohbeti de onunla birlikte silinir."],
   'allProjects': "Tüm projeler",
   'untitledProject': "Adsız proje",
-  'projectAllContext': "Tüm bağlam",
-  'projectAllContextHint':
-      "{name} içinde başlatılan bir sohbete söylenenler: burada saklanan sözler, ardından Claude'un bilgisayarda okudukları — CLAUDE.md dosyaları ve belleği.",
-  'contextInCaldo': "Caldo'da",
-  'contextOnWorker': "{worker} üzerinde",
-  'contextOnComputer': "Bilgisayarda",
-  'contextNoWorker': "Dosyaların okunacağı açık bir bilgisayar yok.",
   'contextNoAnswer': "Bilgisayar yanıt vermedi. Worker'ı çalışıyor mu?",
-  'contextChanged':
-      "Bu arada bilgisayarda değiştirildi, bu yüzden olduğu gibi bırakıldı. İşte şimdiki hâli.",
-  'contextUserFile': "Sizin, her klasörde okunur",
-  'contextMemory': "Bellek",
-  'contextMissing': "Henüz yazılmadı",
+  'chatContext': "Bağlam",
+  'chatContextHint':
+      "Bu sohbetin ajanına söylenenler. CLAUDE.md'yi ya da bellek dosyalarını okumaz, yalnızca bunları.",
+  'contextParents': "Parçası olduğu sohbetlerden",
+  'contextParentHint': "Burada yalnızca okunur: o sohbette değiştirin.",
+  'contextProject': "Proje bilgisi",
+  'contextProjectHint':
+      "\"{name}\" içindeki her sohbetle paylaşılır: her biri değişikliği bir sonraki başlangıçta öğrenir.",
+  'contextNoProject': "Bu sohbet hiçbir projede değil.",
+  'contextOwn': "Sohbetin kendi bağlamı",
+  'contextOwnHint':
+      "Bu sohbet ve alt sohbetleri için: nasıl çalışılacağı, ne için olduğu.",
+  'contextImport': "CLAUDE.md'den al",
+  'contextImportNone': "Projenin klasörlerinde CLAUDE.md yok.",
   'contextNothing': "Hiçbir şey yazılmadı",
-  'contextUncommitted': "Commit edilmedi: yeni sohbetler henüz görmüyor",
-  'contextWords': "Caldo'da saklanır, içinde başlatılan her sohbete söylenir",
-  'contextDeleteQuestion': "Bu anı silinsin mi?",
-  'contextReadAgain': "Yeniden oku",
 };
