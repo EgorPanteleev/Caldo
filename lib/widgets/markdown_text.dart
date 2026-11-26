@@ -20,7 +20,7 @@ class MarkdownText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final blocks = _blocks(text);
+    final blocks = _parsedOf(text);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -31,6 +31,20 @@ class MarkdownText extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// The answers last drawn, parsed. Every item of a chat on screen is
+  /// built again whenever its feed changes — each new item, each piece of
+  /// an answer being written — and parsing each finished answer afresh
+  /// every time was most of what that cost.
+  static final _parsed = <String, List<_Block>>{};
+
+  static List<_Block> _parsedOf(String text) {
+    final kept = _parsed.remove(text);
+    final blocks = kept ?? _blocks(text);
+    _parsed[text] = blocks;
+    if (_parsed.length > 200) _parsed.remove(_parsed.keys.first);
+    return blocks;
   }
 
   static List<_Block> _blocks(String text) {
