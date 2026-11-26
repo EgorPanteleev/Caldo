@@ -1122,6 +1122,54 @@ void main() {
     expect(find.text('reply.png'), findsOneWidget);
   });
 
+  testWidgets('chat history can scroll behind the composer and clear it', (
+    tester,
+  ) async {
+    const overlap = 56.0;
+    const composerKey = ValueKey('composer');
+    final feed = TalkFeed.held('c', [
+      for (var i = 0; i < 30; i++)
+        ChatItem(id: 'm$i', seq: i, kind: 'user', body: {'text': 'Message $i'}),
+    ]);
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              Expanded(
+                child: TalkView(
+                  feed: feed,
+                  working: false,
+                  onAnswer: (_, _, _) {},
+                  bottomOverlap: overlap,
+                ),
+              ),
+              const SizedBox(key: composerKey, height: overlap),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final latest = find.text('Message 29');
+    final composer = tester.getRect(find.byKey(composerKey));
+    expect(tester.getBottomLeft(latest).dy, lessThan(composer.top));
+
+    final scroll = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .controller!;
+    final foot = scroll.position.maxScrollExtent;
+    scroll.jumpTo(foot - 48);
+    await tester.pump();
+    expect(tester.getTopLeft(latest).dy, greaterThan(composer.top));
+    expect(tester.getBottomLeft(latest).dy, lessThan(composer.bottom));
+
+    scroll.jumpTo(foot);
+    await tester.pump();
+    expect(tester.getBottomLeft(latest).dy, lessThan(composer.top));
+  });
+
   testWidgets('a chat says when its words were said', (tester) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day, 9, 5);
@@ -3454,6 +3502,10 @@ void main() {
       }
 
       await open(ids.first);
+      expect(
+        find.ancestor(of: field, matching: find.byType(BackdropFilter)),
+        findsOneWidget,
+      );
       await tester.enterText(field, 'first line\nsecond line  ');
       await leave();
       await open(ids.last);

@@ -41,6 +41,10 @@ class TalkView extends StatefulWidget {
   /// Room left at the top and foot of the list.
   final EdgeInsets padding;
 
+  /// Extra viewport behind the glass composer, also reserved in the scroll
+  /// extent so the latest message can still settle above it.
+  final double bottomOverlap;
+
   const TalkView({
     super.key,
     required this.feed,
@@ -50,6 +54,7 @@ class TalkView extends StatefulWidget {
     this.onCarry,
     this.usage,
     this.padding = EdgeInsets.zero,
+    this.bottomOverlap = 0,
   });
 
   @override
@@ -149,7 +154,7 @@ class _TalkViewState extends State<TalkView> {
         answered = false;
       }
     }
-    return SelectionArea(
+    final scroll = SelectionArea(
       child: CustomScrollView(
         key: ObjectKey(feed),
         controller: _scroll,
@@ -199,10 +204,23 @@ class _TalkViewState extends State<TalkView> {
             ),
           ),
           SliverPadding(
-            padding: EdgeInsets.only(bottom: widget.padding.bottom + 12),
+            padding: EdgeInsets.only(
+              bottom: widget.padding.bottom + widget.bottomOverlap + 12,
+            ),
           ),
         ],
       ),
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        final height = box.maxHeight + widget.bottomOverlap;
+        return OverflowBox(
+          alignment: Alignment.topCenter,
+          minHeight: height,
+          maxHeight: height,
+          child: scroll,
+        );
+      },
     );
   }
 
