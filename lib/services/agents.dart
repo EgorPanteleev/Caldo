@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:path/path.dart' as p;
 import 'package:supabase/supabase.dart';
 
@@ -802,6 +803,8 @@ class Agents extends ChangeNotifier {
   List<AgentAccount> accounts = const [];
   bool loaded = false;
   Object? error;
+  bool _checkingWorkers = false;
+  int _loadRevision = 0;
 
   final _drafts = <String, ValueNotifier<String>>{};
 
@@ -809,7 +812,10 @@ class Agents extends ChangeNotifier {
   ValueNotifier<String> draftOf(String chat) =>
       _drafts.putIfAbsent(chat, () => ValueNotifier(''));
 
-  SupabaseClient? get _client => Account.instance.client;
+  SupabaseClient? get _client => clientForTest ?? Account.instance.client;
+
+  @visibleForTesting
+  SupabaseClient? clientForTest;
 
   bool get signedIn => signedInForTest ?? _client != null;
 
@@ -819,17 +825,21 @@ class Agents extends ChangeNotifier {
 
   RealtimeChannel? _channel;
   RealtimeChannel? _accountsChannel;
+  AppLifecycleListener? _lifecycle;
   Timer? _every;
   int _watching = 0;
 
   /// Kept up to date while anything is looking: the tab, an open chat.
   void watch() {
     if (_watching++ > 0) return;
-    unawaited(load());
+    unawaited(load(recheckWorkers: true));
     unawaited(loadRules());
     unawaited(loadProjects());
     final client = _client;
     if (client == null) return;
+    _lifecycle = AppLifecycleListener(
+      onResume: () => unawaited(load(recheckWorkers: true)),
+    );
     _channel = client
         .channel('caldo-agents')
         .onPostgresChanges(
@@ -864,6 +874,8 @@ class Agents extends ChangeNotifier {
     if (--_watching > 0) return;
     _every?.cancel();
     _every = null;
+    _lifecycle?.dispose();
+    _lifecycle = null;
     for (final channel in [_channel, _accountsChannel]) {
       if (channel != null) unawaited(_client?.removeChannel(channel));
     }
@@ -880,13 +892,23 @@ class Agents extends ChangeNotifier {
     _later = Timer(const Duration(milliseconds: 250), load);
   }
 
-  Future<void> load() async {
+  Future<void> load({bool recheckWorkers = false}) async {
+    final revision = ++_loadRevision;
     final client = _client;
     if (client == null) {
+      _checkingWorkers = false;
       loaded = true;
       notifyListeners();
       return;
     }
+    if ((recheckWorkers || !loaded) && !_checkingWorkers) {
+      _checkingWorkers = true;
+      // A screen can start watching while it is being built.
+      scheduleMicrotask(() {
+        if (_checkingWorkers) notifyListeners();
+      });
+    }
+    bool current() => revision == _loadRevision && identical(client, _client);
     try {
       final w = await client
           .from('workers')
@@ -897,13 +919,17 @@ class Agents extends ChangeNotifier {
           .select()
           .order('updated_at', ascending: false)
           .limit(200);
+      final readAccounts = await _readAccounts(client);
+      if (!current()) return;
       workers = [for (final r in w) AgentWorker.fromJson(r)];
       chats = Chat.listOrder([for (final r in c) Chat.fromJson(r)]);
-      accounts = await _readAccounts(client);
+      accounts = readAccounts;
       error = null;
     } catch (e) {
+      if (!current()) return;
       error = e;
     }
+    _checkingWorkers = false;
     loaded = true;
     notifyListeners();
   }
@@ -1230,14 +1256,22 @@ class Agents extends ChangeNotifier {
   AgentWorker? worker(String? id) =>
       workers.where((w) => w.id == id).firstOrNull;
 
+  /// A cached heartbeat can go stale while the app is out of view.
+  bool checkingWorker(Chat chat) =>
+      _checkingWorkers &&
+      chat.workerId != null &&
+      _tracksWorker(chat) &&
+      worker(chat.workerId)?.online != true;
+
+  bool _tracksWorker(Chat chat) =>
+      chat.state != ChatState.ended && chat.state != ChatState.failed;
+
   /// [chat]'s computer, if it has stopped saying it is there: its chat
   /// then shows as offline rather than as it last stood — a chat left
   /// "Working" by a worker that died took messages that went nowhere and
   /// said nothing. An ended chat stays as it ended.
   AgentWorker? away(Chat chat) {
-    if (chat.state == ChatState.ended || chat.state == ChatState.failed) {
-      return null;
-    }
+    if (!_tracksWorker(chat) || _checkingWorkers) return null;
     final w = worker(chat.workerId);
     return w == null || w.online ? null : w;
   }
