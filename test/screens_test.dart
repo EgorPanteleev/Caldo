@@ -880,7 +880,7 @@ void main() {
     expect(find.text('Ship'), findsNWidgets(2));
 
     final today = dayOf(DateTime.now());
-    await tester.tap(dayInGrid(today.day));
+    await tester.tap(find.byKey(ValueKey(today)).hitTestable());
     await tester.pumpAndSettle();
 
     // The day comes forward as a card, with the month still behind it.

@@ -16,6 +16,7 @@ import '../models/task.dart';
 import '../utils/platform.dart';
 import 'account.dart';
 import 'attachments.dart';
+import 'chat_files.dart';
 import 'desktop.dart';
 
 /// One kind of agent a worker can run, as it says (`lib/mcp/agents.dart`).
@@ -1210,34 +1211,23 @@ class Agents extends ChangeNotifier {
     List<Attachment> files,
   ) async {
     if (files.isEmpty) return const [];
-    final client = _client!;
-    final user = client.auth.currentUser!.id;
-    final bucket = client.storage.from(chatFiles);
     return [
       for (final a in files)
         if (Attachments.instance.fileOf(a) case final file?)
-          await bucket
-              .upload(
-                '$user/$chat/${p.dirname(a.file)}',
-                file,
-                fileOptions: FileOptions(contentType: a.mime, upsert: true),
-              )
-              .then(
-                (_) => {
-                  'key': '$chat/${p.dirname(a.file)}',
-                  'name': a.name,
-                  'mime': a.mime,
-                  'size': a.size,
-                },
-              ),
+          await ChatFiles.upload(
+            _client!,
+            '$chat/${p.dirname(a.file)}',
+            file,
+            name: a.name,
+            mime: a.mime,
+            size: a.size,
+            upsert: true,
+          ),
     ];
   }
 
-  /// The bucket the files sent to chats wait in for their workers.
-  static const chatFiles = 'chat-files';
-
   /// The most a file sent to a chat may be: the bucket's own limit.
-  static const largestFile = 50 * 1024 * 1024;
+  static const largestFile = ChatFiles.largestFile;
 
   /// [text] left for [chat]'s worker to say at [at]; [carryOn] if it is
   /// the chat carrying on after the usage limit, which its worker takes
@@ -1472,15 +1462,24 @@ class Agents extends ChangeNotifier {
     ]);
   }
 
-  /// The files sent to [chat] and never taken down, gone with it.
+  /// Photos and any undelivered files are removed with the chat.
   Future<void> _unput(String chat) async {
     try {
       final client = _client!;
       final folder = '${client.auth.currentUser!.id}/$chat';
-      final bucket = client.storage.from(chatFiles);
-      final left = await bucket.list(path: folder);
-      if (left.isEmpty) return;
-      await bucket.remove([for (final f in left) '$folder/${f.name}']);
+      final bucket = client.storage.from(ChatFiles.bucket);
+      const limit = 100;
+      while (true) {
+        final left = await bucket.list(
+          path: folder,
+          searchOptions: const SearchOptions(limit: limit),
+        );
+        if (left.isEmpty) return;
+        final removed = await bucket.remove([
+          for (final f in left) '$folder/${f.name}',
+        ]);
+        if (left.length < limit || removed.isEmpty) return;
+      }
     } catch (_) {
       // Offline, or a server without the bucket: they wait there.
     }
@@ -1895,8 +1894,8 @@ class TalkFeed extends ChangeNotifier {
 
   /// [items] as they are, heard from nothing: for tests.
   @visibleForTesting
-  TalkFeed.held(this.chat, List<ChatItem> items)
-    : _client = null,
+  TalkFeed.held(this.chat, List<ChatItem> items, {SupabaseClient? client})
+    : _client = client,
       _release = null {
     _take([
       for (final i in items)
@@ -2053,16 +2052,20 @@ class TalkFeed extends ChangeNotifier {
         'id': 'u$key',
         'seq': (items.isEmpty ? 0 : items.last.seq) + 1,
         'kind': 'user',
-        'body': {
-          'text': text,
-          if (files.isNotEmpty)
-            'files': [
-              for (final f in files)
-                {'name': f['name'], 'mime': f['mime'], 'size': f['size']},
-            ],
-        },
+        'body': {'text': text, if (files.isNotEmpty) 'files': files},
       },
     ]);
+  }
+
+  Future<Uint8List> photo(String key) async {
+    final client = _client;
+    final user = client?.auth.currentUser?.id;
+    if (client == null ||
+        user == null ||
+        ChatFiles.objectId(chat, key) == null) {
+      throw StateError('Photo unavailable');
+    }
+    return client.storage.from(ChatFiles.bucket).download('$user/$key');
   }
 
   void _piece(Map<String, dynamic> message) {

@@ -31,7 +31,6 @@ import '../widgets/sign_in_sheet.dart';
 import '../widgets/special_days.dart';
 import '../widgets/task_card.dart' show CheckMark;
 import '../widgets/theme_switcher.dart';
-import '../widgets/update_banner.dart' show showUpdateSheet;
 import 'home_screen.dart' show screenItems;
 
 part 'settings_debug.dart';
@@ -1543,7 +1542,7 @@ class _CalendarTick extends StatelessWidget {
   }
 }
 
-/// A newer release — the way to it while the banner is put off.
+/// A newer release — the way to it while the prompt is put off.
 class _UpdateRow extends StatelessWidget {
   final Update update;
 
@@ -1557,7 +1556,7 @@ class _UpdateRow extends StatelessWidget {
       title: s.updateOut(update.version),
       value: update.urgent ? s.updateImportantLine : s.whatsNew,
       warn: update.urgent,
-      onTap: () => showUpdateSheet(context, update),
+      onTap: () => Updates.instance.offered.value = update,
     );
   }
 }

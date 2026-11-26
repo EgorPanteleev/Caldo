@@ -1,20 +1,117 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import '../l10n/strings.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
-import 'date_time_pickers.dart' show SheetAction, showAppSheet;
 
-/// Says a newer Caldo is out: its version, a tap to read what is new in it,
-/// Later and Update — and while it downloads, how far it has got.
-///
-/// Later keeps it away until the app next starts, no longer: an update put
-/// off is not an update refused, and Settings offers it meanwhile. A release
-/// marked urgent is not offered here at all but by [UpdateWall].
-class UpdateBanner extends StatelessWidget {
+/// Places a regular update above whichever route the user is working in.
+class UpdatePrompt extends StatefulWidget {
+  final Update? update;
+  final GlobalKey<NavigatorState> navigator;
+  final Widget child;
+
+  const UpdatePrompt({
+    super.key,
+    required this.update,
+    required this.navigator,
+    required this.child,
+  });
+
+  @override
+  State<UpdatePrompt> createState() => _UpdatePromptState();
+}
+
+class _UpdatePromptState extends State<UpdatePrompt> {
+  _UpdateRoute? _route;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.update != null) _syncPrompt();
+  }
+
+  @override
+  void didUpdateWidget(UpdatePrompt oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.update != oldWidget.update) _syncPrompt();
+  }
+
+  void _syncPrompt() {
+    // The navigator may still be building when the offer reaches the shell.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final navigator = widget.navigator.currentState;
+      if (navigator == null) return;
+      final update = widget.update;
+      final route = _route;
+      if (update == null) {
+        _route = null;
+        if (route != null && route.isActive) navigator.removeRoute(route);
+      } else if (route == null) {
+        final prompt = _route = _UpdateRoute(update);
+        navigator.push(prompt).then((_) {
+          if (!mounted || _route != prompt) return;
+          // A background operation may pop the navigator directly.
+          _route = null;
+          _syncPrompt();
+          WidgetsBinding.instance.ensureVisualUpdate();
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+class _UpdateRoute extends PopupRoute<void> {
+  final Update initialUpdate;
+
+  _UpdateRoute(this.initialUpdate)
+    : super(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        requestFocus: true,
+        traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+        directionalTraversalEdgeBehavior: TraversalEdgeBehavior.closedLoop,
+      );
+
+  @override
+  bool get barrierDismissible => false;
+
+  @override
+  Color get barrierColor => Colors.black45;
+
+  @override
+  String? get barrierLabel => null;
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 180);
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return PopScope<void>(
+      canPop: false,
+      child: SafeArea(
+        child: ValueListenableBuilder<Update?>(
+          valueListenable: Updates.instance.offered,
+          builder: (context, update, _) =>
+              _UpdateDialog(update: update ?? initialUpdate),
+        ),
+      ),
+    );
+  }
+}
+
+class _UpdateDialog extends StatelessWidget {
   final Update update;
 
-  const UpdateBanner({super.key, required this.update});
+  const _UpdateDialog({required this.update});
 
   @override
   Widget build(BuildContext context) {
@@ -22,84 +119,75 @@ class UpdateBanner extends StatelessWidget {
     final accent = AppTheme.accentOf(context).color;
     final s = S.of(context);
     final updates = Updates.instance;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: Material(
-        // A wash of the accent over the panel, so it is told apart from the
-        // screen's own cards at a glance.
-        color: Color.alphaBlend(accent.withValues(alpha: 0.08), p.panel),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: accent.withValues(alpha: 0.28)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: update.notes.isEmpty
+    return ListenableBuilder(
+      listenable: Listenable.merge([updates.progress, updates.hitch]),
+      builder: (context, _) {
+        final progress = updates.progress.value;
+        final hitch = updates.hitch.value;
+        final line = switch ((progress, hitch)) {
+          (final double done, _) => s.downloading((done * 100).round()),
+          (_, InstallHitch.allow) => s.allowInstall,
+          (_, InstallHitch.failed) => s.downloadFailed,
+          _ => s.updateReady,
+        };
+        return AlertDialog(
+          constraints: const BoxConstraints(maxWidth: 520),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 20,
+          ),
+          scrollable: true,
+          title: Row(
+            children: [
+              _Badge(accent: accent, size: 44),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _Heading(
+                  update: update,
+                  line: line,
+                  warn: hitch != null && progress == null,
+                ),
+              ),
+            ],
+          ),
+          content: update.notes.isEmpty
               ? null
-              : () => showUpdateSheet(context, update),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            child: ListenableBuilder(
-              listenable: Listenable.merge([updates.progress, updates.hitch]),
-              builder: (context, _) {
-                final progress = updates.progress.value;
-                final hitch = updates.hitch.value;
-                final line = switch ((progress, hitch)) {
-                  (final double done, _) => s.downloading((done * 100).round()),
-                  (_, InstallHitch.allow) => s.allowInstall,
-                  (_, InstallHitch.failed) => s.downloadFailed,
-                  _ when update.urgent => s.updateImportantLine,
-                  _ => s.updateReady,
-                };
-                return Column(
+              : Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        _Badge(accent: accent),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _Heading(
-                            update: update,
-                            line: line,
-                            warn: hitch != null && progress == null,
-                          ),
-                        ),
-                        if (update.notes.isNotEmpty)
-                          Icon(Icons.chevron_right_rounded, color: p.faint),
-                      ],
+                    Text(
+                      s.whatsNew,
+                      style: TextStyle(
+                        color: p.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 10),
-                    if (progress != null)
-                      _Progress(value: progress, accent: accent)
-                    else
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (!update.urgent)
-                            TextButton(
-                              onPressed: () => updates.later(update),
-                              style: TextButton.styleFrom(
-                                foregroundColor: p.muted,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              child: Text(s.later),
-                            ),
-                          const SizedBox(width: 6),
-                          _UpdateButton(
-                            accent: accent,
-                            onTap: () => updates.start(update),
-                          ),
-                        ],
-                      ),
+                    _ReleaseNotes(notes: update.notes),
                   ],
-                );
-              },
-            ),
-          ),
-        ),
-      ),
+                ),
+          actions: [
+            if (progress != null)
+              LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                borderRadius: BorderRadius.circular(3),
+                color: accent,
+                backgroundColor: p.field,
+              )
+            else ...[
+              TextButton(
+                onPressed: () => updates.later(update),
+                style: TextButton.styleFrom(foregroundColor: p.muted),
+                child: Text(s.later),
+              ),
+              _UpdateButton(accent: accent, onTap: () => updates.start(update)),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -119,7 +207,6 @@ class UpdateWall extends StatelessWidget {
     final accent = AppTheme.accentOf(context).color;
     final s = S.of(context);
     final updates = Updates.instance;
-    final several = update.notes.length > 1;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -150,7 +237,6 @@ class UpdateWall extends StatelessWidget {
                               update: update,
                               line: line,
                               warn: hitch != null && progress == null,
-                              big: true,
                             ),
                           ),
                         ],
@@ -159,25 +245,7 @@ class UpdateWall extends StatelessWidget {
                     Expanded(
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                        children: [
-                          for (final notes in update.notes) ...[
-                            if (several)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: Text(
-                                  notes.version,
-                                  style: TextStyle(
-                                    color: p.muted,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                              ),
-                            _Notes(text: notes.text),
-                            const SizedBox(height: 14),
-                          ],
-                        ],
+                        children: [_ReleaseNotes(notes: update.notes)],
                       ),
                     ),
                     Padding(
@@ -213,89 +281,35 @@ class UpdateWall extends StatelessWidget {
   }
 }
 
-/// What is new in [update], with Later and Update at the foot — from the
-/// banner, and from Settings once the banner has been put off.
-Future<void> showUpdateSheet(BuildContext context, Update update) =>
-    showAppSheet<void>(
-      context,
-      maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-      child: _UpdateSheet(update: update),
-    );
+class _ReleaseNotes extends StatelessWidget {
+  final List<ReleaseNotes> notes;
 
-class _UpdateSheet extends StatelessWidget {
-  final Update update;
-
-  const _UpdateSheet({required this.update});
+  const _ReleaseNotes({required this.notes});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final accent = AppTheme.accentOf(context).color;
-    final s = S.of(context);
-    final updates = Updates.instance;
-    // A heading per release only when there is more than one to tell apart.
-    final several = update.notes.length > 1;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              _Badge(accent: accent, size: 44),
-              const SizedBox(width: 14),
-              Expanded(
-                child: _Heading(
-                  update: update,
-                  line: update.urgent ? s.updateImportantLine : s.whatsNew,
-                  big: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (index, release) in notes.indexed) ...[
+          if (index > 0) const SizedBox(height: 14),
+          if (notes.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                release.version,
+                style: TextStyle(
+                  color: p.muted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          for (final notes in update.notes) ...[
-            if (several)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  notes.version,
-                  style: TextStyle(
-                    color: p.muted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-              ),
-            _Notes(text: notes.text),
-            const SizedBox(height: 14),
-          ],
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              if (!update.urgent)
-                SheetAction(
-                  label: s.later,
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    updates.later(update);
-                  },
-                ),
-              SheetAction(
-                label: s.update,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  // The banner shows the download, put off or not.
-                  updates.offered.value = update;
-                  updates.start(update);
-                },
-              ),
-            ],
-          ),
+            ),
+          _Notes(text: release.text),
         ],
-      ),
+      ],
     );
   }
 }
@@ -367,14 +381,8 @@ class _Heading extends StatelessWidget {
   final Update update;
   final String line;
   final bool warn;
-  final bool big;
 
-  const _Heading({
-    required this.update,
-    required this.line,
-    this.warn = false,
-    this.big = false,
-  });
+  const _Heading({required this.update, required this.line, this.warn = false});
 
   @override
   Widget build(BuildContext context) {
@@ -391,7 +399,7 @@ class _Heading extends StatelessWidget {
               'Caldo ${update.version}',
               style: TextStyle(
                 color: p.text,
-                fontSize: big ? 18 : 15,
+                fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -458,7 +466,6 @@ class _Important extends StatelessWidget {
   }
 }
 
-/// The one filled button: the thing the banner is there to have pressed.
 class _UpdateButton extends StatelessWidget {
   final Color accent;
   final VoidCallback onTap;
@@ -478,31 +485,6 @@ class _UpdateButton extends StatelessWidget {
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
       ),
       child: Text(S.of(context).update),
-    );
-  }
-}
-
-/// How far the download has got, as a rounded bar.
-class _Progress extends StatelessWidget {
-  final double value;
-  final Color accent;
-
-  const _Progress({required this.value, required this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(left: 52, bottom: 2),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: LinearProgressIndicator(
-          value: value,
-          minHeight: 5,
-          color: accent,
-          backgroundColor: p.field,
-        ),
-      ),
     );
   }
 }

@@ -228,7 +228,15 @@ class _TalkViewState extends State<TalkView> {
     'user' => _Said(
       text: item.text,
       files: item.body['files'],
+      feed: widget.feed,
       sender: item.body['sender'],
+    ),
+    'text' when item.body['files'] is List => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ChatAttachments(feed: widget.feed, files: item.body['files']),
+        if (item.text.isNotEmpty) _Answer(text: item.text),
+      ],
     ),
     'text' => _Answer(text: item.text),
     'thinking' => _Thinking(
@@ -335,9 +343,15 @@ class _Spaced extends StatelessWidget {
 class _Said extends StatelessWidget {
   final String text;
   final Object? files;
+  final TalkFeed feed;
   final Object? sender;
 
-  const _Said({required this.text, this.files, this.sender});
+  const _Said({
+    required this.text,
+    required this.feed,
+    this.files,
+    this.sender,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -431,48 +445,200 @@ class _Said extends StatelessWidget {
   }
 
   Widget _content(AppPalette p, {required bool right}) {
-    final sent = [
-      for (final f in files is List ? files as List : const [])
-        if (f is Map) f,
-    ];
     final words = Text(
       text,
       style: TextStyle(color: p.text, fontSize: 15, height: 1.35),
     );
-    if (sent.isEmpty) return words;
+    final sent = files;
+    if (sent is! List || sent.isEmpty) return words;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: right
           ? CrossAxisAlignment.end
           : CrossAxisAlignment.start,
       children: [
-        for (final f in sent)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  '${f['mime']}'.startsWith('image/')
-                      ? Icons.image_outlined
-                      : Icons.insert_drive_file_outlined,
-                  size: 16,
-                  color: p.muted,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    '${f['name']}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: p.text, fontSize: 13.5),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _ChatAttachments(feed: feed, files: sent, right: right),
         if (text.trim().isNotEmpty) ...[const SizedBox(height: 2), words],
       ],
+    );
+  }
+}
+
+class _ChatAttachments extends StatelessWidget {
+  final TalkFeed feed;
+  final List files;
+  final bool right;
+
+  const _ChatAttachments({
+    required this.feed,
+    required this.files,
+    this.right = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: right
+        ? CrossAxisAlignment.end
+        : CrossAxisAlignment.start,
+    children: [
+      for (final file in files.whereType<Map>())
+        Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: '${file['mime']}'.startsWith('image/') && file['key'] is String
+              ? _ChatPhoto(
+                  feed: feed,
+                  object: file['key'],
+                  name: '${file['name']}',
+                )
+              : _FileLabel(
+                  name: '${file['name']}',
+                  icon: '${file['mime']}'.startsWith('image/')
+                      ? Icons.image_outlined
+                      : Icons.insert_drive_file_outlined,
+                ),
+        ),
+    ],
+  );
+}
+
+class _FileLabel extends StatelessWidget {
+  final String name;
+  final IconData icon;
+
+  const _FileLabel({required this.name, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: p.muted),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: p.text, fontSize: 13.5),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChatPhoto extends StatefulWidget {
+  final TalkFeed feed;
+  final String object;
+  final String name;
+
+  const _ChatPhoto({
+    required this.feed,
+    required this.object,
+    required this.name,
+  });
+
+  @override
+  State<_ChatPhoto> createState() => _ChatPhotoState();
+}
+
+class _ChatPhotoState extends State<_ChatPhoto> {
+  late Future<Uint8List> _photo = widget.feed.photo(widget.object);
+
+  @override
+  void didUpdateWidget(_ChatPhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.feed != widget.feed || oldWidget.object != widget.object) {
+      _photo = widget.feed.photo(widget.object);
+    }
+  }
+
+  void _open(Uint8List bytes) {
+    showDialog<void>(
+      context: context,
+      useSafeArea: false,
+      builder: (context) => Dialog.fullscreen(
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            leading: const CloseButton(),
+            title: Text(widget.name),
+          ),
+          body: SafeArea(
+            top: false,
+            child: InteractiveViewer(
+              maxScale: 5,
+              child: Center(child: Image.memory(bytes)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppTheme.of(context);
+    final pixels = (240 * MediaQuery.devicePixelRatioOf(context)).round();
+    final fallback = Center(
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: _FileLabel(name: widget.name, icon: Icons.broken_image_outlined),
+      ),
+    );
+    return SelectionContainer.disabled(
+      child: SizedBox(
+        width: 240,
+        child: AspectRatio(
+          aspectRatio: 4 / 3,
+          child: Material(
+            color: palette.panel,
+            borderRadius: BorderRadius.circular(10),
+            clipBehavior: Clip.antiAlias,
+            child: FutureBuilder<Uint8List>(
+              future: _photo,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return Center(
+                    child: Icon(Icons.image_outlined, color: palette.faint),
+                  );
+                }
+                final bytes = snapshot.data;
+                if (bytes == null) {
+                  return Tooltip(
+                    message: MaterialLocalizations.of(
+                      context,
+                    ).refreshIndicatorSemanticLabel,
+                    child: InkWell(
+                      onTap: () => setState(() {
+                        _photo = widget.feed.photo(widget.object);
+                      }),
+                      child: fallback,
+                    ),
+                  );
+                }
+                return InkWell(
+                  onTap: () => _open(bytes),
+                  child: Image(
+                    image: ResizeImage(
+                      MemoryImage(bytes),
+                      width: pixels,
+                      height: pixels,
+                      policy: ResizeImagePolicy.fit,
+                    ),
+                    semanticLabel: widget.name,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => fallback,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

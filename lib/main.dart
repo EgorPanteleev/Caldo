@@ -30,7 +30,7 @@ import 'widgets/perf_hud.dart';
 import 'widgets/quick_add_bar.dart';
 import 'widgets/recording_overlay.dart';
 import 'widgets/theme_switcher.dart';
-import 'widgets/update_banner.dart';
+import 'widgets/update_prompt.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -163,10 +163,15 @@ class CaldoApp extends StatelessWidget {
                         // An urgent update takes the navigator's place, and
                         // everything on it goes: the app is not to be used again
                         // until the update is in, and it starts afresh then.
-                        builder: (context, update, _) =>
+                        builder: (context, update, child) =>
                             update != null && update.urgent
                             ? UpdateWall(update: update)
-                            : onDesktop
+                            : UpdatePrompt(
+                                update: update,
+                                navigator: _navigator,
+                                child: child!,
+                              ),
+                        child: onDesktop
                             ? DeskScope(
                                 navigator: _navigator,
                                 builder: (context, wide) => DeskKeys(
