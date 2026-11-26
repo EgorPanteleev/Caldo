@@ -4750,6 +4750,7 @@ void main() {
           agent: 'claude',
           title: title,
           state: state,
+          note: state == ChatState.finished ? 'Finished the work.' : null,
           updatedAt: now,
         );
         Agents.instance
@@ -4784,7 +4785,13 @@ void main() {
         // question asked does.
         expect(find.textContaining('${s.chatAsking} · '), findsNWidgets(2));
         // A finished one is marked by a tick, not by a dot's shade.
-        expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+        final tick = find.byIcon(Icons.check_rounded);
+        expect(tick, findsOneWidget);
+        final card = find.ancestor(of: tick, matching: find.byType(InkWell));
+        expect(
+          tester.getCenter(tick).dy,
+          closeTo(tester.getCenter(card).dy, 0.001),
+        );
         // Finished, it still takes a message: its program runs.
         expect(chat('d', 'Delta', ChatState.finished).live, isTrue);
         expect(chat('e', 'Echo', ChatState.yourTurn).live, isTrue);
