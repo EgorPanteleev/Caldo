@@ -27,8 +27,6 @@
          yes. Nothing is ever written to them. -->
     <uses-permission android:name="android.permission.READ_CALENDAR"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
-    <!-- Lets an update Caldo installed itself go over it without asking. -->
-    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION"/>
     <!-- The vault opens with a fingerprint (Vault.kt). Granted with the
          install; nothing is asked. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>

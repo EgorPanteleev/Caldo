@@ -57,10 +57,9 @@ object SelfUpdate {
         ).apply {
             setAppPackageName(context.packageName)
             setSize(apk.length())
-            // Once Caldo installed the version standing, Android lets it put
-            // the next one over it without asking; the first time, it asks.
+            // Keep the system confirmation even when Caldo is updating itself.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 setPermissionState(
