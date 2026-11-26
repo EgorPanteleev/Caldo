@@ -126,6 +126,10 @@ abstract class Talk {
   void interrupt();
   Future<void> close();
 
+  /// The chat's settings changed in the app to [now] while its program
+  /// runs on with what it began with, until its turn is done.
+  void retuned(ChatAsk now) {}
+
   /// The talk for [spec], or null for one only run in a terminal; [given]
   /// is where the files sent to it are kept.
   static Talk? of(
@@ -863,6 +867,69 @@ String? resumable(AgentSpec spec, String home, String dir, String? session) {
       : null;
 }
 
+/// What Codex is told of its question [method] with [params], answered
+/// [choice] (`allow`, `always` or `deny`). A command's question lists the
+/// decisions it takes (`availableDecisions`), and lately one for the
+/// session is seldom among them: told one not offered, Codex ran the
+/// command once and asked again at the next. "Always" is then the rule
+/// it proposes (`acceptWithExecpolicyAmendment`, commands that start
+/// alike), and "deny" a cancel where a decline is not offered.
+Map<String, Object?> codexVerdict(String method, Map params, String choice) {
+  if (method == 'execCommandApproval' || method == 'applyPatchApproval') {
+    return {
+      'decision': switch (choice) {
+        'allow' => 'approved',
+        'always' => 'approved_for_session',
+        _ => 'denied',
+      },
+    };
+  }
+  if (method == 'item/permissions/requestApproval') {
+    final wanted = params['permissions'] as Map? ?? const {};
+    return {
+      'permissions': choice == 'deny'
+          ? const <String, Object?>{}
+          : {
+              for (final key in const ['network', 'fileSystem'])
+                if (wanted[key] != null) key: wanted[key],
+            },
+      'scope': choice == 'always' ? 'session' : 'turn',
+    };
+  }
+  final offered = params['availableDecisions'] as List?;
+  bool offers(String decision) => offered == null || offered.contains(decision);
+  final rule = offered?.whereType<Map>().where(
+    (d) => d.containsKey('acceptWithExecpolicyAmendment'),
+  );
+  return {
+    'decision': switch (choice) {
+      'allow' => 'accept',
+      'always' when offers('acceptForSession') => 'acceptForSession',
+      'always' => rule?.firstOrNull ?? 'accept',
+      _ when offers('decline') => 'decline',
+      _ => 'cancel',
+    },
+  };
+}
+
+/// What Codex asks for beyond its sandbox ([permissions], a
+/// `RequestPermissionProfile`), a line each.
+String codexWanted(Object? permissions) {
+  final wanted = permissions is Map ? permissions : const {};
+  final network = wanted['network'];
+  final files = wanted['fileSystem'];
+  return [
+    if (network is Map && network['enabled'] == true) 'Network',
+    if (files is Map) ...[
+      for (final path in files['write'] as List? ?? const []) 'Write $path',
+      for (final path in files['read'] as List? ?? const []) 'Read $path',
+      for (final entry in files['entries'] as List? ?? const [])
+        if (entry case {'access': final access, 'path': final Map path})
+          '$access ${path['path'] ?? path['pattern'] ?? path['value']}',
+    ],
+  ].join('\n');
+}
+
 /// Codex's app server: JSON-RPC a line each way. A thread is the chat
 /// (its id kept as the session), a turn each message; Codex asks before a
 /// command or a change as a request of its own, answered `accept`,
@@ -876,7 +943,11 @@ class CodexTalk extends Talk {
   var _completedTurns = 0;
   var _next = 0;
   final _waiting = <int, Completer<Map>>{};
-  final _asks = <String, ({Object id, bool legacy, Map body})>{};
+  final _asks = <String, ({Object id, String method, Map params, Map body})>{};
+
+  /// The chat's permission, changed in the app perhaps since Codex began:
+  /// its turn under way keeps asking as it began ([retuned]).
+  late String? _permission = ask.permission;
   String _last = '';
 
   /// The times after which what a resumed thread holds is shown: what was
@@ -893,6 +964,8 @@ class CodexTalk extends Talk {
   @override
   void _takenUp(String? session) {
     _thread ??= session;
+    // Questions its worker before left open, the permission changed since.
+    _settle();
     // Past every id the worker before used, for its calls and its notes:
     // a note under one it used would be written over that one.
     _next = DateTime.now().microsecondsSinceEpoch;
@@ -1018,22 +1091,36 @@ class CodexTalk extends Talk {
     final asked = _asks.remove(id);
     if (asked == null) return;
     sink.item(id, 'ask', {...asked.body, 'answer': choice});
-    final decision = asked.legacy
-        ? switch (choice) {
-            'allow' => 'approved',
-            'always' => 'approved_for_session',
-            _ => 'denied',
-          }
-        : switch (choice) {
-            'allow' => 'accept',
-            'always' => 'acceptForSession',
-            _ => 'decline',
-          };
     _write({
       'id': asked.id,
-      'result': {'decision': decision},
+      'result': codexVerdict(asked.method, asked.params, choice),
     });
     sink.stands(_asks.isEmpty ? 'running' : 'asking');
+  }
+
+  @override
+  void retuned(ChatAsk now) {
+    _permission = now.permission;
+    _settle();
+  }
+
+  /// What the chat's permission answers by itself: full access allows
+  /// all, never refuses all, as Codex would have under them. Otherwise
+  /// null: the user is asked.
+  String? get _standing => switch (_permission) {
+    'full-access' => 'allow',
+    'never' => 'deny',
+    _ => null,
+  };
+
+  /// Every open question answered as the permission now says, so one
+  /// changed in the app takes hold in the turn under way, not after it.
+  void _settle() {
+    final standing = _standing;
+    if (standing == null || _replay != null) return;
+    for (final id in _asks.keys.toList()) {
+      answer(id, standing);
+    }
   }
 
   @override
@@ -1307,8 +1394,6 @@ class CodexTalk extends Talk {
   void _request(Object id, String method, Map params) {
     final key = 'ask:$id';
     final Map<String, Object?> body;
-    final legacy =
-        method == 'execCommandApproval' || method == 'applyPatchApproval';
     switch (method) {
       case 'item/commandExecution/requestApproval' || 'execCommandApproval':
         final command = params['command'];
@@ -1326,6 +1411,17 @@ class CodexTalk extends Talk {
           'detail': _changes['${params['itemId']}'] ?? '',
           'choices': const ['allow', 'always', 'deny'],
         };
+      case 'item/permissions/requestApproval':
+        // More than its sandbox gives: the network, or folders outside its
+        // own. Refused, Codex was left to fail; asked, it is given them for
+        // the turn, or for the session with "always".
+        final wanted = codexWanted(params['permissions']);
+        body = {
+          'tool': 'Permissions',
+          'line': '${params['reason'] ?? wanted.split('\n').first}',
+          'detail': wanted,
+          'choices': const ['allow', 'always', 'deny'],
+        };
       default:
         // Questions of a kind not drawn here yet: refused, not left
         // hanging.
@@ -1335,8 +1431,9 @@ class CodexTalk extends Talk {
         });
         return;
     }
-    _asks[key] = (id: id, legacy: legacy, body: body);
+    _asks[key] = (id: id, method: method, params: params, body: body);
     sink.item(key, 'ask', body);
+    if (_standing != null && _replay == null) return _settle();
     sink.stands('asking', note: '${body['tool']}: ${body['line']}');
   }
 }

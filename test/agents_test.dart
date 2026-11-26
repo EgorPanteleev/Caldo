@@ -303,6 +303,111 @@ void main() {
       expect(heard.items['ask:7']!.$2['answer'], 'always');
     });
 
+    test('answers Codex with the decisions its question offers', () {
+      // As codex-cli 0.172 asks: no decision for the session, no decline.
+      const asked = {
+        'command': "/usr/bin/bash -lc 'git fetch origin'",
+        'proposedExecpolicyAmendment': ['git', 'fetch'],
+        'availableDecisions': [
+          'accept',
+          {
+            'acceptWithExecpolicyAmendment': {
+              'execpolicy_amendment': ['git', 'fetch'],
+            },
+          },
+          'cancel',
+        ],
+      };
+      const command = 'item/commandExecution/requestApproval';
+      expect(codexVerdict(command, asked, 'allow'), {'decision': 'accept'});
+      expect(codexVerdict(command, asked, 'always'), {
+        'decision': {
+          'acceptWithExecpolicyAmendment': {
+            'execpolicy_amendment': ['git', 'fetch'],
+          },
+        },
+      });
+      expect(codexVerdict(command, asked, 'deny'), {'decision': 'cancel'});
+      // A question that lists none takes them all, as before.
+      expect(codexVerdict(command, const {}, 'always'), {
+        'decision': 'acceptForSession',
+      });
+      expect(codexVerdict(command, const {}, 'deny'), {'decision': 'decline'});
+      expect(codexVerdict('execCommandApproval', const {}, 'always'), {
+        'decision': 'approved_for_session',
+      });
+
+      const wanted = {
+        'permissions': {
+          'network': {'enabled': true},
+          'fileSystem': null,
+        },
+      };
+      const more = 'item/permissions/requestApproval';
+      expect(codexVerdict(more, wanted, 'allow'), {
+        'permissions': {
+          'network': {'enabled': true},
+        },
+        'scope': 'turn',
+      });
+      expect(codexVerdict(more, wanted, 'always')['scope'], 'session');
+      expect(codexVerdict(more, wanted, 'deny'), {
+        'permissions': const <String, Object?>{},
+        'scope': 'turn',
+      });
+      expect(codexWanted(wanted['permissions']), 'Network');
+    });
+
+    test("asks for Codex's wider permissions, and a change answers them", () {
+      final heard = _Heard();
+      final talk = CodexTalk(
+        const ChatAsk(id: 'c', agent: 'codex'),
+        heard,
+        dir: '/tmp',
+      );
+      talk.take({
+        'id': 3,
+        'method': 'item/permissions/requestApproval',
+        'params': {
+          'reason': 'Fetch packages',
+          'permissions': {
+            'network': {'enabled': true},
+            'fileSystem': {
+              'read': null,
+              'write': ['/home/a/.pub-cache'],
+            },
+          },
+        },
+      });
+      talk.take({
+        'id': 4,
+        'method': 'item/commandExecution/requestApproval',
+        'params': {'command': 'git push'},
+      });
+      expect(heard.items['ask:3']!.$2['line'], 'Fetch packages');
+      expect(
+        heard.items['ask:3']!.$2['detail'],
+        'Network\nWrite /home/a/.pub-cache',
+      );
+      expect(heard.states.last, 'asking');
+
+      // Full access chosen in the app mid-turn: what waits is allowed, and
+      // what Codex asks for the rest of the turn too.
+      talk.retuned(
+        const ChatAsk(id: 'c', agent: 'codex', permission: 'full-access'),
+      );
+      expect(heard.items['ask:3']!.$2['answer'], 'allow');
+      expect(heard.items['ask:4']!.$2['answer'], 'allow');
+      expect(heard.states.last, 'running');
+      talk.take({
+        'id': 5,
+        'method': 'item/fileChange/requestApproval',
+        'params': {'itemId': 'f1'},
+      });
+      expect(heard.items['ask:5']!.$2['answer'], 'allow');
+      expect(heard.states.last, 'running');
+    });
+
     test(
       "draws Claude's AskUserQuestion as questions and says the answers",
       () {
