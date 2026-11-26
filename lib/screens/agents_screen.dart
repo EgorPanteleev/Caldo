@@ -1273,8 +1273,8 @@ class _NewChatScreenState extends State<NewChatScreen> {
           rows: rows,
           inChat: kind.talks,
           waiting: waits,
-          // Told the task as it is once due, after these words.
-          preface: waits ? said : null,
+          // Kept apart so the opening can be edited until the worker starts.
+          preface: said,
         );
         _sent.add(task.id!);
         final read = provider.taskById(task.id!) ?? task;
@@ -2618,6 +2618,15 @@ class _ChatScreenState extends State<ChatScreen> {
                 case final later when later.isNotEmpty)
               LaterList(lines: later, onTap: _laterTapped, onDelete: _takeBack),
             if (away != null) _Away(worker: away),
+            if (chat != null && chat.canEditTaskMessage)
+              TextButton.icon(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => _TaskMessageDialog(chat: chat),
+                ),
+                icon: const Icon(Icons.edit_outlined),
+                label: Text(s.chatEditFirstMessage),
+              ),
             if (asChat) ...[
               if (!chat.inChat)
                 _MoveBar(
@@ -3026,6 +3035,80 @@ class _Head extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TaskMessageDialog extends StatefulWidget {
+  final Chat chat;
+
+  const _TaskMessageDialog({required this.chat});
+
+  @override
+  State<_TaskMessageDialog> createState() => _TaskMessageDialogState();
+}
+
+class _TaskMessageDialogState extends State<_TaskMessageDialog> {
+  late String _text = widget.chat.preface ?? widget.chat.prompt;
+  bool _saving = false;
+  bool _closed = false;
+  String? _error;
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final saved = await Agents.instance.editTaskMessage(widget.chat, _text);
+      if (!mounted) return;
+      if (saved) {
+        if (ModalRoute.of(context)?.isCurrent == true) Navigator.pop(context);
+        return;
+      }
+      setState(() {
+        _saving = false;
+        _closed = true;
+        _error = S.of(context).chatFirstMessageClosed;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = '$e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return AlertDialog(
+      title: Text(s.chatEditFirstMessage),
+      scrollable: true,
+      content: TextFormField(
+        initialValue: _text,
+        onChanged: (text) => _text = text,
+        autofocus: true,
+        readOnly: _saving,
+        minLines: 3,
+        maxLines: 6,
+        decoration: InputDecoration(
+          labelText: s.chatPrompt,
+          errorText: _error,
+          errorMaxLines: 3,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(s.cancel),
+        ),
+        FilledButton(
+          onPressed: _saving || _closed ? null : _save,
+          child: Text(s.save),
+        ),
+      ],
     );
   }
 }

@@ -482,6 +482,9 @@ const Map<String, Object> es = {
   'deleteRuleHint': "Los chats iniciados con ella la conservan.",
   'chatTitle': "Título",
   'chatPrompt': "Primer mensaje",
+  'chatEditFirstMessage': "Editar el primer mensaje",
+  'chatFirstMessageClosed':
+      "Ya no se puede editar el primer mensaje de esta tarea.",
   'chatStart': "Empezar",
   'sendToAgents': "Enviar a agentes",
   'chatForEach': "Decir antes a cada uno",

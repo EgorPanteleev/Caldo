@@ -2300,6 +2300,32 @@ void main() {
     );
   });
 
+  test('editing a task preface preserves the supplied task details', () {
+    const task = Task(
+      listId: 1,
+      title: 'Call',
+      notes: 'Ask about Monday.',
+      createdAt: 0,
+    );
+    Chat chat(String? preface) => Chat.fromJson({
+      'id': 'chat',
+      'agent': 'claude',
+      'state': 'waiting',
+      'updated_at': '2026-11-25T12:00:00Z',
+      'task_uuid': 'task',
+      'preface': preface,
+      'prompt': taskMessage(task, preface ?? 'Original instructions'),
+    });
+
+    expect(
+      chat('Old\nmessage').taskPromptWith('  New\nmessage  '),
+      taskMessage(task, 'New\nmessage'),
+    );
+    expect(chat('Old').taskPromptWith('  '), taskMessage(task, ''));
+    expect(chat('').taskPromptWith('New'), taskMessage(task, 'New'));
+    expect(chat(null).taskPromptWith('Replacement'), 'Replacement');
+  });
+
   group('the tab', () {
     test('groups chats by priority and promotes a newly finished turn', () {
       final now = DateTime.utc(2026, 11, 25);
@@ -2523,6 +2549,57 @@ void main() {
       await tester.pump();
       expect(find.textContaining('Working · Shell · Desk'), findsOneWidget);
       expect(find.textContaining('has been offline'), findsNothing);
+    });
+
+    testWidgets('offers the first-message editor until a task chat starts', (
+      tester,
+    ) async {
+      final agents = Agents.instance;
+      const id = 'task-chat';
+      Chat chat(ChatState state, {String? task = 'task'}) => Chat(
+        id: id,
+        agent: 'shell',
+        title: 'Queued task',
+        taskUuid: task,
+        state: state,
+        preface: 'Original instructions',
+        prompt: 'Original instructions\n\nTask from Caldo: Queued task',
+        updatedAt: DateTime.now(),
+      );
+      agents.chats = [chat(ChatState.waiting)];
+      addTearDown(() => agents.chats = const []);
+      await pump(tester, 'en', const ChatScreen(chat: id));
+      final s = S.forCode('en');
+      final edit = find.text(s.chatEditFirstMessage);
+      expect(edit, findsOneWidget);
+      expect(find.text(s.chatStartNow), findsOneWidget);
+
+      await tester.tap(edit);
+      await tester.pumpAndSettle();
+      final field = tester.widget<TextField>(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(field.controller!.text, 'Original instructions');
+      await tester.tap(find.text(s.cancel));
+      await tester.pumpAndSettle();
+
+      agents.chats = [chat(ChatState.asked)];
+      await agents.load();
+      await tester.pump();
+      expect(edit, findsOneWidget);
+
+      agents.chats = [chat(ChatState.running)];
+      await agents.load();
+      await tester.pump();
+      expect(edit, findsNothing);
+
+      agents.chats = [chat(ChatState.waiting, task: null)];
+      await agents.load();
+      await tester.pump();
+      expect(edit, findsNothing);
     });
 
     testWidgets('restores each chat draft after leaving the chat', (

@@ -498,6 +498,8 @@ const Map<String, Object> ru = {
   'deleteRuleHint': "Чаты, начатые с ним, сохранят его.",
   'chatTitle': "Название",
   'chatPrompt': "Первое сообщение",
+  'chatEditFirstMessage': "Изменить первое сообщение",
+  'chatFirstMessageClosed': "Первое сообщение этой задачи уже нельзя изменить.",
   'chatStart': "Начать",
   'sendToAgents': "Отправить агентам",
   'chatForEach': "Сначала сказать каждому",
