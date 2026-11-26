@@ -3720,6 +3720,8 @@ void main() {
           scrollable: list,
         );
         expect(find.text(s.chatStart), findsOneWidget);
+        expect(find.text(s.chatPrompt.toUpperCase()), findsNothing);
+        expect(find.byType(TextField), findsOneWidget);
         expect(find.text(rule.name), findsOneWidget);
         expect(find.text(s.editRules), findsOneWidget);
 
@@ -4973,6 +4975,7 @@ void main() {
         expect(find.text(s.newSubchat), findsOneWidget);
         expect(find.text('Build the release'), findsOneWidget);
         expect(find.text(s.subchatHint), findsOneWidget);
+        expect(find.byType(TextField), findsOneWidget);
         // On its parent's computer and in its folder: neither is chosen.
         expect(find.text(s.chatWorker), findsNothing);
         expect(find.text(s.chatProject), findsNothing);
