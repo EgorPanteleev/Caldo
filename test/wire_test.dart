@@ -25,9 +25,7 @@ Set<String> _allowed(String constraint, String table, String column) {
   for (final file in files) {
     final sql = file.readAsStringSync();
     for (final m in [...inline.allMatches(sql), ...named.allMatches(sql)]) {
-      last = {
-        for (final w in RegExp(r"'([a-z_]+)'").allMatches(m[1]!)) w[1]!,
-      };
+      last = {for (final w in RegExp(r"'([a-z_]+)'").allMatches(m[1]!)) w[1]!};
     }
   }
   return last ?? const {};
@@ -71,13 +69,10 @@ void main() {
   });
 
   test('the worker posts only items the database takes', () {
-    final kinds = _used(
-      [
-        for (final f in Directory('lib/mcp').listSync().whereType<File>())
-          if (f.path.endsWith('.dart')) f.path,
-      ],
-      RegExp(r"\.item\((?:[^;]*?),\s*'([a-z_]+)',\s*\{", dotAll: true),
-    );
+    final kinds = _used([
+      for (final f in Directory('lib/mcp').listSync().whereType<File>())
+        if (f.path.endsWith('.dart')) f.path,
+    ], RegExp(r"\.item\((?:[^;]*?),\s*'([a-z_]+)',\s*\{", dotAll: true));
     expect(kinds, isNotEmpty);
     expect(Wire.itemKinds, containsAll(kinds));
   });

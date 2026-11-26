@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import 'look.dart';
+
 /// The same unfiltered grain on cards and app surfaces, decoded once.
 abstract final class Grain {
   static const asset = AssetImage('assets/grain.png');
@@ -43,8 +45,9 @@ abstract final class Grain {
   }) {
     final image = _image.value;
     if (image == null) return false;
-    // Tile in one draw, with one texel per physical pixel.
-    final scale = 1 / pixelRatio;
+    // Tile in one draw, a texel to as many physical pixels as the look
+    // says: one as built.
+    final scale = Look.current.grainSize / pixelRatio;
     final place = Float64List.fromList([
       scale, 0, 0, 0, //
       0, scale, 0, 0,

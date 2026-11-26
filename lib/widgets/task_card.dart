@@ -13,6 +13,7 @@ import '../providers/task_provider.dart';
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import '../theme/grain.dart';
+import '../theme/look.dart';
 import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -37,7 +38,9 @@ class TaskCard extends StatelessWidget {
   /// Out here because a card being carried is backed in its own shape, and
   /// two places guessing at the same rectangle would drift.
   static const margin = EdgeInsets.fromLTRB(16, 0, 16, 8);
-  static const radius = 14.0;
+
+  /// As Settings › Appearance › Surfaces cuts them; 14 as built.
+  static double get radius => Look.current.corners;
 
   /// How much of a card's colour is laid over the ground: 30%, with the
   /// frost no more than the grain's own 3.4% white. Picked from pictures
@@ -48,6 +51,14 @@ class TaskCard extends StatelessWidget {
   /// of the way back into the ground. Raised from 7% from the Debug
   /// sliders (1.35×).
   static const doneInk = 0.0945;
+
+  /// What the look and the Debug sliders make of a card's [ink].
+  static double inkOf(double ink) =>
+      (ink * Look.current.cardInk * Tweaks.cardInk).clamp(0, 1);
+
+  /// Likewise of a done card's.
+  static double doneInkOf(double ink) =>
+      (ink * Look.current.doneInk * Tweaks.doneInk).clamp(0, 1);
 
   /// The grain (`tool/make_grain.py`): white, its alpha around half.
   static const grain = Grain.asset;
@@ -61,18 +72,22 @@ class TaskCard extends StatelessWidget {
   /// How deep the grain is laid on a card [frost] of the way frosted:
   /// the alpha [CardPane] paints it at.
   static double frostOf(double frost) =>
-      (_grainDepth * Tweaks.cardFrost * frost).clamp(0, 1);
+      (_grainDepth * Look.current.cardGrain * Tweaks.cardFrost * frost).clamp(
+        0,
+        1,
+      );
 
   /// The rim round a card of [colour]: the colour itself, faint once done.
   /// 56% (18% done), taken down from 70% from the Debug sliders (0.8×).
   static Color rimOf(Color colour, {bool faded = false}) => colour.withValues(
-    alpha: ((faded ? 0.176 : 0.56) * Tweaks.cardRim).clamp(0, 1),
+    alpha: ((faded ? 0.176 : 0.56) * Look.current.cardRim * Tweaks.cardRim)
+        .clamp(0, 1),
   );
 
   /// Fill, grain and rim for a card that is not a task's (a holiday, a
   /// phone event), so it stands among them as one of them.
   static CardPane paneOf(Color colour) => CardPane(
-    ink: colour.withValues(alpha: ink * Tweaks.cardInk),
+    ink: colour.withValues(alpha: inkOf(ink)),
     frost: frostOf(1),
   );
   static BoxDecoration rimDecoration(Color colour) => BoxDecoration(
@@ -230,8 +245,8 @@ class TaskCard extends StatelessWidget {
               // than keeping its place in the run.
               ink: color.withValues(
                 alpha: faded
-                    ? TaskCard.doneInk * Tweaks.doneInk
-                    : (TaskCard.ink + (picked ? 0.1 : 0)) * Tweaks.cardInk,
+                    ? TaskCard.doneInkOf(TaskCard.doneInk)
+                    : TaskCard.inkOf(TaskCard.ink + (picked ? 0.1 : 0)),
               ),
               // Done, the grain goes to nothing with the ink rather than
               // between two frames.
@@ -1242,11 +1257,17 @@ class CardPane extends Decoration {
   /// The glow round a picked-out card; transparent for none.
   final Color glow;
 
-  const CardPane({
+  /// The look's corners and grain when it was made, so a change of either
+  /// is a change of the pane.
+  final double radius;
+  final double grainSize;
+
+  CardPane({
     required this.ink,
     required this.frost,
     this.glow = Colors.transparent,
-  });
+  }) : radius = TaskCard.radius,
+       grainSize = Look.current.grainSize;
 
   static CardPane lerp(CardPane a, CardPane b, double t) => CardPane(
     ink: Color.lerp(a.ink, b.ink, t)!,
@@ -1263,7 +1284,7 @@ class CardPane extends Decoration {
       b is CardPane ? lerp(this, b, t) : super.lerpTo(b, t);
 
   RRect _shape(Rect rect) =>
-      RRect.fromRectAndRadius(rect, const Radius.circular(TaskCard.radius));
+      RRect.fromRectAndRadius(rect, Radius.circular(radius));
 
   @override
   bool hitTest(Size size, Offset position, {TextDirection? textDirection}) =>
@@ -1278,10 +1299,12 @@ class CardPane extends Decoration {
       other is CardPane &&
       other.ink == ink &&
       other.frost == frost &&
-      other.glow == glow;
+      other.glow == glow &&
+      other.radius == radius &&
+      other.grainSize == grainSize;
 
   @override
-  int get hashCode => Object.hash(ink, frost, glow);
+  int get hashCode => Object.hash(ink, frost, glow, radius, grainSize);
 }
 
 class _CardPanePainter extends BoxPainter {

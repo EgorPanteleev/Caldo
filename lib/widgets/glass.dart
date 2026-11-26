@@ -4,6 +4,7 @@ import 'dart:ui' show FragmentProgram, ImageFilter;
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/look.dart';
 import 'desk.dart';
 
 /// A strip blurred more and more across its height, from [least] at one
@@ -220,12 +221,13 @@ class GlassTop extends StatelessWidget {
     this.fade,
   });
 
-  /// The tab bar's frost, so the two ends of the screen are one glass.
-  static const blur = 17.0;
+  /// The tab bar's frost, so the two ends of the screen are one glass: 17
+  /// as built, else as Settings › Appearance › Surfaces says.
+  static double get blur => Look.current.blur;
 
   /// How much of the ground is laid over the blur, so the title reads over
-  /// whatever passes under it.
-  static const fill = 0.65;
+  /// whatever passes under it: 65% as built.
+  static double get fill => Look.current.fillOf(0.65);
 
   /// How far up from the head's foot the blur takes to come to its full:
   /// a third of the head, within bounds. Over 24 points, under the groups,
@@ -349,38 +351,45 @@ class _Glass extends StatelessWidget {
           final height = box.maxHeight;
           final lead = math.min(height, fade ?? GlassTop.leadOf(height));
           final full = height - lead;
+          // Blur set to none: the ground's fill alone, and no copy of the
+          // screen read for it.
+          final blurred = GlassTop.blur > 0;
           return BackdropGroup(
             child: Stack(
               children: [
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  height: full + lead / 2,
-                  child: lead > 0
-                      ? GradedBlur(
-                          most: GlassTop.blur,
-                          least: _light,
-                          downwards: false,
-                          hold: full,
-                        )
-                      : ClipRect(
-                          child: BackdropFilter.grouped(
-                            filter: ImageFilter.blur(
-                              sigmaX: GlassTop.blur,
-                              sigmaY: GlassTop.blur,
+                if (blurred)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: full + lead / 2,
+                    child: lead > 0
+                        ? GradedBlur(
+                            most: GlassTop.blur,
+                            least: math.min(_light, GlassTop.blur),
+                            downwards: false,
+                            hold: full,
+                          )
+                        : ClipRect(
+                            child: BackdropFilter.grouped(
+                              filter: ImageFilter.blur(
+                                sigmaX: GlassTop.blur,
+                                sigmaY: GlassTop.blur,
+                              ),
+                              child: const SizedBox.expand(),
                             ),
-                            child: const SizedBox.expand(),
                           ),
-                        ),
-                ),
-                if (lead > 0)
+                  ),
+                if (blurred && lead > 0)
                   Positioned(
                     left: 0,
                     right: 0,
                     top: full + lead / 2,
                     bottom: 0,
-                    child: const FadingBlur(most: _light, downwards: false),
+                    child: FadingBlur(
+                      most: math.min(_light, GlassTop.blur),
+                      downwards: false,
+                    ),
                   ),
                 Positioned.fill(
                   child: DecoratedBox(

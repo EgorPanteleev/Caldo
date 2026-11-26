@@ -9,6 +9,7 @@ import '../models/task_list.dart';
 import '../services/reminders.dart';
 import '../services/today_widget.dart';
 import '../theme/app_theme.dart';
+import '../theme/look.dart';
 import '../utils/dates.dart';
 
 /// The screens the menu leads to, Settings aside: it is always there, being
@@ -25,6 +26,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kThemeMode = 'theme_mode';
   static const _kAccent = 'accent_id';
   static const _kBackground = 'app_background';
+  static const _kLook = 'app_look';
   static const _kWeekStart = 'week_starts_monday';
   static const _kShowCompleted = 'show_completed';
   static const _kHolidayCountry = 'holiday_country';
@@ -61,6 +63,7 @@ class SettingsProvider extends ChangeNotifier {
     _kThemeMode,
     _kAccent,
     _kBackground,
+    _kLook,
     _kWeekStart,
     _kShowCompleted,
     _kHolidayCountry,
@@ -90,6 +93,7 @@ class SettingsProvider extends ChangeNotifier {
   /// The active accent colour (defaults to violet).
   AppAccent _accent = AppAccent.presets.first;
   PaletteBackground _background = PaletteBackground.defaults;
+  Look _look = Look.defaults;
 
   /// Whether calendar weeks start on Monday (false = Sunday).
   bool _weekStartsMonday = true;
@@ -218,6 +222,25 @@ class SettingsProvider extends ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   AppAccent get accent => _accent;
   PaletteBackground get background => _background;
+
+  /// How the glass, the grain and the cards are drawn (Settings ›
+  /// Appearance › Surfaces).
+  Look get look => _look;
+
+  /// Puts [look] in force without keeping it, while a slider is moved;
+  /// [update] with it keeps it.
+  void tryLook(Look look) {
+    if (look == _look) return;
+    _look = Look.current = look;
+    notifyListeners();
+  }
+
+  /// Likewise for the ground's tint and grain.
+  void tryBackground(PaletteBackground background) {
+    _background = background;
+    notifyListeners();
+  }
+
   bool get weekStartsMonday => _weekStartsMonday;
   bool get showCompleted => _showCompleted;
   bool get showHolidays => _showHolidays;
@@ -317,6 +340,7 @@ class SettingsProvider extends ChangeNotifier {
     _themeMode = _themeModeFromString(prefs.getString(_kThemeMode));
     _accent = AppAccent.byId(prefs.getString(_kAccent));
     _background = PaletteBackground.fromStorage(prefs.get(_kBackground));
+    _look = Look.current = Look.fromStorage(prefs.get(_kLook));
     _weekStartsMonday = prefs.getBool(_kWeekStart) ?? _weekStartsMonday;
     _showCompleted = prefs.getBool(_kShowCompleted) ?? _showCompleted;
     _showHolidays = prefs.getBool(_kShowHolidays) ?? _showHolidays;
@@ -464,6 +488,7 @@ class SettingsProvider extends ChangeNotifier {
     ThemeMode? themeMode,
     AppAccent? accent,
     PaletteBackground? background,
+    Look? look,
     bool? weekStartsMonday,
     bool? showCompleted,
     bool? showHolidays,
@@ -507,6 +532,12 @@ class SettingsProvider extends ChangeNotifier {
     if (background != null) {
       await prefs.setStringList(_kBackground, background.toStorage());
       _background = background;
+    }
+    if (look != null) {
+      _look = Look.current = look;
+      look.isDefault
+          ? await prefs.remove(_kLook)
+          : await prefs.setString(_kLook, look.toStorage());
     }
     if (weekStartsMonday != null) {
       _weekStartsMonday = weekStartsMonday;

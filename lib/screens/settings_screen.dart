@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +18,7 @@ import '../services/reminders.dart';
 import '../services/sync.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
+import '../theme/look.dart';
 import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -30,11 +32,12 @@ import '../widgets/quick_add_bar.dart';
 import '../widgets/screen_header.dart';
 import '../widgets/sign_in_sheet.dart';
 import '../widgets/special_days.dart';
-import '../widgets/task_card.dart' show CheckMark;
+import '../widgets/task_card.dart' show CardPane, CheckMark, TaskCard;
 import '../widgets/theme_switcher.dart';
 import 'home_screen.dart' show screenItems;
 
 part 'settings_debug.dart';
+part 'settings_surfaces.dart';
 
 /// Appearance, calendar and task preferences.
 ///
@@ -491,6 +494,16 @@ List<Widget> _appearance(
             await settings.update(background: background);
           }
         },
+      ),
+      _Row(
+        icon: Icons.blur_on_rounded,
+        title: s.surfaces,
+        value: s.surfacesHint,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _Page(title: (s) => s.surfaces, rows: _surfaces),
+          ),
+        ),
       ),
     ],
   ),

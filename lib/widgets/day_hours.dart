@@ -6,7 +6,6 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart' show addDays, dayOf;
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
-import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import 'quick_add_bar.dart' show BarRoom;
 import 'task_card.dart';
@@ -389,7 +388,7 @@ class _BlockView extends StatelessWidget {
     final tall = (block.end - block.start) >= 45;
     return Material(
       color: colour.withValues(
-        alpha: done ? 0.0675 * Tweaks.doneInk : 0.25 * Tweaks.cardInk,
+        alpha: done ? TaskCard.doneInkOf(0.0675) : TaskCard.inkOf(0.25),
       ),
       borderRadius: BorderRadius.circular(6),
       clipBehavior: Clip.antiAlias,

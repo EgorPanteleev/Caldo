@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/grain.dart';
+import '../theme/look.dart';
 
 /// Paints grain behind content, over a solid colour if supplied.
 class BackgroundSurface extends StatelessWidget {
@@ -30,6 +31,7 @@ class BackgroundSurface extends StatelessWidget {
         opacity: noise * 0.0022,
         darken: Theme.of(context).brightness == Brightness.light,
         pixelRatio: MediaQuery.devicePixelRatioOf(context),
+        grainSize: Look.current.grainSize,
       ),
       child: child,
     );
@@ -43,12 +45,17 @@ class _SurfacePainter extends CustomPainter {
   final bool darken;
   final double pixelRatio;
 
+  /// Not read here ([Grain.draw] reads the look), but a change of it is a
+  /// change of what is painted.
+  final double grainSize;
+
   _SurfacePainter({
     required this.color,
     required this.radius,
     required this.opacity,
     required this.darken,
     required this.pixelRatio,
+    required this.grainSize,
   }) : super(repaint: opacity > 0 ? Grain.repaint : null);
 
   @override
@@ -67,7 +74,8 @@ class _SurfacePainter extends CustomPainter {
       radius != oldDelegate.radius ||
       opacity != oldDelegate.opacity ||
       darken != oldDelegate.darken ||
-      pixelRatio != oldDelegate.pixelRatio;
+      pixelRatio != oldDelegate.pixelRatio ||
+      grainSize != oldDelegate.grainSize;
 }
 
 /// Gives each Material route its own opaque, textured background as it moves

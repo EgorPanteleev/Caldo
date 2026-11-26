@@ -16,6 +16,7 @@ import '../services/sync.dart';
 import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
+import '../theme/look.dart';
 import '../widgets/background_surface.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
@@ -783,7 +784,7 @@ class _TabBar extends StatelessWidget {
     final pill = Container(
       padding: const EdgeInsets.all(inset),
       decoration: BoxDecoration(
-        color: p.panelHi.withValues(alpha: 0.6),
+        color: p.panelHi.withValues(alpha: Look.current.fillOf(0.6)),
         borderRadius: BorderRadius.circular(_height / 2),
         border: Border.all(color: BarRoom.rim(p), width: BarRoom.rimWidth),
       ),
@@ -827,10 +828,12 @@ class _TabBar extends StatelessWidget {
     );
     // A little frosted: what scrolls under the bar shows through it,
     // blurred, rather than the bar being a solid slab over the screen.
+    final blur = Look.current.blur;
+    if (blur <= 0) return pill;
     return ClipRRect(
       borderRadius: BorderRadius.circular(_height / 2),
       child: BackdropFilter.grouped(
-        filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
+        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
         child: pill,
       ),
     );
@@ -900,10 +903,14 @@ class _AddButton extends StatelessWidget {
       label: S.of(context).newTask,
       child: ClipOval(
         child: BackdropFilter.grouped(
-          filter: ImageFilter.blur(sigmaX: 17, sigmaY: 17),
+          enabled: Look.current.blur > 0,
+          filter: ImageFilter.blur(
+            sigmaX: Look.current.blur,
+            sigmaY: Look.current.blur,
+          ),
           child: Material(
             key: barAddKey,
-            color: p.panelHi.withValues(alpha: 0.6),
+            color: p.panelHi.withValues(alpha: Look.current.fillOf(0.6)),
             shape: CircleBorder(
               side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
             ),

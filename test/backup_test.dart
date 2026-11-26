@@ -6,6 +6,7 @@ import 'package:caldo/providers/settings_provider.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/services/backup.dart';
 import 'package:caldo/theme/app_theme.dart';
+import 'package:caldo/theme/look.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -126,6 +127,34 @@ void main() {
     await restored.restore({});
     expect(restored.background.tint, BackgroundTint.neutral);
     expect(restored.background.noise, PaletteBackground.defaults.noise);
+  });
+
+  test('the look survives reopening and backup', () async {
+    addTearDown(() => Look.current = Look.defaults);
+    final settings = SettingsProvider();
+    await settings.load();
+    expect(settings.look, Look.defaults);
+
+    const look = Look(blur: 4, grainSize: 3, corners: 6, cardInk: 1.5);
+    await settings.update(look: look);
+    expect(Look.current, look);
+    await (await SharedPreferences.getInstance()).reload();
+    Look.current = Look.defaults;
+    final reopened = SettingsProvider();
+    await reopened.load();
+    expect(reopened.look, look);
+    expect(Look.current, look);
+
+    final backup = Backup.decode((await Backup.take()).encode());
+    SharedPreferences.setMockInitialValues({});
+    final restored = SettingsProvider();
+    await backup.restore(restored, TaskProvider());
+    expect(restored.look, look);
+
+    await restored.restore({});
+    expect(restored.look, Look.defaults);
+    expect(Look.fromStorage('not json'), Look.defaults);
+    expect(Look.fromStorage('{"blur": 900}').blur, 40);
   });
 
   test(
