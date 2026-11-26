@@ -879,8 +879,11 @@ the app, a terminal beside them; anything else a terminal.
   Cyrillic keys) before the line names them (`chat_in.files`); nothing
   sent if an upload fails. The worker takes each to
   `<chat>.files/<uuid>/<name>` (`Worker._fetch`, name kept inside the
-  folder), deletes it from the bucket, and tells the agent the paths
-  (`withFiles`). Claude gets `--add-dir=<dir>` (with `=`: the flag is
+  folder) and tells the agent the paths (`withFiles`). Photos in Chat
+  mode stay in the bucket for tap-to-zoom previews in the transcript.
+  Other attachments are removed from the bucket after delivery.
+  Agents can show a local image in their own chat with `send_image`
+  and an optional caption. Claude gets `--add-dir=<dir>` (with `=`: the flag is
   variadic). A message's lines are said in turn (`_inTurn`). Only from
   workers that say so (`AgentKind.files`); not with Send later. Deleting a
   chat takes its folder and bucket files.

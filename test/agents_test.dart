@@ -26,8 +26,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase/supabase.dart';
 import 'package:xterm/xterm.dart';
 
 /// What a talk said, as the worker would have sent it on.
@@ -759,6 +762,93 @@ void main() {
     expect(feed.items.last.at, heard);
   });
 
+  testWidgets('shows pictures sent and received using private chat storage', (
+    tester,
+  ) async {
+    final png = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQAB'
+      'pfZFQAAAAABJRU5ErkJggg==',
+    );
+    final requested = <String>[];
+    final client = (await tester.runAsync(() async {
+      final client = SupabaseClient(
+        'https://example.invalid',
+        'anon',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        httpClient: MockClient((request) async {
+          requested.add(request.url.path);
+          expect(request.headers['authorization'], 'Bearer token');
+          return http.Response.bytes(png, 200);
+        }),
+      );
+      addTearDown(client.dispose);
+      await client.auth.recoverSession(
+        jsonEncode({
+          'access_token': 'token',
+          'token_type': 'bearer',
+          'user': {'id': 'me'},
+        }),
+      );
+      return client;
+    }))!;
+    final feed = TalkFeed.held('chat', const [
+      ChatItem(
+        id: 'reply',
+        seq: 2,
+        kind: 'text',
+        body: {
+          'text': 'Here it is',
+          'files': [
+            {'name': 'reply.png', 'mime': 'image/png', 'key': 'chat/reply'},
+          ],
+        },
+      ),
+      ChatItem(
+        id: 'legacy',
+        seq: 1,
+        kind: 'user',
+        body: {
+          'files': [
+            {'name': 'old.png', 'mime': 'image/png'},
+          ],
+        },
+      ),
+    ], client: client);
+    addTearDown(feed.dispose);
+    feed.said(
+      '',
+      'upload',
+      files: const [
+        {'name': 'upload.png', 'mime': 'image/png', 'key': 'chat/upload'},
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TalkView(feed: feed, working: false, onAnswer: (_, _, _) {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      requested,
+      unorderedEquals([
+        '/storage/v1/object/chat-files/me/chat/reply',
+        '/storage/v1/object/chat-files/me/chat/upload',
+      ]),
+    );
+    expect(find.byType(Image), findsNWidgets(2));
+    expect(find.text('old.png'), findsOneWidget);
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is Image && widget.semanticLabel == 'reply.png',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    expect(find.text('reply.png'), findsOneWidget);
+  });
+
   testWidgets('a chat says when its words were said', (tester) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day, 9, 5);
@@ -1084,6 +1174,7 @@ void main() {
           name: 'photo.jpg',
           mime: 'image/jpeg',
           size: 2202010,
+          key: 'x/1',
         ),
         Given(path: null, name: 'notes.txt', mime: 'text/plain'),
       ];
@@ -1107,7 +1198,12 @@ void main() {
       expect(kind, 'user');
       expect(body['text'], 'What is this?');
       expect(body['files'], [
-        {'name': 'photo.jpg', 'mime': 'image/jpeg', 'size': 2202010},
+        {
+          'name': 'photo.jpg',
+          'mime': 'image/jpeg',
+          'size': 2202010,
+          'key': 'x/1',
+        },
         {'name': 'notes.txt', 'mime': 'text/plain', 'size': 0},
       ]);
     });

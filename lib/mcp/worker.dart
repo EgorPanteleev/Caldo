@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:supabase/supabase.dart';
 
 import '../models/task.dart';
+import '../services/chat_files.dart';
 import 'accounts.dart';
 import 'agents.dart';
 import 'asks_back.dart';
@@ -844,6 +845,20 @@ class Worker {
     for (final row in rows) {
       final id = row['id'] as int;
       done.add(id);
+      if (row['kind'] == 'picture') {
+        // A later input can arrive first over realtime. Pictures have
+        // their own persisted item ID so that they can be replayed safely.
+        final talker = _talks[row['chat_id']];
+        final files = row['files'];
+        if (talker != null && files is List && files.isNotEmpty) {
+          final file = files.whereType<Map>().firstOrNull;
+          final object = ChatFiles.objectId(talker.ask.id, file?['key']);
+          if (file != null && object != null) {
+            await talker.picture(object, row['data'] as String? ?? '', file);
+          }
+        }
+        continue;
+      }
       if (id <= _applied) continue;
       _applied = id;
       await _apply(row['chat_id'] as String, row);
@@ -881,7 +896,7 @@ class Worker {
           await talker.say(
             text,
             id: key is String ? 'u$key' : null,
-            files: await _fetch(chat, row['files']),
+            files: await _fetch(chat, row['files'], retainPictures: true),
             sender: row['sender'] is Map ? row['sender'] as Map : null,
           );
         });
@@ -958,9 +973,13 @@ class Worker {
   }
 
   /// The files sent with a message to [chat], taken down from the server
-  /// into the chat's own folder on this computer and deleted there; the
-  /// agent is told where each is. One not taken down is told as such.
-  Future<List<Given>> _fetch(String chat, Object? files) async {
+  /// into the chat's own folder on this computer. Photos shown in the chat
+  /// also stay in Storage for devices that open its history later.
+  Future<List<Given>> _fetch(
+    String chat,
+    Object? files, {
+    bool retainPictures = false,
+  }) async {
     if (files is! List || files.isEmpty) return const [];
     // Offline, or the session not renewed: the files are told as not
     // fetched and the words still go. Thrown, they would be lost, and in
@@ -973,7 +992,7 @@ class Worker {
     } catch (e) {
       log('[${_short(chat)}] could not take its files down: $e');
     }
-    final bucket = db?.storage.from('chat-files');
+    final bucket = db?.storage.from(ChatFiles.bucket);
     final user = db?.auth.currentUser?.id;
     final out = <Given>[];
     for (final f in files.whereType<Map>()) {
@@ -984,34 +1003,37 @@ class Worker {
       // "<chat>/<uuid>": the server takes no key in other letters than
       // Latin, so the name comes beside it — and, being the app's, is
       // kept from leaving the chat's folder here.
-      final parts = key.split('/');
+      final object = ChatFiles.objectId(chat, key);
+      final keep =
+          retainPictures && mime.startsWith('image/') && object != null;
       final safe = name
           .replaceAll(RegExp(r'[/\\\x00]'), '_')
           .replaceFirst(RegExp(r'^\.+'), '');
       String? path;
-      if (bucket != null &&
-          given != null &&
-          user != null &&
-          parts.length == 2 &&
-          parts.first == chat &&
-          RegExp(r'^[\w-]+$').hasMatch(parts.last)) {
+      if (bucket != null && given != null && user != null && object != null) {
         try {
           final bytes = await bucket.download('$user/$key');
-          final file = File(
-            '$given/${parts.last}/${safe.isEmpty ? 'file' : safe}',
-          );
+          final file = File('$given/$object/${safe.isEmpty ? 'file' : safe}');
           await file.parent.create(recursive: true);
           await file.writeAsBytes(bytes, flush: true);
           path = file.path;
         } catch (e) {
           log('[${_short(chat)}] could not take $name down: $e');
         }
-        if (path != null) {
+        if (path != null && !keep) {
           // Left there, it is only the server's room spent.
           await bucket.remove(['$user/$key']).then((_) {}, onError: (_) {});
         }
       }
-      out.add(Given(path: path, name: name, mime: mime, size: size));
+      out.add(
+        Given(
+          path: path,
+          name: name,
+          mime: mime,
+          size: size,
+          key: keep ? key : null,
+        ),
+      );
     }
     return out;
   }
@@ -2727,14 +2749,7 @@ class _Talker implements TalkSink {
       _whole.add(id);
       _pieces.remove(id);
     }
-    final seq = _seqs[id] ??= _seq++;
-    final row = {
-      'chat_id': ask.id,
-      'id': id,
-      'seq': seq,
-      'kind': kind,
-      'body': withoutNul(body),
-    };
+    final row = _itemRow(id, kind, body);
     _queue[id] = row;
     if (kind == 'tool' && body['done'] == true) {
       worker._notePulls(
@@ -2748,6 +2763,30 @@ class _Talker implements TalkSink {
     // is what is kept. One too big for a broadcast comes by the row alone.
     if (jsonEncode(body).length < 100000) _broadcast('item', row);
     unawaited(_post());
+  }
+
+  Map<String, Object?> _itemRow(
+    String id,
+    String kind,
+    Map<String, Object?> body,
+  ) => {
+    'chat_id': ask.id,
+    'id': id,
+    'seq': _seqs[id] ??= _seq++,
+    'kind': kind,
+    'body': withoutNul(body),
+  };
+
+  Future<void> picture(String object, String caption, Map file) async {
+    if (forgotten) return;
+    final row = _itemRow('picture-$object', 'text', {
+      'text': caption,
+      'files': [file],
+    });
+    // The input is acknowledged only once it can be read from history.
+    final db = await worker._db;
+    await db.from('chat_items').upsert(row, ignoreDuplicates: true);
+    _broadcast('item', row);
   }
 
   /// The rows waiting, sent together, in turn: one item said twice quickly
