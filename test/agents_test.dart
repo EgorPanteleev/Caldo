@@ -3732,6 +3732,326 @@ void main() {
         expect(Selection.anyActive, isFalse);
         expect(find.byTooltip(s.delete), findsNothing);
       });
+
+      testWidgets('begins a subchat as its parent in ${S.names[code]}', (
+        tester,
+      ) async {
+        final s = S.forCode(code);
+        final now = DateTime.now();
+        Agents.instance
+          ..signedInForTest = true
+          ..workers = [
+            for (final (id, name) in [('w', 'desk'), ('x', 'laptop')])
+              AgentWorker(
+                id: id,
+                name: name,
+                home: '/home/someone',
+                seenAt: now,
+                dirs: const [],
+                agents: [
+                  AgentKind.fromJson({
+                    'id': 'claude',
+                    'label': 'Claude',
+                    'models': ['opus', 'sonnet'],
+                    'efforts': ['low', 'high'],
+                    'permissions': ['auto', 'plan'],
+                    'rules': true,
+                    'talks': true,
+                    'subchats': true,
+                  }),
+                  AgentKind.fromJson({
+                    'id': 'shell',
+                    'label': 'Shell',
+                    'prompt': 'type',
+                  }),
+                ],
+              ),
+          ]
+          ..rules = const [
+            AgentRule(id: 'r', name: 'PR', body: 'Open a pull request.'),
+            AgentRule(id: 'q', name: 'Quiet', body: 'Say little.'),
+          ]
+          ..chats = [
+            Chat(
+              id: 'p',
+              workerId: 'x',
+              agent: 'claude',
+              title: 'Build the release',
+              model: 'sonnet',
+              effort: 'high',
+              permission: 'plan',
+              rules: const [(name: 'PR', body: 'Open a pull request.')],
+              state: ChatState.finished,
+              updatedAt: now,
+              inChat: true,
+            ),
+          ];
+        addTearDown(() {
+          Agents.instance
+            ..signedInForTest = null
+            ..rules = const []
+            ..workers = const []
+            ..chats = const [];
+        });
+        await pump(tester, code, const NewChatScreen(parent: 'p'));
+        // Tall enough to build the whole form.
+        tester.view.physicalSize = const Size(960, 9000);
+        await tester.pump();
+        expect(find.text(s.newSubchat), findsOneWidget);
+        expect(find.text('Build the release'), findsOneWidget);
+        expect(find.text(s.subchatHint), findsOneWidget);
+        // On its parent's computer and in its folder: neither is chosen.
+        expect(find.text(s.chatWorker), findsNothing);
+        expect(find.text(s.chatProject), findsNothing);
+        // Not the shell, which would run the words it is told.
+        expect(find.text('Shell'), findsNothing);
+        // Its parent's choices, picked out.
+        bool lit(String label) =>
+            tester.widget<Text>(find.text(label)).style?.fontWeight ==
+            FontWeight.w600;
+        expect(lit('Claude'), isTrue);
+        expect(lit('high'), isTrue);
+        expect(lit('low'), isFalse);
+        expect(lit('plan'), isTrue);
+        expect(lit('auto'), isFalse);
+        expect(lit('PR'), isTrue);
+        expect(lit('Quiet'), isFalse);
+      });
+
+      testWidgets('lists subchats under their parent in ${S.names[code]}', (
+        tester,
+      ) async {
+        final now = DateTime.now();
+        Chat chat(String id, String title, {String? parent, int ago = 0}) =>
+            Chat(
+              id: id,
+              workerId: 'w',
+              agent: 'claude',
+              title: title,
+              parentId: parent,
+              // Ended: nothing to size or read on a server.
+              state: ChatState.ended,
+              updatedAt: now.subtract(Duration(minutes: ago)),
+            );
+        Agents.instance
+          ..signedInForTest = true
+          ..workers = [
+            AgentWorker(
+              id: 'w',
+              name: 'desk',
+              seenAt: now,
+              dirs: const [],
+              agents: const [AgentKind(id: 'claude', label: 'Claude')],
+            ),
+          ]
+          ..chats = Chat.listOrder([
+            chat('a', 'Alpha', ago: 5),
+            chat('b', 'Bravo', ago: 1),
+            chat('a1', 'Alpha one', parent: 'a', ago: 3),
+          ]);
+        addTearDown(() {
+          Agents.instance
+            ..signedInForTest = null
+            ..workers = const []
+            ..chats = const [];
+        });
+        await pump(tester, code, const AgentsScreen());
+        double top(String text) => tester.getTopLeft(find.text(text)).dy;
+        double left(String text) => tester.getTopLeft(find.text(text)).dx;
+        expect(top('Alpha one'), greaterThan(top('Alpha')));
+        expect(left('Alpha one'), greaterThan(left('Alpha')));
+        expect(
+          find.byIcon(Icons.subdirectory_arrow_right_rounded),
+          findsOneWidget,
+        );
+
+        // Opened, a subchat names the chat it is part of, and that chat
+        // its subchats.
+        await pump(tester, code, const ChatScreen(chat: 'a1'));
+        expect(find.text('Alpha'), findsOneWidget);
+        await pump(tester, code, const ChatScreen(chat: 'a'));
+        expect(find.text('Alpha one'), findsOneWidget);
+      });
     }
+  });
+
+  group('subchats', () {
+    test('are listed under their parents, a family where its first is', () {
+      final now = DateTime.utc(2026, 11, 26);
+      Chat chat(String id, ChatState state, int minutes, {String? parent}) =>
+          Chat(
+            id: id,
+            agent: 'claude',
+            state: state,
+            parentId: parent,
+            updatedAt: now.add(Duration(minutes: minutes)),
+          );
+      final family = Chat.families([
+        chat('old', ChatState.finished, 0),
+        chat('new', ChatState.finished, 9),
+        chat('old.1', ChatState.finished, 1, parent: 'old'),
+        chat('old.1.1', ChatState.asking, 2, parent: 'old.1'),
+        chat('old.2', ChatState.finished, 3, parent: 'old'),
+        chat('lost', ChatState.finished, 4, parent: 'deleted'),
+      ]);
+      expect(
+        [for (final (c, depth) in family) '${c.id}:$depth'],
+        [
+          // Brought up by its grandchild, who asks for the user.
+          'old:0',
+          'old.2:1',
+          'old.1:1',
+          'old.1.1:2',
+          'new:0',
+          // A parent not listed: it stands alone.
+          'lost:0',
+        ],
+      );
+    });
+
+    test('are deleted with their parents', () {
+      final agents = Agents.instance;
+      final now = DateTime.now();
+      agents.chats = [
+        for (final (id, parent) in [
+          ('a', null),
+          ('b', 'a'),
+          ('c', 'b'),
+          ('d', null),
+          ('e', 'd'),
+        ])
+          Chat(
+            id: id,
+            agent: 'claude',
+            parentId: parent,
+            state: ChatState.idle,
+            updatedAt: now,
+          ),
+      ];
+      addTearDown(() => agents.chats = const []);
+      expect([for (final c in agents.subchatsOf('a')) c.id], ['b', 'c']);
+      expect(agents.subchatsOf('c'), isEmpty);
+    });
+
+    test("work in their parent's folder, told so", () {
+      final ask = ChatAsk.fromJson({
+        'id': '11111111-2222-3333-4444-555555555555',
+        'agent': 'claude',
+        'parent_id': 'abcdef12-0000-0000-0000-000000000000',
+        'workspace': {
+          'root': '/home/me/.local/share/caldo/work/abcdef12',
+          'places': [
+            {
+              'source': '/home/me/dev/app',
+              'path': '/home/me/.local/share/caldo/work/abcdef12/app',
+              'branch': 'caldo/abcdef12',
+            },
+          ],
+        },
+      });
+      // Not a folder of its own to make: its parent's, as it is.
+      expect(ask.ownFolder, isFalse);
+      expect(ask.parentId, 'abcdef12-0000-0000-0000-000000000000');
+      expect(ask.dir, '/home/me/.local/share/caldo/work/abcdef12/app');
+      expect(ask.rules, contains('subchat in Caldo'));
+      expect(ask.rules, contains('chat abcdef12'));
+      expect(ask.rules, contains('shared with it and its other subchats'));
+      expect(ask.rules, contains('a branch of the chat this one is part of'));
+      expect(ask.rules, isNot(contains('a folder of your own')));
+
+      final own = ChatAsk.fromJson({
+        'id': '11111111-2222-3333-4444-555555555555',
+        'agent': 'claude',
+        'workspace': <String, Object?>{},
+      });
+      expect(own.ownFolder, isTrue);
+      expect(own.rules, isNull);
+    });
+
+    test("begin from their parent's session as one of their own", () {
+      const claude = AgentSpec(
+        id: 'claude',
+        label: 'Claude',
+        command: ['claude'],
+      );
+      const ask = ChatAsk(id: 'c', agent: 'claude');
+      final argv = ClaudeTalk.argv(claude, ask, resume: 'parent', fork: true);
+      final at = argv.indexOf('--resume');
+      expect(argv.sublist(at, at + 3), [
+        '--resume',
+        'parent',
+        '--fork-session',
+      ]);
+      expect(
+        ClaudeTalk.argv(claude, ask, resume: 'own'),
+        isNot(contains('--fork-session')),
+      );
+      expect(
+        claudeChoices(claude, ask, fork: true),
+        isNot(contains('--fork-session')),
+      );
+    });
+
+    test('are offered by agents told so by their first message', () {
+      Map<String, Object?> json(String id, String prompt) =>
+          AgentSpec(id: id, label: id, command: [id], prompt: prompt).toJson();
+      expect(json('claude', 'arg')['subchats'], isTrue);
+      expect(json('llama', 'arg')['subchats'], isTrue);
+      expect(json('shell', 'type')['subchats'], isFalse);
+      expect(json('top', 'none')['subchats'], isFalse);
+    });
+
+    test("are told their parent's words when its session can't be theirs", () {
+      final parent = {
+        'id': 'abcdef12-0000-0000-0000-000000000000',
+        'title': 'Release',
+        'prompt': 'Ship 2.0',
+      };
+      final words = parentWords(parent, [
+        {
+          'kind': 'user',
+          'body': {'text': 'Ship 2.0'},
+        },
+        {
+          'kind': 'text',
+          'body': {'text': 'Built it; the tests pass.'},
+        },
+        {
+          'kind': 'user',
+          'body': {
+            'text': 'Review this.',
+            'sender': {'chat': 'x', 'title': 'Reviewer'},
+          },
+        },
+        {'kind': 'text', 'body': 'not a map'},
+      ]);
+      expect(words, contains('subchat of chat "Release" (abcdef12)'));
+      expect(
+        words,
+        contains(
+          'User: Ship 2.0\n\nAgent: Built it; the tests pass.\n\n'
+          'Another chat: Review this.',
+        ),
+      );
+      expect(words, isNot(contains('latest part')));
+
+      final cut = parentWords(parent, [
+        for (var i = 0; i < 10; i++)
+          {
+            'kind': 'text',
+            'body': {'text': 'Line $i ${'x' * 100}'},
+          },
+      ], most: 350);
+      expect(cut, contains('(its latest part)'));
+      expect(cut, contains('Line 9'));
+      expect(cut, isNot(contains('Line 6')));
+
+      expect(
+        parentWords(parent, const []),
+        contains('Nothing was said there yet; it was begun with:\n\nShip 2.0'),
+      );
+      expect(withBefore('[Context]', 'Do it.'), '[Context]\n\nDo it.');
+      expect(withBefore(null, 'Do it.'), 'Do it.');
+    });
   });
 }

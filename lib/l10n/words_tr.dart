@@ -684,6 +684,12 @@ const Map<String, Object> tr = {
   'chatNoProject': "Yok",
   'chatOwnFolderHint':
       "Her sohbet bilgisayarda kendi klasöründe, projesinin klasörleriyle çalışır.",
+  'newSubchat': "Yeni alt sohbet",
+  'subchatOf': "Üst sohbet",
+  'subchats': "Alt sohbetler",
+  'subchatHint':
+      "Alt sohbet, aynı bilgisayarda bu sohbetin klasöründe çalışır ve burada söylenen her şeyi bilerek başlar. Aşağıya yazdığınız, işin ona düşen kısmıdır.",
+  'deleteChatSubchats': ["{n} alt sohbeti de onunla birlikte silinir."],
   'allProjects': "Tüm projeler",
   'untitledProject': "Adsız proje",
   'projectAllContext': "Tüm bağlam",

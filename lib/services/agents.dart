@@ -70,6 +70,10 @@ class AgentKind {
   /// is started by hand.
   final bool held;
 
+  /// Whether its worker begins a subchat with it, in its parent's folder,
+  /// knowing what was said there.
+  final bool subchats;
+
   const AgentKind({
     required this.id,
     required this.label,
@@ -92,6 +96,7 @@ class AgentKind {
     this.clears = false,
     this.tasks = false,
     this.held = false,
+    this.subchats = false,
   });
 
   factory AgentKind.fromJson(Map json) => AgentKind(
@@ -124,6 +129,7 @@ class AgentKind {
     clears: json['clears'] == true,
     tasks: json['tasks'] == true,
     held: json['held'] == true,
+    subchats: json['subchats'] == true,
   );
 }
 
@@ -454,6 +460,10 @@ class Chat {
   final String? projectName;
   final String? projectColour;
 
+  /// The chat it is a subchat of: begun knowing what was said there, in
+  /// its folder, on its computer. Null for a chat of its own.
+  final String? parentId;
+
   const Chat({
     required this.id,
     required this.agent,
@@ -482,6 +492,7 @@ class Chat {
     this.projectId,
     this.projectName,
     this.projectColour,
+    this.parentId,
   });
 
   bool get pinned => pinnedAt != null;
@@ -536,6 +547,7 @@ class Chat {
         projectId: c.projectId,
         projectName: c.projectName,
         projectColour: c.projectColour,
+        parentId: c.parentId,
       );
 
   /// [c] pinned [at], or unpinned for null: said here at once, as a move.
@@ -568,6 +580,7 @@ class Chat {
         projectId: c.projectId,
         projectName: c.projectName,
         projectColour: c.projectColour,
+        parentId: c.parentId,
       );
 
   /// [c] muted or not: said here at once, as a pin.
@@ -600,6 +613,7 @@ class Chat {
         projectId: c.projectId,
         projectName: c.projectName,
         projectColour: c.projectColour,
+        parentId: c.parentId,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -655,6 +669,7 @@ class Chat {
       {'colour': final String colour} => colour,
       _ => null,
     },
+    parentId: json['parent_id'] as String?,
   );
 
   int get _listPriority => pinned
@@ -681,6 +696,54 @@ class Chat {
         final recent = b.updatedAt.compareTo(a.updatedAt);
         return recent != 0 ? recent : a.id.compareTo(b.id);
       });
+
+  /// [chats], in [listOrder], with each subchat under the chat it is part
+  /// of, and how deep: a family goes where its first member in that order
+  /// would, so a subchat asking for the user brings its parent up with it.
+  /// A subchat whose parent isn't among them stands alone.
+  static List<(Chat, int)> families(Iterable<Chat> chats) {
+    final ordered = listOrder(chats);
+    final there = {for (final c in ordered) c.id};
+    final under = <String, List<Chat>>{};
+    final tops = <Chat>[];
+    for (final c in ordered) {
+      final parent = c.parentId;
+      if (parent != null && parent != c.id && there.contains(parent)) {
+        (under[parent] ??= []).add(c);
+      } else {
+        tops.add(c);
+      }
+    }
+    final rank = {for (final (i, c) in ordered.indexed) c.id: i};
+    final best = <String, int>{};
+    int bestOf(Chat c, Set<String> seen) => best[c.id] ??= [
+      rank[c.id]!,
+      for (final sub in under[c.id] ?? const <Chat>[])
+        if (seen.add(sub.id)) bestOf(sub, seen),
+    ].reduce(min);
+    for (final c in tops) {
+      bestOf(c, {c.id});
+    }
+    tops.sort((a, b) => best[a.id]!.compareTo(best[b.id]!));
+    final out = <(Chat, int)>[];
+    final placed = <String>{};
+    void place(Chat c, int depth) {
+      if (!placed.add(c.id)) return;
+      out.add((c, depth));
+      for (final sub in under[c.id] ?? const <Chat>[]) {
+        place(sub, depth + 1);
+      }
+    }
+
+    for (final c in tops) {
+      place(c, 0);
+    }
+    // None the server would keep, but a loop is listed, not lost.
+    for (final c in ordered) {
+      place(c, 0);
+    }
+    return out;
+  }
 }
 
 /// [url] opened in the browser: the page an account is signed in on.
@@ -1175,6 +1238,7 @@ class Agents extends ChangeNotifier {
     bool inChat = false,
     bool waiting = false,
     String? preface,
+    String? parent,
   }) async {
     final made = {
       'mode': inChat ? 'chat' : 'terminal',
@@ -1210,6 +1274,9 @@ class Agents extends ChangeNotifier {
       // task, left until started by hand ([startNow]).
       if (waiting) 'state': 'waiting',
       'preface': ?preface,
+      // A subchat: its worker places it in its parent's folder and begins
+      // it from what was said there.
+      'parent_id': ?parent,
       // Left out for the worker's own, so a server without the column
       // still starts a chat.
       'account': ?account,
@@ -1442,9 +1509,26 @@ class Agents extends ChangeNotifier {
 
   Future<void> remove(String chat) => removeAll([chat]);
 
-  /// [ids] deleted in one go, from a selection in the list.
+  /// [chat]'s subchats, and theirs, as far as they go.
+  List<Chat> subchatsOf(String chat) {
+    final out = <Chat>[];
+    final seen = {chat};
+    for (var i = -1; i < out.length; i++) {
+      final id = i < 0 ? chat : out[i].id;
+      for (final c in chats) {
+        if (c.parentId == id && seen.add(c.id)) out.add(c);
+      }
+    }
+    return out;
+  }
+
+  /// [ids] deleted in one go, from a selection in the list; their
+  /// subchats with them, as the server would.
   Future<void> removeAll(Iterable<String> ids) async {
-    final gone = ids.toSet();
+    final gone = {
+      ...ids,
+      for (final id in ids) ...subchatsOf(id).map((c) => c.id),
+    };
     if (gone.isEmpty) return;
     await _client!.from('chats').delete().inFilter('id', [...gone]);
     for (final chat in gone) {

@@ -850,6 +850,24 @@ the app, a terminal beside them; anything else a terminal.
   CLAUDE.md is read), else the chat's folder. `dir` is written back. Gone
   with the chat, its branch kept if it holds unmerged work; strays swept
   at the worker's start. Errands and chats from before keep `dir`.
+- **Subchats** (asked 2026-11-26: "each subchat is the same as chat, but
+  must have parent chat context and his own"; `chats.parent_id`,
+  `…_subchats.sql`, set once, deleted with its parent): New subchat in a
+  chat's menu opens `NewChatScreen(parent:)`, begun as the parent was, on
+  its computer, no worker or project to choose; agents with `subchats`
+  (not the shell). The worker places it in the parent's folder
+  (`_borrow`; a parent not started has its folder made for both) and
+  writes that workspace on it, so it is never its own (`ownFolder` false):
+  deleting it leaves the folder. **Context: forked, else told.** Same
+  agent and a resumable parent session: `--resume <parent> --fork-session`
+  (Codex `thread/fork`), its own session from then on (`_Talker.fork`).
+  Otherwise `parentWords` (the parent's messages and answers, latest 24k
+  chars) goes ahead of its first message (`before`), not shown in the
+  chat. Either way a note says where it began, and `subchatText` in its
+  rules names the parent for `read_chat`/`message_chat`. Listed under its
+  parent, indented (`Chat.families`: a family goes where its first member
+  would); the chat screen shows parent and subchats as pills (`_Family`).
+  Tried on the local stack with a stand-in `claude`.
 - **A chat names itself from its first message** (`Worker._name`,
   `nameChat`): Haiku (`namingArgs`: no tools, settings, MCP or session, in
   the temp dir) gives three to six words as structured output
@@ -1224,7 +1242,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 666 tests, all passing; keep it so. `supabase test db` — 73.
+`flutter test` — 712 tests, all passing; keep it so. `supabase test db` — 116.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

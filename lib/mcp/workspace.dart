@@ -241,16 +241,24 @@ String? projectText(Object? project) {
 }
 
 /// What the agent is told of [workspace]: where it is, and which folders
-/// are its own to change and which are the user's.
-String? workspaceText(Workspace? workspace) {
+/// are its own to change and which are the user's. [shared] for a
+/// subchat's, which is the folder of the chat it is part of.
+String? workspaceText(Workspace? workspace, {bool shared = false}) {
   if (workspace == null) return null;
+  final whose = shared
+      ? 'of the chat this one is part of'
+      : 'of this session\'s own';
   final lines = [
-    'You work in a folder of your own made for this session, '
-        '${workspace.root}.',
+    shared
+        ? 'You work in the folder of the chat this one is part of, '
+              '${workspace.root}, shared with it and its other subchats: what '
+              'you change there is changed for them too.'
+        : 'You work in a folder of your own made for this session, '
+              '${workspace.root}.',
     for (final p in workspace.places)
       p.branch != null
-          ? '${p.path} is a git worktree of ${p.source} on a branch of this '
-                'session\'s own, ${p.branch}: change and commit there, not in '
+          ? '${p.path} is a git worktree of ${p.source} on a branch $whose, '
+                '${p.branch}: change and commit there, not in '
                 '${p.source}, which is the user\'s own checkout.'
           : '${p.path} is the user\'s own folder, not a copy: what you change '
                 'there is changed for them and their other sessions.',

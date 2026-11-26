@@ -1392,7 +1392,14 @@ class Worker {
     final (spec, dir, placed) = place;
     ask = placed;
     resume = resumable(spec, home, dir, resume);
-    final first = prompt ?? (resume != null ? '' : ask.prompt);
+    var first = prompt ?? (resume != null ? '' : ask.prompt);
+    // A subchat begun in a terminal is told its parent's words first.
+    if (prompt == null && resume == null && ask.parentId != null) {
+      final (_, parent) = await _forkOf(ask, spec, dir);
+      if (parent != null && spec.prompt != 'none') {
+        first = withBefore(await _wordsOf(parent), first);
+      }
+    }
     final argv = [
       ..._envOf(ask),
       ...launchOf(
@@ -1541,12 +1548,98 @@ class Worker {
       }
       return (spec, made.cwd, ask.placed(made));
     }
+    if (ask.parentId != null && ask.dir == null) {
+      final borrowed = await _borrow(ask);
+      if (borrowed == null) return null;
+      ask = borrowed;
+    }
     final dir = _expand(ask.dir ?? home);
     if (!Directory(dir).existsSync()) {
       await _set(ask.id, 'failed', 'There is no folder $dir on $name.');
       return null;
     }
     return (spec, dir, ask);
+  }
+
+  /// Subchat [ask] placed in the folder of the chat it is part of, the
+  /// first time it starts: the same folders, so it carries on the same
+  /// work — and Claude finds its parent's session, kept by the folder it
+  /// began in. Written down, so it is found again. A parent not started
+  /// yet has its folder made here for both. Null, the chat failed, if the
+  /// parent is gone or its folder can't be made.
+  Future<ChatAsk?> _borrow(ChatAsk ask) async {
+    final db = await _db;
+    final row = await db
+        .from('chats')
+        .select()
+        .eq('id', ask.parentId!)
+        .maybeSingle();
+    if (row == null) {
+      await _set(ask.id, 'failed', 'The chat it is part of is gone.');
+      return null;
+    }
+    final parent = ChatAsk.fromJson(row);
+    var made = parent.workspace;
+    if (made == null && parent.ownFolder) {
+      try {
+        made = await Workspace.make(home, parent.id, [
+          for (final s in parent.sources) _expand(s),
+        ]);
+      } on FileSystemException catch (e) {
+        await _set(ask.id, 'failed', '${e.message} on $name.');
+        return null;
+      } catch (e) {
+        await _set(ask.id, 'failed', '$e');
+        return null;
+      }
+      await db
+          .from('chats')
+          .update({'workspace': made.toJson(), 'dir': made.cwd})
+          .eq('id', parent.id);
+    }
+    final fields = {
+      'workspace': ?made?.toJson(),
+      'dir': made?.cwd ?? parent.dir ?? '~',
+    };
+    await db.from('chats').update(fields).eq('id', ask.id);
+    log('[${_short(ask.id)}] in the folder of ${_short(parent.id)}');
+    return ask.withRow(fields);
+  }
+
+  /// What subchat [ask] begins from, on its first start in [dir]: its
+  /// parent's session, if [spec] can carry that on — the same agent, a
+  /// session spoken in — else null, with the parent's row to tell it the
+  /// words said there instead.
+  Future<(String?, Map<String, dynamic>?)> _forkOf(
+    ChatAsk ask,
+    AgentSpec spec,
+    String dir,
+  ) async {
+    final db = await _db;
+    final row = await db
+        .from('chats')
+        .select()
+        .eq('id', ask.parentId!)
+        .maybeSingle();
+    if (row == null) return (null, null);
+    final session = row['agent'] == ask.agent
+        ? resumable(spec, home, dir, row['session'] as String?)
+        : null;
+    return (session, row);
+  }
+
+  /// What a subchat not begun from its parent's session is told of it
+  /// ([parentWords]): the parent's messages and answers, the latest last.
+  Future<String> _wordsOf(Map<String, dynamic> parent) async {
+    final db = await _db;
+    final items = await db
+        .from('chat_items')
+        .select('kind, body')
+        .eq('chat_id', parent['id'] as String)
+        .inFilter('kind', ['user', 'text'])
+        .order('seq', ascending: false)
+        .limit(400);
+    return parentWords(parent, items.reversed.toList());
   }
 
   /// Starts [ask] spoken to in messages ([Talk]): fresh, or carrying on
@@ -1569,6 +1662,15 @@ class Worker {
       session: resume,
       dir: dir,
     );
+    // A subchat's first start: begun from its parent's session where its
+    // agent can carry that on, else told its parent's words with its
+    // first message.
+    Map<String, dynamic>? parent;
+    if (resume == null && ask.session == null && ask.parentId != null) {
+      final (fork, row) = await _forkOf(ask, spec, dir);
+      talker.fork = fork;
+      parent = row;
+    }
     try {
       await talker.wake();
     } catch (e) {
@@ -1576,6 +1678,20 @@ class Worker {
       await talker.close();
       await _set(ask.id, 'failed', '$e');
       return null;
+    }
+    if (parent != null) {
+      final title = '${parent['title'] ?? ''}'.trim();
+      final named = title.isEmpty ? 'its parent chat' : 'chat “$title”';
+      if (talker.forked) {
+        talker.item('p${DateTime.now().millisecondsSinceEpoch}', 'note', {
+          'text': 'Begun from $named, knowing what was said there.',
+        });
+      } else {
+        talker.before = await _wordsOf(parent);
+        talker.item('p${DateTime.now().millisecondsSinceEpoch}', 'note', {
+          'text': 'Begun from $named, told what was said there.',
+        });
+      }
     }
     final first = prompt ?? (resume != null ? '' : ask.prompt);
     log('[${_short(ask.id)}] ${spec.label} in $dir (chat)');
@@ -2442,6 +2558,17 @@ class _Talker implements TalkSink {
   /// What a resumed Codex thread said after this, shown when it is up.
   int? _since;
 
+  /// A subchat's parent's session, which its first program is begun from
+  /// as a new one of its own; then null.
+  String? fork;
+
+  /// Whether its program was begun from [fork].
+  bool forked = false;
+
+  /// What a subchat not begun from its parent's session is told of it
+  /// ahead of its first message; then null.
+  String? before;
+
   /// The last turn's answer, for the phones told it is over.
   String _said = '';
 
@@ -2587,11 +2714,14 @@ class _Talker implements TalkSink {
     made.env = worker._envOf(ask);
     _since = null;
     talk = made;
+    final own = resumable(spec, worker.home, dir, session);
+    final from = own == null ? fork : null;
     try {
-      await made.start(
-        files: _files,
-        resume: resumable(spec, worker.home, dir, session),
-      );
+      await made.start(files: _files, resume: own ?? from, fork: from != null);
+      if (from != null) {
+        forked = made.forked;
+        fork = null;
+      }
     } catch (e) {
       talk = null;
       await made.close();
@@ -2608,7 +2738,8 @@ class _Talker implements TalkSink {
     if (text.trim().isEmpty && files.isEmpty) return;
     lastActivity = DateTime.now();
     await wake();
-    talk!.say(text, id: id, files: files, sender: sender);
+    talk!.say(text, id: id, files: files, sender: sender, before: before);
+    before = null;
     _owed++;
   }
 
@@ -2697,6 +2828,9 @@ class _Talker implements TalkSink {
     _forgetOffset();
     session = null;
     _since = null;
+    // Cleared, a subchat starts afresh too, not from its parent's.
+    fork = null;
+    before = null;
     // How full the context was is no longer so; the chat's totals stay.
     final usage = _usage;
     if (usage != null && usage.containsKey('context')) {
