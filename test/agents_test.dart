@@ -3059,7 +3059,7 @@ void main() {
     }
 
     for (final dark in [false, true]) {
-      testWidgets('keeps chat cards gray in ${dark ? 'dark' : 'light'} mode', (
+      testWidgets('shows project color in ${dark ? 'dark' : 'light'} mode', (
         tester,
       ) async {
         final agents = Agents.instance;
@@ -3121,23 +3121,38 @@ void main() {
         final gray = dark ? palette.panel : palette.panelHi;
         expect(background(grouped), gray);
         expect(background(ungrouped), gray);
-        expect(find.textContaining('Caldo'), findsOneWidget);
-        final dot = find.byWidgetPredicate(
-          (widget) =>
-              widget is DecoratedBox &&
-              widget.decoration ==
-                  BoxDecoration(
-                    color: ListStyle.byId(colour).color,
-                    shape: BoxShape.circle,
-                  ),
+        final projectColour = ListStyle.byId(colour).color;
+        final status = tester.widget<Text>(find.textContaining('Caldo'));
+        final spans = (status.textSpan! as TextSpan).children!;
+        expect(spans, hasLength(2));
+        final project = spans.first as TextSpan;
+        expect(project.text, 'Caldo · ');
+        expect(
+          project.style?.color,
+          Color.lerp(projectColour, palette.text, 0.35),
         );
-        expect(dot, findsOneWidget);
+
+        BoxBorder? stripe(Finder title) {
+          final decoration =
+              tester
+                      .element(title)
+                      .findAncestorWidgetOfExactType<Ink>()!
+                      .decoration
+                  as BoxDecoration?;
+          return decoration?.border;
+        }
+
+        final rightStripe = Border(
+          right: BorderSide(color: projectColour, width: 4),
+        );
+        expect(stripe(grouped), rightStripe);
+        expect(stripe(ungrouped), isNull);
 
         await tester.longPress(grouped);
         await tester.pump();
         expect(background(grouped), dark ? palette.panelHi : palette.field);
         expect(background(ungrouped), gray);
-        expect(dot, findsOneWidget);
+        expect(stripe(grouped), rightStripe);
       });
     }
 

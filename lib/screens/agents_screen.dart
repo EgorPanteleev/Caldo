@@ -584,6 +584,7 @@ class _ChatRow extends StatelessWidget {
         : Dates.shortDay(at);
     final colour = _chatColour(chat);
     final project = _chatProjectName(chat);
+    const stripeWidth = 4.0;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ground = dark ? p.panel : p.panelHi;
     final pickedGround = dark ? p.panelHi : p.field;
@@ -607,8 +608,21 @@ class _ChatRow extends StatelessWidget {
         onTap: picking ? onPick : () => openChat(context, chat.id),
         onLongPress: onPick,
         onSecondaryTap: onPick,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Ink(
+          decoration: colour == null
+              ? null
+              : BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: colour, width: stripeWidth),
+                  ),
+                ),
+          // Ink adds the stripe's width to the padding.
+          padding: EdgeInsets.fromLTRB(
+            14,
+            12,
+            colour == null ? 12 : 12 - stripeWidth,
+            12,
+          ),
           child: Row(
             children: [
               if (picking)
@@ -687,21 +701,11 @@ class _ChatRow extends StatelessWidget {
                     Text.rich(
                       TextSpan(
                         children: [
-                          if (colour != null)
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsetsDirectional.only(
-                                  end: 5,
-                                ),
-                                child: _Dot(colour: colour, size: 7),
-                              ),
-                            ),
                           if (project != null)
                             TextSpan(
                               text: '$project · ',
                               style: TextStyle(
-                                color: p.text,
+                                color: Color.lerp(colour, p.text, 0.35),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
