@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -2604,6 +2605,94 @@ void main() {
         expect(dot, findsOneWidget);
       });
     }
+
+    testWidgets('checks a stale heartbeat before showing a chat as offline', (
+      tester,
+    ) async {
+      final agents = Agents.instance;
+      final wasLoaded = agents.loaded;
+      final now = DateTime.now();
+      final heartbeat = Completer<DateTime>();
+      const id = 'worker';
+      final client = (await tester.runAsync(
+        () async => SupabaseClient(
+          'https://example.invalid',
+          'anon',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          httpClient: MockClient((request) async {
+            final rows = switch (request.url.pathSegments.last) {
+              'workers' => [
+                {
+                  'id': id,
+                  'name': 'Desk',
+                  'seen_at': (await heartbeat.future).toIso8601String(),
+                  'agents': [
+                    {'id': 'shell', 'label': 'Shell'},
+                  ],
+                },
+              ],
+              'chats' => [
+                {
+                  'id': 'chat',
+                  'title': 'Working chat',
+                  'agent': 'shell',
+                  'state': 'running',
+                  'worker_id': id,
+                  'updated_at': now.toIso8601String(),
+                },
+              ],
+              _ => const [],
+            };
+            return http.Response(jsonEncode(rows), 200, request: request);
+          }),
+        ),
+      ))!;
+      agents
+        ..clientForTest = client
+        ..loaded = true
+        ..workers = [
+          AgentWorker(
+            id: id,
+            name: 'Desk',
+            agents: const [],
+            dirs: const [],
+            seenAt: now.subtract(const Duration(minutes: 5)),
+          ),
+        ]
+        ..chats = [
+          Chat(
+            id: 'chat',
+            title: 'Working chat',
+            agent: 'shell',
+            state: ChatState.running,
+            workerId: id,
+            updatedAt: now,
+          ),
+        ];
+      final shown = ValueNotifier(false);
+      addTearDown(() async {
+        agents
+          ..clientForTest = null
+          ..loaded = wasLoaded
+          ..chats = const [];
+        shown.dispose();
+        await client.dispose();
+      });
+
+      final loading = agents.load(recheckWorkers: true);
+      await pump(tester, 'en', AgentsScreen(shown: shown));
+      expect(find.text('Working chat'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off_rounded), findsNothing);
+      expect(find.textContaining('Offline'), findsNothing);
+
+      heartbeat.complete(now);
+      await loading;
+      await tester.pump();
+      expect(agents.error, isNull);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.textContaining('Working · Shell · Desk'), findsOneWidget);
+    });
 
     testWidgets("a chat whose computer stopped answering says so", (
       tester,

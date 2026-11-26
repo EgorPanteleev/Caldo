@@ -278,7 +278,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
         s.agentsSignInHint,
       );
     } else if (!_agents.loaded) {
-      body = const SizedBox.shrink();
+      body = const Center(child: CircularProgressIndicator());
     } else if (_agents.workers.isEmpty) {
       body = _empty(
         Icons.computer_outlined,
@@ -469,21 +469,23 @@ Color _stateColour(AppPalette p, ChatState state) => switch (state) {
 /// an hourglass once the usage limit stopped one — told by shape, not a
 /// shade of grey.
 class _StateMark extends StatelessWidget {
-  final ChatState state;
+  final Chat chat;
   final double size;
 
-  /// Its computer has stopped saying it is there (`Agents.away`).
-  final bool away;
-
-  const _StateMark({
-    required this.state,
-    required this.size,
-    this.away = false,
-  });
+  const _StateMark({required this.chat, required this.size});
 
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
+    final agents = Agents.instance;
+    if (agents.checkingWorker(chat)) {
+      return SizedBox.square(
+        dimension: size,
+        child: CircularProgressIndicator(strokeWidth: 1.5, color: p.muted),
+      );
+    }
+    final state = chat.state;
+    final away = agents.away(chat) != null;
     final colour = away ? p.faint : _stateColour(p, state);
     return SizedBox.square(
       dimension: size,
@@ -537,6 +539,13 @@ String _stateName(S s, Chat chat) => Agents.instance.away(chat) != null
         ChatState.ended => s.chatEnded,
         ChatState.failed => s.chatFailed,
       };
+
+String _statusLine(S s, Chat chat) {
+  final details = _lineOf(chat);
+  return Agents.instance.checkingWorker(chat)
+      ? details
+      : '${_stateName(s, chat)} · $details';
+}
 
 /// "Claude · opus · desk": what runs it, and where.
 String _lineOf(Chat chat) {
@@ -617,11 +626,7 @@ class _ChatRow extends StatelessWidget {
                   color: picked ? p.text : p.faint,
                 )
               else
-                _StateMark(
-                  state: chat.state,
-                  size: 9,
-                  away: Agents.instance.away(chat) != null,
-                ),
+                _StateMark(chat: chat, size: 9),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -706,9 +711,7 @@ class _ChatRow extends StatelessWidget {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          TextSpan(
-                            text: '${_stateName(s, chat)} · ${_lineOf(chat)}',
-                          ),
+                          TextSpan(text: _statusLine(s, chat)),
                         ],
                       ),
                       maxLines: 1,
@@ -817,11 +820,7 @@ class _FamilyPill extends StatelessWidget {
               children: [
                 Icon(icon, size: 14, color: p.muted, semanticLabel: label),
                 const SizedBox(width: 6),
-                _StateMark(
-                  state: chat.state,
-                  size: 7,
-                  away: Agents.instance.away(chat) != null,
-                ),
+                _StateMark(chat: chat, size: 7),
                 const SizedBox(width: 6),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 180),
@@ -1356,7 +1355,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
                       _Section(s.subchatOf),
                       Row(
                         children: [
-                          _StateMark(state: parent.state, size: 8),
+                          _StateMark(chat: parent, size: 8),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -2534,6 +2533,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final talk = _talk;
     final waits = chat?.state == ChatState.waiting;
     final away = chat == null ? null : _agents.away(chat);
+    final checkingWorker = chat != null && _agents.checkingWorker(chat);
     final again = chat != null && !live && chat.state != ChatState.asked
         ? Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -2579,7 +2579,9 @@ class _ChatScreenState extends State<ChatScreen> {
             if (chat != null) _usage(chat, talk),
             if (chat != null) _Family(chat: chat),
             Expanded(
-              child: asChat && talk != null
+              child: chat == null && _agents.signedIn && !_agents.loaded
+                  ? const Center(child: CircularProgressIndicator())
+                  : asChat && talk != null
                   ? ValueListenableBuilder(
                       valueListenable: talk.state,
                       builder: (context, heard, _) => TalkView(
@@ -2587,6 +2589,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         // Nobody is working on a computer that is away.
                         working:
                             away == null &&
+                            !checkingWorker &&
                             chat.inChat &&
                             (heard ?? chat.state.name) == 'running',
                         onAnswer: (item, choice, answers) => _agents.answer(
@@ -2925,11 +2928,7 @@ class _Head extends StatelessWidget {
           if (chat != null) ...[
             Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: _StateMark(
-                state: chat.state,
-                size: 8,
-                away: Agents.instance.away(chat) != null,
-              ),
+              child: _StateMark(chat: chat, size: 8),
             ),
             Expanded(
               // Its name and what it runs with: a tap opens its settings.
@@ -2950,7 +2949,7 @@ class _Head extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${_stateName(s, chat)} · ${_lineOf(chat)}',
+                      _statusLine(s, chat),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: p.muted, fontSize: 12),
