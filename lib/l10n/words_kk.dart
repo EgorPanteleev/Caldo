@@ -631,7 +631,7 @@ const Map<String, Object> kk = {
   'usageDays': "{n} күндік лимит",
   'usageHoursLimit': "{n} сағаттық лимит",
   'usageWeekShort': "Апта",
-  'agentWorkersAndAccounts': "Компьютерлер мен аккаунттар",
+  'agentAccounts': "Аккаунттар",
   'addAccount': "Аккаунт қосу",
   'accountsReinstall':
       "Аккаунттарды қосу үшін компьютерде caldo-mcp қайта орнатыңыз (tool/mcp/install.sh және watch.sh).",

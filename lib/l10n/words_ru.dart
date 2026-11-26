@@ -660,7 +660,7 @@ const Map<String, Object> ru = {
   'usageDays': "Лимит на {n} дн.",
   'usageHoursLimit': "Лимит на {n} ч",
   'usageWeekShort': "Неделя",
-  'agentWorkersAndAccounts': "Компьютеры и аккаунты",
+  'agentAccounts': "Аккаунты",
   'addAccount': "Добавить аккаунт",
   'accountsReinstall':
       "Переустановите caldo-mcp на компьютере (tool/mcp/install.sh и watch.sh), чтобы добавлять там аккаунты.",

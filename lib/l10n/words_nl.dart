@@ -642,7 +642,7 @@ const Map<String, Object> nl = {
   'usageDays': "Limiet per {n} dagen",
   'usageHoursLimit': "Limiet per {n} uur",
   'usageWeekShort': "Week",
-  'agentWorkersAndAccounts': "Computers en accounts",
+  'agentAccounts': "Accounts",
   'addAccount': "Account toevoegen",
   'accountsReinstall':
       "Installeer caldo-mcp opnieuw op je computer (tool/mcp/install.sh en watch.sh) om daar accounts toe te voegen.",

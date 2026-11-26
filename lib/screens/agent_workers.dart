@@ -67,7 +67,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
           children: [
             DeskColumn(
               child: ScreenHeader(
-                title: s.agentWorkersAndAccounts,
+                title: s.agentAccounts,
                 showBack: true,
                 actions: [
                   if (canAdd)
@@ -113,10 +113,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
                                         key:
                                             _accountAnchors[account.id] ??
                                             ValueKey(account.id),
-                                        padding: const EdgeInsets.only(
-                                          top: 6,
-                                          left: 12,
-                                        ),
+                                        padding: const EdgeInsets.only(top: 6),
                                         child: _AccountCard(
                                           account: account,
                                           worker: worker,
