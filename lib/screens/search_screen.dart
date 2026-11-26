@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
@@ -86,6 +87,11 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Task> _results = const [];
   String _query = '';
 
+  /// Every task, read when the screen opens and again after each change,
+  /// and searched in memory as the query is typed: reading and decoding the
+  /// whole table again for every key was the cost of a search.
+  List<Task>? _all;
+
   /// Which search the results on screen came from. A slow query answering
   /// after a later one would otherwise overwrite fresher results.
   String _answered = '';
@@ -99,6 +105,7 @@ class _SearchScreenState extends State<SearchScreen> {
     // that read rather than a query of their own fired at the tap, which
     // would answer before the card had been seen to tick.
     _tasks.addListener(_again);
+    _read();
   }
 
   @override
@@ -109,25 +116,32 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  void _again() {
-    if (_query.isNotEmpty) _search(_controller.text);
+  void _again() => _read();
+
+  /// Which read of the tasks is the latest: an earlier one answering late
+  /// must not put back what a later change took away.
+  int _reads = 0;
+
+  Future<void> _read() async {
+    final read = ++_reads;
+    final all = await _tasks.searchAll('');
+    if (!mounted || read != _reads) return;
+    _all = all;
+    _search(_controller.text);
   }
 
-  Future<void> _search(String raw) async {
+  void _search(String raw) {
     final query = raw.trim();
-    setState(() => _query = query);
-    if (query.isEmpty) {
-      setState(() {
+    final all = _all;
+    setState(() {
+      _query = query;
+      if (query.isEmpty) {
         _results = const [];
         _answered = '';
-      });
-      return;
-    }
-    final found = await _tasks.searchAll(query);
-    if (!mounted || _query != query) return;
-    setState(() {
-      _results = found;
-      _answered = query;
+      } else if (all != null) {
+        _results = AppDatabase.matching(all, query);
+        _answered = query;
+      }
     });
   }
 
@@ -139,7 +153,7 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
     await openTaskForm(context, task: task);
-    if (mounted) await _search(_controller.text);
+    if (mounted) await _read();
   }
 
   @override

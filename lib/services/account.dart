@@ -254,7 +254,7 @@ class Account {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'sync_rows',
-          callback: (_) => Sync.instance.soon(),
+          callback: (change) => Sync.instance.heard(change.newRecord),
         )
         .subscribe();
     _every = Timer.periodic(_interval, (_) => Sync.instance.run());

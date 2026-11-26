@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -2717,6 +2718,20 @@ class _ChatScreenState extends State<ChatScreen> {
     final waits = chat?.state == ChatState.waiting;
     final away = chat == null ? null : _agents.away(chat);
     final checkingWorker = chat != null && _agents.checkingWorker(chat);
+    final later = _later.where((line) => !line.carriesOn).toList();
+    final canEditFirst = chat?.canEditTaskMessage ?? false;
+    // Let messages pass behind the glass when the composer meets the list.
+    // Standalone notices and attachment previews need their own space.
+    final composerOverlap =
+        asChat &&
+            chat.inChat &&
+            live &&
+            later.isEmpty &&
+            away == null &&
+            !canEditFirst &&
+            _files.isEmpty
+        ? _InputRow.glassOverlap
+        : 0.0;
     final again = chat != null && !live && chat.state != ChatState.asked
         ? Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -2769,6 +2784,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       valueListenable: talk.state,
                       builder: (context, heard, _) => TalkView(
                         feed: talk,
+                        bottomOverlap: composerOverlap,
                         // Nobody is working on a computer that is away.
                         working:
                             away == null &&
@@ -2800,11 +2816,10 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             // Carrying on after the limit is the switch on its card, not
             // a message of the user's left for later.
-            if (_later.where((line) => !line.carriesOn).toList()
-                case final later when later.isNotEmpty)
+            if (later.isNotEmpty)
               LaterList(lines: later, onTap: _laterTapped, onDelete: _takeBack),
             if (away != null) _Away(worker: away),
-            if (chat != null && chat.canEditTaskMessage)
+            if (chat != null && canEditFirst)
               TextButton.icon(
                 onPressed: () => showDialog<void>(
                   context: context,
@@ -2861,7 +2876,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ] else
                 ?again,
             ],
-            SizedBox(height: KeyboardGap.of(context)),
+            const KeyboardRoom(),
           ],
         ),
       ),
@@ -3486,127 +3501,148 @@ class _InputRow extends StatelessWidget {
     this.onUnattach,
   });
 
+  static const _buttonSize = 48.0;
+  static const _inset = 3.0;
+  static const _top = 2.0;
+  static const glassOverlap = _buttonSize + 2 * _inset + _top;
+
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final p = AppTheme.of(context);
+    final colors = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(28);
     final row = Padding(
-      padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (onAttach != null) ...[
-            _RoundButton(
-              icon: Icons.add_rounded,
-              tooltip: S.of(context).chatAttachFiles,
-              onTap: sending ? null : onAttach,
+      padding: const EdgeInsets.fromLTRB(10, _top, 10, 8),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Material(
+            color: p.field.withValues(alpha: 0.72),
+            shape: RoundedRectangleBorder(
+              borderRadius: radius,
+              side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
             ),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: CallbackShortcuts(
-              // Enter sends on a desktop; Shift+Enter is a new line.
-              bindings: {
-                if (onDesktop)
-                  const SingleActivator(LogicalKeyboardKey.enter): onSend,
-              },
-              child: TextField(
-                controller: controller,
-                focusNode: focus,
-                minLines: 1,
-                maxLines: 5,
-                textInputAction: TextInputAction.newline,
-                keyboardAppearance: Brightness.dark,
-                style: TextStyle(color: p.text, fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: hint,
-                  isDense: true,
-                  filled: true,
-                  fillColor: p.field,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(
-                      color: BarRoom.rim(p),
-                      width: BarRoom.rimWidth,
+            child: Padding(
+              padding: const EdgeInsets.all(_inset),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: CallbackShortcuts(
+                      // Enter sends on a desktop; Shift+Enter is a new line.
+                      bindings: {
+                        if (onDesktop)
+                          const SingleActivator(LogicalKeyboardKey.enter):
+                              onSend,
+                      },
+                      child: TextField(
+                        controller: controller,
+                        focusNode: focus,
+                        minLines: 1,
+                        maxLines: 5,
+                        textInputAction: TextInputAction.newline,
+                        keyboardAppearance: Brightness.dark,
+                        style: TextStyle(color: p.text, fontSize: 15),
+                        decoration: InputDecoration(
+                          hintText: hint,
+                          hintStyle: TextStyle(color: p.muted),
+                          isDense: true,
+                          filled: false,
+                          constraints: const BoxConstraints(
+                            minHeight: _buttonSize,
+                          ),
+                          contentPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            14,
+                            6,
+                            14,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                        ),
+                      ),
                     ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(
-                      color: BarRoom.rim(p),
-                      width: BarRoom.rimWidth,
+                  if (onAttach != null)
+                    IconButton(
+                      icon: const Icon(Icons.attach_file_rounded),
+                      color: p.muted,
+                      tooltip: s.chatAttachFiles,
+                      onPressed: sending
+                          ? null
+                          : () {
+                              HapticFeedback.selectionClick();
+                              onAttach!();
+                            },
                     ),
+                  ListenableBuilder(
+                    listenable: controller,
+                    builder: (context, _) {
+                      final written = controller.text.trim().isNotEmpty;
+                      final ready = written || files.isNotEmpty;
+                      final stop = onStop != null && !ready;
+                      final emphasized = ready && !sending;
+                      final later = onLater != null && written && !sending
+                          ? () {
+                              HapticFeedback.mediumImpact();
+                              onLater!();
+                            }
+                          : null;
+                      return Material(
+                        color: emphasized ? colors.primary : p.panelHi,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: sending
+                              ? null
+                              : () {
+                                  HapticFeedback.selectionClick();
+                                  stop ? onStop!() : onSend();
+                                },
+                          onLongPress: later,
+                          onSecondaryTap: later,
+                          child: Tooltip(
+                            message: stop ? s.chatInterrupt : s.chatSendNow,
+                            // Leave the long press to the scheduling action.
+                            triggerMode: later == null
+                                ? TooltipTriggerMode.longPress
+                                : TooltipTriggerMode.manual,
+                            child: SizedBox.square(
+                              dimension: _buttonSize,
+                              child: sending
+                                  ? Center(
+                                      child: SizedBox.square(
+                                        dimension: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: p.muted,
+                                        ),
+                                      ),
+                                    )
+                                  : Icon(
+                                      stop
+                                          ? Icons.stop_rounded
+                                          : Icons.arrow_upward_rounded,
+                                      color: emphasized
+                                          ? colors.onPrimary
+                                          : stop
+                                          ? p.text
+                                          : p.muted,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(
-                      color: BarRoom.rim(p),
-                      width: BarRoom.rimWidth,
-                    ),
-                  ),
-                ),
+                ],
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          ListenableBuilder(
-            listenable: controller,
-            builder: (context, _) {
-              final stop =
-                  onStop != null &&
-                  controller.text.trim().isEmpty &&
-                  files.isEmpty;
-              final later = onLater != null && controller.text.trim().isNotEmpty
-                  ? () {
-                      HapticFeedback.mediumImpact();
-                      onLater!();
-                    }
-                  : null;
-              return Material(
-                color: p.field,
-                shape: CircleBorder(
-                  side: BorderSide(
-                    color: BarRoom.rim(p),
-                    width: BarRoom.rimWidth,
-                  ),
-                ),
-                child: InkWell(
-                  customBorder: const CircleBorder(),
-                  onTap: sending
-                      ? null
-                      : () {
-                          HapticFeedback.selectionClick();
-                          stop ? onStop!() : onSend();
-                        },
-                  onLongPress: sending ? null : later,
-                  onSecondaryTap: sending ? null : later,
-                  child: SizedBox.square(
-                    dimension: 44,
-                    child: sending
-                        ? Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: p.muted,
-                              ),
-                            ),
-                          )
-                        : stop
-                        ? Tooltip(
-                            message: S.of(context).chatInterrupt,
-                            child: Icon(Icons.stop_rounded, color: p.text),
-                          )
-                        : Icon(Icons.arrow_upward_rounded, color: p.text),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        ),
       ),
     );
     if (files.isEmpty) return row;
@@ -3634,42 +3670,6 @@ class _InputRow extends StatelessWidget {
         ),
         row,
       ],
-    );
-  }
-}
-
-/// A round button beside the field, drawn as the send button is.
-class _RoundButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-
-  const _RoundButton({required this.icon, required this.tooltip, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Material(
-      color: p.field,
-      shape: CircleBorder(
-        side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
-      ),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap == null
-            ? null
-            : () {
-                HapticFeedback.selectionClick();
-                onTap!();
-              },
-        child: Tooltip(
-          message: tooltip,
-          child: SizedBox.square(
-            dimension: 44,
-            child: Icon(icon, color: onTap == null ? p.muted : p.text),
-          ),
-        ),
-      ),
     );
   }
 }
