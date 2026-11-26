@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caldo/l10n/strings.dart';
 import 'package:caldo/mcp/accounts.dart';
 import 'package:caldo/mcp/agents.dart';
+import 'package:caldo/mcp/context_files.dart';
 import 'package:caldo/mcp/kept.dart';
 import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
@@ -1546,6 +1547,131 @@ void main() {
         );
       });
     });
+
+    group("a project's files", () {
+      late String home;
+      late String memory;
+
+      Future<void> git(String dir, List<String> args) async {
+        final r = await Process.run('git', [
+          '-c',
+          'user.name=t',
+          '-c',
+          'user.email=t@t',
+          ...args,
+        ], workingDirectory: dir);
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+      }
+
+      setUp(() async {
+        home = Directory.systemTemp.createTempSync('caldo_context').path;
+        Directory('$home/src/app/lib').createSync(recursive: true);
+        File('$home/src/app/CLAUDE.md').writeAsStringSync('An app.');
+        await git('$home/src/app', ['init', '-q', '-b', 'main']);
+        await git('$home/src/app', ['add', '.']);
+        await git('$home/src/app', ['commit', '-qm', 'first']);
+        Directory('$home/notes').createSync();
+        File('$home/.claude/CLAUDE.md')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('Mine.');
+        memory = ContextFiles.memoryOf(home, '$home/src/app');
+        Directory(memory).createSync(recursive: true);
+        File('$memory/b.md').writeAsStringSync('B.');
+        File('$memory/MEMORY.md').writeAsStringSync('- [B](b.md)');
+      });
+      tearDown(() => Directory(home).deleteSync(recursive: true));
+
+      test("are what Claude reads, the user's own first", () async {
+        // Claude names a folder's memory by its path.
+        expect(
+          ContextFiles.memoryOf('/home/a', '/home/a/dev/src/Caldo'),
+          '/home/a/.claude/projects/-home-a-dev-src-Caldo/memory',
+        );
+        final mem = ContextFiles.shorten(home, memory);
+        final files = await ContextFiles.read(home, [
+          '~/src/app/lib',
+          '~/notes',
+          '~/nowhere',
+        ]);
+        expect(
+          [for (final f in files) (f.kind, f.path, f.source, f.body)],
+          [
+            ('user', '~/.claude/CLAUDE.md', null, 'Mine.'),
+            ('folder', '~/src/app/CLAUDE.md', '~/src/app/lib', 'An app.'),
+            ('memory', '$mem/MEMORY.md', '~/src/app/lib', '- [B](b.md)'),
+            ('memory', '$mem/b.md', '~/src/app/lib', 'B.'),
+            // None yet: one to write is offered.
+            ('folder', '~/notes/CLAUDE.md', '~/notes', null),
+          ],
+        );
+        expect(files.any((f) => f.uncommitted), isFalse);
+
+        // A chat's worktree reads its checkout's memory.
+        await git('$home/src/app', ['worktree', 'add', '-q', '$home/tree']);
+        final tree = await ContextFiles.read(home, ['~/tree']);
+        expect(tree.map((f) => f.path), contains('$mem/b.md'));
+      });
+
+      test('are written only over what was read', () async {
+        final read = await ContextFiles.read(home, ['~/src/app']);
+        final claude = read.firstWhere((f) => f.kind == 'folder');
+        final written = await ContextFiles.write(
+          home,
+          claude.path,
+          body: 'An app in Dart.',
+          was: claude.body,
+        );
+        expect(written.body, 'An app in Dart.');
+        // Not committed: a chat's worktree doesn't see it yet.
+        expect(written.uncommitted, isTrue);
+        await expectLater(
+          ContextFiles.write(home, claude.path, body: 'x', was: claude.body),
+          throwsA(isA<ContextChanged>()),
+        );
+        expect(
+          File('$home/src/app/CLAUDE.md').readAsStringSync(),
+          'An app in Dart.',
+        );
+
+        // One not there yet is made.
+        await ContextFiles.write(
+          home,
+          '~/notes/CLAUDE.md',
+          body: 'Notes.',
+          was: null,
+        );
+        expect(File('$home/notes/CLAUDE.md').readAsStringSync(), 'Notes.');
+
+        // A memory is taken away; a CLAUDE.md is not.
+        final mem = ContextFiles.shorten(home, '$memory/b.md');
+        await ContextFiles.write(home, mem, body: null, was: 'B.');
+        expect(File('$memory/b.md').existsSync(), isFalse);
+        expect(
+          () => ContextFiles.write(
+            home,
+            '~/notes/CLAUDE.md',
+            body: null,
+            was: 'Notes.',
+          ),
+          throwsArgumentError,
+        );
+
+        // Nothing else is written.
+        for (final path in [
+          '~/src/app/lib/a.dart',
+          '~/.bashrc',
+          '~/src/../.claude/CLAUDE.md',
+          '/etc/CLAUDE.md',
+          '~/.claude/projects/x/memory/../../../.bashrc',
+        ]) {
+          expect(
+            () => ContextFiles.write(home, path, body: 'x', was: null),
+            throwsArgumentError,
+            reason: path,
+          );
+        }
+      });
+    });
   });
 
   group("a chat's settings", () {
@@ -2417,6 +2543,22 @@ void main() {
         await pump(tester, code, const ProjectScreen(project: sync));
         expect(find.text(sync.context), findsOneWidget);
         expect(find.text('~/notes/sync'), findsWidgets);
+        await tester.scrollUntilVisible(
+          find.text(s.projectAllContext),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        // No worker on: its own words alone, to change.
+        Agents.instance.workers = const [];
+        await pump(tester, code, const ProjectContextScreen(project: sync));
+        expect(find.text(sync.context), findsOneWidget);
+        expect(find.text(caldo.context), findsNothing);
+        expect(find.text(s.contextNoWorker), findsOneWidget);
+        await tester.tap(find.text(sync.context));
+        await tester.pumpAndSettle();
+        expect(find.text(s.contextWords), findsOneWidget);
+        Navigator.of(tester.element(find.text(s.contextWords))).pop();
+        await tester.pumpAndSettle();
         await pump(tester, code, const ProjectScreen());
         expect(find.text(s.newProject), findsWidgets);
         Agents.instance.projects = const [];

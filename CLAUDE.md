@@ -811,6 +811,17 @@ the app, a terminal beside them; anything else a terminal.
   context, folders); `project_id` is only for the list, which wears each
   project's colour and lists one project's chats at a time. The context
   reaches the agent after the rules (`projectText`).
+- **A project's whole context** (`ProjectContextScreen`,
+  `agent_context.dart`; "All context" on a project): its words,
+  changed in place, then what Claude reads on a worker —
+  `~/.claude/CLAUDE.md`, the sources' `CLAUDE.md` files from `~` down, and
+  the memory of each source's main checkout (`ContextFiles`,
+  `lib/mcp/context_files.dart`). Asked on rows of `agent_context_asks`
+  (read / write / remove, answered on the row, deleted by the app; missed
+  ones are answered at the worker's next look). Written only over what was
+  read (`was`), only CLAUDE.md and memory files; only memory is removed. A
+  repo's CLAUDE.md changed so is uncommitted in the user's checkout, which
+  chats' worktrees don't see until it is committed — the page says so.
 - **Every chat from the app works in a folder of its own** (`Workspace`,
   `lib/mcp/workspace.dart`; `chats.workspace`, `{}` asked, filled by the
   worker): `~/.local/share/caldo/work/<chat>`, each source in a git repo

@@ -700,4 +700,24 @@ const Map<String, Object> de = {
       "Jeder Chat arbeitet in einem eigenen Ordner auf dem Computer, mit den Ordnern seines Projekts darin.",
   'allProjects': "Alle Projekte",
   'untitledProject': "Projekt ohne Namen",
+  'projectAllContext': "Gesamter Kontext",
+  'projectAllContextHint':
+      "Was ein in {name} begonnener Chat erfährt: die hier gespeicherten Worte, dann was Claude auf dem Computer liest – CLAUDE.md-Dateien und sein Gedächtnis.",
+  'contextInCaldo': "In Caldo",
+  'contextOnWorker': "Auf {worker}",
+  'contextOnComputer': "Auf dem Computer",
+  'contextNoWorker':
+      "Kein Computer ist an, von dem die Dateien gelesen werden könnten.",
+  'contextNoAnswer': "Der Computer hat nicht geantwortet. Läuft sein Worker?",
+  'contextChanged':
+      "Sie wurde inzwischen auf dem Computer geändert und daher so gelassen. Hier ist sie, wie sie jetzt ist.",
+  'contextUserFile': "Deine, in jedem Ordner gelesen",
+  'contextMemory': "Gedächtnis",
+  'contextMissing': "Noch nicht geschrieben",
+  'contextNothing': "Nichts geschrieben",
+  'contextUncommitted': "Nicht committet: neue Chats sehen sie noch nicht",
+  'contextWords':
+      "In Caldo gespeichert, jedem darin begonnenen Chat mitgegeben",
+  'contextDeleteQuestion': "Diese Erinnerung löschen?",
+  'contextReadAgain': "Neu lesen",
 };

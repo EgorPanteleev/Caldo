@@ -12,6 +12,7 @@ import 'package:xterm/xterm.dart';
 import '../db/database.dart';
 import '../l10n/strings.dart';
 import '../mcp/agents.dart' show sizeWord;
+import '../mcp/context_files.dart';
 import '../mcp/subscriptions.dart' show Subscription;
 import '../mcp/usage.dart';
 import '../models/task.dart';
@@ -36,6 +37,7 @@ import '../widgets/selection.dart' show Selection;
 import '../widgets/talk_view.dart';
 
 part 'agent_accounts.dart';
+part 'agent_context.dart';
 part 'agent_projects.dart';
 part 'agent_rules.dart';
 part 'chat_settings.dart';

@@ -698,4 +698,23 @@ const Map<String, Object> fr = {
       "Chaque chat travaille dans son propre dossier sur l'ordinateur, avec les dossiers de son projet dedans.",
   'allProjects': "Tous les projets",
   'untitledProject': "Projet sans nom",
+  'projectAllContext': "Tout le contexte",
+  'projectAllContextHint':
+      "Ce qu'apprend un chat commencé dans {name} : les mots gardés ici, puis ce que Claude lit sur l'ordinateur — les fichiers CLAUDE.md et sa mémoire.",
+  'contextInCaldo': "Dans Caldo",
+  'contextOnWorker': "Sur {worker}",
+  'contextOnComputer': "Sur l'ordinateur",
+  'contextNoWorker': "Aucun ordinateur allumé pour lire les fichiers.",
+  'contextNoAnswer': "L'ordinateur n'a pas répondu. Son worker tourne-t-il ?",
+  'contextChanged':
+      "Il a été modifié sur l'ordinateur entre-temps, il a donc été laissé tel quel. Le voici tel qu'il est maintenant.",
+  'contextUserFile': "Le vôtre, lu dans chaque dossier",
+  'contextMemory': "Mémoire",
+  'contextMissing': "Pas encore écrit",
+  'contextNothing': "Rien d'écrit",
+  'contextUncommitted':
+      "Non commité : les nouveaux chats ne le voient pas encore",
+  'contextWords': "Gardé dans Caldo, dit à chaque chat commencé dedans",
+  'contextDeleteQuestion': "Supprimer ce souvenir ?",
+  'contextReadAgain': "Relire",
 };

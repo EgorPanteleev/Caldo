@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:supabase/supabase.dart';
 
 import '../l10n/strings.dart';
+import '../mcp/context_files.dart';
 import '../mcp/subscriptions.dart' show Subscription;
 import '../mcp/usage.dart';
 import '../models/task.dart';
@@ -987,6 +988,94 @@ class Agents extends ChangeNotifier {
         if (p.id != id) p,
     ];
     notifyListeners();
+  }
+
+  /// What Claude reads on [worker] for [project] beside the words kept on
+  /// it: the user's own `CLAUDE.md`, its folders' and their memory
+  /// ([ContextFiles]).
+  Future<List<ContextFile>> readContext(
+    String worker,
+    AgentProject project,
+  ) async {
+    final row = await _askWorker(worker, {
+      'kind': 'read',
+      'sources': snapshotOf(project)['sources'],
+    });
+    return [
+      for (final f in row['files'] as List? ?? const [])
+        ContextFile.fromJson(f as Map),
+    ];
+  }
+
+  /// [file] on [worker] written with [body], or taken away for null (a
+  /// memory file only). Throws [ContextChanged] if it was changed there
+  /// since it was read, and leaves it as it is.
+  Future<ContextFile> writeContext(
+    String worker,
+    ContextFile file,
+    String? body,
+  ) async {
+    final row = await _askWorker(worker, {
+      'kind': body == null ? 'remove' : 'write',
+      'path': file.path,
+      'body': body,
+      'was': file.body,
+    });
+    final written = ContextFile.fromJson((row['files'] as List).single as Map);
+    return ContextFile(
+      path: file.path,
+      kind: file.kind,
+      source: file.source,
+      body: written.body,
+      uncommitted: written.uncommitted,
+    );
+  }
+
+  /// [fields] asked of [worker], and the row it answered on: what is
+  /// asked is on its disk, so it is asked on a row of its own, as its
+  /// accounts are. Throws a [TimeoutException] if it doesn't answer.
+  Future<Map<String, dynamic>> _askWorker(
+    String worker,
+    Map<String, Object?> fields,
+  ) async {
+    final client = _client!;
+    final ask = await client
+        .from('agent_context_asks')
+        .insert({'worker_id': worker, ...fields})
+        .select('id')
+        .single();
+    final id = ask['id'] as String;
+    try {
+      // Answered in well under a second by a worker that is there; one
+      // whose realtime dropped it finds it at its next look, 15s on.
+      final until = DateTime.now().add(const Duration(seconds: 30));
+      while (DateTime.now().isBefore(until)) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        final row = await client
+            .from('agent_context_asks')
+            .select('files, error, done_at')
+            .eq('id', id)
+            .maybeSingle();
+        if (row == null) break;
+        if (row['done_at'] == null) continue;
+        return switch (row['error']) {
+          'changed' => throw ContextChanged('${fields['path']}'),
+          final String error => throw StateError(error),
+          _ => row,
+        };
+      }
+      throw TimeoutException('No answer from the worker');
+    } finally {
+      unawaited(_putAway(id));
+    }
+  }
+
+  Future<void> _putAway(String ask) async {
+    try {
+      await _client?.from('agent_context_asks').delete().eq('id', ask);
+    } catch (_) {
+      // Its worker puts it away, a minute on.
+    }
   }
 
   /// The latest chat a task was done in, if any.
