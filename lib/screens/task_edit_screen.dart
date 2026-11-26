@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -497,42 +498,83 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
         ),
       );
     } else {
+      // Only what was changed on the form is written; everything else is
+      // the task as it stands now, read afresh, not as it stood when the
+      // form was opened. An agent's answer put into the notes, a tick from
+      // the widget or a reminder's Done, a start on the board or an edit
+      // synced from another device while the form was open were otherwise
+      // written back over — and, stamped later, won on every device.
+      final id = existing.id;
+      final current = (id == null ? null : await provider.fresh(id)) ?? existing;
+      T kept<T>(T mine, T was, T now) => mine == was ? now : mine;
+      List<T> keptList<T>(List<T> mine, List<T> was, List<T> now) =>
+          listEquals(mine, was) ? now : mine;
+
+      final title = _title.text.trim();
+      final notes = _notes.text.trim();
+      final dueMs = due?.millisecondsSinceEpoch;
+      final hasTime = _time != null;
+      final duration = hasTime ? _duration : null;
+      final repeat = due == null ? Repeat.none : _repeat;
+      // A date or time set on the form goes as a pair, since either alone
+      // means something else.
+      final dueMoved = dueMs != existing.dueAt || hasTime != existing.hasTime;
+      final dueAt = dueMoved ? dueMs : current.dueAt;
+      final timed = dueMoved ? hasTime : current.hasTime;
+      final remindBefore = kept(
+        _remindBefore,
+        existing.remindBefore,
+        current.remindBefore,
+      );
+      final length = timed
+          ? kept(
+              duration,
+              existing.hasTime ? existing.duration : null,
+              current.duration,
+            )
+          : null;
+      final styleId = kept(_styleId, existing.styleId, current.styleId);
+      final claude = kept(_claude, existing.claude, current.claude);
       // A snooze put off the reminder this task had; a new date or a new
       // lead is a new reminder, and the snooze would only stand in its way.
       final reminderMoved =
-          due?.millisecondsSinceEpoch != existing.dueAt ||
-          _remindBefore != existing.remindBefore;
+          dueMoved || _remindBefore != existing.remindBefore;
       // A task moved to another day lets go of its place in the old one, as
       // a card carried there does (`TaskProvider.moveToDay`).
-      final dayMoved = (due == null ? null : dayOf(due)) != existing.dueDay;
-      // What the form does not show is taken from the task as it stands
-      // now, not as it stood when the form was opened: a tick from the
-      // widget or a reminder's Done, or a start on the board, made while
-      // the form was open would otherwise be written back over.
-      final id = existing.id;
-      final current = (id == null ? null : provider.taskById(id)) ?? existing;
+      final dayMoved =
+          dueMoved && (due == null ? null : dayOf(due)) != existing.dueDay;
       await provider.update(
         current.copyWith(
-          listId: listId,
-          title: _title.text.trim(),
-          notes: _notes.text.trim(),
-          dueAt: due?.millisecondsSinceEpoch,
-          clearDueAt: due == null,
-          hasTime: _time != null,
-          priority: _priority,
-          repeat: due == null ? Repeat.none : _repeat,
-          styleId: _styleId,
-          clearStyleId: _styleId == null,
-          subtasks: _subtasks,
-          attachments: List.of(_attachments),
-          remindBefore: _remindBefore,
-          clearRemindBefore: _remindBefore == null,
+          listId: kept(listId, existing.listId, current.listId),
+          title: kept(title, existing.title.trim(), current.title),
+          notes: kept(notes, existing.notes.trim(), current.notes),
+          dueAt: dueAt,
+          clearDueAt: dueAt == null,
+          hasTime: timed,
+          priority: kept(_priority, existing.priority, current.priority),
+          repeat: dueAt == null
+              ? Repeat.none
+              : kept(repeat, existing.repeat, current.repeat),
+          styleId: styleId,
+          clearStyleId: styleId == null,
+          subtasks: keptList(_subtasks, [
+            for (final step in existing.subtasks)
+              if (step.title.trim().isNotEmpty)
+                Subtask(step.title.trim(), done: step.done),
+          ], current.subtasks),
+          attachments: keptList(
+            List.of(_attachments),
+            existing.attachments,
+            current.attachments,
+          ),
+          remindBefore: remindBefore,
+          clearRemindBefore: remindBefore == null,
           clearSnoozedUntil: reminderMoved,
           clearSortOrder: dayMoved,
-          duration: _time == null ? null : _duration,
-          clearDuration: _time == null || _duration == null,
-          claude: _claude,
-          clearClaude: _claude == null,
+          duration: length,
+          clearDuration: length == null,
+          claude: claude,
+          clearClaude: claude == null,
         ),
       );
     }

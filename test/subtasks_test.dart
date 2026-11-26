@@ -18,6 +18,11 @@ class _Capture extends TaskProvider {
   Task? added;
   Task? updated;
 
+  /// What is loaded stands in for the database, which a widget test's
+  /// clock never lets answer.
+  @override
+  Future<Task?> fresh(int id) async => taskById(id);
+
   @override
   Future<void> add(Task task) async => added = task;
 

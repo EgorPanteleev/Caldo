@@ -1152,6 +1152,59 @@ void main() {
     expect(provider.updated?.remindBefore, Task.silent);
   });
 
+  testWidgets('saving writes only what the form changed', (tester) async {
+    late _CapturingProvider provider;
+    Task? ship;
+    await tester.runAsync(() async {
+      await seedProvider();
+      provider = _CapturingProvider();
+      await provider.loadLists();
+      ship = await taskNamed('Ship');
+    });
+    // An agent answered while the form was open: the notes and its state
+    // changed under it.
+    provider.stored = ship!.copyWith(
+      notes: 'The answer',
+      agentState: AgentState.review,
+    );
+    tester.view.physicalSize = narrow;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<TaskProvider>.value(value: provider),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark(AppAccent.presets.first),
+          home: TaskEditScreen(task: ship),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).first, 'Ship it');
+    await tester.pump();
+    final form = find
+        .descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(find.text('Save'), 100, scrollable: form);
+    await tester.ensureVisible(find.text('Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    final saved = provider.updated!;
+    expect(saved.title, 'Ship it');
+    expect(saved.notes, 'The answer');
+    expect(saved.agentState, AgentState.review);
+    expect(saved.dueAt, ship!.dueAt);
+  });
+
   testWidgets('a repeat is built in its sheet and saved with the task', (
     tester,
   ) async {
@@ -1922,6 +1975,13 @@ class _CapturingProvider extends TaskProvider {
   Task? updated;
   Task? toggled;
   Task? restored;
+
+  /// The task as the database holds it when a form saves; none reads it
+  /// as the form was opened on.
+  Task? stored;
+
+  @override
+  Future<Task?> fresh(int id) async => stored;
 
   @override
   Future<void> add(Task task) async => added = task;

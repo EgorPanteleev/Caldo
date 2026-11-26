@@ -50,6 +50,17 @@ void main() {
     },
   );
 
+  test('a tick keeps what changed since the card was read', () async {
+    final provider = await seedProvider();
+    final card = await taskNamed('Someday idea');
+    // An agent's answer lands in the notes after the card was drawn.
+    await AppDatabase.instance.update(card.copyWith(notes: 'The answer'));
+    await provider.toggleDone(card);
+    final ticked = await taskNamed('Someday idea');
+    expect(ticked.done, isTrue);
+    expect(ticked.notes, 'The answer');
+  });
+
   test('tasks sent to agents are marked and put in progress', () async {
     final provider = await seedProvider();
     await provider.toggleDone(await taskNamed('Someday idea'));
