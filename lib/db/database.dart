@@ -634,10 +634,22 @@ class AppDatabase {
   /// Ticks [task] off at [now] — written back as `Task.completed` makes it —
   /// and logs the tick. Every way a task is ticked comes through here, so
   /// the log and the task cannot disagree.
+  ///
+  /// The row is ticked as it stands, not as [task] was read: a card's copy
+  /// can be a moment behind an answer an agent just wrote into the notes,
+  /// or an edit synced down, and writing the whole of it back lost those.
   Future<Task> complete(Task task, int now) async {
-    final written = task.completed(now);
     final db = await database;
+    late Task written;
     await db.transaction((txn) async {
+      final rows = await txn.query(
+        _tasks,
+        where: 'id = ?',
+        whereArgs: [task.id],
+      );
+      written = (rows.isEmpty ? task : Task.fromMap(rows.first)).completed(
+        now,
+      );
       await txn.update(
         _tasks,
         written.toMap(),

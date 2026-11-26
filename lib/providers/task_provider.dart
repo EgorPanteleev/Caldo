@@ -823,6 +823,10 @@ class TaskProvider extends ChangeNotifier {
     return null;
   }
 
+  /// The task with [id] as the database holds it now, wherever it is —
+  /// for a form about to write it back.
+  Future<Task?> fresh(int id) => _db.getTask(id);
+
   /// Puts [task] in the board's column for [stage]. Into Done is a tick like
   /// any other, logged and rolling a repeating task on; out of it is the
   /// tick taken back, so the log forgets it.
