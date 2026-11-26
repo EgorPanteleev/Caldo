@@ -479,7 +479,12 @@ class AppDatabase {
       where: includeDone ? null : 'done = 0',
       orderBy: _order,
     );
-    final tasks = rows.map(Task.fromMap).toList();
+    return matching(rows.map(Task.fromMap).toList(), query);
+  }
+
+  /// Those of [tasks] whose title, notes, a step of their checklist or an
+  /// attachment's name hold [query], in any case; all of them for none.
+  static List<Task> matching(List<Task> tasks, String query) {
     if (query.isEmpty) return tasks;
     // Matched here rather than with LIKE, which SQLite folds case for in
     // ASCII alone: "задача" never found "Задача", and the LIKE ran ahead of
