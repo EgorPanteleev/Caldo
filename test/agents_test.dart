@@ -1250,6 +1250,17 @@ void main() {
       final event = tester.getRect(find.text('Pull request #42 opened.'));
       expect(agent.left, lessThan(user.left));
       expect(event.width, greaterThan(user.width));
+      final eventCard = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.text(s.chatFromEvent('egor/Caldo')),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final decoration = eventCard.decoration! as BoxDecoration;
+      expect(decoration.border, isNull);
+      expect(decoration.borderRadius, BorderRadius.circular(16));
 
       final agentTime = tester.getRect(find.text('09:02'));
       final eventTime = tester.getRect(find.text('09:03'));

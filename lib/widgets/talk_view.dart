@@ -432,9 +432,6 @@ class _Said extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 11),
       decoration: BoxDecoration(
         color: Color.alphaBlend(accent.withValues(alpha: 0.10), p.panel),
-        border: event
-            ? Border(left: BorderSide(color: accent, width: 3))
-            : null,
         borderRadius: event
             ? const BorderRadius.all(Radius.circular(16))
             : const BorderRadius.only(
