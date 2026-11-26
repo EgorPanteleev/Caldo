@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/strings.dart';
@@ -58,8 +57,10 @@ class TalkView extends StatefulWidget {
 }
 
 class _TalkViewState extends State<TalkView> {
-  final _scroll = ScrollController();
+  late final _scroll = _TalkScrollController(() => _atFoot);
   final _open = <String>{};
+  static const _liveStart = ValueKey('live start');
+  int? _historyEnd;
 
   /// Whether the foot is in view, so what comes is followed.
   bool _atFoot = true;
@@ -68,10 +69,7 @@ class _TalkViewState extends State<TalkView> {
   void initState() {
     super.initState();
     widget.feed.addListener(_changed);
-    widget.feed.pieces.addListener(_follow);
     _scroll.addListener(_scrolled);
-    // Opened at the foot, where the newest words are.
-    _follow();
   }
 
   @override
@@ -79,45 +77,27 @@ class _TalkViewState extends State<TalkView> {
     super.didUpdateWidget(old);
     if (old.feed != widget.feed) {
       old.feed.removeListener(_changed);
-      old.feed.pieces.removeListener(_follow);
       widget.feed.addListener(_changed);
-      widget.feed.pieces.addListener(_follow);
+      _historyEnd = null;
+      _atFoot = true;
     }
-    if (old.working != widget.working) _follow();
   }
 
   @override
   void dispose() {
     widget.feed.removeListener(_changed);
-    widget.feed.pieces.removeListener(_follow);
     _scroll.dispose();
     super.dispose();
   }
 
   void _changed() {
-    if (!mounted) return;
     setState(() {});
-    _follow();
   }
 
   void _scrolled() {
     if (!_scroll.hasClients) return;
     final at = _scroll.position;
     _atFoot = at.pixels >= at.maxScrollExtent - 24;
-  }
-
-  /// Kept at the foot as the list grows, if it was there: a few frames, as
-  /// a lazy list only knows its true length once it has laid out its end.
-  void _follow([int frames = 5]) {
-    if (!_atFoot || frames == 0) return;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients || !_atFoot) return;
-      final at = _scroll.position;
-      if (at.pixels < at.maxScrollExtent) {
-        _scroll.jumpTo(at.maxScrollExtent);
-        _follow(frames - 1);
-      }
-    });
   }
 
   void _toggle(String id) => setState(() {
@@ -128,7 +108,9 @@ class _TalkViewState extends State<TalkView> {
   Widget build(BuildContext context) {
     final feed = widget.feed;
     final items = feed.items;
-    if (feed.loaded && items.isEmpty && !widget.working) {
+    if (!feed.loaded) return const Center(child: CircularProgressIndicator());
+    final end = _historyEnd ??= feed.latestConfirmedSeq;
+    if (items.isEmpty && !widget.working) {
       final p = AppTheme.of(context);
       return Center(
         child: Text(
@@ -137,6 +119,13 @@ class _TalkViewState extends State<TalkView> {
         ),
       );
     }
+    // Hold the opening boundary fixed. History grows up from it while
+    // live messages grow down, keeping scroll offsets on both sides stable.
+    final firstLive = items.indexWhere((item) => item.seq > end);
+    final split = firstLive < 0 ? items.length : firstLive;
+    final indices = {
+      for (var i = 0; i < items.length; i++) ValueKey(items[i].id): i,
+    };
     // Only the latest stop at the limit can be ticked, and only until the
     // user writes again: what was said after it stands in for carrying on.
     var live = items.lastIndexWhere(
@@ -162,15 +151,34 @@ class _TalkViewState extends State<TalkView> {
     }
     return SelectionArea(
       child: CustomScrollView(
+        key: ObjectKey(feed),
         controller: _scroll,
+        center: _liveStart,
+        anchor: 1,
         slivers: [
-          SliverPadding(
-            padding: EdgeInsets.only(top: widget.padding.top + 8),
-            sliver: SliverList.builder(
-              itemCount: items.length,
-              itemBuilder: (context, i) =>
-                  _tile(items, i, live, stamped.contains(i)),
-            ),
+          SliverPadding(padding: EdgeInsets.only(top: widget.padding.top + 8)),
+          SliverList.builder(
+            itemCount: split,
+            findChildIndexCallback: (key) {
+              final i = indices[key];
+              return i != null && i < split ? split - 1 - i : null;
+            },
+            itemBuilder: (context, i) {
+              final index = split - 1 - i;
+              return _tile(items, index, live, stamped.contains(index));
+            },
+          ),
+          SliverList.builder(
+            key: _liveStart,
+            itemCount: items.length - split,
+            findChildIndexCallback: (key) {
+              final i = indices[key];
+              return i != null && i >= split ? i - split : null;
+            },
+            itemBuilder: (context, i) {
+              final index = split + i;
+              return _tile(items, index, live, stamped.contains(index));
+            },
           ),
           SliverToBoxAdapter(
             child: ValueListenableBuilder(
@@ -285,6 +293,48 @@ class _TalkViewState extends State<TalkView> {
       item.kind == 'user' &&
       item.body['sender'] is! Map &&
       item.text.trim() == CarryOn.words;
+}
+
+class _TalkScrollController extends ScrollController {
+  final bool Function() followsFoot;
+
+  _TalkScrollController(this.followsFoot) : super(keepScrollOffset: false);
+
+  @override
+  ScrollPosition createScrollPosition(
+    ScrollPhysics physics,
+    ScrollContext context,
+    ScrollPosition? oldPosition,
+  ) => _TalkScrollPosition(
+    physics: physics,
+    context: context,
+    oldPosition: oldPosition,
+    followsFoot: followsFoot,
+  );
+}
+
+class _TalkScrollPosition extends ScrollPositionWithSingleContext {
+  final bool Function() followsFoot;
+
+  _TalkScrollPosition({
+    required super.physics,
+    required super.context,
+    required super.oldPosition,
+    required this.followsFoot,
+  }) : super(keepScrollOffset: false);
+
+  @override
+  bool applyContentDimensions(double minScrollExtent, double maxScrollExtent) {
+    // Set the visible end during layout, before any frame can paint the
+    // previous offset. A reader farther up keeps their existing offset.
+    if (followsFoot() &&
+        (!hasContentDimensions || this.maxScrollExtent != maxScrollExtent) &&
+        (pixels - maxScrollExtent).abs() > 0.01) {
+      correctPixels(maxScrollExtent);
+      return false;
+    }
+    return super.applyContentDimensions(minScrollExtent, maxScrollExtent);
+  }
 }
 
 /// "14:05" today, "Yesterday 14:05" or "Nov 20 14:05" before — on the

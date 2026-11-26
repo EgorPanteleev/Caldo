@@ -910,16 +910,15 @@ class Agents extends ChangeNotifier {
     }
     bool current() => revision == _loadRevision && identical(client, _client);
     try {
-      final w = await client
-          .from('workers')
-          .select()
-          .order('name', ascending: true);
-      final c = await client
-          .from('chats')
-          .select()
-          .order('updated_at', ascending: false)
-          .limit(200);
-      final readAccounts = await _readAccounts(client);
+      final (w, c, readAccounts) = await (
+        client.from('workers').select().order('name', ascending: true),
+        client
+            .from('chats')
+            .select()
+            .order('updated_at', ascending: false)
+            .limit(200),
+        _readAccounts(client),
+      ).wait;
       if (!current()) return;
       workers = [for (final r in w) AgentWorker.fromJson(r)];
       chats = Chat.listOrder([for (final r in c) Chat.fromJson(r)]);
@@ -2078,13 +2077,18 @@ class ChatItem {
   );
 }
 
-/// A chat's items, read whole on opening and kept up by realtime; and the
+/// A chat's items, read from the newest page back and kept up by realtime; and the
 /// words of an answer as they are written, heard on the chat's private
 /// channel before the item that ends them is.
 class TalkFeed extends ChangeNotifier {
   final SupabaseClient? _client;
   final String chat;
 
+  static const _recentCount = 50;
+  static const _maxServerSeq = 0x7fffffff;
+  static final _recent =
+      Expando<({String user, Map<String, List<ChatItem>> chats})>();
+  Map<String, List<ChatItem>>? _cache;
   final _byId = <String, ChatItem>{};
   List<ChatItem> items = const [];
   bool loaded = false;
@@ -2106,6 +2110,10 @@ class TalkFeed extends ChangeNotifier {
   final VoidCallback? _release;
   Timer? _poll;
   bool _closed = false;
+  bool _readingHistory = false;
+  bool _readingRecent = false;
+  bool _historyComplete = false;
+  int? _before;
 
   /// [items] as they are, heard from nothing: for tests.
   @visibleForTesting
@@ -2121,7 +2129,7 @@ class TalkFeed extends ChangeNotifier {
           'body': i.body,
           'at': i.at?.toIso8601String(),
         },
-    ]);
+    ], history: true);
     loaded = true;
   }
 
@@ -2136,6 +2144,22 @@ class TalkFeed extends ChangeNotifier {
     VoidCallback release,
   ) : _client = client,
       _release = release {
+    final user = client.auth.currentUser?.id;
+    if (user != null) {
+      var recent = _recent[client];
+      if (recent?.user != user) {
+        recent = (user: user, chats: <String, List<ChatItem>>{});
+        _recent[client] = recent;
+      }
+      final cache = _cache = recent!.chats;
+      final saved = cache.remove(chat);
+      if (saved != null) {
+        cache[chat] = saved;
+        items = saved;
+        _byId.addEntries(saved.map((item) => MapEntry(item.id, item)));
+        loaded = true;
+      }
+    }
     _rows = client
         .channel('caldo-talk-$chat')
         .onPostgresChanges(
@@ -2172,47 +2196,75 @@ class TalkFeed extends ChangeNotifier {
             if (!_closed) usage.value = ChatUsage.of(_payloadOf(message));
           },
         );
-    unawaited(_read());
+    unawaited(_readHistory());
     // Realtime can drop a change; the last few are read again now and then.
-    _poll = Timer.periodic(const Duration(seconds: 6), (_) => _read(late: 40));
+    _poll = Timer.periodic(const Duration(seconds: 6), (_) {
+      unawaited(_readHistory());
+      if (_before != null || _historyComplete) unawaited(_readRecent());
+    });
   }
 
-  /// Everything, or with [late] only the last that many — enough to catch
-  /// a tool's output or an answer a dropped change left out.
-  Future<void> _read({int? late}) async {
-    final client = _client;
-    if (client == null) return;
+  // Select every column so older servers without the timestamp also answer.
+  PostgrestFilterBuilder<List<Map<String, dynamic>>> _rowsForChat() =>
+      _client!.from('chat_items').select().eq('chat_id', chat);
+
+  Future<void> _readHistory() async {
+    if (_readingHistory || _historyComplete) return;
+    _readingHistory = true;
     try {
-      var from = 0;
-      if (late != null) {
-        if (!loaded) return;
-        from = items.isEmpty ? 0 : items.last.seq - late;
-      }
-      while (!_closed) {
-        // Every column, not a list of them: a server yet to have one the
-        // app reads (`at`) still answers, rather than the chat never
-        // loading.
-        final rows = await client
-            .from('chat_items')
-            .select()
-            .eq('chat_id', chat)
-            .gte('seq', from)
-            .order('seq', ascending: true)
-            .limit(500);
-        _take(rows);
-        if (rows.length < 500) break;
-        from = (rows.last['seq'] as int) + 1;
-      }
-      if (!loaded) {
+      while (!_closed && !_historyComplete) {
+        final before = _before;
+        final limit = before == null ? _recentCount : 500;
+        final query = _rowsForChat();
+        final rows = await (before == null ? query : query.lt('seq', before))
+            .order('seq', ascending: false)
+            .limit(limit);
+        if (_closed) return;
+        if (rows.isNotEmpty) _before = rows.last['seq'] as int;
+        _historyComplete = rows.length < limit;
+        final first = !loaded;
         loaded = true;
-        if (!_closed) notifyListeners();
+        _take(rows, history: true, announce: !first);
+        if (first) notifyListeners();
       }
     } catch (_) {
-      // Offline: the next look tries again.
+      // Resume at the same page on the next poll.
+    } finally {
+      _readingHistory = false;
     }
   }
 
-  void _take(List<Map<String, dynamic>> rows) {
+  Future<void> _readRecent() async {
+    if (_readingRecent) return;
+    _readingRecent = true;
+    try {
+      var from = latestConfirmedSeq - 40;
+      while (!_closed) {
+        final rows = await _rowsForChat()
+            .gte('seq', from)
+            .order('seq', ascending: true)
+            .limit(500);
+        _take(rows, history: true);
+        if (rows.length < 500) break;
+        from = (rows.last['seq'] as int) + 1;
+      }
+    } catch (_) {
+      // Realtime can still deliver updates until the next poll.
+    } finally {
+      _readingRecent = false;
+    }
+  }
+
+  Iterable<ChatItem> get _latestConfirmed =>
+      items.reversed.where((item) => item.seq <= _maxServerSeq);
+
+  int get latestConfirmedSeq => _latestConfirmed.firstOrNull?.seq ?? -1;
+
+  void _take(
+    List<Map<String, dynamic>> rows, {
+    bool history = false,
+    bool announce = true,
+  }) {
     if (_closed || rows.isEmpty) return;
     var changed = false;
     var moved = false;
@@ -2224,8 +2276,12 @@ class TalkFeed extends ChangeNotifier {
       // that has it: heard now, then set right by the row. One already
       // here keeps what it had — none, if from before chats kept times.
       final at =
-          item.at ?? (was != null ? was.at : (loaded ? DateTime.now() : null));
-      if (was != null && mapEquals(was.body, item.body) && was.at == at) {
+          item.at ?? (was != null ? was.at : (history ? null : DateTime.now()));
+      if (was != null &&
+          was.seq == item.seq &&
+          was.kind == item.kind &&
+          mapEquals(was.body, item.body) &&
+          was.at == at) {
         continue;
       }
       if (at != item.at) {
@@ -2251,7 +2307,7 @@ class TalkFeed extends ChangeNotifier {
       items = [for (final i in items) _byId[i.id]!];
     }
     if (writing != pieces.value) pieces.value = writing;
-    notifyListeners();
+    if (announce) notifyListeners();
   }
 
   /// The user's words shown at once, before the worker has said them back;
@@ -2262,10 +2318,14 @@ class TalkFeed extends ChangeNotifier {
     List<Map<String, Object?>> files = const [],
   }) {
     if (text.trim().isEmpty && files.isEmpty) return;
+    final id = 'u$key';
+    if (_closed || _byId.containsKey(id)) return;
     _take([
       {
-        'id': 'u$key',
-        'seq': (items.isEmpty ? 0 : items.last.seq) + 1,
+        'id': id,
+        // The server uses a 32-bit integer. Put unconfirmed sends after any
+        // server rows, even if the transcript has yet to arrive.
+        'seq': max(_maxServerSeq, items.lastOrNull?.seq ?? 0) + 1,
         'kind': 'user',
         'body': {'text': text, if (files.isNotEmpty) 'files': files},
       },
@@ -2300,6 +2360,16 @@ class TalkFeed extends ChangeNotifier {
   void dispose() {
     _closed = true;
     _poll?.cancel();
+    final cache = _cache;
+    if (loaded && cache != null) {
+      cache.remove(chat);
+      cache[chat] = _latestConfirmed
+          .take(_recentCount)
+          .toList()
+          .reversed
+          .toList();
+      if (cache.length > 12) cache.remove(cache.keys.first);
+    }
     final rows = _rows;
     if (rows != null) unawaited(_client?.removeChannel(rows));
     _release?.call();
