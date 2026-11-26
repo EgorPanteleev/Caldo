@@ -1627,6 +1627,22 @@ void main() {
       expect(File('$base.pid').existsSync(), isFalse);
     });
 
+    test('quiet a while, is still heard when written to', () async {
+      final kept = await Kept.start(base, [
+        'sh',
+        '-c',
+        r'while read l; do echo "$l"; done',
+      ], cwd: dir.path);
+      final heard = <String>[];
+      kept.listen(heard.add, (_, _) {});
+      // Long enough to have slowed to its quietest.
+      await Future<void>.delayed(const Duration(seconds: 4));
+      kept.write('ping');
+      await _until(() => heard.isNotEmpty);
+      expect(heard, ['ping']);
+      await kept.stop();
+    });
+
     test('given up on, leaves nothing running behind it', () async {
       // A start called failed used to leave its program running, and the
       // next message started a second on the same session.

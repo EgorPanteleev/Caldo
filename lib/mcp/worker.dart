@@ -68,20 +68,24 @@ class WorkerState {
     }
   }
 
+  /// What was last written, so a save with nothing changed writes
+  /// nothing: the worker saves every second while a terminal is open.
+  String? _saved;
+
   void save() {
+    final text = jsonEncode({
+      'id': id,
+      'name': name,
+      'chats': chats,
+      'marks': marks,
+      'talks': talks,
+      'project_dirs': projectDirs.toList(),
+    });
+    if (text == _saved) return;
     file.parent.createSync(recursive: true);
-    final next = File('${file.path}.next')
-      ..writeAsStringSync(
-        jsonEncode({
-          'id': id,
-          'name': name,
-          'chats': chats,
-          'marks': marks,
-          'talks': talks,
-          'project_dirs': projectDirs.toList(),
-        }),
-      );
+    final next = File('${file.path}.next')..writeAsStringSync(text);
     next.renameSync(file.path);
+    _saved = text;
   }
 
   static String _uuid() {
@@ -274,7 +278,7 @@ class Worker {
       }
     }
     _listen();
-    Timer.periodic(const Duration(milliseconds: 50), (_) => _pump());
+    _pumpSoon();
     Timer.periodic(const Duration(seconds: 1), (_) => _guard(_check));
     Timer.periodic(const Duration(seconds: 30), (_) => _guard(_hello));
     Timer.periodic(_watchEvery, (_) => _watchSoon(Duration.zero));
@@ -932,6 +936,7 @@ class Worker {
     }
     final live = _live[chat];
     final talker = _talks[chat];
+    if (live != null) _brisk();
     switch (row['kind']) {
       case 'line' when talker != null:
         final text = row['data'] as String? ?? '';
@@ -1534,6 +1539,7 @@ class Worker {
       live.pending.write('\x1b[0m\r\n\x1b[2m── started again ──\x1b[0m\r\n');
     }
     _live[ask.id] = live;
+    _brisk();
     state.chats[ask.id] = live.kept;
     state.save();
     try {
@@ -2176,13 +2182,40 @@ class Worker {
   );
 
   /// Reads on in every chat's files, and sends what has come if it is time.
-  void _pump() {
+  /// Reads of the terminals in a row that found nothing new in any.
+  int _pumpQuiet = 0;
+  Timer? _pumping;
+
+  /// The terminals read every 50ms while any writes, four times a second
+  /// once all have been quiet a second: twenty looks a second at every
+  /// terminal's files, for hours, held up the one thread that also sends
+  /// everything else. Input for a chat has them read briskly again
+  /// ([_brisk]), so what is typed is echoed at once.
+  void _pumpSoon() {
+    _pumping?.cancel();
+    _pumping = Timer(Duration(milliseconds: _pumpQuiet < 20 ? 50 : 250), () {
+      _pumpQuiet = _pump() ? 0 : _pumpQuiet + 1;
+      _pumpSoon();
+    });
+  }
+
+  void _brisk() {
+    if (_pumpQuiet == 0) return;
+    _pumpQuiet = 0;
+    _pumpSoon();
+  }
+
+  /// Whether any terminal had something to read or to send.
+  bool _pump() {
     final now = DateTime.now();
+    var busy = false;
     for (final MapEntry(key: chat, value: live) in _live.entries.toList()) {
       if (_readOut(chat, live)) {
         live.wroteAt = now;
+        busy = true;
         _castOut(live);
       }
+      if (live.pending.isNotEmpty) busy = true;
       _readEvents(chat, live);
       if (!live.sending &&
           live.pending.isNotEmpty &&
@@ -2190,6 +2223,7 @@ class Worker {
         unawaited(_guard(() => _send(chat, live)));
       }
     }
+    return busy;
   }
 
   bool _readOut(String chat, _Live live) {
