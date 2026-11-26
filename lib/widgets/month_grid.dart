@@ -8,7 +8,7 @@ import '../data/holidays.dart';
 import '../services/device_calendars.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
-import '../providers/task_provider.dart' show dayOf;
+import '../utils/days.dart';
 import '../theme/app_theme.dart';
 import '../theme/tweaks.dart';
 import '../utils/dates.dart';
@@ -220,7 +220,7 @@ class MonthLayout {
   late final int selectedRow = () {
     final index = selected == null
         ? -1
-        : selected!.difference(first.subtract(Duration(days: lead))).inDays;
+        : daysBetween(addDays(first, -lead), selected!);
     return index >= 0 && index < rows * 7 ? index ~/ 7 : 0;
   }();
 
@@ -256,7 +256,7 @@ class MonthLayout {
   Size get cellSize => Size(_cellWidth, rowHeight);
 
   DateTime dayOfCell(int row, int col) =>
-      first.add(Duration(days: row * 7 + col - lead));
+      addDays(first, row * 7 + col - lead);
 
   /// The day under [local], a point in the grid's own box.
   DateTime? dayAt(Offset local) {
@@ -269,7 +269,7 @@ class MonthLayout {
 
   /// [day]'s cell, in the grid's own box.
   Rect? rectOf(DateTime day) {
-    final index = dayOf(day).difference(dayOfCell(0, 0)).inDays;
+    final index = daysBetween(dayOfCell(0, 0), day);
     if (index < 0 || index >= rows * 7) return null;
     return Rect.fromLTWH(
       inset + (index % 7) * _cellWidth,

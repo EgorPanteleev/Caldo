@@ -16,7 +16,7 @@ import '../l10n/strings.dart';
 import '../models/special_day.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
-import '../providers/task_provider.dart' show TaskProvider, dayOf;
+import '../providers/task_provider.dart' show TaskProvider, dayOf, daysBetween;
 import '../theme/app_theme.dart' show AppColors;
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -357,7 +357,7 @@ class Reminders {
         for (final day in _lastDays) {
           if (!day.remind || day.id == null) continue;
           final on = day.nextFrom(today);
-          final at = on.add(Duration(minutes: _allDayMinutes));
+          final at = DateTime(on.year, on.month, on.day, 0, _allDayMinutes);
           // Today's hour has gone by: it was announced, or the day was
           // made after it. Next year's is out of reach either way.
           if (at.isBefore(now)) continue;
@@ -617,11 +617,9 @@ class Reminders {
     if (task.hasTime) return due.subtract(Duration(minutes: before ?? lead));
     final days = (before ?? 0) ~/ Duration.minutesPerDay;
     final day = dayOf(due);
-    return DateTime(
-      day.year,
-      day.month,
-      day.day - days,
-    ).add(Duration(minutes: allDayMinutes));
+    // The hour of the day, not so many minutes after its midnight: on the
+    // day the clocks change those are an hour apart.
+    return DateTime(day.year, day.month, day.day - days, 0, allDayMinutes);
   }
 
   /// What the notification says under the title, from where [at] stands:
@@ -631,7 +629,7 @@ class Reminders {
     final due = task.due;
     if (due == null) return '';
     final s = S.current;
-    final days = dayOf(due).difference(dayOf(at)).inDays;
+    final days = daysBetween(at, due);
     final day = switch (days) {
       0 => null,
       1 => s.tomorrowInline,

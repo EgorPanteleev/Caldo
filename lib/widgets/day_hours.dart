@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/holidays.dart';
 import '../models/task.dart';
 import '../models/task_list.dart';
-import '../providers/task_provider.dart' show dayOf;
+import '../providers/task_provider.dart' show addDays, dayOf;
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
 import '../theme/tweaks.dart';
@@ -130,7 +130,7 @@ class _DayHoursState extends State<DayHours> {
   /// Every timed thing on the day, as minutes from its midnight, in order.
   List<_Block> _blocks() {
     final day = widget.date;
-    final next = day.add(const Duration(days: 1));
+    final next = addDays(day, 1);
     int minutes(DateTime t) => t.isBefore(day)
         ? 0
         : (t.isBefore(next) ? t.hour * 60 + t.minute : 24 * 60);

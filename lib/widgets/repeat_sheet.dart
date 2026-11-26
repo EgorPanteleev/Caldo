@@ -6,6 +6,7 @@ import '../models/task.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../utils/days.dart';
 import 'date_time_pickers.dart';
 import 'screen_header.dart';
 
@@ -69,7 +70,7 @@ class _RepeatSheetState extends State<_RepeatSheet> {
   Future<void> _pickUntil() async {
     final picked = await showAppDatePicker(
       context: context,
-      initial: _rule.until ?? widget.due.add(const Duration(days: 30)),
+      initial: _rule.until ?? addDays(widget.due, 30),
       firstDate: widget.due,
     );
     if (picked != null) _set(_rule.copyWith(until: picked, clearLeft: true));
