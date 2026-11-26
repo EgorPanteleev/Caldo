@@ -868,6 +868,140 @@ void main() {
     expect(feed.items.last.at, heard);
   });
 
+  testWidgets('opens at the latest page and holds it steady as history loads', (
+    tester,
+  ) async {
+    final agents = Agents.instance;
+    final recent = Completer<void>.sync();
+    final older = Completer<void>.sync();
+    final reopen = Completer<void>.sync();
+    final requested = <Map<String, String>>[];
+    final client = (await tester.runAsync(() async {
+      final client = SupabaseClient(
+        'https://example.invalid',
+        'anon',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        realtimeClientOptions: RealtimeClientOptions(
+          transport: (_, _) => throw StateError('Realtime unavailable'),
+        ),
+        httpClient: MockClient((request) async {
+          final query = request.url.queryParameters;
+          requested.add(query);
+          final backfill = query.containsKey('seq');
+          await (backfill
+              ? older.future
+              : requested.length == 1
+              ? recent.future
+              : reopen.future);
+          return http.Response(
+            jsonEncode([
+              for (
+                var seq = backfill ? 49 : 99;
+                seq >= (backfill ? 0 : 50);
+                seq--
+              )
+                {
+                  'id': 'item-$seq',
+                  'seq': seq,
+                  'kind': 'user',
+                  'body': {'text': 'Message $seq'},
+                },
+            ]),
+            200,
+            request: request,
+          );
+        }),
+      );
+      await client.auth.recoverSession(
+        jsonEncode({
+          'access_token': 'token',
+          'token_type': 'bearer',
+          'user': {'id': 'me'},
+        }),
+      );
+      agents.clientForTest = client;
+      return client;
+    }))!;
+    addTearDown(() async {
+      agents.clientForTest = null;
+      await client.dispose();
+    });
+
+    Future<TalkFeed> open() async =>
+        (await tester.runAsync(() async => agents.talk('history')))!;
+    Future<void> show(TalkFeed feed) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TalkView(
+            key: ObjectKey(feed),
+            feed: feed,
+            working: false,
+            onAnswer: (_, _, _) {},
+          ),
+        ),
+      ),
+    );
+    Future<void> deliver(TalkFeed feed, Completer<void> page, int count) async {
+      page.complete();
+      for (var i = 0; i < 100 && feed.items.length < count; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+        await tester.pump();
+      }
+      expect(feed.items.length, count);
+    }
+
+    final feed = await open();
+    var firstClosed = false;
+    addTearDown(() {
+      if (!firstClosed) feed.dispose();
+    });
+    await show(feed);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await deliver(feed, recent, 50);
+    await tester.pump();
+    expect(requested.first['order'], startsWith('seq.desc'));
+    expect(requested.first['limit'], '50');
+    expect(feed.items.first.seq, 50);
+    final latest = find.text('Message 99').hitTestable();
+    expect(latest, findsOneWidget);
+    final openingPosition = tester.getTopLeft(latest);
+    expect(find.text('Message 0'), findsNothing);
+
+    await deliver(feed, older, 100);
+    await tester.pump();
+    expect(requested[1]['seq'], 'lt.50');
+    expect(feed.items.first.seq, 0);
+    expect(tester.getTopLeft(latest), openingPosition);
+
+    final scroll = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    scroll.position.jumpTo(-300);
+    await tester.pump();
+    feed.said('A new message', 'new');
+    await tester.pump();
+    expect(scroll.position.pixels, -300);
+    expect(find.text('A new message').hitTestable(), findsNothing);
+    scroll.position.jumpTo(scroll.position.maxScrollExtent);
+    await tester.pump();
+    feed.said('Another message', 'another');
+    await tester.pump();
+    expect(find.text('Another message').hitTestable(), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    feed.dispose();
+    firstClosed = true;
+    final cached = await open();
+    addTearDown(cached.dispose);
+    await show(cached);
+    expect(latest, findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(cached.items.length, 50);
+    expect(find.text('Another message'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    reopen.complete();
+  });
+
   testWidgets('shows pictures sent and received using private chat storage', (
     tester,
   ) async {
