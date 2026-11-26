@@ -1002,13 +1002,25 @@ void main() {
     final openingPosition = tester.getTopLeft(latest);
     expect(find.text('Message 0'), findsNothing);
 
+    // Older pages wait for the reader to scroll up towards them.
+    expect(requested, hasLength(1));
+    final scroll = tester.state<ScrollableState>(find.byType(Scrollable).first);
+    scroll.position.jumpTo(scroll.position.minScrollExtent);
+    await tester.pump();
+    expect(requested, hasLength(2));
+    final earliest = find.text('Message 50').hitTestable();
+    expect(earliest, findsOneWidget);
+    final earliestPosition = tester.getTopLeft(earliest);
     await deliver(feed, older, 100);
     await tester.pump();
     expect(requested[1]['seq'], 'lt.50');
     expect(feed.items.first.seq, 0);
+    // What was read grows above what the reader is looking at.
+    expect(tester.getTopLeft(earliest), earliestPosition);
+    scroll.position.jumpTo(scroll.position.maxScrollExtent);
+    await tester.pump();
     expect(tester.getTopLeft(latest), openingPosition);
 
-    final scroll = tester.state<ScrollableState>(find.byType(Scrollable).first);
     scroll.position.jumpTo(-300);
     await tester.pump();
     feed.said('A new message', 'new');

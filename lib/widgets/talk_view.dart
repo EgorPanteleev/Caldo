@@ -99,12 +99,28 @@ class _TalkViewState extends State<TalkView> {
 
   void _changed() {
     setState(() {});
+    // History that does not yet fill the screen leaves nothing to scroll.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _nearTop();
+    });
   }
 
   void _scrolled() {
     if (!_scroll.hasClients) return;
     final at = _scroll.position;
     _atFoot = at.pixels >= at.maxScrollExtent - 24;
+    _nearTop();
+  }
+
+  /// Within a screen and a half of the earliest item read, the page before
+  /// it is asked for.
+  void _nearTop() {
+    if (!_scroll.hasClients || widget.feed.historyComplete) return;
+    final at = _scroll.position;
+    if (!at.hasContentDimensions) return;
+    if (at.pixels - at.minScrollExtent < at.viewportDimension * 1.5) {
+      widget.feed.wantOlder();
+    }
   }
 
   void _toggle(String id) => setState(() {

@@ -2285,6 +2285,23 @@ class TalkFeed extends ChangeNotifier {
   bool _historyComplete = false;
   int? _before;
 
+  /// Whether the reader has come near the earliest item read, and the page
+  /// before it is wanted ([wantOlder]).
+  bool _wantOlder = false;
+
+  /// Whether everything the chat has said has been read.
+  bool get historyComplete => _historyComplete;
+
+  /// The page before the earliest item read, fetched as the reader scrolls
+  /// up towards it. The whole history used to be read the moment a chat
+  /// opened, five hundred items a page however long it ran — a long
+  /// chat's every tool and its output, most of it never scrolled to.
+  void wantOlder() {
+    if (_historyComplete || _wantOlder || _before == null) return;
+    _wantOlder = true;
+    unawaited(_readHistory());
+  }
+
   /// [items] as they are, heard from nothing: for tests.
   @visibleForTesting
   TalkFeed.held(this.chat, List<ChatItem> items, {SupabaseClient? client})
@@ -2384,7 +2401,9 @@ class TalkFeed extends ChangeNotifier {
     try {
       while (!_closed && !_historyComplete) {
         final before = _before;
-        final limit = before == null ? _recentCount : 500;
+        // The latest page at once; one before it only when wanted.
+        if (before != null && !_wantOlder) break;
+        final limit = before == null ? _recentCount : 200;
         final query = _rowsForChat();
         final rows = await (before == null ? query : query.lt('seq', before))
             .order('seq', ascending: false)
@@ -2394,11 +2413,13 @@ class TalkFeed extends ChangeNotifier {
         _historyComplete = rows.length < limit;
         final first = !loaded;
         loaded = true;
+        if (before != null) _wantOlder = false;
         _take(rows, history: true, announce: !first);
         if (first) notifyListeners();
       }
     } catch (_) {
-      // Resume at the same page on the next poll.
+      // Resume at the same page on the next poll, or the next scroll.
+      _wantOlder = false;
     } finally {
       _readingHistory = false;
     }
