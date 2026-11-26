@@ -167,6 +167,12 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
 - **Order**: done after open, in tick order (`completed_at`); high priority
   leads an unarranged day; **hand placement (`sort_order`, null until
   dragged) is read before the date** (`_order`).
+- **A "Done N" line parts a day's open tasks from its done ones**
+  (`DoneDivider`; asked 2026-11-25: hard to tell done from open), only
+  where both are there; Schedule, the day panel, the day sheet, Search.
+  Open and done are two reorderable slivers, so the line is never carried
+  with a card; placed by the list as read, so a ticking card crosses it
+  only when it slides.
 - **A repeating task ticked late rolls on to today or later**
   (`Task._nextRound`). **Repeat is a rule** (`Repeat`, `RepeatUnit`,
   `showRepeatSheet`): every N units, weekdays, month day or last day, end
@@ -427,7 +433,7 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
 - **Platform font**, not Inter/google_fonts.
 - **Near-black ground (`#111112`), not true black**, shared by calendar,
   widget, reminder cover and system bars (`_barsOn`); neutral greys.
-- **Controls are neutral; accent is rare**: switches, Undo, update banner,
+- **Controls are neutral; accent is rare**: switches, Undo, update prompt,
   touched clock wheel, colour pickers. Tasks wear their own colour.
 - **Settings › Debug, admins only** (`Tweaks`, `theme/tweaks.dart`,
   `settings_debug.dart`, a `part` of settings; English only): every
@@ -536,13 +542,13 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
   patterns; others use `intl` skeletons, capitalised. Kotlin uses
   `getBestDateTimePattern` and `values-xx/strings.xml`.
   `l10n_screens_test.dart` draws key screens in every language.
-- **Updates** (`services/updates.dart`, `widgets/update_banner.dart`,
+- **Updates** (`services/updates.dart`, `widgets/update_prompt.dart`,
   `caldo/updates`, `SelfUpdate.kt`): GitHub's releases vs installed
   (`Updates.pick`), the newest offered with every skipped release's notes.
-  Banner: version, Later + Update; tap opens What's new
-  (`showUpdateSheet`, `New:`/`- ` lines). Looked for on start and resume,
-  at most once a minute (`Updates.look`). **Later** stops looking until
-  restart; Settings › About keeps an "is out" row. **Notes holding
+  A centered modal (`UpdatePrompt`) blurs the current screen and opens
+  with What's new (`New:`/`- ` lines) and Later + Update. Looked for on
+  start and resume, at most once a minute (`Updates.look`). **Later**
+  hides it until restart; Settings › About can reopen it. **Notes holding
   `<!-- priority: high -->` make it urgent**: `UpdateWall` takes the
   navigator's place until installed (no Later; Back leaves), kept in prefs
   (`updateUrgent`), dropped when GitHub has nothing newer. Installs the
@@ -684,7 +690,11 @@ the app, a terminal beside them; anything else a terminal.
   every 30ms and saves offsets each second (`worker.json` `talks`); a new
   worker re-reads what was unheard (`Talk.takeUp`, `_Replay`) to rebuild
   open questions and tools, then goes on live. Items keep their seq. Dart
-  can't append to a pipe: open it `FileMode.write`. A program killed with
+  can't append to a pipe: open it `FileMode.write`. A program is given 30s
+  to come up (`Kept.startWithin`); given up on, its process group and
+  scope are killed, or the next message starts a second on its session.
+  NULs are taken out of items and terminal output (`withoutNul`,
+  `_NoNul`): Postgres refuses them, and the row was retried for ever. A program killed with
   the session is noted "ended from outside"; the next message resumes.
   A message chat with a resumable session releases its agent after five
   quiet minutes between turns and resumes it on the next message.
@@ -762,6 +772,12 @@ the app, a terminal beside them; anything else a terminal.
   asked 2026-11-25). All take a message (`Chat.live`, `Worker._ready`).
   `…_chat_finished.sql`, `…_chat_your_turn.sql` and `…_chat_limited.sql`
   widen the check; an older app reads the newer states as Starting.
+- **A chat whose computer is away reads Offline, whatever it last said**
+  (`Agents.away`: worker unseen 90s; a cloud-off mark, `_Away` over the
+  field with the time it was last seen; ended and failed chats stay as
+  they ended). A dead worker left chats "Working", taking messages that
+  waited in `chat_in` unseen (asked 2026-11-25: "nothing showed, just
+  nothing worked").
 - **A turn that ends asking or offering is `your_turn`, not `finished`**
   (asked 2026-11-25: "agents ask me smth in the end or offer me, but chat
   writes finished"): `asksBack` reads the last paragraph (and the one
@@ -879,8 +895,11 @@ the app, a terminal beside them; anything else a terminal.
   Cyrillic keys) before the line names them (`chat_in.files`); nothing
   sent if an upload fails. The worker takes each to
   `<chat>.files/<uuid>/<name>` (`Worker._fetch`, name kept inside the
-  folder), deletes it from the bucket, and tells the agent the paths
-  (`withFiles`). Claude gets `--add-dir=<dir>` (with `=`: the flag is
+  folder) and tells the agent the paths (`withFiles`). Photos in Chat
+  mode stay in the bucket for tap-to-zoom previews in the transcript.
+  Other attachments are removed from the bucket after delivery.
+  Agents can show a local image in their own chat with `send_image`
+  and an optional caption. Claude gets `--add-dir=<dir>` (with `=`: the flag is
   variadic). A message's lines are said in turn (`_inTurn`). Only from
   workers that say so (`AgentKind.files`); not with Send later. Deleting a
   chat takes its folder and bucket files.
@@ -1077,7 +1096,9 @@ So an assistant can read and change the tasks.
   `~/.config/caldo/mcp/session.json`, 600), renewed only under a file lock,
   file read first (`SessionFile`, `ready`): every Claude session runs its
   own server, and a refresh token spent twice ends the session.
-  `recoverSession` won't renew with `autoRefreshToken` off; it signs out.
+  `recoverSession` won't renew with `autoRefreshToken` off; it signs out
+  *on the server*, ending the session everywhere — so a kept session is
+  taken up only with a minute left (`_endingSoon`), else renewed.
 - **Out of reach on purpose**: the vault, creating groups, attachment
   files. Ids are the uuid's first 8 characters; times are this computer's.
 - **Install**: `tool/mcp/install.sh` → a kernel snapshot run by Flutter's
@@ -1091,9 +1112,16 @@ So an assistant can read and change the tasks.
   terminals and their tools run in individual systemd user scopes under
   `caldo-agents.slice` when supported by the user manager. Scopes outlive
   watcher restarts and are cleaned up when their command exits. The slice
-  reclaims memory at 45% of physical RAM, caps memory at 65%, and caps
-  swap at 1 GiB. Existing chats move into the slice the next time their
-  agent or terminal starts. **A task is sent
+  caps memory at 65% of physical RAM and swap at 1 GiB, with no
+  `MemoryHigh`: with swap capped it could only throttle, and the slice
+  stalled (64 of 120 minutes; chats 7s to start). Existing chats move into the slice the next time their
+  agent or terminal starts. **Agents wait for memory**: the PR and
+  Reviewer rules run builds, tests, emulators and Supabase through
+  `caldo-room GB command…` (`tool/mcp/room.sh`, installed by
+  `install.sh`): it waits until the machine and every limit above it have
+  that much free, one check at a time, the next held 30s while the last
+  takes its memory. Measured: full `flutter test` 2.8 GB, an APK build
+  ~4 GB (Gradle's caps), the emulator 2.2 GB. **A task is sent
   by naming a model on it** (`Task.claude`, schema v14: opus, sonnet, haiku
   or fable, `ClaudeModels`): a ✦ chip by the add field's group chip
   (`_ClaudeButton`, reset each opening), a form row, or the tools'
@@ -1192,7 +1220,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 569 tests, all passing; keep it so. `supabase test db` — 73.
+`flutter test` — 666 tests, all passing; keep it so. `supabase test db` — 73.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.

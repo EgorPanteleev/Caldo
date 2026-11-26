@@ -10,7 +10,7 @@ import 'package:caldo/mcp/talk.dart';
 import 'package:caldo/mcp/terminal.dart';
 import 'package:caldo/mcp/usage.dart';
 import 'package:caldo/mcp/workspace.dart';
-import 'package:caldo/mcp/worker.dart' show answerOf;
+import 'package:caldo/mcp/worker.dart' show answerOf, withoutNul;
 import 'package:caldo/models/task.dart';
 import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/task_provider.dart';
@@ -26,8 +26,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase/supabase.dart';
 import 'package:xterm/xterm.dart';
 
 /// What a talk said, as the worker would have sent it on.
@@ -404,6 +407,32 @@ void main() {
       },
     );
 
+    test('takes NULs out of an item, which Postgres refuses', () {
+      final clean = {
+        'line': 'ok',
+        'n': [1, 'two'],
+      };
+      expect(identical(withoutNul(clean), clean), isTrue);
+      expect(
+        withoutNul({
+          'line': 'a\u0000b',
+          'output': [
+            {'x': '\u0000'},
+            3,
+          ],
+          'done': true,
+        }),
+        {
+          'line': 'ab',
+          'output': [
+            {'x': ''},
+            3,
+          ],
+          'done': true,
+        },
+      );
+    });
+
     test('reads an answer as the app writes it, old or new', () {
       var (item, choice, answers) = answerOf('allow ask:r1');
       expect((item, choice), ('ask:r1', 'allow'));
@@ -733,6 +762,93 @@ void main() {
     expect(feed.items.last.at, heard);
   });
 
+  testWidgets('shows pictures sent and received using private chat storage', (
+    tester,
+  ) async {
+    final png = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQAB'
+      'pfZFQAAAAABJRU5ErkJggg==',
+    );
+    final requested = <String>[];
+    final client = (await tester.runAsync(() async {
+      final client = SupabaseClient(
+        'https://example.invalid',
+        'anon',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        httpClient: MockClient((request) async {
+          requested.add(request.url.path);
+          expect(request.headers['authorization'], 'Bearer token');
+          return http.Response.bytes(png, 200);
+        }),
+      );
+      addTearDown(client.dispose);
+      await client.auth.recoverSession(
+        jsonEncode({
+          'access_token': 'token',
+          'token_type': 'bearer',
+          'user': {'id': 'me'},
+        }),
+      );
+      return client;
+    }))!;
+    final feed = TalkFeed.held('chat', const [
+      ChatItem(
+        id: 'reply',
+        seq: 2,
+        kind: 'text',
+        body: {
+          'text': 'Here it is',
+          'files': [
+            {'name': 'reply.png', 'mime': 'image/png', 'key': 'chat/reply'},
+          ],
+        },
+      ),
+      ChatItem(
+        id: 'legacy',
+        seq: 1,
+        kind: 'user',
+        body: {
+          'files': [
+            {'name': 'old.png', 'mime': 'image/png'},
+          ],
+        },
+      ),
+    ], client: client);
+    addTearDown(feed.dispose);
+    feed.said(
+      '',
+      'upload',
+      files: const [
+        {'name': 'upload.png', 'mime': 'image/png', 'key': 'chat/upload'},
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TalkView(feed: feed, working: false, onAnswer: (_, _, _) {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      requested,
+      unorderedEquals([
+        '/storage/v1/object/chat-files/me/chat/reply',
+        '/storage/v1/object/chat-files/me/chat/upload',
+      ]),
+    );
+    expect(find.byType(Image), findsNWidgets(2));
+    expect(find.text('old.png'), findsOneWidget);
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) => widget is Image && widget.semanticLabel == 'reply.png',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    expect(find.text('reply.png'), findsOneWidget);
+  });
+
   testWidgets('a chat says when its words were said', (tester) async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day, 9, 5);
@@ -1058,6 +1174,7 @@ void main() {
           name: 'photo.jpg',
           mime: 'image/jpeg',
           size: 2202010,
+          key: 'x/1',
         ),
         Given(path: null, name: 'notes.txt', mime: 'text/plain'),
       ];
@@ -1081,7 +1198,12 @@ void main() {
       expect(kind, 'user');
       expect(body['text'], 'What is this?');
       expect(body['files'], [
-        {'name': 'photo.jpg', 'mime': 'image/jpeg', 'size': 2202010},
+        {
+          'name': 'photo.jpg',
+          'mime': 'image/jpeg',
+          'size': 2202010,
+          'key': 'x/1',
+        },
         {'name': 'notes.txt', 'mime': 'text/plain', 'size': 0},
       ]);
     });
@@ -1170,6 +1292,22 @@ void main() {
       expect(again.written(), ['two']);
 
       await kept.stop();
+      expect(File('$base.pid').existsSync(), isFalse);
+    });
+
+    test('given up on, leaves nothing running behind it', () async {
+      // A start called failed used to leave its program running, and the
+      // next message started a second on the same session.
+      final mark = 'kept-abandoned-${DateTime.now().microsecondsSinceEpoch}';
+      Kept.startWithin = Duration.zero;
+      addTearDown(() => Kept.startWithin = const Duration(seconds: 30));
+      await expectLater(
+        Kept.start(base, ['sh', '-c', 'sleep 30 # $mark'], cwd: dir.path),
+        throwsStateError,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      final left = Process.runSync('pgrep', ['-f', mark]);
+      expect('${left.stdout}'.trim(), isEmpty);
       expect(File('$base.pid').existsSync(), isFalse);
     });
 
@@ -2335,6 +2473,57 @@ void main() {
         expect(dot, findsOneWidget);
       });
     }
+
+    testWidgets("a chat whose computer stopped answering says so", (
+      tester,
+    ) async {
+      final agents = Agents.instance;
+      final now = DateTime.now();
+      AgentWorker desk(DateTime seen) => AgentWorker(
+        id: 'worker',
+        name: 'Desk',
+        seenAt: seen,
+        dirs: const [],
+        agents: const [AgentKind(id: 'shell', label: 'Shell')],
+      );
+      agents
+        ..signedInForTest = true
+        ..workers = [desk(now.subtract(const Duration(minutes: 5)))]
+        ..chats = [
+          Chat(
+            id: 'away-chat',
+            title: 'Left working',
+            agent: 'shell',
+            workerId: 'worker',
+            state: ChatState.running,
+            updatedAt: now,
+          ),
+        ];
+      addTearDown(() {
+        agents
+          ..signedInForTest = null
+          ..chats = const [];
+      });
+
+      await pump(tester, 'en', const AgentsScreen());
+      expect(find.textContaining('Offline · Shell · Desk'), findsOneWidget);
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+
+      await pump(tester, 'en', const ChatScreen(chat: 'away-chat'));
+      expect(find.textContaining('Offline · Shell · Desk'), findsOneWidget);
+      expect(
+        find.textContaining('Desk has been offline since'),
+        findsOneWidget,
+      );
+
+      // Back, it says how the chat stands again.
+      agents
+        ..workers = [desk(now)]
+        ..load();
+      await tester.pump();
+      expect(find.textContaining('Working · Shell · Desk'), findsOneWidget);
+      expect(find.textContaining('has been offline'), findsNothing);
+    });
 
     testWidgets('restores each chat draft after leaving the chat', (
       tester,
