@@ -504,6 +504,9 @@ const Map<String, Object> uk = {
   'deleteRuleHint': "Чати, розпочаті з ним, збережуть його.",
   'chatTitle': "Назва",
   'chatPrompt': "Перше повідомлення",
+  'chatEditFirstMessage': "Змінити перше повідомлення",
+  'chatFirstMessageClosed':
+      "Перше повідомлення цього завдання вже не можна змінити.",
   'chatStart': "Почати",
   'sendToAgents': "Надіслати агентам",
   'chatForEach': "Спершу сказати кожному",

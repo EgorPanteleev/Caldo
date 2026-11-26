@@ -339,6 +339,8 @@ class S {
   String get deleteRuleHint => _word('deleteRuleHint');
   String get chatTitle => _word('chatTitle');
   String get chatPrompt => _word('chatPrompt');
+  String get chatEditFirstMessage => _word('chatEditFirstMessage');
+  String get chatFirstMessageClosed => _word('chatFirstMessageClosed');
   String get chatStart => _word('chatStart');
   String get sendToAgents => _word('sendToAgents');
   String get chatForEach => _word('chatForEach');

@@ -468,6 +468,8 @@ const Map<String, Object> tr = {
   'deleteRuleHint': "Onunla başlatılan sohbetler onu korur.",
   'chatTitle': "Başlık",
   'chatPrompt': "İlk mesaj",
+  'chatEditFirstMessage': "İlk mesajı düzenle",
+  'chatFirstMessageClosed': "Bu görevin ilk mesajı artık düzenlenemez.",
   'chatStart': "Başlat",
   'sendToAgents': "Ajanlara gönder",
   'chatForEach': "Önce her birine söyle",

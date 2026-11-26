@@ -501,6 +501,9 @@ const Map<String, Object> pl = {
   'deleteRuleHint': "Czaty rozpoczęte z nią ją zachowają.",
   'chatTitle': "Tytuł",
   'chatPrompt': "Pierwsza wiadomość",
+  'chatEditFirstMessage': "Edytuj pierwszą wiadomość",
+  'chatFirstMessageClosed':
+      "Nie można już edytować pierwszej wiadomości tego zadania.",
   'chatStart': "Rozpocznij",
   'sendToAgents': "Wyślij do agentów",
   'chatForEach': "Najpierw powiedz każdemu",

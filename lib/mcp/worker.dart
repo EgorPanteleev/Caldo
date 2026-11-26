@@ -544,11 +544,11 @@ class Worker {
     final db = await _db;
     final asked = await db
         .from('chats')
-        .select()
+        .select('id')
         .eq('worker_id', state.id)
         .eq('state', 'new');
     for (final row in asked) {
-      await _takeAsked(row, 'new');
+      await _takeAsked(row['id'] as String, 'new');
     }
     await _startDue();
     final typed = await db
@@ -561,19 +561,21 @@ class Worker {
     await _sayLater();
   }
 
-  /// Starts the chat [row] asks for, once taken from [from]: a second
+  /// Starts chat [id] once taken from [from]: a second
   /// worker started with the same id — or this one looking twice — finds
   /// it taken and leaves it. A task's chat sent with words of its own
   /// ([ChatAsk] `preface`) is told its task as the task is now.
-  Future<void> _takeAsked(Map<String, dynamic> row, String from) async {
+  Future<void> _takeAsked(String id, String from) async {
     final db = await _db;
-    final taken = await db
+    // Use the claimed row so edits made while it was waiting are included.
+    final row = await db
         .from('chats')
         .update({'state': 'running'})
-        .eq('id', row['id'])
+        .eq('id', id)
         .eq('state', from)
-        .select();
-    if (taken.isEmpty) return;
+        .select()
+        .maybeSingle();
+    if (row == null) return;
     var ask = ChatAsk.fromJson(row);
     _know(ask);
     _tellTask(ask.id, AgentState.working);
@@ -651,7 +653,7 @@ class Worker {
       }
       if (!h.task.isDueBy(now)) continue;
       log('[${_short(row['id'] as String)}] its task is due');
-      await _takeAsked(row, 'waiting');
+      await _takeAsked(row['id'] as String, 'waiting');
     }
   }
 

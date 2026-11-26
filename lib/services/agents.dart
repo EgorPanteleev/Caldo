@@ -428,6 +428,9 @@ class Chat {
   /// The rules it was told, as it keeps their words.
   final List<ChatRule> rules;
   final String prompt;
+
+  /// The opening instructions of a task chat, kept apart from its task.
+  final String? preface;
   final String? taskUuid;
   final ChatState state;
   final String? note;
@@ -479,6 +482,7 @@ class Chat {
     this.skills = const [],
     this.rules = const [],
     this.prompt = '',
+    this.preface,
     this.taskUuid,
     this.note,
     this.cols = 80,
@@ -496,6 +500,23 @@ class Chat {
   });
 
   bool get pinned => pinnedAt != null;
+
+  bool get canEditTaskMessage =>
+      taskUuid != null &&
+      (state == ChatState.waiting || state == ChatState.asked);
+
+  /// The saved first message with new instructions and the same task
+  /// details. Older chats without a separate preface edit the whole message.
+  String taskPromptWith(String text) {
+    final opening = text.trim();
+    final before = preface?.trim();
+    if (before == null) return opening;
+    final prefix = '$before\n\n';
+    final task = before.isNotEmpty && prompt.startsWith(prefix)
+        ? prompt.substring(prefix.length)
+        : prompt;
+    return opening.isEmpty ? task : '$opening\n\n$task';
+  }
 
   /// Whether it can be a chat at all: one begun as one, wherever it is now.
   bool get talks => agent == 'claude' || agent == 'codex';
@@ -532,6 +553,7 @@ class Chat {
         skills: c.skills,
         rules: c.rules,
         prompt: c.prompt,
+        preface: c.preface,
         taskUuid: c.taskUuid,
         state: c.state,
         note: c.note,
@@ -565,6 +587,7 @@ class Chat {
         skills: c.skills,
         rules: c.rules,
         prompt: c.prompt,
+        preface: c.preface,
         taskUuid: c.taskUuid,
         state: c.state,
         note: c.note,
@@ -598,6 +621,7 @@ class Chat {
         skills: c.skills,
         rules: c.rules,
         prompt: c.prompt,
+        preface: c.preface,
         taskUuid: c.taskUuid,
         state: c.state,
         note: c.note,
@@ -645,6 +669,7 @@ class Chat {
         if (r is Map) (name: '${r['name'] ?? ''}', body: '${r['body'] ?? ''}'),
     ],
     prompt: json['prompt'] as String? ?? '',
+    preface: json['preface'] as String?,
     taskUuid: json['task_uuid'] as String?,
     state: _stateOf(json['state'] as String?),
     note: json['note'] as String?,
@@ -1269,10 +1294,11 @@ class Agents extends ChangeNotifier {
       // A task sent from Schedule or the calendar: the list marks the
       // chat as its task's, and the task's form opens it.
       'task_uuid': ?task,
-      // Left to start when the task is due: its worker starts it then,
-      // telling it the task as it is by then after [preface]. Without a
-      // task, left until started by hand ([startNow]).
+      // A task chat can wait for its due date. Without a task, it waits
+      // until started by hand ([startNow]).
       if (waiting) 'state': 'waiting',
+      // Opening instructions for a task chat. Its worker can put the
+      // task as it is at launch after these words.
       'preface': ?preface,
       // A subchat: its worker places it in its parent's folder and begins
       // it from what was said there.
@@ -1446,6 +1472,30 @@ class Agents extends ChangeNotifier {
         .update({'state': 'new'})
         .eq('id', chat)
         .eq('state', 'waiting');
+  }
+
+  /// Saves the first message only while the worker can still claim the chat.
+  Future<bool> editTaskMessage(Chat chat, String text) async {
+    if (!chat.canEditTaskMessage) return false;
+    final row = await _client!
+        .from('chats')
+        .update({
+          'prompt': chat.taskPromptWith(text),
+          if (chat.preface != null) 'preface': text.trim(),
+        })
+        .eq('id', chat.id)
+        .eq('task_uuid', chat.taskUuid!)
+        .inFilter('state', ['waiting', 'new'])
+        .select()
+        .maybeSingle();
+    if (row == null) return false;
+    final changed = Chat.fromJson(row);
+    chats = Chat.listOrder([
+      for (final c in chats)
+        if (c.id == chat.id) changed else c,
+    ]);
+    notifyListeners();
+    return true;
   }
 
   /// [choice] — `allow`, `always` or `deny`, or `answer` with [answers]
