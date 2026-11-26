@@ -1502,12 +1502,14 @@ class _AccentPicker extends StatelessWidget {
                 child: Icon(Icons.palette_outlined, size: 21, color: p.muted),
               ),
               const SizedBox(width: 16),
-              Text(
-                title,
-                style: TextStyle(
-                  color: p.text,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: p.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
