@@ -122,81 +122,101 @@ class CaldoApp extends StatelessWidget {
       ],
       child: ListenableBuilder(
         listenable: Listenable.merge([Tweaks.instance, PerfHud.graphs]),
-        builder: (context, _) => Consumer<SettingsProvider>(
-          builder: (context, settings, _) => MaterialApp(
-            title: 'Caldo',
-            debugShowCheckedModeBanner: false,
-            showPerformanceOverlay: PerfHud.graphsDrawn,
-            theme: AppTheme.light(settings.accent),
-            darkTheme: AppTheme.dark(settings.accent),
-            themeMode: settings.themeMode,
-            locale: settings.locale,
-            supportedLocales: S.supported,
-            localizationsDelegates: const [
-              S.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            // Theme changes apply instantly; ThemeSwitcher animates the switch
-            // as a cross-fade for a perfectly smooth transition.
-            themeAnimationDuration: Duration.zero,
-            scrollBehavior: onDesktop ? const DesktopScrolling() : null,
-            // The clock Settings names goes in where every widget can read it,
-            // and where reading it has the widget redrawn when it changes.
-            builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-              // The system bars wear the app's ground: left to the window's
-              // theme the navigation bar stays pure black, and Flutter's own
-              // status-bar scrim darkens a band across the top.
-              value: _barsOn(Theme.of(context)),
-              // Settings › Debug's recording and numbers, over everything,
-              // the urgent update's wall included.
-              child: RecordingOverlay(
-                child: PerfHud(
-                  child: MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
-                    child: ThemeSwitcher(
-                      child: ValueListenableBuilder<Update?>(
-                        valueListenable: Updates.instance.offered,
-                        // An urgent update takes the navigator's place, and
-                        // everything on it goes: the app is not to be used again
-                        // until the update is in, and it starts afresh then.
-                        builder: (context, update, child) =>
-                            update != null && update.urgent
-                            ? UpdateWall(update: update)
-                            : UpdatePrompt(
-                                update: update,
-                                navigator: _navigator,
-                                child: child!,
-                              ),
-                        child: onDesktop
-                            ? DeskScope(
-                                navigator: _navigator,
-                                builder: (context, wide) => DeskKeys(
-                                  navigator: _navigator,
-                                  wide: wide,
-                                  // A window too narrow for the desktop's layout is
-                                  // the phone's app, at a phone's width.
-                                  child: PhoneWide(on: !wide, child: child!),
-                                ),
-                              )
-                            : child!,
+        // Only what the app as a whole is drawn with: a Consumer here had
+        // every switch in Settings rebuild every screen there is.
+        builder: (context, _) =>
+            Selector<
+              SettingsProvider,
+              ({
+                AppAccent accent,
+                ThemeMode themeMode,
+                Locale? locale,
+                bool use24Hour,
+              })
+            >(
+              selector: (_, s) => (
+                accent: s.accent,
+                themeMode: s.themeMode,
+                locale: s.locale,
+                use24Hour: s.use24Hour,
+              ),
+              builder: (context, settings, _) => MaterialApp(
+                title: 'Caldo',
+                debugShowCheckedModeBanner: false,
+                showPerformanceOverlay: PerfHud.graphsDrawn,
+                theme: AppTheme.light(settings.accent),
+                darkTheme: AppTheme.dark(settings.accent),
+                themeMode: settings.themeMode,
+                locale: settings.locale,
+                supportedLocales: S.supported,
+                localizationsDelegates: const [
+                  S.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                // Theme changes apply instantly; ThemeSwitcher animates the switch
+                // as a cross-fade for a perfectly smooth transition.
+                themeAnimationDuration: Duration.zero,
+                scrollBehavior: onDesktop ? const DesktopScrolling() : null,
+                // The clock Settings names goes in where every widget can read it,
+                // and where reading it has the widget redrawn when it changes.
+                builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+                  // The system bars wear the app's ground: left to the window's
+                  // theme the navigation bar stays pure black, and Flutter's own
+                  // status-bar scrim darkens a band across the top.
+                  value: _barsOn(Theme.of(context)),
+                  // Settings › Debug's recording and numbers, over everything,
+                  // the urgent update's wall included.
+                  child: RecordingOverlay(
+                    child: PerfHud(
+                      child: MediaQuery(
+                        data: MediaQuery.of(
+                          context,
+                        ).copyWith(alwaysUse24HourFormat: settings.use24Hour),
+                        child: ThemeSwitcher(
+                          child: ValueListenableBuilder<Update?>(
+                            valueListenable: Updates.instance.offered,
+                            // An urgent update takes the navigator's place, and
+                            // everything on it goes: the app is not to be used again
+                            // until the update is in, and it starts afresh then.
+                            builder: (context, update, child) =>
+                                update != null && update.urgent
+                                ? UpdateWall(update: update)
+                                : UpdatePrompt(
+                                    update: update,
+                                    navigator: _navigator,
+                                    child: child!,
+                                  ),
+                            child: onDesktop
+                                ? DeskScope(
+                                    navigator: _navigator,
+                                    builder: (context, wide) => DeskKeys(
+                                      navigator: _navigator,
+                                      wide: wide,
+                                      // A window too narrow for the desktop's layout is
+                                      // the phone's app, at a phone's width.
+                                      child: PhoneWide(
+                                        on: !wide,
+                                        child: child!,
+                                      ),
+                                    ),
+                                  )
+                                : child!,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
+                navigatorObservers: [
+                  if (onDesktop) DeskScope.observer,
+                  Recording.routes,
+                ],
+                navigatorKey: _navigator,
+                home: HomeScreen(start: start),
               ),
             ),
-            navigatorObservers: [
-              if (onDesktop) DeskScope.observer,
-              Recording.routes,
-            ],
-            navigatorKey: _navigator,
-            home: HomeScreen(start: start),
-          ),
-        ),
       ),
     );
   }
