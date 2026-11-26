@@ -622,27 +622,18 @@ class _ChatRow extends StatelessWidget {
             // there or not, so every card's time lines up.
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 20, 12),
-              // The mark on the title's line, not floating mid-card: a line of
-              // the title's own text holding it, set on the title's baseline.
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text.rich(
-                    WidgetSpan(
-                      alignment: PlaceholderAlignment.middle,
-                      child: picking
-                          ? Icon(
-                              picked
-                                  ? Icons.check_circle_rounded
-                                  : Icons.radio_button_unchecked_rounded,
-                              size: 20,
-                              color: picked ? p.text : p.faint,
-                            )
-                          : _StateMark(chat: chat, size: 9),
-                    ),
-                    style: title,
-                  ),
+                  if (picking)
+                    Icon(
+                      picked
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 20,
+                      color: picked ? p.text : p.faint,
+                    )
+                  else
+                    _StateMark(chat: chat, size: 9),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
