@@ -31,8 +31,10 @@ import '../widgets/choice_sheet.dart';
 import '../widgets/colour_selector.dart';
 import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
+import '../widgets/form_actions.dart';
 import '../widgets/glass.dart';
-import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardGap;
+import '../widgets/quick_add_bar.dart'
+    show BarRoom, GroundFade, KeyboardGap, KeyboardLift, KeyboardRoom;
 import '../widgets/screen_header.dart';
 import '../widgets/selection.dart' show Selection;
 import '../widgets/talk_view.dart';

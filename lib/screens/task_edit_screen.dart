@@ -24,6 +24,7 @@ import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
 import '../widgets/repeat_sheet.dart';
 import '../widgets/groups.dart';
+import '../widgets/form_actions.dart';
 import '../widgets/quick_add_bar.dart'
     show GroundFade, KeyboardLift, KeyboardRoom;
 import '../widgets/task_card.dart' show CheckMark, ClaudeMark, TaskCard;
@@ -977,23 +978,10 @@ class _TaskEditScreenState extends State<TaskEditScreen> {
               // last field: on a long form the pair was a scroll away, and the
               // way out of an edit should not have to be looked for.
               if (_dirty)
-                KeyboardLift(
-                  child: ColoredBox(
-                    color: p.bg,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                      child: _Nudged(
-                        child: Row(
-                          // The same pair, drawn in towards the middle the same way.
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _FootAction(label: s.cancel, onTap: _leave),
-                            _FootAction(label: s.save, onTap: _save),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                FormActions(
+                  onCancel: _leave,
+                  onSave: _save,
+                  wrapActions: (child) => _Nudged(child: child),
                 ),
             ],
           ),
@@ -1628,41 +1616,6 @@ class _PriorityChip extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Picks the colour a task is drawn in: its list's by default, or any of the
-/// same swatches a list can wear.
-
-/// A word at the foot of the form. The same two plain words the picker sheets
-/// end with, for the same reason: neither is more the answer than the other.
-class _FootAction extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _FootAction({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = AppTheme.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: p.text,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
         ),
       ),
     );

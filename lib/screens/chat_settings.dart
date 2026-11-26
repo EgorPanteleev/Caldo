@@ -69,14 +69,13 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     unawaited(_readSubs());
     final chat = _was;
     if (chat == null) return;
-    _title.text = chat.title;
+    _title
+      ..text = chat.title
+      ..addListener(_changed);
     _model = chat.model;
     _effort = chat.effort;
     _permission = chat.permission;
-    final kind = _kind;
-    _plugins =
-        chat.plugins?.toSet() ??
-        (kind == null || kind.plugins.isEmpty ? null : {...kind.pluginsOn});
+    _plugins = chat.plugins?.toSet();
     _skills.addAll(chat.skills);
     _account = chat.account;
     _kept.addAll(chat.rules);
@@ -175,19 +174,26 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   Future<void> _save() async {
     final fields = _fields;
-    if (fields.isEmpty || _saving) {
-      Navigator.of(context).pop();
-      return;
-    }
+    if (fields.isEmpty || _saving) return;
+    FocusScope.of(context).unfocus();
     setState(() => _saving = true);
     try {
       await _agents.change(widget.chat, fields);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+        Navigator.of(context).pop();
+      } else if (mounted) {
+        setState(() => _saving = false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
+  }
+
+  void _cancel() {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).pop();
   }
 
   @override
@@ -199,97 +205,115 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final kind = _kind;
     // A worker from before this can't take them up: shown, not changed.
     final changes = kind?.settings ?? false;
-    return Scaffold(
-      backgroundColor: p.bg,
-      body: SafeArea(
-        maintainBottomViewPadding: true,
-        child: Column(
-          children: [
-            DeskColumn(
-              child: ScreenHeader(title: s.chatSettings, showBack: true),
-            ),
-            Expanded(
-              child: DeskGutter(
-                builder: (context, gutter) => ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    20 + gutter,
-                    4,
-                    20 + gutter,
-                    24 + KeyboardGap.of(context),
-                  ),
+    final dirty = _fields.isNotEmpty;
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        backgroundColor: p.bg,
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          maintainBottomViewPadding: true,
+          child: Column(
+            children: [
+              DeskColumn(
+                child: ScreenHeader(title: s.chatSettings, showBack: !dirty),
+              ),
+              Expanded(
+                child: Stack(
                   children: [
-                    if (chat != null) ...[
-                      _Fact(
-                        s.chatWorker,
-                        w == null
-                            ? '—'
-                            : w.online
-                            ? w.name
-                            : '${w.name} · ${s.chatOffline}',
-                      ),
-                      _Fact(s.chatAgent, kind?.label ?? chat.agent),
-                      if (_chatProjectName(chat) case final project?)
-                        _Fact(s.chatProject, project),
-                      _Fact(
-                        s.chatFolder,
-                        w == null
-                            ? chat.dir ?? '~'
-                            : _NewChatScreenState._short(w, chat.dir ?? '~'),
-                      ),
-                    ],
-                    _Section(s.chatTitle),
-                    // Without one, it is called by its first message's first line.
-                    _Field(
-                      controller: _title,
-                      hint: chat?.prompt.trim().split('\n').first,
-                    ),
-                    if (kind != null && !changes) ...[
-                      const SizedBox(height: 20),
-                      Text(
-                        s.chatSettingsOld(w?.name ?? ''),
-                        style: TextStyle(color: p.muted, fontSize: 13.5),
-                      ),
-                    ],
-                    if (kind != null)
-                      IgnorePointer(
-                        ignoring: !changes,
-                        child: Opacity(
-                          opacity: changes ? 1 : 0.5,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: _choices(s, p, kind),
-                          ),
+                    DeskGutter(
+                      builder: (context, gutter) => ListView(
+                        padding: EdgeInsets.fromLTRB(
+                          20 + gutter,
+                          4,
+                          20 + gutter,
+                          0,
                         ),
-                      ),
-                    if (changes) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        s.chatSettingsHint(kind?.label ?? ''),
-                        style: TextStyle(color: p.faint, fontSize: 12.5),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      height: 48,
-                      child: FilledButton(
-                        onPressed: _saving || chat == null ? null : _save,
-                        child: Text(s.save),
+                        children: [
+                          if (chat != null) ...[
+                            _Fact(
+                              s.chatWorker,
+                              w == null
+                                  ? '—'
+                                  : w.online
+                                  ? w.name
+                                  : '${w.name} · ${s.chatOffline}',
+                            ),
+                            _Fact(s.chatAgent, kind?.label ?? chat.agent),
+                            if (_chatProjectName(chat) case final project?)
+                              _Fact(s.chatProject, project),
+                            _Fact(
+                              s.chatFolder,
+                              w == null
+                                  ? chat.dir ?? '~'
+                                  : _NewChatScreenState._short(
+                                      w,
+                                      chat.dir ?? '~',
+                                    ),
+                            ),
+                          ],
+                          _Section(s.chatTitle),
+                          // Without one, it is called by its first message's first line.
+                          _Field(
+                            controller: _title,
+                            hint: chat?.prompt.trim().split('\n').first,
+                          ),
+                          if (kind != null && !changes) ...[
+                            const SizedBox(height: 20),
+                            Text(
+                              s.chatSettingsOld(w?.name ?? ''),
+                              style: TextStyle(color: p.muted, fontSize: 13.5),
+                            ),
+                          ],
+                          if (kind != null)
+                            IgnorePointer(
+                              ignoring: !changes,
+                              child: Opacity(
+                                opacity: changes ? 1 : 0.5,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: _choices(s, p, kind),
+                                ),
+                              ),
+                            ),
+                          if (changes) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              s.chatSettingsHint(kind?.label ?? ''),
+                              style: TextStyle(color: p.faint, fontSize: 12.5),
+                            ),
+                          ],
+                          if ((kind?.events ?? false) || _subs.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _SubscriptionsList(
+                              subs: _subs,
+                              watched: kind?.events ?? false,
+                              onOpen: _openSub,
+                            ),
+                          ],
+                          SizedBox(height: dirty ? GroundFade.height : 24),
+                          const KeyboardRoom(),
+                        ],
                       ),
                     ),
-                    // Below Save: each is kept as it is made, not with it.
-                    if ((kind?.events ?? false) || _subs.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _SubscriptionsList(
-                        subs: _subs,
-                        watched: kind?.events ?? false,
-                        onOpen: _openSub,
+                    if (dirty)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: KeyboardLift(child: GroundFade(ground: p.bg)),
                       ),
-                    ],
                   ],
                 ),
               ),
-            ),
-          ],
+              if (dirty)
+                FormActions(
+                  onCancel: _saving ? null : _cancel,
+                  onSave: _saving ? null : _save,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -360,9 +384,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   style: TextStyle(color: p.faint, fontSize: 12),
                 )
               : null,
-          value: _plugins?.contains(plugin) ?? false,
+          value: _plugins?.contains(plugin) ?? kind.pluginsOn.contains(plugin),
           onChanged: (on) => setState(() {
-            final chosen = _plugins ??= {};
+            final chosen = _plugins ??= {...kind.pluginsOn};
             on ? chosen.add(plugin) : chosen.remove(plugin);
           }),
         ),

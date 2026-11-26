@@ -4179,12 +4179,24 @@ void main() {
           100,
           scrollable: list,
         );
-        // Nothing changed: Save only goes back.
-        await tester.ensureVisible(find.text(s.save));
+        expect(find.text(s.save), findsNothing);
+        expect(find.text(s.cancel), findsNothing);
+        final title = find.byType(TextField);
+        await tester.scrollUntilVisible(title, -300, scrollable: list);
+        await tester.enterText(title, 'New chat title');
         await tester.pumpAndSettle();
-        await tester.tap(find.text(s.save));
+        expect(find.text(s.save), findsOneWidget);
+        expect(find.text(s.cancel), findsOneWidget);
+        await tester.enterText(title, 'Tidy the repo');
+        await tester.pumpAndSettle();
+        expect(find.text(s.save), findsNothing);
+        expect(find.text(s.cancel), findsNothing);
+        await tester.enterText(title, 'Discard this title');
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(s.cancel));
         await tester.pumpAndSettle();
         expect(find.byType(ChatSettingsScreen), findsNothing);
+        expect(Agents.instance.chat('c')?.title, 'Tidy the repo');
 
         // A worker from before can't take them: said, not offered.
         Agents.instance.workers = [worker(settings: false)];
