@@ -70,7 +70,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final projects = _agents.projects;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -351,7 +351,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
     final p = AppTheme.of(context);
     final project = widget.project;
     final lines = _sourceLines;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,

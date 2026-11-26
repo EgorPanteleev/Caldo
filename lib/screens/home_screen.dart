@@ -16,6 +16,7 @@ import '../services/sync.dart';
 import '../services/today_widget.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarFoot, BarRoom, KeyboardGap;
@@ -362,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // What is picked out answers to Escape first, on its own.
           if (!didPop && !Selection.anyActive) _escapeForm();
         },
-        child: Scaffold(
+        child: AppScaffold(
           backgroundColor: p.bg,
           resizeToAvoidBottomInset: false,
           body: ScrollConfiguration(
@@ -556,7 +557,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // it on its own.
         if (!didPop && !Selection.anyActive) _select(home);
       },
-      child: Scaffold(
+      child: AppScaffold(
         backgroundColor: p.bg,
         // Each screen decides for itself what the keyboard does to it. Resize
         // here and the shell shortens all of them before any of them is asked.

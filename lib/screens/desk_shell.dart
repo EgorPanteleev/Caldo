@@ -9,6 +9,7 @@ import '../providers/settings_provider.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/desk.dart';
 import '../widgets/groups.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom;
@@ -66,80 +67,82 @@ class DeskSidebar extends StatelessWidget {
         color: p.sidebar,
         border: Border(right: BorderSide(color: p.border)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 16, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Caldo',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  Dates.longDay(DateTime.now()),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: p.faint, fontSize: 12.5),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-            child: _NewTask(onTap: onNew),
-          ),
-          SideItem(
-            icon: Icons.search,
-            label: s.search,
-            hint: 'Ctrl F',
-            onTap: onSearch,
-          ),
-          const SizedBox(height: 10),
-          for (final screen in AppScreen.values)
-            if (!hidden.contains(screen))
-              SideItem(
-                icon: index == screen.index
-                    ? screenItems[screen.index].activeIcon
-                    : screenItems[screen.index].icon,
-                label: screenItems[screen.index].label(s),
-                selected: index == screen.index,
-                badge: screen.index == late && overdue > 0 ? overdue : null,
-                onTap: () => onSelected(screen.index),
+      child: BackgroundSurface(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 16, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Caldo',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    Dates.longDay(DateTime.now()),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: p.faint, fontSize: 12.5),
+                  ),
+                ],
               ),
-          const SizedBox(height: 14),
-          Expanded(
-            child: _Groups(
-              // A group picked from a screen that does not go by groups
-              // goes to one that does: the click was to see its tasks.
-              onPicked: () {
-                if (index > AppScreen.board.index) {
-                  onSelected(
-                    AppScreen.values
-                        .firstWhere((s) => !hidden.contains(s))
-                        .index,
-                  );
-                }
-              },
             ),
-          ),
-          Divider(height: 1, color: p.border),
-          const SizedBox(height: 6),
-          SideItem(
-            icon: index == _settings
-                ? screenItems[_settings].activeIcon
-                : screenItems[_settings].icon,
-            label: s.settings,
-            selected: index == _settings,
-            onTap: () => onSelected(_settings),
-          ),
-          const SizedBox(height: 8),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              child: _NewTask(onTap: onNew),
+            ),
+            SideItem(
+              icon: Icons.search,
+              label: s.search,
+              hint: 'Ctrl F',
+              onTap: onSearch,
+            ),
+            const SizedBox(height: 10),
+            for (final screen in AppScreen.values)
+              if (!hidden.contains(screen))
+                SideItem(
+                  icon: index == screen.index
+                      ? screenItems[screen.index].activeIcon
+                      : screenItems[screen.index].icon,
+                  label: screenItems[screen.index].label(s),
+                  selected: index == screen.index,
+                  badge: screen.index == late && overdue > 0 ? overdue : null,
+                  onTap: () => onSelected(screen.index),
+                ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: _Groups(
+                // A group picked from a screen that does not go by groups
+                // goes to one that does: the click was to see its tasks.
+                onPicked: () {
+                  if (index > AppScreen.board.index) {
+                    onSelected(
+                      AppScreen.values
+                          .firstWhere((s) => !hidden.contains(s))
+                          .index,
+                    );
+                  }
+                },
+              ),
+            ),
+            Divider(height: 1, color: p.border),
+            const SizedBox(height: 6),
+            SideItem(
+              icon: index == _settings
+                  ? screenItems[_settings].activeIcon
+                  : screenItems[_settings].icon,
+              label: s.settings,
+              selected: index == _settings,
+              onTap: () => onSelected(_settings),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

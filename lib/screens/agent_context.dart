@@ -134,7 +134,7 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(text, style: TextStyle(color: p.faint, fontSize: 12.5)),
     );
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -311,7 +311,7 @@ class _ProjectHistoryScreenState extends State<ProjectHistoryScreen> {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final versions = _versions;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -442,7 +442,7 @@ class _VersionScreenState extends State<_VersionScreen> {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final v = widget.version;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -649,7 +649,7 @@ class _ContextEditorState extends State<_ContextEditor> {
   Widget build(BuildContext context) {
     final s = S.of(context);
     final p = AppTheme.of(context);
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       // The field ends above the keys by [KeyboardGap] alone.
       resizeToAvoidBottomInset: false,

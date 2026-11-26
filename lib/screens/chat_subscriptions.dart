@@ -185,7 +185,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final error = widget.sub?.error;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,

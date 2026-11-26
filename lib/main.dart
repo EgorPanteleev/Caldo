@@ -25,6 +25,7 @@ import 'services/updates.dart';
 import 'theme/app_theme.dart';
 import 'theme/tweaks.dart';
 import 'utils/platform.dart';
+import 'widgets/background_surface.dart';
 import 'widgets/desk.dart';
 import 'widgets/perf_hud.dart';
 import 'widgets/quick_add_bar.dart';
@@ -127,8 +128,14 @@ class CaldoApp extends StatelessWidget {
             title: 'Caldo',
             debugShowCheckedModeBanner: false,
             showPerformanceOverlay: PerfHud.graphsDrawn,
-            theme: AppTheme.light(settings.accent),
-            darkTheme: AppTheme.dark(settings.accent),
+            theme: AppTheme.light(
+              settings.accent,
+              background: settings.background,
+            ),
+            darkTheme: AppTheme.dark(
+              settings.accent,
+              background: settings.background,
+            ),
             themeMode: settings.themeMode,
             locale: settings.locale,
             supportedLocales: S.supported,
@@ -245,7 +252,7 @@ class PhoneWide extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final width = on ? PhoneWide.width : double.infinity;
-    return ColoredBox(
+    return BackgroundSurface(
       color: AppTheme.of(context).bg,
       child: Center(
         // The menu slides in from beyond the app's edge, and stays beyond

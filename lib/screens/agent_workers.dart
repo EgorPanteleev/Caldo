@@ -59,7 +59,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
       (accountsByWorker[account.workerId] ??= []).add(account);
     }
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,

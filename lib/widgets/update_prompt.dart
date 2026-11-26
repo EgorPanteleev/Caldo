@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../l10n/strings.dart';
 import '../services/updates.dart';
 import '../theme/app_theme.dart';
+import 'background_surface.dart';
 
 /// Places a regular update above whichever route the user is working in.
 class UpdatePrompt extends StatefulWidget {
@@ -207,7 +208,7 @@ class UpdateWall extends StatelessWidget {
     final accent = AppTheme.accentOf(context).color;
     final s = S.of(context);
     final updates = Updates.instance;
-    return Scaffold(
+    return AppScaffold(
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

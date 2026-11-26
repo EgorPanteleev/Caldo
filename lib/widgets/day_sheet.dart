@@ -9,6 +9,7 @@ import '../providers/task_provider.dart';
 import '../screens/task_edit_screen.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import 'background_surface.dart';
 import 'groups.dart';
 import 'quick_add_bar.dart';
 import 'reorderable_task_list.dart';
@@ -144,68 +145,70 @@ class _DaySheetState extends State<_DaySheet> {
       color: p.panel,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Container(
-              width: 38,
-              height: 4,
-              decoration: BoxDecoration(
-                color: p.border,
-                borderRadius: BorderRadius.circular(2),
+      child: BackgroundSurface(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: p.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          _Header(
-            day: day,
-            open: open,
-            empty: tasks.isEmpty,
-            onFullForm: () => _openEditor(),
-          ),
-          Flexible(
-            child: tasks.isEmpty && holidays.isEmpty && events.isEmpty
-                // A line, not the placeholder the screens use: an icon and
-                // two sentences would make the empty day the tallest sheet.
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
-                    child: Text(
-                      S.of(context).nothingOnDay,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: p.faint, fontSize: 14),
+            _Header(
+              day: day,
+              open: open,
+              empty: tasks.isEmpty,
+              onFullForm: () => _openEditor(),
+            ),
+            Flexible(
+              child: tasks.isEmpty && holidays.isEmpty && events.isEmpty
+                  // A line, not the placeholder the screens use: an icon and
+                  // two sentences would make the empty day the tallest sheet.
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                      child: Text(
+                        S.of(context).nothingOnDay,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: p.faint, fontSize: 14),
+                      ),
+                    )
+                  : _faded(
+                      p.panel,
+                      ReorderableTaskList(
+                        shrinkWrap: true,
+                        dense: true,
+                        ground: p.panel,
+                        padding: const EdgeInsets.only(top: 2, bottom: 4),
+                        holidays: holidays,
+                        events: events,
+                        day: day,
+                        tasks: tasks,
+                        listOf: (t) => provider.listById(t.listId),
+                        onOpen: _openEditor,
+                        onToggle: (task) => tickOff(context, task),
+                        isLeaving: provider.isLeaving,
+                        isTicking: provider.isTicking,
+                        rearranging: provider.rearranging,
+                        scope: 'sheet',
+                        onReorder: provider.reorder,
+                      ),
                     ),
-                  )
-                : _faded(
-                    p.panel,
-                    ReorderableTaskList(
-                      shrinkWrap: true,
-                      dense: true,
-                      ground: p.panel,
-                      padding: const EdgeInsets.only(top: 2, bottom: 4),
-                      holidays: holidays,
-                      events: events,
-                      day: day,
-                      tasks: tasks,
-                      listOf: (t) => provider.listById(t.listId),
-                      onOpen: _openEditor,
-                      onToggle: (task) => tickOff(context, task),
-                      isLeaving: provider.isLeaving,
-                      isTicking: provider.isTicking,
-                      rearranging: provider.rearranging,
-                      scope: 'sheet',
-                      onReorder: provider.reorder,
-                    ),
-                  ),
-          ),
-          QuickAddBar(
-            date: day,
-            controller: _quickAdd,
-            onSubmit: _addQuickTask,
-            onFullForm: () => _openEditor(),
-          ),
-          SizedBox(height: view.viewPadding.bottom),
-        ],
+            ),
+            QuickAddBar(
+              date: day,
+              controller: _quickAdd,
+              onSubmit: _addQuickTask,
+              onFullForm: () => _openEditor(),
+            ),
+            SizedBox(height: view.viewPadding.bottom),
+          ],
+        ),
       ),
     );
 

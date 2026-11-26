@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -13,6 +12,7 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../services/device_calendars.dart';
 import '../theme/app_theme.dart';
+import '../theme/grain.dart';
 import '../theme/tweaks.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -50,7 +50,7 @@ class TaskCard extends StatelessWidget {
   static const doneInk = 0.0945;
 
   /// The grain (`tool/make_grain.py`): white, its alpha around half.
-  static const grain = AssetImage('assets/grain.png');
+  static const grain = Grain.asset;
 
   /// Laid at this, the grain is a white of about 3.4% varying by 1.5%:
   /// the whole of the frost. Picked from pictures over none, then raised
@@ -1306,66 +1306,19 @@ class _CardPanePainter extends BoxPainter {
     }
     canvas.drawRRect(shape, Paint()..color = pane.ink);
     if (pane.frost <= 0) return;
-    final grain = _Grain.image;
-    if (grain == null) {
-      _Grain.wait(onChanged);
-      return;
-    }
-    // One of the grain's pixels to each of the screen's, from the card's
-    // corner, and unfiltered, so it stays as fine and sharp as it was
-    // picked: scaled, the smoothing blurred it.
-    final s = 1 / (configuration.devicePixelRatio ?? 1);
-    final place = Float64List.fromList([
-      s, 0, 0, 0, //
-      0, s, 0, 0,
-      0, 0, 1, 0,
-      rect.left, rect.top, 0, 1,
-    ]);
-    canvas.drawRRect(
+    if (!Grain.draw(
+      canvas,
       shape,
-      Paint()
-        // With a shader, the colour gives only its alpha.
-        ..color = Color.fromRGBO(255, 255, 255, pane.frost)
-        ..shader = ImageShader(
-          grain,
-          TileMode.repeated,
-          TileMode.repeated,
-          place,
-          filterQuality: FilterQuality.none,
-        ),
-    );
+      configuration.devicePixelRatio ?? 1,
+      pane.frost,
+    )) {
+      Grain.wait(onChanged);
+    }
   }
 
   @override
   void dispose() {
-    _Grain.forget(onChanged);
+    Grain.forget(onChanged);
     super.dispose();
   }
-}
-
-/// [TaskCard.grain], decoded once for every card. A pane painted before it
-/// is ready lays no grain and is painted again once it is.
-abstract final class _Grain {
-  static ui.Image? image;
-  static ImageStream? _stream;
-  static final _waiting = <VoidCallback>{};
-
-  static void wait(VoidCallback? then) {
-    if (then != null) _waiting.add(then);
-    if (_stream != null) return;
-    // Listened to for good, so the image is never let go of.
-    _stream = TaskCard.grain.resolve(ImageConfiguration.empty)
-      ..addListener(
-        ImageStreamListener((info, _) {
-          image = info.image;
-          final waiting = [..._waiting];
-          _waiting.clear();
-          for (final then in waiting) {
-            then();
-          }
-        }),
-      );
-  }
-
-  static void forget(VoidCallback? then) => _waiting.remove(then);
 }

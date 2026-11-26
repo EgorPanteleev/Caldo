@@ -7,6 +7,7 @@ import '../models/secret.dart';
 import '../providers/vault_provider.dart';
 import '../services/vault_device.dart';
 import '../theme/app_theme.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom, KeyboardRoom;
@@ -137,7 +138,7 @@ class _VaultState extends State<_Vault> with WidgetsBindingObserver {
     final p = AppTheme.of(context);
     final vault = context.watch<VaultProvider>();
     final open = vault.state == VaultState.open;
-    return Scaffold(
+    return AppScaffold(
       // Each screen decides what the keyboard does to it (the shell); this
       // one's fields are at the top, and the rest can be scrolled up to.
       resizeToAvoidBottomInset: false,

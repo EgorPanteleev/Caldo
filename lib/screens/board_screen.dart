@@ -13,6 +13,7 @@ import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/attachments_field.dart' show AttachmentMark;
+import '../widgets/background_surface.dart';
 import '../widgets/desk.dart';
 import '../widgets/quick_add_bar.dart' show BarRoom;
 import '../widgets/groups.dart';
@@ -205,7 +206,7 @@ class _BoardScreenState extends State<BoardScreen> {
     // groups are in the sidebar.
     final wide = Desk.wideOf(context);
 
-    return Scaffold(
+    return AppScaffold(
       body: SafeArea(
         // Under the status bar only the screens whose head is glass
         // ([GlassTop]); the lanes scroll inside themselves, under nothing.
@@ -437,58 +438,77 @@ class _Column extends StatelessWidget {
             width: 1.5,
           ),
         ),
-        child: LayoutBuilder(
-          builder: (context, box) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // The name stands over the titles, in line with them.
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  _Board.inset + BoardCard.padding,
-                  16,
-                  _Board.inset + BoardCard.padding,
-                  14,
-                ),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(text: nameOf(s, stage).toUpperCase()),
-                      TextSpan(text: '   ${tasks.length}'),
-                    ],
+        child: BackgroundSurface(
+          radius: BorderRadius.circular(_Board.laneRadius - 1.5),
+          child: LayoutBuilder(
+            builder: (context, box) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // The name stands over the titles, in line with them.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    _Board.inset + BoardCard.padding,
+                    16,
+                    _Board.inset + BoardCard.padding,
+                    14,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: header,
-                ),
-              ),
-              Expanded(
-                child: _FadeFoot(
-                  child: ListView.builder(
-                    // Room to scroll the last card clear of the fade, and
-                    // of the tab bar the lanes run on under.
-                    padding: EdgeInsets.fromLTRB(
-                      _Board.inset,
-                      0,
-                      _Board.inset,
-                      28 + BarRoom.of(context),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: nameOf(s, stage).toUpperCase()),
+                        TextSpan(text: '   ${tasks.length}'),
+                      ],
                     ),
-                    itemCount: tasks.length,
-                    itemBuilder: (context, i) {
-                      final task = tasks[i];
-                      final card = BoardCard(
-                        task: task,
-                        list: provider.listById(task.listId),
-                        onTap: () => onTap(task),
-                      );
-                      final lifted = _Lifted(
-                        width: box.maxWidth - 2 * _Board.inset,
-                        child: card,
-                      );
-                      final left = Opacity(opacity: 0.3, child: card);
-                      if (byMouse) {
-                        return MouseDraggable<Task>(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: header,
+                  ),
+                ),
+                Expanded(
+                  child: _FadeFoot(
+                    child: ListView.builder(
+                      // Room to scroll the last card clear of the fade, and
+                      // of the tab bar the lanes run on under.
+                      padding: EdgeInsets.fromLTRB(
+                        _Board.inset,
+                        0,
+                        _Board.inset,
+                        28 + BarRoom.of(context),
+                      ),
+                      itemCount: tasks.length,
+                      itemBuilder: (context, i) {
+                        final task = tasks[i];
+                        final card = BoardCard(
+                          task: task,
+                          list: provider.listById(task.listId),
+                          onTap: () => onTap(task),
+                        );
+                        final lifted = _Lifted(
+                          width: box.maxWidth - 2 * _Board.inset,
+                          child: card,
+                        );
+                        final left = Opacity(opacity: 0.3, child: card);
+                        if (byMouse) {
+                          return MouseDraggable<Task>(
+                            key: ValueKey(task.id),
+                            data: task,
+                            onDragStarted: () => onLift(task),
+                            onDragUpdate: (d) =>
+                                finger.value = d.globalPosition.dx,
+                            onDragEnd: (_) => onPutDown(),
+                            feedback: lifted,
+                            childWhenDragging: left,
+                            child: card,
+                          );
+                        }
+                        return LongPressDraggable<Task>(
                           key: ValueKey(task.id),
                           data: task,
+                          // Quicker than the platform's long press, which made
+                          // every move start with a wait; a finger that moves
+                          // first is still a scroll.
+                          delay: _Board.pickUp,
+                          hapticFeedbackOnStart: true,
                           onDragStarted: () => onLift(task),
                           onDragUpdate: (d) =>
                               finger.value = d.globalPosition.dx,
@@ -497,27 +517,12 @@ class _Column extends StatelessWidget {
                           childWhenDragging: left,
                           child: card,
                         );
-                      }
-                      return LongPressDraggable<Task>(
-                        key: ValueKey(task.id),
-                        data: task,
-                        // Quicker than the platform's long press, which made
-                        // every move start with a wait; a finger that moves
-                        // first is still a scroll.
-                        delay: _Board.pickUp,
-                        hapticFeedbackOnStart: true,
-                        onDragStarted: () => onLift(task),
-                        onDragUpdate: (d) => finger.value = d.globalPosition.dx,
-                        onDragEnd: (_) => onPutDown(),
-                        feedback: lifted,
-                        childWhenDragging: left,
-                        child: card,
-                      );
-                    },
+                      },
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

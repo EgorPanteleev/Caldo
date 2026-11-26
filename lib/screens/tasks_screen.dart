@@ -9,6 +9,7 @@ import '../services/device_calendars.dart';
 import '../providers/task_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
+import '../widgets/background_surface.dart';
 import '../widgets/carry.dart';
 import '../widgets/desk.dart';
 import '../widgets/glass.dart';
@@ -171,7 +172,7 @@ class _TasksScreenState extends State<TasksScreen> {
     // cards picked out here are dealt with there.
     return SelectionScope(
       child: UndoScope(
-        child: Scaffold(
+        child: AppScaffold(
           // The run keeps the height it had and the field is carried up over it,
           // the same way the calendar does it — one mechanism, so the two screens
           // cannot disagree about how a field meets a keyboard. A resizing
@@ -320,7 +321,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 // a slot of its own below it.
                 if (!overBar)
                   KeyboardLift(
-                    child: ColoredBox(color: p.bg, child: field),
+                    child: BackgroundSurface(color: p.bg, child: field),
                   ),
               ],
             ),

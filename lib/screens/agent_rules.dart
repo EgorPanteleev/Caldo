@@ -36,7 +36,7 @@ class _RulesScreenState extends State<RulesScreen> {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final rules = _agents.rules;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,
@@ -222,7 +222,7 @@ class _RuleScreenState extends State<RuleScreen> {
   Widget build(BuildContext context) {
     final s = S.of(context);
     final p = AppTheme.of(context);
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: p.bg,
       body: SafeArea(
         maintainBottomViewPadding: true,
