@@ -508,6 +508,9 @@ const Map<String, Object> be = {
   'chatsStarted': ["Пачаты {n} чат", "Пачата {n} чаты", "Пачата {n} чатаў"],
   'chatDefault': "Па змаўчанні",
   'chatOffline': "не ў сетцы",
+  'chatAway': "Не ў сетцы",
+  'chatAwayHint':
+      "{name} не ў сетцы з {when}. Адпраўленае сюды пачакае, пакуль яго воркер зноў не запусціцца.",
   'chatOther': "Іншая…",
   'chatMessage': "Паведамленне",
   'chatStop': "Спыніць",

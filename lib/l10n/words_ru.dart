@@ -506,6 +506,9 @@ const Map<String, Object> ru = {
   'chatsStarted': ["Начат {n} чат", "Начато {n} чата", "Начато {n} чатов"],
   'chatDefault': "По умолчанию",
   'chatOffline': "не в сети",
+  'chatAway': "Не в сети",
+  'chatAwayHint':
+      "{name} не в сети с {when}. Отправленное сюда подождёт, пока его воркер снова не запустится.",
   'chatOther': "Другая…",
   'chatMessage': "Сообщение",
   'chatStop': "Остановить",

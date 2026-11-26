@@ -1564,6 +1564,42 @@ void main() {
     await drainDatabase(tester);
   });
 
+  testWidgets('Schedule draws a line between a day\'s open and done tasks', (
+    tester,
+  ) async {
+    final provider = await pumpScreen(tester, const TasksScreen());
+    final today = dayOf(DateTime.now());
+    final tomorrow = today.add(const Duration(days: 1));
+    await tester.runAsync(() async {
+      final listId = provider.lists.first.id!;
+      Future<void> add(String title, DateTime day, {bool done = false}) =>
+          provider.add(
+            Task(
+              listId: listId,
+              title: title,
+              dueAt: day.millisecondsSinceEpoch,
+              done: done,
+              completedAt: done ? DateTime.now().millisecondsSinceEpoch : null,
+              createdAt: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+      await add('Still to do', today);
+      await add('Ticked one', today, done: true);
+      await add('Ticked two', today, done: true);
+      // Nothing open to tell these from: no line.
+      await add('All done', tomorrow, done: true);
+    });
+    await tester.pumpAndSettle();
+
+    final line = find.byType(DoneDivider);
+    expect(line, findsOneWidget);
+    expect(tester.widget<DoneDivider>(line).count, 2);
+    double top(Finder f) => tester.getTopLeft(f).dy;
+    expect(top(line), greaterThan(top(find.text('Still to do'))));
+    expect(top(line), lessThan(top(find.text('Ticked one'))));
+    await drainDatabase(tester);
+  });
+
   testWidgets('the calendar offers a way back to today and a way to search', (
     tester,
   ) async {

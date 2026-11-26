@@ -494,6 +494,9 @@ const Map<String, Object> de = {
   'chatsStarted': ["{n} Chat gestartet", "{n} Chats gestartet"],
   'chatDefault': "Standard",
   'chatOffline': "offline",
+  'chatAway': "Offline",
+  'chatAwayHint':
+      "{name} ist seit {when} offline. Was du hier sendest, wartet, bis sein Worker wieder läuft.",
   'chatOther': "Andere…",
   'chatMessage': "Nachricht",
   'chatStop': "Stoppen",

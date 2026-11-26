@@ -22,6 +22,8 @@ cat > "$bin/caldo-mcp" <<SH
 exec "$dart" "$opt/caldo-mcp.dill" "\$@"
 SH
 chmod +x "$bin/caldo-mcp"
+# Agents wait on it for memory before builds, tests and emulators.
+install -m 755 "$here/tool/mcp/room.sh" "$bin/caldo-room"
 
 echo "Installed $bin/caldo-mcp."
 echo "Next: caldo-mcp login, then register with your client:"

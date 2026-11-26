@@ -292,24 +292,31 @@ class _Results extends StatelessWidget {
       for (final day in past.keys.toList()..sort((a, b) => b.compareTo(a)))
         (dated(day), past[day]!),
     ];
+    Widget card(Task task) => AsShown(
+      task: task,
+      builder: (context, shown) => TaskCard(
+        task: shown,
+        list: provider.listById(task.listId),
+        onTap: () => onOpen(task),
+        onToggle: () => tickOff(context, shown),
+        ticking: provider.isTicking(task),
+        leaving: provider.isLeaving(task, fromOverdue: overdue.contains(task)),
+      ),
+    );
+    // Open before done in each run, the done ones under a line, as on
+    // Schedule — where there are open ones to tell them from.
     final rows = <Widget Function()>[
       for (final (heading, tasks) in runs) ...[
         () => heading,
         for (final task in tasks)
-          () => AsShown(
-            task: task,
-            builder: (context, shown) => TaskCard(
-              task: shown,
-              list: provider.listById(task.listId),
-              onTap: () => onOpen(task),
-              onToggle: () => tickOff(context, shown),
-              ticking: provider.isTicking(task),
-              leaving: provider.isLeaving(
-                task,
-                fromOverdue: overdue.contains(task),
-              ),
-            ),
+          if (!task.done) () => card(task),
+        if (tasks.any((t) => !t.done) && tasks.any((t) => t.done))
+          () => DoneDivider(
+            count: tasks.where((t) => t.done).length,
+            fadesIn: false,
           ),
+        for (final task in tasks)
+          if (task.done) () => card(task),
       ],
     ];
     return ListView.builder(

@@ -476,6 +476,9 @@ const Map<String, Object> tr = {
   'chatsStarted': ["{n} sohbet başlatıldı"],
   'chatDefault': "Varsayılan",
   'chatOffline': "çevrimdışı",
+  'chatAway': "Çevrimdışı",
+  'chatAwayHint':
+      "{name}, {when} itibarıyla çevrimdışı. Buraya gönderdiklerin, oradaki worker yeniden çalışana kadar bekler.",
   'chatOther': "Diğer…",
   'chatMessage': "Mesaj",
   'chatStop': "Durdur",

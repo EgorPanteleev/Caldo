@@ -1157,6 +1157,75 @@ List<Widget> fixedCards(
   for (final event in events) EventCard(event: event, day: day, dense: dense),
 ];
 
+/// The line between a day's open tasks and the ones done, with how many
+/// are done. A done card sinks into the ground, but next to an open one
+/// of a pale colour the two read alike; this says where the open ones end.
+///
+/// Fades in when it first comes: it turns up as a tick's card slides down
+/// to the end of the day, and popping in under that card read as a jump.
+/// Not in a lazy list, where it is built again each time it is scrolled to.
+class DoneDivider extends StatefulWidget {
+  final int count;
+  final bool dense;
+  final bool fadesIn;
+
+  const DoneDivider({
+    super.key,
+    required this.count,
+    this.dense = false,
+    this.fadesIn = true,
+  });
+
+  @override
+  State<DoneDivider> createState() => _DoneDividerState();
+}
+
+class _DoneDividerState extends State<DoneDivider>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    // As long as the card's slide (`SlideIntoPlace`).
+    duration: const Duration(milliseconds: 260),
+    value: widget.fadesIn ? 0 : 1,
+  )..forward();
+
+  @override
+  void dispose() {
+    _fade.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    final style = TextStyle(
+      color: p.muted,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w600,
+      height: 1,
+    );
+    return FadeTransition(
+      opacity: _fade,
+      child: Padding(
+        // In line with the cards' titles' side, a little more room above
+        // than below so it reads as the head of what follows.
+        padding: widget.dense
+            ? const EdgeInsets.fromLTRB(20, 4, 20, 8)
+            : const EdgeInsets.fromLTRB(20, 8, 20, 10),
+        child: Row(
+          children: [
+            Text(S.of(context).done, style: style),
+            const SizedBox(width: 6),
+            Text('${widget.count}', style: style.copyWith(color: p.faint)),
+            const SizedBox(width: 10),
+            Expanded(child: Container(height: 1, color: p.border)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// The pane a card is drawn on: its ink, the grain over it and, picked out,
 /// a glow round it. A decoration of its own rather than a [BoxDecoration]
 /// with the grain as its image: that clips each card to its corners and

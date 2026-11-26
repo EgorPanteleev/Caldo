@@ -49,9 +49,11 @@ cat > "$slice" <<'UNIT'
 Description=Caldo agent chats and their tools
 
 [Slice]
-# Reclaim cache and throttle the workload before applying the hard limit.
+# A hard limit only. MemoryHigh (45%) was tried: with swap capped, the
+# kernel could only throttle above it, and everything in the slice stalled
+# (64 minutes fully stalled in two hours, a chat 7s to start). At the
+# limit one agent's scope is stopped (OOMPolicy=stop) instead.
 # Percentages refer to physical RAM.
-MemoryHigh=45%
 MemoryMax=65%
 MemorySwapMax=1G
 UNIT

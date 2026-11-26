@@ -479,6 +479,9 @@ const Map<String, Object> kk = {
   'chatsStarted': ["{n} чат басталды"],
   'chatDefault': "Әдепкі",
   'chatOffline': "желіде жоқ",
+  'chatAway': "Желіде жоқ",
+  'chatAwayHint':
+      "{name} {when} бастап желіде жоқ. Мұнда жібергеніңіз оның воркері қайта іске қосылғанша күтеді.",
   'chatOther': "Басқа…",
   'chatMessage': "Хабар",
   'chatStop': "Тоқтату",

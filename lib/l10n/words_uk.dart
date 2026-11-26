@@ -513,6 +513,9 @@ const Map<String, Object> uk = {
   'chatsStarted': ["Почато {n} чат", "Почато {n} чати", "Почато {n} чатів"],
   'chatDefault': "Типово",
   'chatOffline': "не в мережі",
+  'chatAway': "Не в мережі",
+  'chatAwayHint':
+      "{name} не в мережі з {when}. Надіслане сюди чекатиме, доки його воркер знову не запуститься.",
   'chatOther': "Інша…",
   'chatMessage': "Повідомлення",
   'chatStop': "Зупинити",
