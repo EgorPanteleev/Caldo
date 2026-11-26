@@ -183,7 +183,7 @@ class S {
   String get remove => _word('remove');
   String get undo => _word('undo');
 
-  // ---- The update banner ---------------------------------------------------
+  // ---- The update prompt ---------------------------------------------------
   String updateOut(String version) => _fill('updateOut', {'version': version});
   String downloading(int percent) => _fill('downloading', {'percent': percent});
   String get updateReady => _word('updateReady');

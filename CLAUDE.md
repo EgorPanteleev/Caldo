@@ -411,7 +411,7 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
 - **Platform font**, not Inter/google_fonts.
 - **Near-black ground (`#111112`), not true black**, shared by calendar,
   widget, reminder cover and system bars (`_barsOn`); neutral greys.
-- **Controls are neutral; accent is rare**: switches, Undo, update banner,
+- **Controls are neutral; accent is rare**: switches, Undo, update prompt,
   touched clock wheel, colour pickers. Tasks wear their own colour.
 - **Settings › Debug, admins only** (`Tweaks`, `theme/tweaks.dart`,
   `settings_debug.dart`, a `part` of settings; English only): every
@@ -520,13 +520,13 @@ find a task by name with `taskNamed` (`test/support/test_db.dart`).
   patterns; others use `intl` skeletons, capitalised. Kotlin uses
   `getBestDateTimePattern` and `values-xx/strings.xml`.
   `l10n_screens_test.dart` draws key screens in every language.
-- **Updates** (`services/updates.dart`, `widgets/update_banner.dart`,
+- **Updates** (`services/updates.dart`, `widgets/update_prompt.dart`,
   `caldo/updates`, `SelfUpdate.kt`): GitHub's releases vs installed
   (`Updates.pick`), the newest offered with every skipped release's notes.
-  Banner: version, Later + Update; tap opens What's new
-  (`showUpdateSheet`, `New:`/`- ` lines). Looked for on start and resume,
-  at most once a minute (`Updates.look`). **Later** stops looking until
-  restart; Settings › About keeps an "is out" row. **Notes holding
+  A centered modal (`UpdatePrompt`) blurs the current screen and opens
+  with What's new (`New:`/`- ` lines) and Later + Update. Looked for on
+  start and resume, at most once a minute (`Updates.look`). **Later**
+  hides it until restart; Settings › About can reopen it. **Notes holding
   `<!-- priority: high -->` make it urgent**: `UpdateWall` takes the
   navigator's place until installed (no Later; Back leaves), kept in prefs
   (`updateUrgent`), dropped when GitHub has nothing newer. Installs the
