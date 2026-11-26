@@ -114,6 +114,31 @@ void main() {
     expect(await db.getTasks(query: 'title'), isEmpty);
   });
 
+  test('clearing done tasks leaves an open subtask standing alone', () async {
+    final db = AppDatabase.instance;
+    final top = await db.insert(
+      const Task(listId: 1, title: 'Release', createdAt: 0),
+    );
+    await db.insert(
+      Task(listId: 1, title: 'Notes', createdAt: 1, parentId: top.id),
+    );
+    await db.insert(
+      Task(
+        listId: 1,
+        title: 'Tag',
+        createdAt: 2,
+        parentId: top.id,
+        done: true,
+      ),
+    );
+    await db.complete(top, 10);
+
+    expect(await db.clearCompleted(), 2);
+    final left = await db.getTasks();
+    expect(left.map((t) => t.title), ['Notes']);
+    expect(left.single.parentId, isNull);
+  });
+
   test('a subtask hangs from its parent and is deleted with it', () async {
     final db = AppDatabase.instance;
     final top = await db.insert(

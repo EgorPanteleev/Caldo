@@ -754,13 +754,17 @@ class TaskProvider extends ChangeNotifier {
   /// read back puts them.
   Future<void> setAllDone(List<Task> tasks, {required bool done}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    for (final task in tasks) {
-      if (task.done == done) continue;
-      if (done) {
-        await _db.complete(task, now);
-      } else {
-        await _db.untick(task.reopened());
-      }
+    final changing = [
+      for (final task in tasks)
+        if (task.done != done) task,
+    ];
+    if (done) {
+      await _db.completeAll(changing, now);
+    } else {
+      await _db.writeTasks(
+        [for (final task in changing) task.reopened()],
+        unticked: [for (final task in changing) ?task.id],
+      );
     }
     rearranging.value++;
     await _reloadAll();
@@ -777,6 +781,9 @@ class TaskProvider extends ChangeNotifier {
     Set<Task> later = const {},
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
+    // One transaction for the lot, as for every bulk change here.
+    final written = <Task>[];
+    final reopened = <int>[];
     for (final MapEntry(key: task, value: label) in sent.entries) {
       final started = later.contains(task)
           ? (task.done ? task.toStage(Stage.notStarted, now) : task)
@@ -787,8 +794,10 @@ class TaskProvider extends ChangeNotifier {
         agent: label,
         agentState: AgentState.waiting,
       );
-      task.done ? await _db.untick(marked) : await _db.update(marked);
+      written.add(marked);
+      if (task.done) reopened.add(task.id!);
     }
+    await _db.writeTasks(written, unticked: reopened);
     rearranging.value++;
     await _reloadAll();
   }
