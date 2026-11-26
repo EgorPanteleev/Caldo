@@ -668,12 +668,8 @@ const Map<String, Object> uk = {
   'usageDays': "Ліміт на {n} дн.",
   'usageHoursLimit': "Ліміт на {n} год",
   'usageWeekShort': "Тиждень",
-  'agentWorkers': "Комп’ютери",
-  'agentAccounts': "Акаунти",
+  'agentWorkersAndAccounts': "Комп’ютери й акаунти",
   'addAccount': "Додати акаунт",
-  'accountsNone': "Акаунтів поки немає",
-  'accountsNoneHint':
-      "Власні входи Claude і Codex кожного комп'ютера з'являться тут після перевстановлення його воркера. Додайте ще, щоб запускати чати під ними.",
   'accountsReinstall':
       "Перевстановіть caldo-mcp на комп'ютері (tool/mcp/install.sh і watch.sh), щоб додавати там акаунти.",
   'accountStarting': "Запуск…",

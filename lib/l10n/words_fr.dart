@@ -643,12 +643,8 @@ const Map<String, Object> fr = {
   'usageDays': "Limite sur {n} jours",
   'usageHoursLimit': "Limite sur {n} heures",
   'usageWeekShort': "Semaine",
-  'agentWorkers': "Ordinateurs",
-  'agentAccounts': "Comptes",
+  'agentWorkersAndAccounts': "Ordinateurs et comptes",
   'addAccount': "Ajouter un compte",
-  'accountsNone': "Aucun compte pour l'instant",
-  'accountsNoneHint':
-      "Les connexions Claude et Codex propres à chaque ordinateur apparaissent ici une fois son worker réinstallé. Ajoutez-en d'autres pour y lancer des chats.",
   'accountsReinstall':
       "Réinstallez caldo-mcp sur votre ordinateur (tool/mcp/install.sh et watch.sh) pour y ajouter des comptes.",
   'accountStarting': "Démarrage…",

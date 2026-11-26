@@ -642,12 +642,8 @@ const Map<String, Object> nl = {
   'usageDays': "Limiet per {n} dagen",
   'usageHoursLimit': "Limiet per {n} uur",
   'usageWeekShort': "Week",
-  'agentWorkers': "Computers",
-  'agentAccounts': "Accounts",
+  'agentWorkersAndAccounts': "Computers en accounts",
   'addAccount': "Account toevoegen",
-  'accountsNone': "Nog geen accounts",
-  'accountsNoneHint':
-      "De eigen Claude- en Codex-aanmeldingen van elke computer verschijnen hier zodra de worker opnieuw is geïnstalleerd. Voeg er meer toe om chats onder te draaien.",
   'accountsReinstall':
       "Installeer caldo-mcp opnieuw op je computer (tool/mcp/install.sh en watch.sh) om daar accounts toe te voegen.",
   'accountStarting': "Starten…",

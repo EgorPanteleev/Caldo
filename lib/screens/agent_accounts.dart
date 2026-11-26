@@ -1,122 +1,12 @@
 part of 'agents_screen.dart';
 
-/// The Claude and Codex accounts chats run under, by computer: each
-/// worker's own login, and more signed into from here (asked as "add
-/// accounts of claude and codex, see list of it and its usages, then also
-/// select it when creating" a chat). Each shows its limits as its worker
-/// last read them, every few minutes, not as a chat last heard them.
-class AccountsScreen extends StatefulWidget {
-  const AccountsScreen({super.key});
-
-  @override
-  State<AccountsScreen> createState() => _AccountsScreenState();
-}
-
-class _AccountsScreenState extends State<AccountsScreen> {
-  final _agents = Agents.instance;
-  Timer? _tick;
-
-  @override
-  void initState() {
-    super.initState();
-    _agents.addListener(_changed);
-    _agents.watch();
-    // A limit's window starting again is told by the clock alone.
-    _tick = Timer.periodic(const Duration(minutes: 1), (_) => _changed());
-  }
-
-  @override
-  void dispose() {
-    _tick?.cancel();
-    _agents.removeListener(_changed);
-    _agents.unwatch();
-    super.dispose();
-  }
-
-  void _changed() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = S.of(context);
-    final p = AppTheme.of(context);
-    final workers = [
-      for (final w in _agents.workers)
-        if (_agents.accounts.any((a) => a.workerId == w.id)) w,
-    ];
-    return Scaffold(
-      backgroundColor: p.bg,
-      body: SafeArea(
-        maintainBottomViewPadding: true,
-        child: Column(
-          children: [
-            DeskColumn(
-              child: ScreenHeader(
-                title: s.agentAccounts,
-                showBack: true,
-                actions: [
-                  if (_accountWorkers(_agents).isNotEmpty)
-                    IconButton(
-                      icon: Icon(Icons.add, color: p.muted),
-                      tooltip: s.addAccount,
-                      onPressed: () => openNewAccount(context),
-                    ),
-                  const SizedBox(width: 6),
-                ],
-              ),
-            ),
-            Expanded(
-              child: workers.isEmpty
-                  ? EmptyState(
-                      icon: Icons.account_circle_outlined,
-                      title: s.accountsNone,
-                      message: s.accountsNoneHint,
-                    )
-                  : DeskGutter(
-                      builder: (context, gutter) => ListView(
-                        padding: EdgeInsets.fromLTRB(
-                          16 + gutter,
-                          0,
-                          16 + gutter,
-                          24,
-                        ),
-                        children: [
-                          for (final w in workers) ...[
-                            _Section(
-                              w.online
-                                  ? w.name
-                                  : '${w.name} · ${s.chatOffline}',
-                            ),
-                            for (final a in _agents.accounts)
-                              if (a.workerId == w.id)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: _AccountCard(account: a, worker: w),
-                                ),
-                          ],
-                        ],
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-Future<void> openAccounts(BuildContext context) => Navigator.of(
-  context,
-).push(MaterialPageRoute<void>(builder: (_) => const AccountsScreen()));
-
 /// A new account asked for: [worker] and [agent] chosen first, if given.
-Future<void> openNewAccount(
+Future<String?> openNewAccount(
   BuildContext context, {
   String? worker,
   String? agent,
 }) => Navigator.of(context).push(
-  MaterialPageRoute<void>(
+  MaterialPageRoute<String>(
     builder: (_) => NewAccountScreen(worker: worker, agent: agent),
   ),
 );
@@ -549,16 +439,22 @@ class _NewAccountScreenState extends State<NewAccountScreen> {
     if (worker == null || agent == null) return;
     setState(() => _adding = true);
     try {
-      await _agents.addAccount(worker: worker, agent: agent, name: _name.text);
+      final account = await _agents.addAccount(
+        worker: worker,
+        agent: agent,
+        name: _name.text,
+      );
       if (!mounted) return;
       final navigator = Navigator.of(context);
       // From the list, back to it; from a chat's form, on to the list,
       // where the sign-in is shown.
       if (widget.worker == null) {
-        navigator.pop();
+        navigator.pop(account.id);
       } else {
         await navigator.pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const AccountsScreen()),
+          MaterialPageRoute<void>(
+            builder: (_) => WorkersScreen(accountId: account.id),
+          ),
         );
       }
     } catch (e) {

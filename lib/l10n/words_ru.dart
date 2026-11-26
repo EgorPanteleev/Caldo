@@ -660,12 +660,8 @@ const Map<String, Object> ru = {
   'usageDays': "Лимит на {n} дн.",
   'usageHoursLimit': "Лимит на {n} ч",
   'usageWeekShort': "Неделя",
-  'agentWorkers': "Компьютеры",
-  'agentAccounts': "Аккаунты",
+  'agentWorkersAndAccounts': "Компьютеры и аккаунты",
   'addAccount': "Добавить аккаунт",
-  'accountsNone': "Аккаунтов пока нет",
-  'accountsNoneHint':
-      "Собственные входы Claude и Codex каждого компьютера появятся здесь после переустановки его воркера. Добавьте ещё, чтобы запускать чаты под ними.",
   'accountsReinstall':
       "Переустановите caldo-mcp на компьютере (tool/mcp/install.sh и watch.sh), чтобы добавлять там аккаунты.",
   'accountStarting': "Запуск…",

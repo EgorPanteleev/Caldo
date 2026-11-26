@@ -673,12 +673,8 @@ const Map<String, Object> pl = {
   'usageDays': "Limit {n}-dniowy",
   'usageHoursLimit': "Limit {n}-godzinny",
   'usageWeekShort': "Tydzień",
-  'agentWorkers': "Komputery",
-  'agentAccounts': "Konta",
+  'agentWorkersAndAccounts': "Komputery i konta",
   'addAccount': "Dodaj konto",
-  'accountsNone': "Brak kont",
-  'accountsNoneHint':
-      "Własne logowania Claude i Codex każdego komputera pojawią się tu po ponownej instalacji jego workera. Dodaj kolejne, by uruchamiać w nich czaty.",
   'accountsReinstall':
       "Zainstaluj ponownie caldo-mcp na komputerze (tool/mcp/install.sh i watch.sh), by dodawać tam konta.",
   'accountStarting': "Uruchamianie…",

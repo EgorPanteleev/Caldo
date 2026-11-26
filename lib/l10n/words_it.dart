@@ -643,12 +643,8 @@ const Map<String, Object> it = {
   'usageDays': "Limite di {n} giorni",
   'usageHoursLimit': "Limite di {n} ore",
   'usageWeekShort': "Settimana",
-  'agentWorkers': "Computer",
-  'agentAccounts': "Account",
+  'agentWorkersAndAccounts': "Computer e account",
   'addAccount': "Aggiungi account",
-  'accountsNone': "Ancora nessun account",
-  'accountsNoneHint':
-      "Gli accessi Claude e Codex di ogni computer compaiono qui una volta reinstallato il suo worker. Aggiungine altri per eseguirci delle chat.",
   'accountsReinstall':
       "Reinstalla caldo-mcp sul computer (tool/mcp/install.sh e watch.sh) per aggiungervi account.",
   'accountStarting': "Avvio…",

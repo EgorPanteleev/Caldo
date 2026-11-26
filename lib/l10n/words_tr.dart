@@ -626,12 +626,8 @@ const Map<String, Object> tr = {
   'usageDays': "{n} günlük sınır",
   'usageHoursLimit': "{n} saatlik sınır",
   'usageWeekShort': "Hafta",
-  'agentWorkers': "Bilgisayarlar",
-  'agentAccounts': "Hesaplar",
+  'agentWorkersAndAccounts': "Bilgisayarlar ve hesaplar",
   'addAccount': "Hesap ekle",
-  'accountsNone': "Henüz hesap yok",
-  'accountsNoneHint':
-      "Her bilgisayarın kendi Claude ve Codex girişleri, worker'ı yeniden kurulunca burada görünür. Sohbetleri onlarla çalıştırmak için daha fazlasını ekleyin.",
   'accountsReinstall':
       "Oraya hesap eklemek için bilgisayarınızda caldo-mcp'yi yeniden kurun (tool/mcp/install.sh ve watch.sh).",
   'accountStarting': "Başlatılıyor…",

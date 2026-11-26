@@ -663,12 +663,8 @@ const Map<String, Object> be = {
   'usageDays': "Ліміт на {n} дз.",
   'usageHoursLimit': "Ліміт на {n} г",
   'usageWeekShort': "Тыдзень",
-  'agentWorkers': "Камп’ютары",
-  'agentAccounts': "Акаўнты",
+  'agentWorkersAndAccounts': "Камп’ютары і акаўнты",
   'addAccount': "Дадаць акаўнт",
-  'accountsNone': "Акаўнтаў пакуль няма",
-  'accountsNoneHint':
-      "Уласныя ўваходы Claude і Codex кожнага камп'ютара з'явяцца тут пасля пераўсталёўкі яго воркера. Дадайце яшчэ, каб запускаць чаты пад імі.",
   'accountsReinstall':
       "Пераўсталюйце caldo-mcp на камп'ютары (tool/mcp/install.sh і watch.sh), каб дадаваць там акаўнты.",
   'accountStarting': "Запуск…",
