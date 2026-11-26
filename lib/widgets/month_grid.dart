@@ -491,6 +491,7 @@ class _MonthGridState extends State<MonthGrid>
                               (widget.lastDate == null ||
                                   !day.isAfter(widget.lastDate!));
                           return _DayCell(
+                            key: ValueKey(day),
                             day: day,
                             inMonth: day.month == widget.month.month,
                             isToday: day == today,
@@ -804,6 +805,7 @@ class _DayCell extends StatelessWidget {
   final void Function(Task task, DateTime day)? onMove;
 
   const _DayCell({
+    super.key,
     required this.day,
     required this.inMonth,
     required this.isToday,
