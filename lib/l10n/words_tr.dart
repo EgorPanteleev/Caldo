@@ -626,7 +626,7 @@ const Map<String, Object> tr = {
   'usageDays': "{n} günlük sınır",
   'usageHoursLimit': "{n} saatlik sınır",
   'usageWeekShort': "Hafta",
-  'agentWorkersAndAccounts': "Bilgisayarlar ve hesaplar",
+  'agentAccounts': "Hesaplar",
   'addAccount': "Hesap ekle",
   'accountsReinstall':
       "Oraya hesap eklemek için bilgisayarınızda caldo-mcp'yi yeniden kurun (tool/mcp/install.sh ve watch.sh).",

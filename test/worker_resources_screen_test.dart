@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Workers and Accounts groups metrics and logins by worker', (
+  testWidgets('Accounts groups and aligns worker and account cards', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(340, 640);
@@ -78,12 +78,10 @@ void main() {
     );
     final s = S.forCode('en');
     final title = find.byKey(screenTitleKey);
-    expect(find.byTooltip('Workers'), findsNothing);
-    expect(find.byTooltip('Accounts'), findsNothing);
-    await tester.tap(find.byTooltip(s.agentWorkersAndAccounts));
+    await tester.tap(find.byTooltip('Accounts'));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<Text>(title).data, s.agentWorkersAndAccounts);
+    expect(tester.widget<Text>(title).data, 'Accounts');
     expect(find.text('Desk'), findsOneWidget);
     expect(find.text('Away · offline'), findsOneWidget);
     expect(find.text('25%'), findsOneWidget);
@@ -95,6 +93,13 @@ void main() {
     expect(top('Work login'), lessThan(top('Away · offline')));
     expect(top('Away · offline'), lessThan(top('Personal login')));
     expect(top('Personal login'), lessThan(top('Upgraded server')));
+    Rect cardRect(String label, Type type) => tester.getRect(
+      find.ancestor(of: find.text(label), matching: find.byType(type)).first,
+    );
+    final workerCard = cardRect('Desk', DecoratedBox);
+    final accountCard = cardRect('Work login', Material);
+    expect(accountCard.left, workerCard.left);
+    expect(accountCard.right, workerCard.right);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byTooltip(s.addAccount));
@@ -103,7 +108,7 @@ void main() {
     expect(find.text(s.accountAddHint('Desk')), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back));
     await tester.pumpAndSettle();
-    expect(tester.widget<Text>(title).data, s.agentWorkersAndAccounts);
+    expect(tester.widget<Text>(title).data, 'Accounts');
 
     tester.view.physicalSize = const Size(340, 275);
     await tester.pump();

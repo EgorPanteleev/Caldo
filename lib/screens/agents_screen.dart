@@ -393,7 +393,7 @@ class _AgentsScreenState extends State<AgentsScreen> {
               if (_agents.signedIn && _agents.workers.isNotEmpty)
                 IconButton(
                   icon: Icon(Icons.computer_outlined, color: p.muted),
-                  tooltip: s.agentWorkersAndAccounts,
+                  tooltip: s.agentAccounts,
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => const WorkersScreen(),

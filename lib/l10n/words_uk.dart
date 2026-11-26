@@ -668,7 +668,7 @@ const Map<String, Object> uk = {
   'usageDays': "Ліміт на {n} дн.",
   'usageHoursLimit': "Ліміт на {n} год",
   'usageWeekShort': "Тиждень",
-  'agentWorkersAndAccounts': "Комп’ютери й акаунти",
+  'agentAccounts': "Акаунти",
   'addAccount': "Додати акаунт",
   'accountsReinstall':
       "Перевстановіть caldo-mcp на комп'ютері (tool/mcp/install.sh і watch.sh), щоб додавати там акаунти.",
