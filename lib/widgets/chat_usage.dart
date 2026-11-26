@@ -102,7 +102,7 @@ class ChatUsageBrief extends StatelessWidget {
     return Row(
       children: [
         if (filled != null) ...[
-          SizedBox(width: 22, child: _Meter(filled, height: 3)),
+          SizedBox(width: 36, child: _Meter(filled, height: 4)),
           const SizedBox(width: 8),
         ],
         Expanded(
@@ -458,11 +458,13 @@ class _Meter extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ColoredBox(color: p.panelHi),
+            // A track in the text's colour, faint: the panel's own grey
+            // was lost on a card of the same grey.
+            ColoredBox(color: p.text.withValues(alpha: 0.12)),
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: share.clamp(0.0, 1.0),
-              child: ColoredBox(color: _lit(p, share)),
+              child: ColoredBox(color: _fill(p, share)),
             ),
           ],
         ),
@@ -477,6 +479,11 @@ Color? _warn(double share) => share >= 0.95 ? AppColors.danger : null;
 
 Color _lit(AppPalette p, double share) =>
     _warn(share) ?? (share >= 0.8 ? p.text : p.muted);
+
+/// A meter's fill, brightening as it fills, full white at 80%, red at its
+/// end.
+Color _fill(AppPalette p, double share) =>
+    _warn(share) ?? Color.lerp(p.faint, p.text, (share / 0.8).clamp(0.0, 1.0))!;
 
 /// In the strip: [_lit], or nothing for the strip's own grey.
 Color? _near(AppPalette p, double share) =>

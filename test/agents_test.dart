@@ -3171,6 +3171,17 @@ void main() {
 
         expect(bar(grouped), projectColour);
         expect(bar(ungrouped), isNull);
+        // The state mark stands on the title's line.
+        final mark = tester.getCenter(
+          find
+              .descendant(
+                of: find.ancestor(of: grouped, matching: find.byType(InkWell)),
+                matching: find.byType(DecoratedBox),
+              )
+              .at(1),
+        );
+        final line = tester.getRect(grouped);
+        expect(mark.dy, inInclusiveRange(line.top, line.bottom));
         // Times line up whether a card has a bar or not.
         expect(timeRight(grouped), timeRight(ungrouped));
 
@@ -3181,6 +3192,44 @@ void main() {
         expect(bar(grouped), projectColour);
       });
     }
+
+    testWidgets('names the computer only when there are two', (tester) async {
+      final agents = Agents.instance;
+      final now = DateTime.now();
+      AgentWorker worker(String id, String name) => AgentWorker(
+        id: id,
+        name: name,
+        home: '/home/someone',
+        seenAt: now,
+        dirs: const [],
+        agents: const [AgentKind(id: 'shell', label: 'Shell')],
+      );
+      agents
+        ..signedInForTest = true
+        ..workers = [worker('w', 'Desk')]
+        ..chats = [
+          Chat(
+            id: 'a',
+            title: 'A chat',
+            agent: 'shell',
+            workerId: 'w',
+            state: ChatState.ended,
+            updatedAt: now,
+          ),
+        ];
+      addTearDown(() {
+        agents
+          ..signedInForTest = null
+          ..workers = const []
+          ..chats = const [];
+      });
+      await pump(tester, 'en', const AgentsScreen());
+      expect(find.text('Ended · Shell'), findsOneWidget);
+
+      agents.workers = [worker('w', 'Desk'), worker('v', 'Laptop')];
+      await pump(tester, 'en', const AgentsScreen());
+      expect(find.text('Ended · Shell · Desk'), findsOneWidget);
+    });
 
     testWidgets('checks a stale heartbeat before showing a chat as offline', (
       tester,
@@ -3267,7 +3316,7 @@ void main() {
       await tester.pump();
       expect(agents.error, isNull);
       expect(find.byType(CircularProgressIndicator), findsNothing);
-      expect(find.textContaining('Working · Shell · Desk'), findsOneWidget);
+      expect(find.text('Working · Shell'), findsOneWidget);
     });
 
     testWidgets("a chat whose computer stopped answering says so", (
@@ -3302,11 +3351,11 @@ void main() {
       });
 
       await pump(tester, 'en', const AgentsScreen());
-      expect(find.textContaining('Offline · Shell · Desk'), findsOneWidget);
+      expect(find.text('Offline · Shell'), findsOneWidget);
       expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
 
       await pump(tester, 'en', const ChatScreen(chat: 'away-chat'));
-      expect(find.textContaining('Offline · Shell · Desk'), findsOneWidget);
+      expect(find.text('Offline · Shell'), findsOneWidget);
       expect(
         find.textContaining('Desk has been offline since'),
         findsOneWidget,
@@ -3317,7 +3366,7 @@ void main() {
         ..workers = [desk(now)]
         ..load();
       await tester.pump();
-      expect(find.textContaining('Working · Shell · Desk'), findsOneWidget);
+      expect(find.text('Working · Shell'), findsOneWidget);
       expect(find.textContaining('has been offline'), findsNothing);
     });
 
@@ -4960,8 +5009,17 @@ void main() {
         double left(String text) => tester.getTopLeft(find.text(text)).dx;
         expect(top('Alpha one'), greaterThan(top('Alpha')));
         expect(left('Alpha one'), greaterThan(left('Alpha')));
+        // Tied to its chat by a line, not an arrow.
         expect(
           find.byIcon(Icons.subdirectory_arrow_right_rounded),
+          findsNothing,
+        );
+        expect(
+          find.byWidgetPredicate(
+            (w) =>
+                w is CustomPaint &&
+                w.painter.runtimeType.toString() == '_FamilyPainter',
+          ),
           findsOneWidget,
         );
 
