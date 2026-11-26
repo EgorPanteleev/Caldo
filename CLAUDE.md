@@ -1064,7 +1064,9 @@ the app, a terminal beside them; anything else a terminal.
   a stand-in `claude` and from the emulator: opus → sonnet came back as
   `--model sonnet … --resume s1`.
 - **The app**: `AgentsScreen` (long press/right-click deletes),
-  `NewChatScreen` (prefs `agents_last`), `ChatScreen` (Chat/Terminal
+  `NewChatScreen` (prefs `agents_last`; each agent's model, effort and
+  permission kept apart, `_byAgent` — kept for the last agent only, a
+  Codex chat after a Claude one lost full access), `ChatScreen` (Chat/Terminal
   switch; Send stops a running turn when the field is empty; the terminal
   is xterm 4, `readOnly` on the phone, with a line field and a key row —
   Esc, Tab, Shift+Tab, arrows, ^C, Enter — fitting the width; a desktop's
@@ -1251,7 +1253,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 712 tests, all passing; keep it so. `supabase test db` — 116.
+`flutter test` — 719 tests, all passing; keep it so. `supabase test db` — 116.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
