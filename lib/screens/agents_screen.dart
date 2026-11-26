@@ -957,6 +957,12 @@ class _NewChatScreenState extends State<NewChatScreen> {
   /// opened from a task, the workers may not have been read yet.
   Map? _last;
 
+  /// Each agent's last model, effort and permission, by its id. Kept for
+  /// the last agent only, a Codex chat after a Claude one began with no
+  /// permission — on-request, asking about everything — under a user who
+  /// had picked full access for Codex before.
+  final Map<String, Map> _byAgent = {};
+
   bool get _forTasks => widget.tasks.isNotEmpty;
 
   /// The chat a subchat is begun from, while it is listed.
@@ -1079,6 +1085,11 @@ class _NewChatScreenState extends State<NewChatScreen> {
     }
     final kind = _kinds.where((a) => a.id == last['agent']).firstOrNull;
     if (kind != null) _pickAgent(kind);
+    // After the picks, which keep the form's first choices over these.
+    for (final MapEntry(:key, :value)
+        in (last['agents'] as Map? ?? const {}).entries) {
+      if (value is Map) _byAgent['$key'] = value;
+    }
     if (_kind?.id == last['agent']) {
       _model = last['model'] as String?;
       _effort = last['effort'] as String?;
@@ -1094,6 +1105,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
   }
 
   Future<void> _remember() async {
+    _keepChoices();
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
@@ -1107,6 +1119,7 @@ class _NewChatScreenState extends State<NewChatScreen> {
           'project': _project,
           'account': _account,
           'rules': _rules.toList(),
+          'agents': _byAgent,
         }),
       );
     } catch (_) {}
@@ -1145,14 +1158,51 @@ class _NewChatScreenState extends State<NewChatScreen> {
     return a != null && a.ready && a.workerId == _worker && a.agent == _agent;
   }
 
+  /// [kind] chosen: another agent takes the choices it was last begun
+  /// with; the one already chosen (tapped again, or on another computer)
+  /// keeps those made on the form.
   void _pickAgent(AgentKind kind) {
-    if (_agent != kind.id && !kind.models.contains(_model)) _model = null;
+    final same = _agent == kind.id;
+    if (!same) {
+      _keepChoices();
+      final had = _byAgent[kind.id] ?? const {};
+      if (had.containsKey('model')) {
+        _model = had['model'] as String?;
+      } else if (!kind.models.contains(_model)) {
+        _model = null;
+      }
+      if (had.containsKey('effort')) _effort = had['effort'] as String?;
+      _permission = had['permission'] as String?;
+    }
     _agent = kind.id;
     if (!_ready(_account)) _account = null;
     if (!kind.efforts.contains(_effort)) _effort = null;
-    _permission = kind.permissions.contains('auto') ? 'auto' : null;
-    _plugins = kind.plugins.isEmpty ? null : {...kind.pluginsOn};
+    if (!kind.permissions.contains(_permission)) {
+      _permission = _usualPermission(kind);
+    }
+    final plugins = _plugins;
+    _plugins = kind.plugins.isEmpty
+        ? null
+        : same && plugins != null
+        ? {...plugins.where(kind.plugins.contains)}
+        : {...kind.pluginsOn};
     _skills.retainAll(kind.skills);
+  }
+
+  /// What the form shows chosen before anything is: Claude's auto, and
+  /// Codex's on-request, which it has with none, so its choice is seen.
+  static String? _usualPermission(AgentKind kind) =>
+      ['auto', 'on-request'].where(kind.permissions.contains).firstOrNull;
+
+  /// The chosen agent's choices, for when it is chosen again.
+  void _keepChoices() {
+    final agent = _agent;
+    if (agent == null) return;
+    _byAgent[agent] = {
+      'model': _model,
+      'effort': _effort,
+      'permission': _permission,
+    };
   }
 
   /// A folder under the worker's home written from `~`.

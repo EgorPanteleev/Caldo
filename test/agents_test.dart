@@ -2917,6 +2917,114 @@ void main() {
       expect(find.widgetWithText(ListTile, 'custom-model'), findsOneWidget);
     });
 
+    testWidgets('keeps each agent\'s own permission across chats', (
+      tester,
+    ) async {
+      // The last chat was Claude's; Codex was last begun with full access.
+      SharedPreferences.setMockInitialValues({
+        'agents_last': jsonEncode({
+          'worker': 'worker',
+          'agent': 'claude',
+          'permission': 'auto',
+          'agents': {
+            'codex': {
+              'model': null,
+              'effort': null,
+              'permission': 'full-access',
+            },
+          },
+        }),
+      });
+      Agents.instance.workers = [
+        AgentWorker(
+          id: 'worker',
+          name: 'Worker',
+          seenAt: DateTime.now(),
+          dirs: const [],
+          agents: const [
+            AgentKind(
+              id: 'claude',
+              label: 'Claude',
+              permissions: ['auto', 'manual', 'plan'],
+            ),
+            AgentKind(
+              id: 'codex',
+              label: 'Codex',
+              permissions: ['on-request', 'never', 'full-access'],
+            ),
+          ],
+        ),
+      ];
+      await pump(tester, 'en', const NewChatScreen());
+      await tester.pumpAndSettle();
+      final p = AppTheme.of(tester.element(find.byType(NewChatScreen)));
+      bool lit(String label) =>
+          tester
+              .widget<Material>(
+                find
+                    .ancestor(
+                      of: find.text(label),
+                      matching: find.byType(Material),
+                    )
+                    .first,
+              )
+              .color ==
+          p.field;
+
+      expect(lit('auto'), isTrue);
+      await tester.tap(find.text('Codex'));
+      await tester.pumpAndSettle();
+      expect(lit('full-access'), isTrue);
+      expect(lit('on-request'), isFalse);
+
+      // Tapped again, the chosen agent keeps what was picked on the form.
+      await tester.tap(find.text('never'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Codex'));
+      await tester.pumpAndSettle();
+      expect(lit('never'), isTrue);
+
+      // Away and back, each keeps its own.
+      await tester.tap(find.text('Claude'));
+      await tester.pumpAndSettle();
+      expect(lit('auto'), isTrue);
+      await tester.tap(find.text('Codex'));
+      await tester.pumpAndSettle();
+      expect(lit('never'), isTrue);
+    });
+
+    testWidgets('shows Codex\'s on-request chosen when none was', (
+      tester,
+    ) async {
+      Agents.instance.workers = [
+        AgentWorker(
+          id: 'worker',
+          name: 'Worker',
+          seenAt: DateTime.now(),
+          dirs: const [],
+          agents: const [
+            AgentKind(
+              id: 'codex',
+              label: 'Codex',
+              permissions: ['on-request', 'never', 'full-access'],
+            ),
+          ],
+        ),
+      ];
+      await pump(tester, 'en', const NewChatScreen());
+      await tester.pumpAndSettle();
+      final p = AppTheme.of(tester.element(find.byType(NewChatScreen)));
+      final pick = tester.widget<Material>(
+        find
+            .ancestor(
+              of: find.text('on-request'),
+              matching: find.byType(Material),
+            )
+            .first,
+      );
+      expect(pick.color, p.field);
+    });
+
     for (final code in S.names.keys) {
       testWidgets('fits in ${S.names[code]}', (tester) async {
         final s = S.forCode(code);
