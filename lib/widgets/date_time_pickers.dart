@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
 import '../providers/settings_provider.dart';
-import '../providers/task_provider.dart' show dayOf;
+import '../providers/task_provider.dart' show addDays, dayOf;
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
@@ -245,13 +245,13 @@ class _DateSheetState extends State<_DateSheet> {
                 label: S.of(context).tomorrow,
                 onTap: () => Navigator.of(
                   context,
-                ).pop(today.add(const Duration(days: 1))),
+                ).pop(addDays(today, 1)),
               ),
               QuickChip(
                 label: S.of(context).nextWeek,
                 onTap: () => Navigator.of(
                   context,
-                ).pop(today.add(const Duration(days: 7))),
+                ).pop(addDays(today, 7)),
               ),
             ],
           ),

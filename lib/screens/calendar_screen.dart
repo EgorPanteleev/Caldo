@@ -447,14 +447,6 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// weeks a month's grid can show.
   static const _passThrough = 42;
 
-  /// Whole days between two dates. Counted in UTC, so the hour a daylight
-  /// saving change adds or drops cannot round a day away.
-  static int _daysBetween(DateTime from, DateTime to) => DateTime.utc(
-    to.year,
-    to.month,
-    to.day,
-  ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
-
   Future<void> _goToPage(int page) => _controller.animateToPage(
     page,
     duration: const Duration(milliseconds: 260),
@@ -471,7 +463,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// passed through the week.
   Future<void> _goToDayPage(DateTime day, {bool jump = false}) async {
     if (!_dayController.hasClients) return;
-    final page = _baseDayPage + _daysBetween(_dayAnchor, day);
+    final page = _baseDayPage + daysBetween(_dayAnchor, day);
     final current = _dayController.page?.round() ?? page;
     if (current == page) return;
     if (jump) {
@@ -534,7 +526,7 @@ class _CalendarScreenState extends State<CalendarScreen>
 
   int _weekPageOf(DateTime day, bool mondayFirst) =>
       _baseWeekPage +
-      _daysBetween(
+      daysBetween(
             _weekStartOf(_baseDay, mondayFirst),
             _weekStartOf(day, mondayFirst),
           ) ~/
@@ -544,7 +536,7 @@ class _CalendarScreenState extends State<CalendarScreen>
   /// week, so turning weeks keeps to Tuesdays if a Tuesday was picked.
   DateTime _dayOfWeekPage(int page, bool mondayFirst) {
     final start = _weekStartOf(_baseDay, mondayFirst);
-    final weekday = _daysBetween(
+    final weekday = daysBetween(
       _weekStartOf(_selected, mondayFirst),
       _selected,
     );

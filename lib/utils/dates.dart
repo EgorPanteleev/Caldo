@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../l10n/strings.dart';
 import '../models/task.dart';
-import '../providers/task_provider.dart' show dayOf;
+import 'days.dart';
 
 /// Date/time formatting shared by the calendar, the agenda and task rows.
 ///
@@ -91,7 +91,7 @@ class Dates {
   /// The word for a day near today — "Today", "Tomorrow", "Yesterday" — or
   /// null for any other day.
   static String? dayWord(DateTime date) {
-    final diff = dayOf(date).difference(dayOf(DateTime.now())).inDays;
+    final diff = daysBetween(DateTime.now(), date);
     return switch (diff) {
       0 => S.current.today,
       1 => S.current.tomorrow,

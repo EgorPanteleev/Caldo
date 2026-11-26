@@ -94,7 +94,7 @@ class _TasksScreenState extends State<TasksScreen> {
     // A day with nothing on it but an event from the phone's calendars is
     // still a day with something on it.
     final events = eventsOnShow(context);
-    final horizon = today.add(const Duration(days: TaskProvider.agendaDays));
+    final horizon = addDays(today, TaskProvider.agendaDays);
     // Nor is one with a birthday on it: it is there to be seen coming.
     final days = {
       ...byDay.keys,

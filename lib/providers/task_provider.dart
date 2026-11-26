@@ -11,9 +11,9 @@ import '../services/background.dart';
 import '../services/reminders.dart';
 import '../services/sync.dart';
 import '../services/today_widget.dart';
+import '../utils/days.dart';
 
-/// Strips the time from [date], giving the calendar day it belongs to.
-DateTime dayOf(DateTime date) => DateTime(date.year, date.month, date.day);
+export '../utils/days.dart';
 
 /// Owns the user's lists and the dated tasks backing the calendar and the
 /// agenda, exposing CRUD to the UI.
@@ -324,14 +324,8 @@ class TaskProvider extends ChangeNotifier {
 
   Future<void> _readMonth(DateTime date) async {
     _month = DateTime(date.year, date.month);
-    final from = DateTime(
-      _month.year,
-      _month.month - 1,
-    ).subtract(const Duration(days: 7));
-    final to = DateTime(
-      _month.year,
-      _month.month + 2,
-    ).add(const Duration(days: 7));
+    final from = DateTime(_month.year, _month.month - 1, 1 - 7);
+    final to = DateTime(_month.year, _month.month + 2, 1 + 7);
     final tasks = await _db.getTasksInRange(
       from.millisecondsSinceEpoch,
       to.millisecondsSinceEpoch,
@@ -393,7 +387,7 @@ class TaskProvider extends ChangeNotifier {
   Future<void> readAgenda() async {
     final today = dayOf(DateTime.now());
     _readOn = today;
-    final to = today.add(const Duration(days: agendaDays));
+    final to = addDays(today, agendaDays);
     final overdue = await _db.getOverdue(today.millisecondsSinceEpoch);
     final upcoming = await _db.getTasksInRange(
       today.millisecondsSinceEpoch,

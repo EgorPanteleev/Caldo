@@ -2,6 +2,7 @@ import 'dart:ui' show Color, PlatformDispatcher;
 
 import '../models/special_day.dart';
 import '../theme/app_theme.dart' show AppColors;
+import '../utils/days.dart';
 
 /// A public holiday on a given day — or one of the user's own special days,
 /// which goes everywhere a holiday does and is drawn the same way, in its
@@ -124,10 +125,10 @@ class Holidays {
   };
 
   static DateTime Function(int) _easter(int offsetDays) =>
-      (year) => gregorianEaster(year).add(Duration(days: offsetDays));
+      (year) => addDays(gregorianEaster(year), offsetDays);
 
   static DateTime Function(int) _orthodox(int offsetDays) =>
-      (year) => orthodoxEaster(year).add(Duration(days: offsetDays));
+      (year) => addDays(orthodoxEaster(year), offsetDays);
 
   /// Gregorian Easter Sunday (the anonymous Gregorian algorithm).
   static DateTime gregorianEaster(int year) {
@@ -159,7 +160,7 @@ class Holidays {
     final day = ((d + e + 114) % 31) + 1;
     final julian = DateTime(year, month, day);
     // The Julian calendar runs 13 days behind through 1900-2099.
-    return julian.add(const Duration(days: 13));
+    return addDays(julian, 13);
   }
 
   // ---- Country tables -----------------------------------------------------

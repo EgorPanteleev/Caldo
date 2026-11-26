@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../providers/task_provider.dart' show dayOf;
+import '../providers/task_provider.dart' show addDays, dayOf;
 
 /// One of the phone's calendars: an account's, a shared one, a subscription.
 class DeviceCalendar {
@@ -81,7 +81,7 @@ class CalendarEvent {
   List<DateTime> get days {
     final first = dayOf(start);
     final last = allDay
-        ? dayOf(end).subtract(const Duration(days: 1))
+        ? addDays(end, -1)
         : dayOf(
             end.isAfter(start)
                 ? end.subtract(const Duration(milliseconds: 1))

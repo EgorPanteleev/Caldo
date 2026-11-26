@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../services/device_calendars.dart';
-import 'task_provider.dart' show dayOf, TaskProvider;
+import 'task_provider.dart' show addDays, dayOf, TaskProvider;
 
 /// The events from the phone's calendars that fall in the stretch of days
 /// on screen, by day — what the grid, the day panel and Schedule draw beside
@@ -61,14 +61,11 @@ class EventsProvider extends ChangeNotifier {
       return;
     }
     final today = dayOf(DateTime.now());
-    var from = today.subtract(const Duration(days: 1));
-    var to = today.add(const Duration(days: TaskProvider.agendaDays + 1));
+    var from = addDays(today, -1);
+    var to = addDays(today, TaskProvider.agendaDays + 1);
     final month = _month;
     if (month != null) {
-      final monthFrom = DateTime(
-        month.year,
-        month.month - 1,
-      ).subtract(const Duration(days: 7));
+      final monthFrom = DateTime(month.year, month.month - 1, 1 - 7);
       final monthTo = DateTime(month.year, month.month + 2, 8);
       if (monthFrom.isBefore(from)) from = monthFrom;
       if (monthTo.isAfter(to)) to = monthTo;

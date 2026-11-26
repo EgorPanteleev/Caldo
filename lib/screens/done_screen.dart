@@ -75,9 +75,7 @@ class _DoneScreenState extends State<DoneScreen> {
   }
 
   Future<void> _load() async {
-    final since = dayOf(
-      DateTime.now(),
-    ).subtract(const Duration(days: _logDays));
+    final since = addDays(DateTime.now(), -_logDays);
     final log = await AppDatabase.instance.getCompletions(
       since.millisecondsSinceEpoch,
     );
