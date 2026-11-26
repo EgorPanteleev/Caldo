@@ -897,13 +897,13 @@ class Agents extends ChangeNotifier {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'chats',
-          callback: (_) => _soon(),
+          callback: (change) => _changed(_chatRows, change),
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'workers',
-          callback: (_) => _soon(),
+          callback: (change) => _changed(_workerRows, change),
         )
         .subscribe();
     // A channel of its own, so a server without the table yet costs only
@@ -917,8 +917,17 @@ class Agents extends ChangeNotifier {
           callback: (_) => _soon(),
         )
         .subscribe();
-    // Whether a worker is there is told by time passing, not by a change.
-    _every = Timer.periodic(const Duration(seconds: 30), (_) => load());
+    // Whether a worker is there is told by time passing, not by a change:
+    // the list is drawn again as it passes, and read again now and then in
+    // case realtime dropped a change.
+    var ticks = 0;
+    _every = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (++ticks % 4 == 0) {
+        unawaited(load());
+      } else {
+        notifyListeners();
+      }
+    });
   }
 
   void unwatch() {
@@ -932,6 +941,56 @@ class Agents extends ChangeNotifier {
     }
     _channel = null;
     _accountsChannel = null;
+  }
+
+  /// The rows [chats] and [workers] were made from, by id, so a change
+  /// heard by realtime is laid over the row it changes. A row's large
+  /// values left as they were may not come with the change at all.
+  final Map<String, Map<String, dynamic>> _chatRows = {};
+  final Map<String, Map<String, dynamic>> _workerRows = {};
+
+  /// A chat or worker changed, as realtime tells it: put in place from what
+  /// came with it. Every change used to read every worker and two hundred
+  /// whole chats again, in every app watching — on each heartbeat and each
+  /// turn of each chat.
+  void _changed(
+    Map<String, Map<String, dynamic>> rows,
+    PostgresChangePayload change,
+  ) {
+    try {
+      if (change.eventType == PostgresChangeEvent.delete) {
+        final id = change.oldRecord['id'];
+        if (id is! String) return _soon();
+        rows.remove(id);
+      } else {
+        final row = change.newRecord;
+        final id = row['id'];
+        if (id is! String) return _soon();
+        final was = rows[id];
+        // An update of a row not read yet may be missing what it left be.
+        if (was == null && change.eventType == PostgresChangeEvent.update) {
+          return _soon();
+        }
+        rows[id] = {...?was, ...row};
+      }
+      _fromRows();
+      notifyListeners();
+    } catch (_) {
+      // A row this app cannot read: the whole list, read afresh, says.
+      _soon();
+    }
+  }
+
+  /// A change to the `chats` or `workers` table, as realtime would hand it.
+  @visibleForTesting
+  void heard(String table, PostgresChangePayload change) =>
+      _changed(table == 'chats' ? _chatRows : _workerRows, change);
+
+  void _fromRows() {
+    workers = [
+      for (final r in _workerRows.values) AgentWorker.fromJson(r),
+    ]..sort((a, b) => a.name.compareTo(b.name));
+    chats = Chat.listOrder([for (final r in _chatRows.values) Chat.fromJson(r)]);
   }
 
   Timer? _later;
@@ -961,18 +1020,27 @@ class Agents extends ChangeNotifier {
     }
     bool current() => revision == _loadRevision && identical(client, _client);
     try {
-      final (w, c, readAccounts) = await (
+      // The latest two hundred, and every one not ended however old:
+      // a chat still running, or the parent of one, left out of the list
+      // could not be reached from it.
+      final (w, recent, open, readAccounts) = await (
         client.from('workers').select().order('name', ascending: true),
         client
             .from('chats')
             .select()
             .order('updated_at', ascending: false)
             .limit(200),
+        client.from('chats').select().not('state', 'in', '(ended,failed)'),
         _readAccounts(client),
       ).wait;
       if (!current()) return;
-      workers = [for (final r in w) AgentWorker.fromJson(r)];
-      chats = Chat.listOrder([for (final r in c) Chat.fromJson(r)]);
+      _workerRows
+        ..clear()
+        ..addAll({for (final r in w) r['id'] as String: r});
+      _chatRows
+        ..clear()
+        ..addAll({for (final r in [...recent, ...open]) r['id'] as String: r});
+      _fromRows();
       accounts = readAccounts;
       error = null;
     } catch (e) {
@@ -1447,6 +1515,7 @@ class Agents extends ChangeNotifier {
       row = await insert({...made}..remove('language'));
     }
     final chat = Chat.fromJson(row);
+    _chatRows[chat.id] = row;
     chats = Chat.listOrder([chat, ...chats]);
     notifyListeners();
     return chat;
@@ -1614,6 +1683,7 @@ class Agents extends ChangeNotifier {
         .maybeSingle();
     if (row == null) return false;
     final changed = Chat.fromJson(row);
+    _chatRows[changed.id] = row;
     chats = Chat.listOrder([
       for (final c in chats)
         if (c.id == chat.id) changed else c,
@@ -1646,6 +1716,7 @@ class Agents extends ChangeNotifier {
 
   /// The chat moved to its terminal, or back to its chat.
   Future<void> move(String chat, {required bool toChat}) async {
+    _chatRows[chat]?['mode'] = toChat ? 'chat' : 'terminal';
     chats = [
       for (final c in chats)
         if (c.id == chat) Chat._moved(c, toChat) else c,
@@ -1666,6 +1737,7 @@ class Agents extends ChangeNotifier {
         .select()
         .single();
     final changed = Chat.fromJson(row);
+    _chatRows[chat] = row;
     chats = Chat.listOrder([
       for (final c in chats)
         if (c.id == chat) changed else c,
@@ -1707,6 +1779,7 @@ class Agents extends ChangeNotifier {
     await _client!.from('chats').delete().inFilter('id', [...gone]);
     for (final chat in gone) {
       _drafts.remove(chat);
+      _chatRows.remove(chat);
       unawaited(_unput(chat));
     }
     chats = [
@@ -1727,6 +1800,9 @@ class Agents extends ChangeNotifier {
         .from('chats')
         .update({'pinned_at': at?.toUtc().toIso8601String()})
         .inFilter('id', [...picked]);
+    for (final id in picked) {
+      _chatRows[id]?['pinned_at'] = at?.toUtc().toIso8601String();
+    }
     chats = Chat.listOrder([
       for (final c in chats)
         if (picked.contains(c.id) && c.pinned != pinned)
@@ -1745,6 +1821,9 @@ class Agents extends ChangeNotifier {
     await _client!.from('chats').update({'muted': muted}).inFilter('id', [
       ...picked,
     ]);
+    for (final id in picked) {
+      _chatRows[id]?['muted'] = muted;
+    }
     chats = [
       for (final c in chats)
         if (picked.contains(c.id) && c.muted != muted)
