@@ -669,6 +669,15 @@ the app, a terminal beside them; anything else a terminal.
   worker from before reads that as no item and lets it be; Allow from an
   app from before is told to Claude as "ask in plain words". No tool
   line for it: the question is its record. Codex has nothing like it here.
+- **Codex is answered with what its question offers** (asked as
+  "permissions for codex agents doesnt work", 2026-11-26; `codexVerdict`):
+  codex-cli 0.172 lists `availableDecisions` without `acceptForSession`
+  or `decline`; told those anyway it ran the command once and asked at the
+  next. "Always" is then its proposed prefix rule, "deny" a cancel. Its
+  `item/permissions/requestApproval` (network, folders) is asked, not
+  refused. Full access or never chosen mid-turn answers what waits and
+  what comes for the rest of the turn (`Talk.retuned`); the program is
+  still put by after it, as before.
 - **One program holds a session at a time** (`chats.mode`): the head's
   Chat/Terminal switch shows either side; the side not holding it offers
   the move (`chat_in` `mode`). To the terminal: resumed in tmux (`claude

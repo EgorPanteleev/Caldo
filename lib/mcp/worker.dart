@@ -2768,6 +2768,9 @@ class _Talker implements TalkSink {
     }
     if (turn != null || state == 'running' || state == 'asking') {
       _retuning = true;
+      // A question waiting would hold the turn, and so the change, for
+      // ever: the new permission answers what it can at once.
+      talk!.retuned(now);
       return;
     }
     await _putBy();
