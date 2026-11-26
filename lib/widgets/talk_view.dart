@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -231,6 +233,25 @@ class _TalkViewState extends State<TalkView> {
     final above = i > 0 ? list[i - 1] : null;
     final close = above != null && _small(above) && _small(item);
     final at = item.at;
+    final files = item.body['files'];
+    if ((item.kind == 'text' ||
+            (item.kind == 'user' && item.body['sender'] is! Map)) &&
+        files is List &&
+        files.isNotEmpty &&
+        _isPhoto(files.last)) {
+      return _Spaced(
+        key: ValueKey(item.id),
+        top: above == null ? 0 : 8,
+        child: _ChatAttachments(
+          feed: widget.feed,
+          files: files,
+          right: item.kind == 'user',
+          caption: item.text,
+          at: at,
+          stamp: stamp,
+        ),
+      );
+    }
     final shown = _shown(item, i, live);
     return _Spaced(
       key: ValueKey(item.id),
@@ -529,15 +550,26 @@ class _Said extends StatelessWidget {
   }
 }
 
+bool _isPhoto(Object? file) =>
+    file is Map &&
+    file['key'] is String &&
+    '${file['mime']}'.startsWith('image/');
+
 class _ChatAttachments extends StatelessWidget {
   final TalkFeed feed;
   final List files;
   final bool right;
+  final String caption;
+  final DateTime? at;
+  final bool stamp;
 
   const _ChatAttachments({
     required this.feed,
     required this.files,
     this.right = false,
+    this.caption = '',
+    this.at,
+    this.stamp = false,
   });
 
   @override
@@ -546,14 +578,19 @@ class _ChatAttachments extends StatelessWidget {
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start,
     children: [
-      for (final file in files.whereType<Map>())
+      for (final (i, file) in files.whereType<Map>().indexed)
         Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: '${file['mime']}'.startsWith('image/') && file['key'] is String
+          padding: EdgeInsets.only(top: i == 0 ? 0 : 5),
+          child: _isPhoto(file)
               ? _ChatPhoto(
+                  key: ValueKey((i, file['key'])),
                   feed: feed,
                   object: file['key'],
                   name: '${file['name']}',
+                  right: right,
+                  caption: identical(file, files.last) ? caption : '',
+                  at: at,
+                  stamp: stamp && identical(file, files.last),
                 )
               : _FileLabel(
                   name: '${file['name']}',
@@ -597,11 +634,20 @@ class _ChatPhoto extends StatefulWidget {
   final TalkFeed feed;
   final String object;
   final String name;
+  final bool right;
+  final String caption;
+  final DateTime? at;
+  final bool stamp;
 
   const _ChatPhoto({
+    super.key,
     required this.feed,
     required this.object,
     required this.name,
+    required this.right,
+    required this.caption,
+    required this.at,
+    required this.stamp,
   });
 
   @override
@@ -609,13 +655,32 @@ class _ChatPhoto extends StatefulWidget {
 }
 
 class _ChatPhotoState extends State<_ChatPhoto> {
-  late Future<Uint8List> _photo = widget.feed.photo(widget.object);
+  late var _photo = _load();
+
+  Future<({Uint8List bytes, Size size})> _load() async {
+    final bytes = await widget.feed.photo(widget.object);
+    // Read the dimensions without decoding a full-size image for the preview.
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    try {
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      try {
+        return (
+          bytes: bytes,
+          size: Size(descriptor.width.toDouble(), descriptor.height.toDouble()),
+        );
+      } finally {
+        descriptor.dispose();
+      }
+    } finally {
+      buffer.dispose();
+    }
+  }
 
   @override
   void didUpdateWidget(_ChatPhoto oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.feed != widget.feed || oldWidget.object != widget.object) {
-      _photo = widget.feed.photo(widget.object);
+      _photo = _load();
     }
   }
 
@@ -624,21 +689,11 @@ class _ChatPhotoState extends State<_ChatPhoto> {
       context: context,
       useSafeArea: false,
       builder: (context) => Dialog.fullscreen(
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            leading: const CloseButton(),
-            title: Text(widget.name),
-          ),
-          body: SafeArea(
-            top: false,
-            child: InteractiveViewer(
-              maxScale: 5,
-              child: Center(child: Image.memory(bytes)),
-            ),
-          ),
+        child: _PhotoViewer(
+          bytes: bytes,
+          name: widget.name,
+          caption: widget.caption,
+          at: widget.at,
         ),
       ),
     );
@@ -646,62 +701,269 @@ class _ChatPhotoState extends State<_ChatPhoto> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = AppTheme.of(context);
-    final pixels = (240 * MediaQuery.devicePixelRatioOf(context)).round();
-    final fallback = Center(
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: _FileLabel(name: widget.name, icon: Icons.broken_image_outlined),
-      ),
-    );
-    return SelectionContainer.disabled(
-      child: SizedBox(
-        width: 240,
-        child: AspectRatio(
-          aspectRatio: 4 / 3,
-          child: Material(
-            color: palette.panel,
-            borderRadius: BorderRadius.circular(10),
-            clipBehavior: Clip.antiAlias,
-            child: FutureBuilder<Uint8List>(
-              future: _photo,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return Center(
-                    child: Icon(Icons.image_outlined, color: palette.faint),
+    final p = AppTheme.of(context);
+    final caption = widget.caption;
+    final hasCaption = caption.trim().isNotEmpty;
+    final at = widget.at;
+    final time = widget.stamp && at != null ? _when(context, at) : null;
+    final screen = MediaQuery.sizeOf(context);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final bounds = box.loosen().enforce(
+          BoxConstraints(
+            maxWidth: (screen.width * 0.72).clamp(0.0, 320.0),
+            maxHeight: (screen.height * 0.6).clamp(0.0, 440.0),
+          ),
+        );
+        return FutureBuilder(
+          future: _photo,
+          builder: (context, snapshot) {
+            final photo = snapshot.connectionState == ConnectionState.done
+                ? snapshot.data
+                : null;
+            final size = bounds.constrainSizeAndAttemptToPreserveAspectRatio(
+              photo == null
+                  ? const Size(180, 135)
+                  : Size(
+                      bounds.maxWidth,
+                      bounds.maxWidth / photo.size.aspectRatio,
+                    ),
+            );
+            final stamp = time == null
+                ? null
+                : SelectionContainer.disabled(
+                    child: Text(
+                      time,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: hasCaption ? p.muted : Colors.white,
+                        fontSize: 11.5,
+                      ),
+                    ),
                   );
-                }
-                final bytes = snapshot.data;
-                if (bytes == null) {
-                  return Tooltip(
+            final fallback = Center(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: _FileLabel(
+                  name: widget.name,
+                  icon: Icons.broken_image_outlined,
+                ),
+              ),
+            );
+            final preview = photo != null
+                ? InkWell(
+                    onTap: () => _open(photo.bytes),
+                    child: Image(
+                      image: ResizeImage(
+                        MemoryImage(photo.bytes),
+                        width: (size.width * dpr).ceil().clamp(1, 4096),
+                        height: (size.height * dpr).ceil().clamp(1, 4096),
+                        policy: ResizeImagePolicy.fit,
+                      ),
+                      semanticLabel: widget.name,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => fallback,
+                    ),
+                  )
+                : snapshot.hasError
+                ? Tooltip(
                     message: MaterialLocalizations.of(
                       context,
                     ).refreshIndicatorSemanticLabel,
                     child: InkWell(
-                      onTap: () => setState(() {
-                        _photo = widget.feed.photo(widget.object);
-                      }),
+                      onTap: () => setState(() => _photo = _load()),
                       child: fallback,
                     ),
-                  );
-                }
-                return InkWell(
-                  onTap: () => _open(bytes),
-                  child: Image(
-                    image: ResizeImage(
-                      MemoryImage(bytes),
-                      width: pixels,
-                      height: pixels,
-                      policy: ResizeImagePolicy.fit,
+                  )
+                : Center(child: Icon(Icons.image_outlined, color: p.faint));
+
+            return Material(
+              color: p.panelHi,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: p.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: SizedBox(
+                width: hasCaption && size.width < 130
+                    ? bounds.constrainWidth(130)
+                    : size.width,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SelectionContainer.disabled(
+                      child: SizedBox(
+                        height: size.height,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            preview,
+                            if (!hasCaption && stamp != null)
+                              Positioned(
+                                right: 6,
+                                bottom: 6,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: (size.width - 12).clamp(
+                                      0,
+                                      double.infinity,
+                                    ),
+                                  ),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 3,
+                                      ),
+                                      child: stamp,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
+                    if (hasCaption)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 7, 10, 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (widget.right)
+                              Text(
+                                caption,
+                                style: TextStyle(
+                                  color: p.text,
+                                  fontSize: 15,
+                                  height: 1.35,
+                                ),
+                              )
+                            else
+                              _Answer(text: caption),
+                            if (stamp != null)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: stamp,
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _PhotoViewer extends StatefulWidget {
+  final Uint8List bytes;
+  final String name;
+  final String caption;
+  final DateTime? at;
+
+  const _PhotoViewer({
+    required this.bytes,
+    required this.name,
+    required this.caption,
+    required this.at,
+  });
+
+  @override
+  State<_PhotoViewer> createState() => _PhotoViewerState();
+}
+
+class _PhotoViewerState extends State<_PhotoViewer> {
+  bool _showControls = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final at = widget.at;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: ColoredBox(
+        color: Colors.black,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              onTap: () => setState(() => _showControls = !_showControls),
+              child: InteractiveViewer(
+                maxScale: 5,
+                child: Center(
+                  child: Image.memory(
+                    widget.bytes,
                     semanticLabel: widget.name,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) => fallback,
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ),
+            if (_showControls)
+              Align(
+                alignment: Alignment.topCenter,
+                child: ColoredBox(
+                  color: Colors.black54,
+                  child: SafeArea(
+                    bottom: false,
+                    child: ListTile(
+                      leading: const BackButton(color: Colors.white),
+                      title: Text(
+                        widget.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: at == null
+                          ? null
+                          : Text(
+                              _when(context, at),
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            if (_showControls && widget.caption.trim().isNotEmpty)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: ColoredBox(
+                  color: Colors.black54,
+                  child: SafeArea(
+                    top: false,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(context).height * 0.25,
+                      ),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            widget.caption,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
