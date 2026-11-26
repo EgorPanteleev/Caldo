@@ -23,7 +23,6 @@ import '../widgets/selection.dart';
 import '../widgets/task_views.dart';
 import '../widgets/sign_in_sheet.dart' show showJoinSheet;
 import '../widgets/tick_off.dart' show UndoSlot, withdrawUndo;
-import '../widgets/update_banner.dart';
 import 'agents_screen.dart';
 import 'board_screen.dart';
 import 'calendar_screen.dart';
@@ -353,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// ([BarFoot]), for the sidebar's New task; with no bar's room to rest in
   /// (`BarRoom.height` nothing) the field itself stays at the foot of the
   /// screen.
-  Widget _wide(AppPalette p, Widget banners) {
+  Widget _wide(AppPalette p, Widget banner) {
     final panel = TaskPanel.instance;
     return ListenableBuilder(
       listenable: panel,
@@ -379,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Expanded(
                   child: Column(
                     children: [
-                      banners,
+                      banner,
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, box) {
@@ -455,33 +454,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     final offerFullScreen =
         wantsFullScreen && _fullScreenAllowed == false && !_fullScreenPutOff;
-    // Above whichever screen is open rather than inside one of them: they
-    // are about the app, not about a day.
-    Widget banners(Update? update) => AnimatedSize(
+    final fullScreenBanner = AnimatedSize(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
       alignment: Alignment.topCenter,
-      child: Column(
-        children: [
-          const SizedBox(width: double.infinity),
-          if (update != null) UpdateBanner(update: update),
-          if (offerFullScreen)
-            _FullScreenBanner(
+      child: offerFullScreen
+          ? _FullScreenBanner(
               onAllow: Reminders.instance.requestFullScreen,
               onDismiss: () => setState(() => _fullScreenPutOff = true),
-            ),
-        ],
-      ),
+            )
+          : const SizedBox(width: double.infinity),
     );
-    if (Desk.wideOf(context)) {
-      return _wide(
-        p,
-        ValueListenableBuilder<Update?>(
-          valueListenable: Updates.instance.offered,
-          builder: (context, update, _) => banners(update),
-        ),
-      );
-    }
+    if (Desk.wideOf(context)) return _wide(p, fullScreenBanner);
     final pages = TaskViews(
       shown: [
         for (final view in taskViews)
@@ -514,28 +498,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // The bar's ground runs on below, under the gesture bar.
         clipBehavior: Clip.none,
         children: [
-          ValueListenableBuilder<Update?>(
-            valueListenable: Updates.instance.offered,
-            builder: (context, update, pages) {
-              final any = update != null || offerFullScreen;
-              return Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: any ? MediaQuery.paddingOf(context).top : 0,
-                  ),
-                  banners(update),
-                  Expanded(
-                    child: MediaQuery.removePadding(
-                      context: context,
-                      removeTop: any,
-                      child: pages!,
-                    ),
-                  ),
-                ],
-              );
-            },
-            child: pages,
+          Column(
+            children: [
+              if (offerFullScreen)
+                SizedBox(height: MediaQuery.paddingOf(context).top),
+              fullScreenBanner,
+              Expanded(
+                child: MediaQuery.removePadding(
+                  context: context,
+                  removeTop: offerFullScreen,
+                  child: pages,
+                ),
+              ),
+            ],
           ),
           // What the bar stands on: the foot of the screen greyed more and
           // more towards the bottom, so the bar isn't a pill pasted on top

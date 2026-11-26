@@ -120,8 +120,7 @@ class Updates {
   /// been put off — Settings offers it either way.
   final ValueNotifier<Update?> available = ValueNotifier(null);
 
-  /// The release the banner offers: [available] unless it was put off. An
-  /// urgent one is offered by a page in front of the app instead.
+  /// The release shown in the prompt or, if urgent, the update wall.
   final ValueNotifier<Update?> offered = ValueNotifier(null);
 
   /// Why the last install did not get as far as Android's installer, until
@@ -195,8 +194,10 @@ class Updates {
         await prefs.remove(_urgentKey);
       }
       available.value = update;
-      // Later may have been pressed on an earlier offer meanwhile.
-      offered.value = _putOff && !update.urgent ? null : update;
+      // Later may have been pressed while the check was running. Settings
+      // can also reopen a regular prompt that had been put off.
+      final promptOpen = offered.value?.urgent == false;
+      offered.value = _putOff && !promptOpen && !update.urgent ? null : update;
     } finally {
       _looking = false;
     }
@@ -228,7 +229,7 @@ class Updates {
     }
   }
 
-  /// Keeps the banner away until the app starts again. An urgent release
+  /// Keeps the prompt away until the app starts again. An urgent release
   /// can't be put off.
   void later(Update update) {
     if (update.urgent) return;
@@ -388,7 +389,7 @@ class Updates {
           final sink = partial.openWrite();
           try {
             // A connection that stops sending without closing would hold
-            // the banner at its last percent for good.
+            // the prompt at its last percent for good.
             await for (final chunk in response.timeout(
               const Duration(seconds: 30),
             )) {
