@@ -1,61 +1,145 @@
 part of 'agents_screen.dart';
 
-class _WorkersScreen extends StatefulWidget {
-  const _WorkersScreen();
+class WorkersScreen extends StatefulWidget {
+  const WorkersScreen({super.key, this.accountId});
+
+  /// A newly added account whose sign-in should be brought into view.
+  final String? accountId;
 
   @override
-  State<_WorkersScreen> createState() => _WorkersScreenState();
+  State<WorkersScreen> createState() => _WorkersScreenState();
 }
 
-class _WorkersScreenState extends State<_WorkersScreen> {
+class _WorkersScreenState extends State<WorkersScreen> {
   final _agents = Agents.instance;
+  final _accountAnchors = <String, GlobalKey>{};
+  Timer? _tick;
 
   @override
   void initState() {
     super.initState();
+    _agents.addListener(_changed);
     _agents.watch();
+    // An account limit can reset without a new reading.
+    _tick = Timer.periodic(const Duration(minutes: 1), (_) => _changed());
+    if (widget.accountId case final id?) _revealAccount(id);
   }
 
   @override
   void dispose() {
+    _tick?.cancel();
+    _agents.removeListener(_changed);
     _agents.unwatch();
     super.dispose();
+  }
+
+  void _changed() => setState(() {});
+
+  Future<void> _addAccount() async {
+    final id = await openNewAccount(context);
+    if (mounted && id != null) setState(() => _revealAccount(id));
+  }
+
+  void _revealAccount(String id) {
+    final anchor = _accountAnchors.putIfAbsent(id, GlobalKey.new);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (anchor.currentContext case final target?) {
+        Scrollable.ensureVisible(target);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final p = AppTheme.of(context);
+    final canAdd = _accountWorkers(_agents).isNotEmpty;
+    final accountsByWorker = <String, List<AgentAccount>>{};
+    for (final account in _agents.accounts) {
+      (accountsByWorker[account.workerId] ??= []).add(account);
+    }
+
     return Scaffold(
+      backgroundColor: p.bg,
       body: SafeArea(
+        maintainBottomViewPadding: true,
         child: Column(
           children: [
             DeskColumn(
-              child: ScreenHeader(title: s.agentWorkers, showBack: true),
+              child: ScreenHeader(
+                title: s.agentWorkersAndAccounts,
+                showBack: true,
+                actions: [
+                  if (canAdd)
+                    IconButton(
+                      icon: Icon(Icons.add, color: p.muted),
+                      tooltip: s.addAccount,
+                      onPressed: _addAccount,
+                    ),
+                ],
+              ),
             ),
             Expanded(
-              child: ListenableBuilder(
-                listenable: _agents,
-                builder: (context, _) => _agents.workers.isEmpty
-                    ? EmptyState(
-                        icon: Icons.computer_outlined,
-                        title: s.agentsNoWorker,
-                        message: s.agentsNoWorkerHint,
-                      )
-                    : DeskGutter(
-                        builder: (context, gutter) => ListView.separated(
-                          padding: EdgeInsets.fromLTRB(
-                            16 + gutter,
-                            8,
-                            16 + gutter,
-                            24,
-                          ),
-                          itemCount: _agents.workers.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 8),
-                          itemBuilder: (context, i) =>
-                              _WorkerCard(worker: _agents.workers[i]),
+              child: _agents.workers.isEmpty
+                  ? EmptyState(
+                      icon: Icons.computer_outlined,
+                      title: s.agentsNoWorker,
+                      message: s.agentsNoWorkerHint,
+                    )
+                  : DeskGutter(
+                      builder: (context, gutter) => SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(
+                          16 + gutter,
+                          8,
+                          16 + gutter,
+                          8,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final worker in _agents.workers)
+                              Padding(
+                                key: ValueKey(worker.id),
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _WorkerCard(worker: worker),
+                                    for (final account
+                                        in accountsByWorker[worker.id] ??
+                                            const <AgentAccount>[])
+                                      Padding(
+                                        key:
+                                            _accountAnchors[account.id] ??
+                                            ValueKey(account.id),
+                                        padding: const EdgeInsets.only(
+                                          top: 6,
+                                          left: 12,
+                                        ),
+                                        child: _AccountCard(
+                                          account: account,
+                                          worker: worker,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            if (!canAdd && accountsByWorker.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: Text(
+                                  s.accountsReinstall,
+                                  style: TextStyle(
+                                    color: p.muted,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-              ),
+                    ),
             ),
           ],
         ),

@@ -3625,7 +3625,7 @@ void main() {
             note: 'The sign-in was not finished within 20 minutes.',
           ),
         ];
-        await pump(tester, code, const AccountsScreen());
+        await pump(tester, code, const WorkersScreen());
         expect(
           find.text('someone.with.a.long.address@example.com'),
           findsOneWidget,

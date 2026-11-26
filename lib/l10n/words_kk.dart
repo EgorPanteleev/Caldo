@@ -631,12 +631,8 @@ const Map<String, Object> kk = {
   'usageDays': "{n} күндік лимит",
   'usageHoursLimit': "{n} сағаттық лимит",
   'usageWeekShort': "Апта",
-  'agentWorkers': "Компьютерлер",
-  'agentAccounts': "Аккаунттар",
+  'agentWorkersAndAccounts': "Компьютерлер мен аккаунттар",
   'addAccount': "Аккаунт қосу",
-  'accountsNone': "Әзірге аккаунттар жоқ",
-  'accountsNoneHint':
-      "Әр компьютердің өз Claude және Codex кірулері оның воркері қайта орнатылғаннан кейін осында көрінеді. Чаттарды солардың атынан іске қосу үшін тағы қосыңыз.",
   'accountsReinstall':
       "Аккаунттарды қосу үшін компьютерде caldo-mcp қайта орнатыңыз (tool/mcp/install.sh және watch.sh).",
   'accountStarting': "Іске қосылуда…",

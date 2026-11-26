@@ -504,11 +504,8 @@ class S {
   String get usageWeekShort => _word('usageWeekShort');
 
   // ---- Agent accounts ------------------------------------------------------
-  String get agentWorkers => _word('agentWorkers');
-  String get agentAccounts => _word('agentAccounts');
+  String get agentWorkersAndAccounts => _word('agentWorkersAndAccounts');
   String get addAccount => _word('addAccount');
-  String get accountsNone => _word('accountsNone');
-  String get accountsNoneHint => _word('accountsNoneHint');
   String get accountsReinstall => _word('accountsReinstall');
   String get accountStarting => _word('accountStarting');
   String get accountSigningIn => _word('accountSigningIn');
