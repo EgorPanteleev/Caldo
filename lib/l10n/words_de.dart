@@ -635,6 +635,7 @@ const Map<String, Object> de = {
   'usageDays': "{n}-Tage-Limit",
   'usageHoursLimit': "{n}-Stunden-Limit",
   'usageWeekShort': "Woche",
+  'agentWorkers': "Computer",
   'agentAccounts': "Konten",
   'addAccount': "Konto hinzufügen",
   'accountsNone': "Noch keine Konten",

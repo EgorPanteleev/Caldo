@@ -653,6 +653,7 @@ const Map<String, Object> be = {
   'usageDays': "Ліміт на {n} дз.",
   'usageHoursLimit': "Ліміт на {n} г",
   'usageWeekShort': "Тыдзень",
+  'agentWorkers': "Камп’ютары",
   'agentAccounts': "Акаўнты",
   'addAccount': "Дадаць акаўнт",
   'accountsNone': "Акаўнтаў пакуль няма",

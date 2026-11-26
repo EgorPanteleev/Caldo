@@ -479,6 +479,7 @@ class S {
   String get usageWeekShort => _word('usageWeekShort');
 
   // ---- Agent accounts ------------------------------------------------------
+  String get agentWorkers => _word('agentWorkers');
   String get agentAccounts => _word('agentAccounts');
   String get addAccount => _word('addAccount');
   String get accountsNone => _word('accountsNone');

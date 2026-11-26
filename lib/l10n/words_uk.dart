@@ -658,6 +658,7 @@ const Map<String, Object> uk = {
   'usageDays': "Ліміт на {n} дн.",
   'usageHoursLimit': "Ліміт на {n} год",
   'usageWeekShort': "Тиждень",
+  'agentWorkers': "Комп’ютери",
   'agentAccounts': "Акаунти",
   'addAccount': "Додати акаунт",
   'accountsNone': "Акаунтів поки немає",

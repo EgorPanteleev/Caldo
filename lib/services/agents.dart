@@ -283,6 +283,7 @@ class AgentWorker {
   final List<AgentKind> agents;
   final List<String> dirs;
   final DateTime seenAt;
+  final WorkerResources? _resources;
 
   const AgentWorker({
     required this.id,
@@ -291,23 +292,69 @@ class AgentWorker {
     required this.dirs,
     required this.seenAt,
     this.home,
-  });
+    WorkerResources? resources,
+  }) : _resources = resources;
 
   /// It says it is there every half minute.
   bool get online =>
       DateTime.now().difference(seenAt) < const Duration(seconds: 90);
 
-  factory AgentWorker.fromJson(Map json) => AgentWorker(
-    id: json['id'] as String,
-    name: json['name'] as String,
-    home: json['home'] as String?,
-    agents: [
-      for (final a in json['agents'] as List? ?? const [])
-        AgentKind.fromJson(a as Map),
-    ],
-    dirs: _strings(json['dirs']),
-    seenAt: DateTime.parse(json['seen_at'] as String).toLocal(),
-  );
+  WorkerResources? get resources => online ? _resources : null;
+
+  factory AgentWorker.fromJson(Map json) {
+    final seenAt = DateTime.parse(json['seen_at'] as String);
+    return AgentWorker(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      home: json['home'] as String?,
+      agents: [
+        for (final a in json['agents'] as List? ?? const [])
+          AgentKind.fromJson(a as Map),
+      ],
+      dirs: _strings(json['dirs']),
+      seenAt: seenAt.toLocal(),
+      resources: WorkerResources._fromHeartbeat(json['resources'], seenAt),
+    );
+  }
+}
+
+/// The host readings reported with the latest worker heartbeat.
+@immutable
+class WorkerResources {
+  final int? cpuPercent;
+  final int? ramUsedBytes;
+  final int? ramTotalBytes;
+  final int? gpuPercent;
+
+  const WorkerResources._({
+    this.cpuPercent,
+    this.ramUsedBytes,
+    this.ramTotalBytes,
+    this.gpuPercent,
+  });
+
+  static WorkerResources? _fromHeartbeat(Object? data, DateTime seenAt) {
+    if (data is! Map) return null;
+    final sampledAt = data['sampled_at'];
+    // A heartbeat from an older worker can leave an earlier sample in place.
+    if (sampledAt is! String ||
+        DateTime.tryParse(sampledAt)?.isAtSameMomentAs(seenAt) != true) {
+      return null;
+    }
+
+    int? percent(Object? value) =>
+        value is int && value >= 0 && value <= 100 ? value : null;
+    final used = data['ram_used_bytes'];
+    final total = data['ram_total_bytes'];
+    final hasRam =
+        used is int && total is int && total > 0 && used >= 0 && used <= total;
+    return WorkerResources._(
+      cpuPercent: percent(data['cpu_percent']),
+      ramUsedBytes: hasRam ? used : null,
+      ramTotalBytes: hasRam ? total : null,
+      gpuPercent: percent(data['gpu_percent']),
+    );
+  }
 }
 
 /// `idle` is ready, nothing done yet; `finished`, a turn has ended;

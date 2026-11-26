@@ -632,6 +632,7 @@ const Map<String, Object> nl = {
   'usageDays': "Limiet per {n} dagen",
   'usageHoursLimit': "Limiet per {n} uur",
   'usageWeekShort': "Week",
+  'agentWorkers': "Computers",
   'agentAccounts': "Accounts",
   'addAccount': "Account toevoegen",
   'accountsNone': "Nog geen accounts",

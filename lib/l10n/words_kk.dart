@@ -621,6 +621,7 @@ const Map<String, Object> kk = {
   'usageDays': "{n} күндік лимит",
   'usageHoursLimit': "{n} сағаттық лимит",
   'usageWeekShort': "Апта",
+  'agentWorkers': "Компьютерлер",
   'agentAccounts': "Аккаунттар",
   'addAccount': "Аккаунт қосу",
   'accountsNone': "Әзірге аккаунттар жоқ",

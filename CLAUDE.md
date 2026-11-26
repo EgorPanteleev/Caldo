@@ -761,6 +761,10 @@ the app, a terminal beside them; anything else a terminal.
   `chat_in` (keys, line, size, stop, start, answer, interrupt, mode;
   realtime payload applied at once, polled every 15s, deleted once taken),
   `chat_items`. RLS: own rows only.
+- **Agents › Workers** shows host CPU, RAM and GPU from the Linux worker's
+  heartbeat (`WorkerUsage`, `workers.resources`). CPU is averaged between
+  beats, RAM uses `MemAvailable`, and GPU shows the busiest device that
+  reports load via DRM or `nvidia-smi`. Offline and older workers show dashes.
 - **What a worker can run** (`AgentBook`): Claude and Codex if on the
   PATH, a shell, and `~/.config/caldo/mcp/agents.json` (`{"llama":
   {"label": …, "command": ["llama-cli", ["-m", "{model}"], "{prompt}"],

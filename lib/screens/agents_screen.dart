@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xterm/xterm.dart';
@@ -38,6 +39,7 @@ import '../widgets/talk_view.dart';
 part 'agent_accounts.dart';
 part 'agent_projects.dart';
 part 'agent_rules.dart';
+part 'agent_workers.dart';
 part 'chat_settings.dart';
 part 'chat_model_picker.dart';
 part 'chat_subscriptions.dart';
@@ -371,6 +373,16 @@ class _AgentsScreenState extends State<AgentsScreen> {
                   ),
                   tooltip: s.agentProjects,
                   onPressed: _chooseProject,
+                ),
+              if (_agents.signedIn && _agents.workers.isNotEmpty)
+                IconButton(
+                  icon: Icon(Icons.computer_outlined, color: p.muted),
+                  tooltip: s.agentWorkers,
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const _WorkersScreen(),
+                    ),
+                  ),
                 ),
               if (_agents.signedIn && _agents.workers.isNotEmpty)
                 IconButton(
