@@ -62,6 +62,12 @@ abstract class ChatDesk {
   /// The user's phones told [text] from [chat] (the Edge Function `push`);
   /// how many were reached.
   Future<int> notify(String chat, String text);
+
+  /// Every project (`agent_projects`): id, name and its info, `context`.
+  Future<List<Map<String, dynamic>>> projects();
+
+  /// Project [id]'s info written as [context].
+  Future<void> setProjectInfo(String id, String context);
 }
 
 /// [ChatDesk] on Supabase, signed in as the MCP server is.
@@ -77,7 +83,7 @@ class SupabaseChatDesk implements ChatDesk {
       .from('chats')
       .select(
         'id, title, prompt, agent, model, state, mode, dir, worker_id, '
-        'updated_at',
+        'project_id, updated_at',
       )
       .order('updated_at', ascending: false)
       .limit(200);
@@ -196,6 +202,16 @@ class SupabaseChatDesk implements ChatDesk {
     final data = answer.data;
     return data is Map ? (data['sent'] as num?)?.toInt() ?? 0 : 0;
   }
+
+  @override
+  Future<List<Map<String, dynamic>>> projects() async =>
+      (await _db).from('agent_projects').select('id, name, context');
+
+  @override
+  Future<void> setProjectInfo(String id, String context) async => (await _db)
+      .from('agent_projects')
+      .update({'context': context})
+      .eq('id', id);
 }
 
 /// Chats talking to each other: tools for an agent in one of Caldo's chats
@@ -597,6 +613,79 @@ class ChatTools {
   // ---- Subscriptions ----------------------------------------------------
 
   /// The chat a tool is asked for: the one named, else this one.
+  // ---- Project info -----------------------------------------------------
+
+  /// The project named [named] (by name or id), else this chat's.
+  Future<Map<String, dynamic>> _project(Object? named) async {
+    final want = '${named ?? ''}'.trim().toLowerCase();
+    final all = await desk.projects();
+    if (want.isEmpty) {
+      final me = self;
+      final chat = me == null
+          ? null
+          : (await desk.chats()).where((c) => c['id'] == me).firstOrNull;
+      if (chat == null) {
+        throw const Refusal(
+          "Name the project: you are not one of this account's chats.",
+        );
+      }
+      final id = chat['project_id'];
+      if (id == null) throw const Refusal('This chat is in no project.');
+      return all.where((p) => p['id'] == id).firstOrNull ??
+          (throw const Refusal("This chat's project has been deleted."));
+    }
+    final found = [
+      for (final p in all)
+        if ('${p['name'] ?? ''}'.trim().toLowerCase() == want ||
+            '${p['id']}'.startsWith(want))
+          p,
+    ];
+    if (found.length == 1) return found.single;
+    final names = all.map((p) => '"${p['name']}"').join(', ');
+    throw Refusal(
+      found.isEmpty
+          ? 'No project "$named"; there are ${names.isEmpty ? 'none' : names}.'
+          : '"$named" names ${found.length} projects; give its id.',
+    );
+  }
+
+  Future<String> projectInfo(Map<String, Object?> args) async {
+    final project = await _project(args['project']);
+    final words = '${project['context'] ?? ''}';
+    return 'Project "${project['name']}" [${_short('${project['id']}')}]'
+        '${words.trim().isEmpty ? ': no info written yet.' : ':\n\n$words'}';
+  }
+
+  Future<String> updateProjectInfo(Map<String, Object?> args) async {
+    final project = await _project(args['project']);
+    final was = '${project['context'] ?? ''}';
+    final String now;
+    if (args['text'] case final String text) {
+      now = text.trim();
+    } else if (args['old'] case final String old when old.isNotEmpty) {
+      final at = was.indexOf(old);
+      if (at < 0) {
+        throw const Refusal(
+          'old is not in the project info as it is now (read it again '
+          'with project_info).',
+        );
+      }
+      if (was.indexOf(old, at + 1) >= 0) {
+        throw const Refusal(
+          'old is in the project info more than once: give more of it.',
+        );
+      }
+      now = was.replaceRange(at, at + old.length, '${args['new'] ?? ''}');
+    } else {
+      throw const Refusal('Give text (the whole info) or old and new.');
+    }
+    if (now == was) return 'Nothing changed.';
+    await desk.setProjectInfo('${project['id']}', now);
+    return 'Project "${project['name']}" info changed (${now.length} '
+        'characters). Each chat in it is told it when its program next '
+        'starts.';
+  }
+
   Future<Map<String, dynamic>> _namedOrMine(Object? id) async {
     if ('${id ?? ''}'.trim().isNotEmpty) return _chat(id);
     final me = self;
@@ -1039,7 +1128,42 @@ class ChatTools {
       pullChat,
       reads: true,
     ),
+    Tool(
+      'project_info',
+      "A project's info, as the user and its chats keep it in Caldo: what "
+          'every chat in the project is told (in place of CLAUDE.md), as it '
+          'is now.',
+      _shape({'project': _projectName}),
+      projectInfo,
+      reads: true,
+    ),
+    Tool(
+      'update_project_info',
+      "Changes a project's info, shared by every chat in it (in place of "
+          'CLAUDE.md): keep it current when your work changes something it '
+          'says. Give old and new to change one part (old must be found '
+          'once, as project_info shows it), or text for the whole. Other '
+          'chats are told it when their program next starts.',
+      _shape({
+        'project': _projectName,
+        'old': {
+          'type': 'string',
+          'description': 'The words to replace, exactly as they are.',
+        },
+        'new': {'type': 'string', 'description': 'What replaces old.'},
+        'text': {
+          'type': 'string',
+          'description': 'The whole info, in place of all of it.',
+        },
+      }),
+      updateProjectInfo,
+    ),
   ];
+
+  static const _projectName = {
+    'type': 'string',
+    'description': "The project's name or id; default this chat's.",
+  };
 
   /// Added to what the assistant is told when it connects.
   static const instructions =
@@ -1048,6 +1172,8 @@ class ChatTools {
       'message. A chat can be subscribed to pull requests on GitHub '
       '(subscribe), and is then told of new ones as they come; pull_chat '
       'says which chat opened one. clear_context clears a chat\'s context, '
-      'as /clear does. notify sends the user a notification on their phone. '
+      'as /clear does. project_info and update_project_info read and keep '
+      "current a project's info, which its chats read in place of "
+      'CLAUDE.md. notify sends the user a notification on their phone. '
       'Use send_image to show a local picture to the user in this chat.';
 }

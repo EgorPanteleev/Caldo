@@ -665,7 +665,6 @@ const Map<String, Object> en = {
       "A project tells its chats what they are about and which folders they work on.",
   'projectName': "Name",
   'projectColour': "Colour",
-  'projectContext': "Context",
   'projectContextHint':
       "What every chat in it should know: what it is, how to work on it, what to leave alone.",
   'projectSources': "Folders",
@@ -689,22 +688,20 @@ const Map<String, Object> en = {
   ],
   'allProjects': "All projects",
   'untitledProject': "Untitled project",
-  'projectAllContext': "All context",
-  'projectAllContextHint':
-      "What a chat begun in {name} is told: the words kept here, then what Claude reads on the computer — CLAUDE.md files and its memory.",
-  'contextInCaldo': "In Caldo",
-  'contextOnWorker': "On {worker}",
-  'contextOnComputer': "On the computer",
-  'contextNoWorker': "No computer is on to read the files from.",
   'contextNoAnswer': "The computer didn't answer. Is its worker running?",
-  'contextChanged':
-      "It was changed on the computer meanwhile, so it was left as it was. Here it is as it is now.",
-  'contextUserFile': "Yours, read in every folder",
-  'contextMemory': "Memory",
-  'contextMissing': "Not written yet",
+  'chatContext': "Context",
+  'chatContextHint':
+      "What this chat's agent is told. It reads no CLAUDE.md or memory files, only these.",
+  'contextParents': "From the chats it's part of",
+  'contextParentHint': "Read only here: change it in that chat.",
+  'contextProject': "Project info",
+  'contextProjectHint':
+      "Shared by every chat in {name}: each is told a change when it next starts.",
+  'contextNoProject': "This chat is in no project.",
+  'contextOwn': "This chat's own",
+  'contextOwnHint':
+      "For this chat and its subchats: how to work, what it's for.",
+  'contextImport': "Take from CLAUDE.md",
+  'contextImportNone': "There's no CLAUDE.md in the project's folders.",
   'contextNothing': "Nothing written",
-  'contextUncommitted': "Not committed: new chats don't see it yet",
-  'contextWords': "Kept in Caldo, told to every chat begun in it",
-  'contextDeleteQuestion': "Delete this memory?",
-  'contextReadAgain': "Read again",
 };

@@ -31,6 +31,10 @@ class Tmux {
   String outOf(String chat) => '$dir/$chat.out';
   String eventsOf(String chat) => '$dir/$chat.events';
 
+  /// Where what goes after Claude's system prompt is written for [chat]'s
+  /// program, chat or terminal ([claudeChoices]).
+  String promptOf(String chat) => '$dir/$chat.prompt';
+
   /// Where the files sent to [chat] are taken down to, made before its
   /// program starts: Claude is told to read there without asking.
   String givenOf(String chat) {
@@ -52,6 +56,15 @@ class Tmux {
     Directory(dir).createSync(recursive: true);
     final flag = '$dir/$chat.go';
     final name = nameOf(chat);
+    // The command from a file: tmux refuses one longer than about 16k, and
+    // a project's info, in Codex's instructions, may be longer.
+    final run = '$dir/$chat.run';
+    File(
+      run,
+    ).writeAsStringSync('exec ${agentScope(argv).map(_quoted).join(' ')}\n');
+    final quiet = [
+      for (final MapEntry(:key, :value) in quietEnv.entries) '$key=$value',
+    ];
     final made = await _tmux([
       'new-session', '-d', '-s', name, '-x', '$cols', '-y', '$rows',
       '-c', cwd,
@@ -59,8 +72,8 @@ class Tmux {
       'sh', '-c',
       'while [ ! -e "\$0" ]; do sleep 0.05; done; rm -f "\$0"; '
           'export TERM=xterm-256color COLORTERM=truecolor '
-          '$chatEnv=$chat; exec "\$@"',
-      flag, ...agentScope(argv),
+          '$chatEnv=$chat ${quiet.join(' ')}; exec sh "\$1"',
+      flag, run,
       // Kept by the server for every session after: the pane stays once
       // its program ends, so its exit is read; its size is the app's.
       ';', 'set', '-g', 'remain-on-exit', 'on',
@@ -223,7 +236,13 @@ class Tmux {
 
   /// A chat's files, once it is done with.
   void forget(String chat) {
-    for (final f in [outOf(chat), eventsOf(chat), '$dir/$chat.go']) {
+    for (final f in [
+      outOf(chat),
+      eventsOf(chat),
+      promptOf(chat),
+      '$dir/$chat.go',
+      '$dir/$chat.run',
+    ]) {
       final file = File(f);
       if (file.existsSync()) file.deleteSync();
     }

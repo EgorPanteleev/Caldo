@@ -114,6 +114,16 @@ class _Desk implements ChatDesk {
     told.add((chat, text));
     return phones;
   }
+
+  final projects_ = <Map<String, dynamic>>[];
+
+  @override
+  Future<List<Map<String, dynamic>>> projects() async => projects_;
+
+  @override
+  Future<void> setProjectInfo(String id, String context) async {
+    projects_.firstWhere((p) => p['id'] == id)['context'] = context;
+  }
 }
 
 void main() {
@@ -428,6 +438,74 @@ void main() {
       await expectLater(run('unsubscribe', {'id': 9}), throwsA(isA<Refusal>()));
       tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
       await refused({'repo': 'a/b'}, 'not in one of Caldo');
+    });
+  });
+
+  group('project info', () {
+    setUp(() {
+      desk.projects_.addAll([
+        {'id': 'p1aa', 'name': 'Caldo', 'context': 'Flutter.\nTests: 700.'},
+        {'id': 'p2bb', 'name': 'Notes', 'context': ''},
+      ]);
+      desk.chats_.first['project_id'] = 'p1aa';
+      tools = ChatTools(desk, self: 'aaaa1111-0000');
+    });
+
+    test("reads and changes this chat's project's, or one named", () async {
+      expect(
+        await run('project_info', {}),
+        'Project "Caldo" [p1aa]:\n\nFlutter.\nTests: 700.',
+      );
+      expect(
+        await run('project_info', {'project': 'notes'}),
+        'Project "Notes" [p2bb]: no info written yet.',
+      );
+      expect(
+        await run('update_project_info', {
+          'old': 'Tests: 700.',
+          'new': 'Tests: 712.',
+        }),
+        startsWith('Project "Caldo" info changed'),
+      );
+      expect(desk.projects_.first['context'], 'Flutter.\nTests: 712.');
+      await run('update_project_info', {
+        'project': 'p2bb',
+        'text': '  A notebook.  ',
+      });
+      expect(desk.projects_.last['context'], 'A notebook.');
+    });
+
+    test('refuses what it cannot find', () async {
+      expect(
+        () => run('update_project_info', {'old': 'Tests: 1.', 'new': 'x'}),
+        throwsA(isA<Refusal>()),
+      );
+      await run('update_project_info', {'text': 'a a'});
+      expect(
+        () => run('update_project_info', {'old': 'a', 'new': 'b'}),
+        throwsA(
+          isA<Refusal>().having((r) => r.message, 'message', contains('once')),
+        ),
+      );
+      expect(
+        () => run('project_info', {'project': 'Sync'}),
+        throwsA(
+          isA<Refusal>().having((r) => r.message, 'message', contains('Notes')),
+        ),
+      );
+      tools = ChatTools(desk, self: 'bbbb2222-0000');
+      expect(
+        () => run('project_info', {}),
+        throwsA(
+          isA<Refusal>().having(
+            (r) => r.message,
+            'message',
+            'This chat is in no project.',
+          ),
+        ),
+      );
+      tools = ChatTools(desk);
+      expect(() => run('project_info', {}), throwsA(isA<Refusal>()));
     });
   });
 

@@ -710,7 +710,6 @@ const Map<String, Object> uk = {
       "Проєкт каже своїм чатам, про що вони і з якими теками працюють.",
   'projectName': "Назва",
   'projectColour': "Колір",
-  'projectContext': "Контекст",
   'projectContextHint':
       "Що має знати кожен його чат: що це, як з ним працювати, чого не чіпати.",
   'projectSources': "Теки",
@@ -735,24 +734,20 @@ const Map<String, Object> uk = {
   ],
   'allProjects': "Усі проєкти",
   'untitledProject': "Проєкт без назви",
-  'projectAllContext': "Увесь контекст",
-  'projectAllContextHint':
-      "Що дізнається чат, розпочатий у «{name}»: слова, збережені тут, а потім те, що Claude читає на комп'ютері, — файли CLAUDE.md і свою пам'ять.",
-  'contextInCaldo': "У Caldo",
-  'contextOnWorker': "На {worker}",
-  'contextOnComputer': "На комп'ютері",
-  'contextNoWorker':
-      "Немає увімкненого комп'ютера, з якого можна прочитати файли.",
   'contextNoAnswer': "Комп'ютер не відповів. Чи запущено на ньому воркер?",
-  'contextChanged':
-      "Його тим часом змінили на комп'ютері, тож його залишено як було. Ось він зараз.",
-  'contextUserFile': "Ваш, читається в кожній теці",
-  'contextMemory': "Пам'ять",
-  'contextMissing': "Ще не написано",
+  'chatContext': "Контекст",
+  'chatContextHint':
+      "Що повідомляється агенту цього чату. Він не читає ні CLAUDE.md, ні файли пам'яті — лише це.",
+  'contextParents': "З чатів, частиною яких він є",
+  'contextParentHint': "Тут лише для читання: змінюється в тому чаті.",
+  'contextProject': "Про проєкт",
+  'contextProjectHint':
+      "Спільне для всіх чатів у «{name}»: кожен дізнається про зміну під час наступного запуску.",
+  'contextNoProject': "Цей чат не входить до проєкту.",
+  'contextOwn': "Власний контекст чату",
+  'contextOwnHint':
+      "Для цього чату та його підчатів: як працювати і для чого він.",
+  'contextImport': "Взяти з CLAUDE.md",
+  'contextImportNone': "У теках проєкту немає CLAUDE.md.",
   'contextNothing': "Нічого не написано",
-  'contextUncommitted': "Не закомічено: нові чати його поки не бачать",
-  'contextWords':
-      "Зберігається в Caldo, його дізнається кожен чат, розпочатий у проєкті",
-  'contextDeleteQuestion': "Видалити цей спогад?",
-  'contextReadAgain': "Прочитати знову",
 };

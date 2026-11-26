@@ -1785,11 +1785,11 @@ void main() {
       final rules = ask.rules!;
       expect(
         rules.indexOf('Be brief.'),
-        lessThan(rules.indexOf('Caldo › Sync')),
+        lessThan(rules.indexOf('project="Caldo › Sync"')),
       );
       expect(
-        rules.indexOf('## Caldo\n\nA calendar app.'),
-        lessThan(rules.indexOf('## Sync\n\nSupabase.')),
+        rules.indexOf('A calendar app.'),
+        lessThan(rules.indexOf('Supabase.')),
       );
       expect(rules, contains('caldo/x'));
       expect(rules, contains("/h/notes is the user's own folder"));
@@ -1814,6 +1814,110 @@ void main() {
         }).ownFolder,
         isFalse,
       );
+    });
+
+    test('a chat is told its project, its parents and its own context', () {
+      final told = contextText(
+        {
+          'name': 'Caldo',
+          'context': [
+            {'name': 'Caldo', 'body': 'A calendar app.'},
+          ],
+        },
+        [
+          {'id': '11111111-aaaa', 'title': 'Release', 'context': 'Ship it.'},
+          {'id': '22222222-bbbb', 'title': '', 'context': '  '},
+          {'id': '33333333-cccc', 'title': 'Notes "fix"', 'context': 'Fix.'},
+        ],
+        'Only the sync.',
+      )!;
+      expect(told, contains('stands in for CLAUDE.md'));
+      expect(told, contains('update_project_info'));
+      expect(
+        told,
+        contains('<project-info project="Caldo">\nA calendar app.\n'),
+      );
+      expect(
+        told,
+        contains('<parent-context chat="11111111" title="Release">'),
+      );
+      // One with nothing written is left out; quotes can't end the title.
+      expect(told, isNot(contains('22222222')));
+      expect(told, contains('title="Notes \'fix\'"'));
+      expect(told, contains('<own-context>\nOnly the sync.\n</own-context>'));
+      final order = [
+        'A calendar app.',
+        'Ship it.',
+        'Fix.',
+        'Only the sync.',
+      ].map(told.indexOf).toList();
+      expect(order, orderedEquals([...order]..sort()));
+      expect(order.first, greaterThan(0));
+      expect(contextText(null, null, ''), isNull);
+      expect(contextText({'name': ''}, const [], null), isNull);
+      // A project with nothing written is still named.
+      expect(contextText({'name': 'Notes'}, null, null), contains('Notes'));
+
+      final ask = ChatAsk.fromJson({
+        'id': 'c',
+        'agent': 'claude',
+        'rules': [
+          {'name': 'Brief', 'body': 'Be brief.'},
+        ],
+        'project': {'name': 'Caldo', 'context': <Object>[]},
+        'context': 'Only the sync.',
+        'parents': [
+          {'id': '11111111', 'title': 'Release', 'context': 'Ship it.'},
+        ],
+      });
+      expect(ask.context, contains('Ship it.'));
+      expect(
+        ask.rules!.indexOf('Be brief.'),
+        lessThan(ask.rules!.indexOf('Only the sync.')),
+      );
+      final changed = ChatAsk.fromJson({...ask.row!, 'context': 'All of it.'});
+      expect(settingsChanged(ask, changed), 'Settings changed: context.');
+      final ruled = ChatAsk.fromJson({...ask.row!, 'rules': <Object>[]});
+      expect(settingsChanged(ask, ruled), 'Settings changed: no rules.');
+    });
+
+    test("Claude is told it from a file, rendered afresh when resumed", () {
+      final dir = Directory.systemTemp.createTempSync('prompt');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = '${dir.path}/c.prompt';
+      final ask = ChatAsk.fromJson({
+        'id': 'c',
+        'agent': 'claude',
+        'context': 'x' * 200000,
+      });
+      const old = AgentSpec(id: 'claude', label: 'Claude', command: []);
+      const now = AgentSpec(
+        id: 'claude',
+        label: 'Claude',
+        command: [],
+        promptFile: true,
+        freshPrompt: true,
+      );
+      // A Claude that knows neither flag is given the words as before.
+      final before = claudeChoices(old, ask, promptFile: file);
+      expect(before, contains('--append-system-prompt'));
+      expect(before, isNot(contains('--system-prompt-snapshot')));
+      expect(File(file).existsSync(), isFalse);
+      final args = claudeChoices(now, ask, promptFile: file, resume: 's1');
+      final at = args.indexOf('--append-system-prompt-file');
+      expect(args[at + 1], file);
+      expect(args, isNot(contains('--append-system-prompt')));
+      expect(File(file).readAsStringSync(), contains('x' * 200000));
+      final snapshot = args.indexOf('--system-prompt-snapshot');
+      expect(args[snapshot + 1], 'off');
+      // Nothing to tell: no file.
+      final bare = ChatAsk.fromJson({'id': 'd', 'agent': 'claude'});
+      expect(
+        claudeChoices(now, bare, promptFile: '${dir.path}/d.prompt'),
+        isNot(contains('--append-system-prompt-file')),
+      );
+      expect(quietEnv['CLAUDE_CODE_DISABLE_CLAUDE_MDS'], '1');
+      expect(quietEnv['CLAUDE_CODE_DISABLE_AUTO_MEMORY'], '1');
     });
 
     group('a workspace', () {
@@ -3148,27 +3252,92 @@ void main() {
         await pump(tester, code, const ProjectScreen(project: sync));
         expect(find.text(sync.context), findsOneWidget);
         expect(find.text('~/notes/sync'), findsWidgets);
-        await tester.scrollUntilVisible(
-          find.text(s.projectAllContext),
-          300,
-          scrollable: find.byType(Scrollable).first,
-        );
-        // No worker on: its own words alone, to change.
-        Agents.instance.workers = const [];
-        await pump(tester, code, const ProjectContextScreen(project: sync));
-        expect(find.text(sync.context), findsOneWidget);
-        expect(find.text(caldo.context), findsNothing);
-        expect(find.text(s.contextNoWorker), findsOneWidget);
-        await tester.tap(find.text(sync.context));
-        await tester.pumpAndSettle();
-        expect(find.text(s.contextWords), findsOneWidget);
-        Navigator.of(tester.element(find.text(s.contextWords))).pop();
-        await tester.pumpAndSettle();
+        expect(find.text(s.contextProject.toUpperCase()), findsOneWidget);
         await pump(tester, code, const ProjectScreen());
         expect(find.text(s.newProject), findsWidgets);
         Agents.instance.projects = const [];
         await pump(tester, code, const ProjectsScreen());
         expect(find.text(s.noProjects), findsOneWidget);
+      });
+
+      testWidgets("shows a chat's context in ${S.names[code]}", (tester) async {
+        final s = S.forCode(code);
+        const caldo = AgentProject(
+          id: 'p',
+          name: 'Caldo',
+          colour: 'teal',
+          context: 'A calendar app in Flutter.',
+          sources: ['~/dev/src/Caldo'],
+        );
+        final at = DateTime(2026, 11, 26);
+        final top = Chat(
+          id: 'a',
+          agent: 'claude',
+          state: ChatState.idle,
+          updatedAt: at,
+          title: 'Release 2.33',
+          projectId: 'p',
+          context: 'Ship on Fridays only.',
+        );
+        final sub = Chat(
+          id: 'b',
+          agent: 'claude',
+          state: ChatState.idle,
+          updatedAt: at,
+          title: 'Fix the widget',
+          projectId: 'p',
+          parentId: 'a',
+          context: 'Only the widget.',
+        );
+        Agents.instance
+          ..projects = const [caldo]
+          ..chats = [top, sub];
+        addTearDown(() {
+          Agents.instance
+            ..projects = const []
+            ..chats = const [];
+        });
+        await pump(tester, code, ChatContextScreen(chat: sub));
+        expect(find.text(s.chatContext), findsOneWidget);
+        expect(find.text(s.contextParents.toUpperCase()), findsOneWidget);
+        expect(find.text(top.context), findsOneWidget);
+        expect(find.text(caldo.context), findsOneWidget);
+        expect(find.text(s.contextProjectHint('Caldo')), findsOneWidget);
+        // No computer on: nothing to take a CLAUDE.md from.
+        expect(find.text(s.contextImport), findsNothing);
+        final list = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(
+          find.text(sub.context),
+          200,
+          scrollable: list,
+        );
+        expect(find.text(sub.context), findsOneWidget);
+        // The parent's is changed in the parent: a tap goes there.
+        await tester.scrollUntilVisible(
+          find.text(top.context),
+          -200,
+          scrollable: list,
+        );
+        await tester.tap(find.text(top.context));
+        await tester.pumpAndSettle();
+        expect(find.text(s.contextParents.toUpperCase()), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text(top.context),
+          200,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.tap(find.text(top.context));
+        await tester.pumpAndSettle();
+        expect(find.text(s.contextOwnHint), findsWidgets);
+        expect(find.byType(TextField), findsOneWidget);
+        tester
+            .state<NavigatorState>(find.byType(Navigator).first)
+            .popUntil((r) => r.isFirst);
+        await tester.pumpAndSettle();
+
+        Agents.instance.projects = const [];
+        await pump(tester, code, ChatContextScreen(chat: top));
+        expect(find.text(s.contextNoProject), findsOneWidget);
       });
 
       testWidgets('sends tasks on in ${S.names[code]}', (tester) async {

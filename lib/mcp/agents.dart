@@ -36,6 +36,15 @@ class AgentSpec {
   /// together when any of them names a blank that is empty.
   final List<Object> command;
 
+  /// Claude's: whether it takes what is told after its system prompt from
+  /// a file (`--append-system-prompt-file`), and renders that prompt
+  /// afresh on each request (`--system-prompt-snapshot off`) — else a
+  /// resumed session keeps the prompt it began with, and a context
+  /// changed since never reaches it. Both from its `--help`, as an older
+  /// Claude refuses a flag it doesn't know.
+  final bool promptFile;
+  final bool freshPrompt;
+
   const AgentSpec({
     required this.id,
     required this.label,
@@ -48,6 +57,8 @@ class AgentSpec {
     this.skills = const [],
     this.prompt = 'arg',
     this.talks = false,
+    this.promptFile = false,
+    this.freshPrompt = false,
   });
 
   bool get isClaude => id == 'claude';
@@ -283,8 +294,21 @@ class AgentBook {
       pluginsOn: on,
       skills: skills,
       talks: true,
+      promptFile: _claudeFlags.contains('--append-system-prompt-file'),
+      freshPrompt: _claudeFlags.contains('--system-prompt-snapshot'),
     );
   }
+
+  /// Claude's `--help`, read once a worker's run: a Claude updated since
+  /// is known by the next.
+  static final String _claudeFlags = () {
+    try {
+      final r = Process.runSync('claude', ['--help']);
+      return '${r.stdout}';
+    } catch (_) {
+      return '';
+    }
+  }();
 
   static List<String> _skillsIn(String dir, String prefix) {
     final d = Directory(dir);
@@ -316,9 +340,14 @@ class ChatAsk {
   final List<String> skills;
   final String prompt;
 
-  /// The rules chosen for it, written out as the agent is told them; null
-  /// for none.
+  /// Everything told after the agent's own system prompt — the rules
+  /// chosen for it, its [context], where it works — as one text; null for
+  /// none.
   final String? rules;
+
+  /// Of [rules], what the user wrote for it in Caldo ([contextText]): its
+  /// project's info, its parent chats' context and its own; null for none.
+  final String? context;
   final String? session;
   final String? taskUuid;
   final int cols;
@@ -356,6 +385,10 @@ class ChatAsk {
   /// The row it was read from, to read it again once placed.
   final Map? _row;
 
+  /// The row it was read from, with what the worker added to it; null
+  /// for one made in code.
+  Map? get row => _row;
+
   const ChatAsk({
     required this.id,
     required this.agent,
@@ -368,6 +401,7 @@ class ChatAsk {
     this.skills = const [],
     this.prompt = '',
     this.rules,
+    this.context,
     this.session,
     this.taskUuid,
     this.cols = 80,
@@ -395,6 +429,7 @@ class ChatAsk {
     required this.skills,
     required this.prompt,
     required this.rules,
+    required this.context,
     required this.session,
     required this.taskUuid,
     required this.cols,
@@ -425,47 +460,55 @@ class ChatAsk {
   /// The folders it is given besides the one it starts in.
   List<String> get added => workspace?.added ?? const [];
 
-  factory ChatAsk.fromJson(Map json) => ChatAsk._read(
-    json,
-    id: json['id'] as String,
-    agent: json['agent'] as String,
-    title: json['title'] as String? ?? '',
-    model: _blank(json['model']),
-    effort: _blank(json['effort']),
-    dir: Workspace.of(json['workspace'])?.cwd ?? _blank(json['dir']),
-    permission: _blank(json['permission']),
-    plugins: json['plugins'] == null ? null : _strings(json['plugins']),
-    skills: _strings(json['skills']),
-    prompt: json['prompt'] as String? ?? '',
-    rules: _joined([
-      rulesText(json['rules']),
-      projectText(json['project']),
-      if (_blank(json['parent_id']) case final parent?) subchatText(parent),
-      workspaceText(
-        Workspace.of(json['workspace']),
-        shared: _blank(json['parent_id']) != null,
-      ),
-    ]),
-    session: _blank(json['session']),
-    taskUuid: json['task_uuid'] as String?,
-    cols: json['cols'] as int? ?? 80,
-    rows: json['rows'] as int? ?? 24,
-    mode: json['mode'] as String? ?? 'terminal',
-    usage: json['usage'] is Map ? json['usage'] as Map : null,
-    language: _blank(json['language']),
-    account: _blank(json['account']),
-    // A subchat works in its parent's folder, never one of its own.
-    ownFolder: json['workspace'] is Map && _blank(json['parent_id']) == null,
-    sources: switch (json['project']) {
-      {'sources': final List sources} => [
-        for (final s in sources)
-          if (_blank(s) case final String dir) dir,
-      ],
-      _ => const [],
-    },
-    workspace: Workspace.of(json['workspace']),
-    parentId: _blank(json['parent_id']),
-  );
+  factory ChatAsk.fromJson(Map json) {
+    final context = contextText(
+      json['project'],
+      json['parents'],
+      json['context'],
+    );
+    return ChatAsk._read(
+      json,
+      id: json['id'] as String,
+      agent: json['agent'] as String,
+      title: json['title'] as String? ?? '',
+      model: _blank(json['model']),
+      effort: _blank(json['effort']),
+      dir: Workspace.of(json['workspace'])?.cwd ?? _blank(json['dir']),
+      permission: _blank(json['permission']),
+      plugins: json['plugins'] == null ? null : _strings(json['plugins']),
+      skills: _strings(json['skills']),
+      prompt: json['prompt'] as String? ?? '',
+      rules: _joined([
+        rulesText(json['rules']),
+        context,
+        if (_blank(json['parent_id']) case final parent?) subchatText(parent),
+        workspaceText(
+          Workspace.of(json['workspace']),
+          shared: _blank(json['parent_id']) != null,
+        ),
+      ]),
+      context: context,
+      session: _blank(json['session']),
+      taskUuid: json['task_uuid'] as String?,
+      cols: json['cols'] as int? ?? 80,
+      rows: json['rows'] as int? ?? 24,
+      mode: json['mode'] as String? ?? 'terminal',
+      usage: json['usage'] is Map ? json['usage'] as Map : null,
+      language: _blank(json['language']),
+      account: _blank(json['account']),
+      // A subchat works in its parent's folder, never one of its own.
+      ownFolder: json['workspace'] is Map && _blank(json['parent_id']) == null,
+      sources: switch (json['project']) {
+        {'sources': final List sources} => [
+          for (final s in sources)
+            if (_blank(s) case final String dir) dir,
+        ],
+        _ => const [],
+      },
+      workspace: Workspace.of(json['workspace']),
+      parentId: _blank(json['parent_id']),
+    );
+  }
 }
 
 /// [parts] one after another, the empty left out; null if all are.
@@ -494,12 +537,19 @@ String? settingsChanged(ChatAsk was, ChatAsk now) {
     if (!same(was.plugins, now.plugins)) 'plugins',
     if (!same(was.skills, now.skills))
       now.skills.isEmpty ? 'no skills' : 'skills ${now.skills.join(', ')}',
-    if (was.rules != now.rules) now.rules == null ? 'no rules' : 'rules',
+    if (_apart(was) != _apart(now)) _apart(now) == null ? 'no rules' : 'rules',
+    if (was.context != now.context) 'context',
     if (was.account != now.account) 'account',
   ];
   if (parts.isEmpty) return null;
   return 'Settings changed: ${parts.join(', ')}.';
 }
+
+/// [ask]'s [ChatAsk.rules] less its context, which is said apart.
+String? _apart(ChatAsk ask) => switch ((ask.rules, ask.context)) {
+  (final rules?, final context?) => _blank(rules.replaceFirst(context, '')),
+  (final rules, _) => rules,
+};
 
 /// A chat's rules, `[{name, body}]` as the app keeps them on it, written
 /// out as one text: each under its name, the empty ones left out.
@@ -579,7 +629,8 @@ String parentWords(Map parent, List<Map> items, {int most = 24000}) {
 /// The words that start [ask] with [spec]. With [resume], Claude and
 /// Codex take up that session.
 /// [events] is the file Claude's hooks write to, so the worker hears when
-/// it is waiting; [given], where the files sent to the chat are kept.
+/// it is waiting; [given], where the files sent to the chat are kept;
+/// [promptFile], where Claude's appended prompt is written.
 List<String> launchOf(
   AgentSpec spec,
   ChatAsk ask, {
@@ -587,6 +638,7 @@ List<String> launchOf(
   String? prompt,
   String? events,
   String? given,
+  String? promptFile,
 }) {
   final first = prompt ?? ask.prompt;
   if (!spec.isClaude) {
@@ -630,6 +682,7 @@ List<String> launchOf(
       ask,
       resume: resume,
       given: given,
+      promptFile: promptFile,
       settings: {
         if (events != null)
           'hooks': {
@@ -780,15 +833,22 @@ Future<String?> nameChat(
 /// The choices a chat makes of Claude, for its chat ([ClaudeTalk]) and its
 /// terminal alike; [settings] go in with the plugins it chose. With
 /// [fork], [resume] is another chat's session, carried on under a new one
-/// of this chat's own: a subchat's first start.
+/// of this chat's own: a subchat's first start. What goes after Claude's
+/// system prompt is written to [promptFile] where Claude reads one: a
+/// project's info may be the length of a CLAUDE.md, more than tmux takes
+/// in one command or Linux in one word.
 List<String> claudeChoices(
   AgentSpec spec,
   ChatAsk ask, {
   String? resume,
   bool fork = false,
   String? given,
+  String? promptFile,
   Map<String, Object?> settings = const {},
 }) {
+  final appended = _appended(ask);
+  final toFile = appended != null && promptFile != null && spec.promptFile;
+  if (toFile) File(promptFile).writeAsStringSync(appended);
   final all = {
     ...settings,
     if (ask.plugins case final chosen?)
@@ -802,7 +862,15 @@ List<String> claudeChoices(
     if (resume != null && fork) '--fork-session',
     if (ask.title.isNotEmpty) ...['-n', ask.title],
     if (all.isNotEmpty) ...['--settings', jsonEncode(all)],
-    if (_appended(ask) case final text?) ...['--append-system-prompt', text],
+    if (toFile) ...[
+      '--append-system-prompt-file',
+      promptFile,
+    ] else if (appended != null) ...[
+      '--append-system-prompt',
+      appended,
+    ],
+    // Its context changed since a session began reaches it when resumed.
+    if (spec.freshPrompt) ...['--system-prompt-snapshot', 'off'],
     // The files sent to the chat, outside its folder, read without asking.
     // Joined by `=`: the flag takes every word after it up to the next
     // flag, and a first message would be taken for a folder.
@@ -894,6 +962,15 @@ Map<String, Object?> saidBody(String text, List<Given> files, {Map? sender}) =>
 /// Where a chat's program, and every MCP server it starts, finds the
 /// chat's id: Caldo's own says by it which chat a message is from.
 const chatEnv = 'CALDO_CHAT';
+
+/// What a chat's program runs with besides [chatEnv]: Claude reads no
+/// CLAUDE.md and keeps no memory of its own, as asked (2026-11-26: "codex
+/// for default dont read claude.md, then make claude dont read it too"),
+/// so all it knows is what the user wrote in Caldo ([contextText]).
+const quietEnv = {
+  'CLAUDE_CODE_DISABLE_CLAUDE_MDS': '1',
+  'CLAUDE_CODE_DISABLE_AUTO_MEMORY': '1',
+};
 
 /// [text], a message another chat's agent sent ([sender], `chat_in`'s:
 /// {chat, title, waits}), as its agent is told it: who it is from, that it

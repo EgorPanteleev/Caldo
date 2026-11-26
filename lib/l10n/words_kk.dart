@@ -673,7 +673,6 @@ const Map<String, Object> kk = {
       "Жоба өз чаттарына олардың не туралы екенін және қай қалталармен жұмыс істейтінін айтады.",
   'projectName': "Атауы",
   'projectColour': "Түсі",
-  'projectContext': "Контекст",
   'projectContextHint':
       "Әр чаты білуі керек нәрсе: бұл не, онымен қалай жұмыс істеу керек, нені қозғамау керек.",
   'projectSources': "Қалталар",
@@ -694,22 +693,20 @@ const Map<String, Object> kk = {
   'deleteChatSubchats': ["Онымен бірге {n} ішкі чаты да жойылады."],
   'allProjects': "Барлық жобалар",
   'untitledProject': "Атаусыз жоба",
-  'projectAllContext': "Бүкіл контекст",
-  'projectAllContextHint':
-      "«{name}» ішінде басталған чатқа не айтылады: осында сақталған сөздер, содан кейін Claude компьютерде оқитыны — CLAUDE.md файлдары мен оның жады.",
-  'contextInCaldo': "Caldo-да",
-  'contextOnWorker': "{worker} ішінде",
-  'contextOnComputer': "Компьютерде",
-  'contextNoWorker': "Файлдарды оқитын қосулы компьютер жоқ.",
   'contextNoAnswer': "Компьютер жауап бермеді. Онда воркер іске қосылған ба?",
-  'contextChanged':
-      "Ол осы уақытта компьютерде өзгертілді, сондықтан сол күйінде қалдырылды. Міне, қазіргі түрі.",
-  'contextUserFile': "Сіздікі, әр қалтада оқылады",
-  'contextMemory': "Жад",
-  'contextMissing': "Әлі жазылмаған",
+  'chatContext': "Контекст",
+  'chatContextHint':
+      "Бұл чаттың агентіне айтылатыны. Ол CLAUDE.md пен жад файлдарын оқымайды, тек осыны.",
+  'contextParents': "Ол кіретін чаттардан",
+  'contextParentHint': "Мұнда тек оқуға болады: оны сол чатта өзгертіңіз.",
+  'contextProject': "Жоба туралы",
+  'contextProjectHint':
+      "«{name}» ішіндегі барлық чатқа ортақ: әрқайсысы өзгерісті келесі іске қосылғанда біледі.",
+  'contextNoProject': "Бұл чат ешбір жобада емес.",
+  'contextOwn': "Чаттың өз контексі",
+  'contextOwnHint':
+      "Осы чат пен оның ішкі чаттары үшін: қалай жұмыс істеу керек, не үшін керек.",
+  'contextImport': "CLAUDE.md-ден алу",
+  'contextImportNone': "Жоба қалталарында CLAUDE.md жоқ.",
   'contextNothing': "Ештеңе жазылмаған",
-  'contextUncommitted': "Коммит жасалмаған: жаңа чаттар оны әзірге көрмейді",
-  'contextWords': "Caldo-да сақталады, жобада басталған әр чатқа айтылады",
-  'contextDeleteQuestion': "Бұл естелікті жою керек пе?",
-  'contextReadAgain': "Қайта оқу",
 };

@@ -348,7 +348,8 @@ class Worker {
           'limited',
         ]);
     for (final row in mine) {
-      final ask = ChatAsk.fromJson(row);
+      // With its context, so a program started again for it is told it.
+      final ask = await _withContext(ChatAsk.fromJson(row));
       final before = row['state'] as String;
       _know(ask);
       // Answered before: its task has the answer already.
@@ -1392,7 +1393,7 @@ class Worker {
     final place = await _placeOf(ask);
     if (place == null) return null;
     final (spec, dir, placed) = place;
-    ask = placed;
+    ask = await _withContext(placed);
     resume = resumable(spec, home, dir, resume);
     var first = prompt ?? (resume != null ? '' : ask.prompt);
     // A subchat begun in a terminal is told its parent's words first.
@@ -1411,6 +1412,7 @@ class Worker {
         prompt: first,
         events: tmux.eventsOf(ask.id),
         given: tmux.givenOf(ask.id),
+        promptFile: tmux.promptOf(ask.id),
       ),
     ];
     final kept = state.chats[ask.id];
@@ -1492,7 +1494,7 @@ class Worker {
         .eq('worker_id', state.id)
         .maybeSingle();
     if (row == null) return;
-    final ask = ChatAsk.fromJson(row);
+    final ask = await _withContext(ChatAsk.fromJson(row));
     final talker = _talks[chat];
     if (talker != null) {
       await talker.retune(ask);
@@ -1561,6 +1563,66 @@ class Worker {
       return null;
     }
     return (spec, dir, ask);
+  }
+
+  /// [ask] with its context as it stands now ([contextText]): its
+  /// project's info read afresh, as every chat in a project shares it —
+  /// the copy it began with only if the project is gone — and the context
+  /// of each chat it is part of, outermost first, since a subchat has all
+  /// its parent has.
+  Future<ChatAsk> _withContext(ChatAsk ask) async {
+    final row = ask.row;
+    if (row == null) return ask;
+    final db = await _db;
+    final fields = <String, Object?>{};
+    if (row['project_id'] case final String id) {
+      try {
+        final project = await db
+            .from('agent_projects')
+            .select('name, context')
+            .eq('id', id)
+            .maybeSingle();
+        if (project != null) {
+          final name = '${project['name'] ?? ''}'.trim();
+          final words = '${project['context'] ?? ''}'.trim();
+          fields['project'] = {
+            ...?(row['project'] as Map?),
+            'name': name,
+            'context': [
+              if (words.isNotEmpty) {'name': name, 'body': words},
+            ],
+          };
+        }
+      } catch (e) {
+        log('[${_short(ask.id)}] its project not read: $e');
+      }
+    }
+    final parents = <Map<String, Object?>>[];
+    final seen = {ask.id};
+    var parent = ask.parentId;
+    while (parent != null && seen.add(parent) && parents.length < 20) {
+      final Map<String, dynamic>? up;
+      try {
+        up = await db
+            .from('chats')
+            .select('id, title, context, parent_id')
+            .eq('id', parent)
+            .maybeSingle();
+      } catch (e) {
+        // A server without `chats.context` yet: no parents' words.
+        log('[${_short(ask.id)}] its parents not read: $e');
+        break;
+      }
+      if (up == null) break;
+      parents.insert(0, {
+        'id': up['id'],
+        'title': up['title'],
+        'context': up['context'],
+      });
+      parent = up['parent_id'] as String?;
+    }
+    if (parents.isNotEmpty) fields['parents'] = parents;
+    return fields.isEmpty ? ask : ask.withRow(fields);
   }
 
   /// Subchat [ask] placed in the folder of the chat it is part of, the
@@ -1656,7 +1718,7 @@ class Worker {
     final place = await _placeOf(ask);
     if (place == null) return null;
     final (spec, dir, placed) = place;
-    ask = placed;
+    ask = await _withContext(placed);
     final talker = _talks[ask.id] = await _Talker.make(
       this,
       ask,
@@ -2652,6 +2714,7 @@ class _Talker implements TalkSink {
       this,
       dir,
       given: worker.tmux.givenOf(ask.id),
+      promptFile: worker.tmux.promptOf(ask.id),
     );
     if (made == null) return false;
     _recoveringExit = kept.hasExited;
@@ -2708,6 +2771,7 @@ class _Talker implements TalkSink {
       this,
       dir,
       given: worker.tmux.givenOf(ask.id),
+      promptFile: worker.tmux.promptOf(ask.id),
     );
     if (made == null) {
       throw StateError('${spec.label} has no chat, only a terminal.');

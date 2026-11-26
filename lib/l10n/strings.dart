@@ -285,7 +285,6 @@ class S {
   String get noProjectsHint => _word('noProjectsHint');
   String get projectName => _word('projectName');
   String get projectColour => _word('projectColour');
-  String get projectContext => _word('projectContext');
   String get projectContextHint => _word('projectContextHint');
   String get projectSources => _word('projectSources');
   String get projectSourcesHint => _word('projectSourcesHint');
@@ -302,24 +301,20 @@ class S {
   String deleteChatSubchats(int n) => _count('deleteChatSubchats', n);
   String get allProjects => _word('allProjects');
   String get untitledProject => _word('untitledProject');
-  String get projectAllContext => _word('projectAllContext');
-  String projectAllContextHint(String name) =>
-      _fill('projectAllContextHint', {'name': name});
-  String get contextInCaldo => _word('contextInCaldo');
-  String contextOnWorker(String worker) =>
-      _fill('contextOnWorker', {'worker': worker});
-  String get contextOnComputer => _word('contextOnComputer');
-  String get contextNoWorker => _word('contextNoWorker');
+  String get chatContext => _word('chatContext');
+  String get chatContextHint => _word('chatContextHint');
+  String get contextParents => _word('contextParents');
+  String get contextParentHint => _word('contextParentHint');
+  String get contextProject => _word('contextProject');
+  String contextProjectHint(String name) =>
+      _fill('contextProjectHint', {'name': name});
+  String get contextNoProject => _word('contextNoProject');
+  String get contextOwn => _word('contextOwn');
+  String get contextOwnHint => _word('contextOwnHint');
+  String get contextImport => _word('contextImport');
+  String get contextImportNone => _word('contextImportNone');
   String get contextNoAnswer => _word('contextNoAnswer');
-  String get contextChanged => _word('contextChanged');
-  String get contextUserFile => _word('contextUserFile');
-  String get contextMemory => _word('contextMemory');
-  String get contextMissing => _word('contextMissing');
   String get contextNothing => _word('contextNothing');
-  String get contextUncommitted => _word('contextUncommitted');
-  String get contextWords => _word('contextWords');
-  String get contextDeleteQuestion => _word('contextDeleteQuestion');
-  String get contextReadAgain => _word('contextReadAgain');
   String get chatPermission => _word('chatPermission');
   String get chatPlugins => _word('chatPlugins');
   String get chatSkills => _word('chatSkills');

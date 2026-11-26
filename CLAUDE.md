@@ -832,31 +832,42 @@ the app, a terminal beside them; anything else a terminal.
   starts with the chosen rules' openings (`firstMessage`, shown as the
   hint; app only). Errands take none.
 - **Projects, not folders** (asked for in place of the form's folder):
-  `agent_projects` (name, colour, context, `sources` from `~`), side by
-  side — **no subprojects** (taken out 2026-11-25, `…_flat_projects.sql`;
-  a subtask carries its parents' words instead); edited under Agents ›
-  Projects (`ProjectsScreen`, `ProjectScreen`, `agent_projects.dart`). A
-  chat keeps a copy (`chats.project`, `Agents.snapshotOf`: name, colour,
-  context, folders); `project_id` is only for the list, which wears each
-  project's colour and lists one project's chats at a time. The context
-  reaches the agent after the rules (`projectText`).
-- **A project's whole context** (`ProjectContextScreen`,
-  `agent_context.dart`; "All context" on a project): its words,
-  changed in place, then what Claude reads on a worker —
-  `~/.claude/CLAUDE.md`, the sources' `CLAUDE.md` files from `~` down, and
-  the memory of each source's main checkout (`ContextFiles`,
-  `lib/mcp/context_files.dart`). Asked on rows of `agent_context_asks`
-  (read / write / remove, answered on the row, deleted by the app; missed
-  ones are answered at the worker's next look). Written only over what was
-  read (`was`), only CLAUDE.md and memory files; only memory is removed. A
-  repo's CLAUDE.md changed so is uncommitted in the user's checkout, which
-  chats' worktrees don't see until it is committed — the page says so.
+  `agent_projects` (name, colour, info in `context`, `sources` from `~`),
+  side by side — **no subprojects** (taken out 2026-11-25,
+  `…_flat_projects.sql`; a subtask carries its parents' words instead);
+  edited under Agents › Projects (`ProjectsScreen`, `ProjectScreen`,
+  `agent_projects.dart`). A chat keeps a copy (`chats.project`,
+  `Agents.snapshotOf`), used only if the project is deleted; `project_id`
+  also sorts the list, which wears each project's colour.
+- **A chat knows only what the user wrote in Caldo** (asked 2026-11-26:
+  "codex for default dont read claude.md, then make claude dont read it
+  too"): Claude runs with `quietEnv` (`CLAUDE_CODE_DISABLE_CLAUDE_MDS`,
+  `…_AUTO_MEMORY`). Its context (`contextText`, after the rules) is the
+  project's info, **read live** at each program start (`Worker._withContext`),
+  then each parent chat's own context, outermost first (a subchat has all
+  its parent has), then its own (`chats.context`, `…_chat_context.sql`).
+  Changing any of them in the app sends `settings` to the chats it reaches
+  (`setContext`, `setProjectInfo`, `retuneProject`). Claude takes it from a
+  file (`--append-system-prompt-file`, `Tmux.promptOf`) with
+  `--system-prompt-snapshot off` — without it a resumed session keeps the
+  prompt it began with (tried on Haiku) — both only if its `--help` has them
+  (`AgentSpec.promptFile/freshPrompt`). Terminals start from a script
+  (`<chat>.run`): tmux refuses a command over ~16k.
+- **Context is seen from the chat** (`ChatContextScreen`,
+  `agent_context.dart`; the chat's menu › Context): parents' context read
+  only (a tap opens that chat's page, where it is changed), project info
+  and its own, each edited whole (`_ContextEditor`). **No files are shown**
+  ("i dont wanna see any of files"). "Take from CLAUDE.md" begins the
+  project's info from its folders' `CLAUDE.md` on the chat's computer
+  (`readContext`, `agent_context_asks`, `ContextFiles`), into the editor to
+  look over. Agents keep the info current with the MCP tools
+  `project_info` / `update_project_info` (old → new, or the whole text).
 - **Every chat from the app works in a folder of its own** (`Workspace`,
   `lib/mcp/workspace.dart`; `chats.workspace`, `{}` asked, filled by the
   worker): `~/.local/share/caldo/work/<chat>`, each source in a git repo
   a worktree on `caldo/<id8>` from the checkout's HEAD, any other source
-  given as it is (`--add-dir`). One worktree is the start folder (its
-  CLAUDE.md is read), else the chat's folder. `dir` is written back. Gone
+  given as it is (`--add-dir`). One worktree is the start folder, else
+  the chat's folder. `dir` is written back. Gone
   with the chat, its branch kept if it holds unmerged work; strays swept
   at the worker's start. Errands and chats from before keep `dir`.
 - **Subchats** (asked 2026-11-26: "each subchat is the same as chat, but
@@ -1251,7 +1262,7 @@ Sidebar, each screen drawn for its width, task form as a right panel.
 
 ## Tests
 
-`flutter test` — 712 tests, all passing; keep it so. `supabase test db` — 116.
+`flutter test` — 734 tests, all passing; keep it so. `supabase test db` — 116.
 
 - Each test file has its own temp DB dir (`initTestDatabase`);
   `AppDatabase.close()` for the same reason.
