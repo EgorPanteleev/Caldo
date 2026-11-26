@@ -486,6 +486,9 @@ const Map<String, Object> es = {
   'chatsStarted': ["{n} chat iniciado", "{n} chats iniciados"],
   'chatDefault': "Predeterminado",
   'chatOffline': "sin conexión",
+  'chatAway': "Sin conexión",
+  'chatAwayHint':
+      "{name} está sin conexión desde {when}. Lo que envíes aquí espera a que su worker vuelva a funcionar.",
   'chatOther': "Otro…",
   'chatMessage': "Mensaje",
   'chatStop': "Detener",
@@ -695,4 +698,23 @@ const Map<String, Object> es = {
       "Cada chat trabaja en una carpeta propia del ordenador, con las carpetas de su proyecto dentro.",
   'allProjects': "Todos los proyectos",
   'untitledProject': "Proyecto sin nombre",
+  'projectAllContext': "Todo el contexto",
+  'projectAllContextHint':
+      "Lo que se le dice a un chat empezado en {name}: las palabras guardadas aquí y luego lo que Claude lee en el ordenador: los archivos CLAUDE.md y su memoria.",
+  'contextInCaldo': "En Caldo",
+  'contextOnWorker': "En {worker}",
+  'contextOnComputer': "En el ordenador",
+  'contextNoWorker':
+      "No hay ningún ordenador encendido del que leer los archivos.",
+  'contextNoAnswer': "El ordenador no respondió. ¿Está en marcha su worker?",
+  'contextChanged':
+      "Se cambió en el ordenador mientras tanto, así que se dejó como estaba. Aquí está como es ahora.",
+  'contextUserFile': "El tuyo, leído en cada carpeta",
+  'contextMemory': "Memoria",
+  'contextMissing': "Aún sin escribir",
+  'contextNothing': "Nada escrito",
+  'contextUncommitted': "Sin commit: los chats nuevos aún no lo ven",
+  'contextWords': "Guardado en Caldo, se le dice a cada chat empezado en él",
+  'contextDeleteQuestion': "¿Eliminar este recuerdo?",
+  'contextReadAgain': "Leer de nuevo",
 };

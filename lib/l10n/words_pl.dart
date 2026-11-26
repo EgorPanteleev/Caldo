@@ -513,6 +513,9 @@ const Map<String, Object> pl = {
   ],
   'chatDefault': "Domyślnie",
   'chatOffline': "offline",
+  'chatAway': "Offline",
+  'chatAwayHint':
+      "{name} jest offline od {when}. To, co tu wyślesz, poczeka, aż jego worker znów ruszy.",
   'chatOther': "Inny…",
   'chatMessage': "Wiadomość",
   'chatStop': "Zatrzymaj",
@@ -727,4 +730,23 @@ const Map<String, Object> pl = {
       "Każdy czat pracuje we własnym folderze na komputerze, z folderami swojego projektu.",
   'allProjects': "Wszystkie projekty",
   'untitledProject': "Projekt bez nazwy",
+  'projectAllContext': "Cały kontekst",
+  'projectAllContextHint':
+      "Co usłyszy czat zaczęty w {name}: słowa zapisane tutaj, a potem to, co Claude czyta na komputerze — pliki CLAUDE.md i swoją pamięć.",
+  'contextInCaldo': "W Caldo",
+  'contextOnWorker': "Na {worker}",
+  'contextOnComputer': "Na komputerze",
+  'contextNoWorker': "Żaden komputer nie jest włączony, by odczytać pliki.",
+  'contextNoAnswer': "Komputer nie odpowiedział. Czy działa na nim worker?",
+  'contextChanged':
+      "W międzyczasie zmieniono go na komputerze, więc pozostawiono go bez zmian. Oto jak wygląda teraz.",
+  'contextUserFile': "Twój, czytany w każdym folderze",
+  'contextMemory': "Pamięć",
+  'contextMissing': "Jeszcze nienapisany",
+  'contextNothing': "Nic nie napisano",
+  'contextUncommitted': "Bez commita: nowe czaty jeszcze go nie widzą",
+  'contextWords':
+      "Zapisany w Caldo, przekazywany każdemu czatowi w nim zaczętemu",
+  'contextDeleteQuestion': "Usunąć to wspomnienie?",
+  'contextReadAgain': "Odczytaj ponownie",
 };

@@ -10,6 +10,7 @@ import '../services/chat_files.dart';
 import 'accounts.dart';
 import 'agents.dart';
 import 'asks_back.dart';
+import 'context_files.dart';
 import 'kept.dart';
 import 'model_catalog.dart';
 import 'notices.dart';
@@ -143,9 +144,9 @@ class _Live {
     required this.lastSnap,
     required this.line,
   }) {
-    decoder = const Utf8Decoder(
-      allowMalformed: true,
-    ).startChunkedConversion(StringConversionSink.fromStringSink(pending));
+    decoder = const Utf8Decoder(allowMalformed: true).startChunkedConversion(
+      StringConversionSink.fromStringSink(_NoNul(pending)),
+    );
   }
 
   Map<String, int> get kept => {
@@ -155,6 +156,35 @@ class _Live {
     'snap': snap,
     'last_snap': lastSnap,
   };
+}
+
+/// [into] less NULs: a terminal's output goes up as text, which Postgres
+/// refuses with one in it, and a refused piece stopped the terminal for
+/// good. A terminal draws nothing for one anyway.
+class _NoNul implements StringSink {
+  final StringSink into;
+  _NoNul(this.into);
+
+  @override
+  void write(Object? object) {
+    final text = '$object';
+    into.write(text.contains('\u0000') ? text.replaceAll('\u0000', '') : text);
+  }
+
+  @override
+  void writeAll(Iterable<Object?> objects, [String separator = '']) =>
+      write(objects.join(separator));
+
+  @override
+  void writeCharCode(int charCode) {
+    if (charCode != 0) into.writeCharCode(charCode);
+  }
+
+  @override
+  void writeln([Object? object = '']) {
+    write(object);
+    into.writeln();
+  }
 }
 
 /// Runs the agents the app asks this computer for, each in a terminal of
@@ -225,6 +255,7 @@ class Worker {
         await _guard(_tendAccounts);
         await _adopt();
         unawaited(_guard(_sweep));
+        unawaited(_guard(_sweepAsks));
         break;
       } catch (e) {
         log('worker: $e; trying again in ${wait}s');
@@ -240,6 +271,7 @@ class Worker {
     _tendSoon(const Duration(seconds: 20));
     while (true) {
       await _guard(_look);
+      await _guard(_answerWaiting);
       await Future.any([
         _wake.future,
         Future<void>.delayed(const Duration(seconds: 15)),
@@ -430,6 +462,17 @@ class Worker {
           schema: 'public',
           table: 'chat_subscriptions',
           callback: (_) => _watchSoon(const Duration(seconds: 1)),
+        )
+        .subscribe();
+    // A project's files asked to be read or written: answered at once.
+    remote.client
+        .channel('caldo-worker-context')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'agent_context_asks',
+          callback: (change) =>
+              unawaited(_guard(() => _answer(change.newRecord))),
         )
         .subscribe();
     // An account asked for, a code handed back, one removed: seen to at
@@ -2147,6 +2190,81 @@ class Worker {
     }
   }
 
+  // ---- A project's files --------------------------------------------------
+
+  /// The asks being answered, so one heard twice is answered once.
+  final Set<String> _answering = {};
+
+  /// The asks left from before, the app long done waiting, put away.
+  Future<void> _sweepAsks() async {
+    final db = await _db;
+    final since = DateTime.now().toUtc().subtract(const Duration(minutes: 1));
+    await db
+        .from('agent_context_asks')
+        .delete()
+        .eq('worker_id', state.id)
+        .lt('created_at', since.toIso8601String());
+  }
+
+  /// The asks realtime didn't bring, answered: looked for at each look,
+  /// well within the app's wait.
+  Future<void> _answerWaiting() async {
+    final db = await _db;
+    final rows = await db
+        .from('agent_context_asks')
+        .select()
+        .eq('worker_id', state.id)
+        .isFilter('done_at', null);
+    for (final row in rows) {
+      await _answer(row);
+    }
+  }
+
+  /// The app's ask [row] answered on it: a project's files read from this
+  /// computer, or one of them written.
+  Future<void> _answer(Map<String, dynamic> row) async {
+    final id = row['id'] as String?;
+    if (id == null || row['worker_id'] != state.id || row['done_at'] != null) {
+      return;
+    }
+    if (!_answering.add(id)) return;
+    Map<String, Object?> answer;
+    try {
+      final files = row['kind'] == 'read'
+          ? await ContextFiles.read(home, [
+              for (final s in row['sources'] as List? ?? const []) '$s',
+            ])
+          : [
+              await ContextFiles.write(
+                home,
+                row['path'] as String,
+                body: row['kind'] == 'remove' ? null : row['body'] as String?,
+                was: row['was'] as String?,
+              ),
+            ];
+      answer = {
+        'files': [for (final f in files) f.toJson()],
+      };
+      if (row['kind'] != 'read') log('context: ${row['kind']} ${row['path']}');
+    } on ContextChanged {
+      answer = {'error': 'changed'};
+    } catch (e) {
+      answer = {'error': '$e'};
+    }
+    try {
+      final db = await _db;
+      await db
+          .from('agent_context_asks')
+          .update({
+            ...answer,
+            'done_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', id);
+    } finally {
+      _answering.remove(id);
+    }
+  }
+
   /// A chat deleted in the app: its terminal goes with it.
   Future<void> _drop(String chat) async {
     final talker = _talks.remove(chat);
@@ -2656,7 +2774,7 @@ class _Talker implements TalkSink {
     'id': id,
     'seq': _seqs[id] ??= _seq++,
     'kind': kind,
-    'body': body,
+    'body': withoutNul(body),
   };
 
   Future<void> picture(String object, String caption, Map file) async {
@@ -2706,7 +2824,9 @@ class _Talker implements TalkSink {
   /// Refused for what the row is (a check or a key broken), not for the
   /// way to the server: sent again, it would be refused again.
   static bool _never(Object e) =>
-      e is PostgrestException && (e.code?.startsWith('23') ?? false);
+      e is PostgrestException &&
+      ((e.code?.startsWith('23') ?? false) ||
+          (e.code?.startsWith('22') ?? false));
 
   /// [rows] sent one at a time, those the server refuses dropped; the
   /// rest put back for the next try if the way to it fails meanwhile.
@@ -2967,6 +3087,26 @@ class _Talker implements TalkSink {
 }
 
 String _short(String id) => id.substring(0, 8);
+
+/// [value] with every NUL taken out of its strings, at any depth: Postgres
+/// refuses one in text or JSON (22P05), and a refused row was tried again
+/// every 2s for ever, holding back each item of its chat after it. What has
+/// none is handed back as it is.
+Object? withoutNul(Object? value) => switch (value) {
+  String s when s.contains('\u0000') => s.replaceAll('\u0000', ''),
+  Map m when _holdsNul(m) => {
+    for (final MapEntry(:key, :value) in m.entries) key: withoutNul(value),
+  },
+  List l when _holdsNul(l) => [for (final v in l) withoutNul(v)],
+  _ => value,
+};
+
+bool _holdsNul(Object? value) => switch (value) {
+  String s => s.contains('\u0000'),
+  Map m => m.values.any(_holdsNul),
+  List l => l.any(_holdsNul),
+  _ => false,
+};
 
 /// An answer as the app writes it: "choice item", and after them, to
 /// questions asked of the user, the answers as JSON by each question's

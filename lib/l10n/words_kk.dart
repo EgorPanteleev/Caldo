@@ -475,6 +475,9 @@ const Map<String, Object> kk = {
   'chatsStarted': ["{n} чат басталды"],
   'chatDefault': "Әдепкі",
   'chatOffline': "желіде жоқ",
+  'chatAway': "Желіде жоқ",
+  'chatAwayHint':
+      "{name} {when} бастап желіде жоқ. Мұнда жібергеніңіз оның воркері қайта іске қосылғанша күтеді.",
   'chatOther': "Басқа…",
   'chatMessage': "Хабар",
   'chatStop': "Тоқтату",
@@ -685,4 +688,22 @@ const Map<String, Object> kk = {
       "Әр чат компьютердегі өз қалтасында, жобасының қалталарымен жұмыс істейді.",
   'allProjects': "Барлық жобалар",
   'untitledProject': "Атаусыз жоба",
+  'projectAllContext': "Бүкіл контекст",
+  'projectAllContextHint':
+      "«{name}» ішінде басталған чатқа не айтылады: осында сақталған сөздер, содан кейін Claude компьютерде оқитыны — CLAUDE.md файлдары мен оның жады.",
+  'contextInCaldo': "Caldo-да",
+  'contextOnWorker': "{worker} ішінде",
+  'contextOnComputer': "Компьютерде",
+  'contextNoWorker': "Файлдарды оқитын қосулы компьютер жоқ.",
+  'contextNoAnswer': "Компьютер жауап бермеді. Онда воркер іске қосылған ба?",
+  'contextChanged':
+      "Ол осы уақытта компьютерде өзгертілді, сондықтан сол күйінде қалдырылды. Міне, қазіргі түрі.",
+  'contextUserFile': "Сіздікі, әр қалтада оқылады",
+  'contextMemory': "Жад",
+  'contextMissing': "Әлі жазылмаған",
+  'contextNothing': "Ештеңе жазылмаған",
+  'contextUncommitted': "Коммит жасалмаған: жаңа чаттар оны әзірге көрмейді",
+  'contextWords': "Caldo-да сақталады, жобада басталған әр чатқа айтылады",
+  'contextDeleteQuestion': "Бұл естелікті жою керек пе?",
+  'contextReadAgain': "Қайта оқу",
 };

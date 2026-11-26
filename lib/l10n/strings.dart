@@ -299,6 +299,24 @@ class S {
   String get chatOwnFolderHint => _word('chatOwnFolderHint');
   String get allProjects => _word('allProjects');
   String get untitledProject => _word('untitledProject');
+  String get projectAllContext => _word('projectAllContext');
+  String projectAllContextHint(String name) =>
+      _fill('projectAllContextHint', {'name': name});
+  String get contextInCaldo => _word('contextInCaldo');
+  String contextOnWorker(String worker) =>
+      _fill('contextOnWorker', {'worker': worker});
+  String get contextOnComputer => _word('contextOnComputer');
+  String get contextNoWorker => _word('contextNoWorker');
+  String get contextNoAnswer => _word('contextNoAnswer');
+  String get contextChanged => _word('contextChanged');
+  String get contextUserFile => _word('contextUserFile');
+  String get contextMemory => _word('contextMemory');
+  String get contextMissing => _word('contextMissing');
+  String get contextNothing => _word('contextNothing');
+  String get contextUncommitted => _word('contextUncommitted');
+  String get contextWords => _word('contextWords');
+  String get contextDeleteQuestion => _word('contextDeleteQuestion');
+  String get contextReadAgain => _word('contextReadAgain');
   String projectFrom(String name) => _fill('projectFrom', {'name': name});
   String get chatPermission => _word('chatPermission');
   String get chatPlugins => _word('chatPlugins');
@@ -327,6 +345,9 @@ class S {
   String chatsStarted(int n) => _count('chatsStarted', n);
   String get chatDefault => _word('chatDefault');
   String get chatOffline => _word('chatOffline');
+  String get chatAway => _word('chatAway');
+  String chatAwayHint(String name, String when) =>
+      _fill('chatAwayHint', {'name': name, 'when': when});
   String get chatOther => _word('chatOther');
   String get chatMessage => _word('chatMessage');
   String get chatStop => _word('chatStop');
