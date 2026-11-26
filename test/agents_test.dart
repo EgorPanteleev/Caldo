@@ -3149,27 +3149,36 @@ void main() {
           Color.lerp(projectColour, palette.text, 0.35),
         );
 
-        BoxBorder? stripe(Finder title) {
-          final decoration =
-              tester
-                      .element(title)
-                      .findAncestorWidgetOfExactType<Ink>()!
-                      .decoration
-                  as BoxDecoration?;
-          return decoration?.border;
+        Color? bar(Finder title) {
+          final card = find.ancestor(of: title, matching: find.byType(InkWell));
+          final bars = find.descendant(
+            of: card,
+            matching: find.byKey(const ValueKey('projectBar')),
+          );
+          if (bars.evaluate().isEmpty) return null;
+          final box = tester.widget<DecoratedBox>(bars);
+          return (box.decoration as BoxDecoration).color;
         }
 
-        final rightStripe = Border(
-          right: BorderSide(color: projectColour, width: 4),
-        );
-        expect(stripe(grouped), rightStripe);
-        expect(stripe(ungrouped), isNull);
+        double timeRight(Finder title) => tester
+            .getTopRight(
+              find.descendant(
+                of: find.ancestor(of: title, matching: find.byType(InkWell)),
+                matching: find.text(Dates.time(now)),
+              ),
+            )
+            .dx;
+
+        expect(bar(grouped), projectColour);
+        expect(bar(ungrouped), isNull);
+        // Times line up whether a card has a bar or not.
+        expect(timeRight(grouped), timeRight(ungrouped));
 
         await tester.longPress(grouped);
         await tester.pump();
         expect(background(grouped), dark ? palette.panelHi : palette.field);
         expect(background(ungrouped), gray);
-        expect(stripe(grouped), rightStripe);
+        expect(bar(grouped), projectColour);
       });
     }
 

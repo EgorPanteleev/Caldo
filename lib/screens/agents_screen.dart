@@ -584,7 +584,6 @@ class _ChatRow extends StatelessWidget {
         : Dates.shortDay(at);
     final colour = _chatColour(chat);
     final project = _chatProjectName(chat);
-    const stripeWidth = 4.0;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ground = dark ? p.panel : p.panelHi;
     final pickedGround = dark ? p.panelHi : p.field;
@@ -608,139 +607,148 @@ class _ChatRow extends StatelessWidget {
         onTap: picking ? onPick : () => openChat(context, chat.id),
         onLongPress: onPick,
         onSecondaryTap: onPick,
-        child: Ink(
-          decoration: colour == null
-              ? null
-              : BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: colour, width: stripeWidth),
-                  ),
-                ),
-          // Ink adds the stripe's width to the padding.
-          padding: EdgeInsets.fromLTRB(
-            14,
-            12,
-            colour == null ? 12 : 12 - stripeWidth,
-            12,
-          ),
-          child: Row(
-            children: [
-              if (picking)
-                Icon(
-                  picked
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  size: 20,
-                  color: picked ? p.text : p.faint,
-                )
-              else
-                _StateMark(chat: chat, size: 9),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+        child: Stack(
+          children: [
+            // The same room on the right whether a project's bar is
+            // there or not, so every card's time lines up.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 20, 12),
+              child: Row(
+                children: [
+                  if (picking)
+                    Icon(
+                      picked
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 20,
+                      color: picked ? p.text : p.faint,
+                    )
+                  else
+                    _StateMark(chat: chat, size: 9),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (sub) ...[
-                          Icon(
-                            Icons.subdirectory_arrow_right_rounded,
-                            size: 15,
-                            color: p.muted,
-                            semanticLabel: s.subchats,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        if (chat.taskUuid != null) ...[
-                          Icon(
-                            Icons.check_box_outlined,
-                            size: 14,
-                            color: p.muted,
-                            semanticLabel: s.chatFromTask,
-                          ),
-                          const SizedBox(width: 5),
-                        ],
-                        Expanded(
-                          child: Text(
-                            chat.name.isEmpty ? _lineOf(chat) : chat.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: p.text,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (chat.muted) ...[
-                          Icon(
-                            Icons.notifications_off_outlined,
-                            size: 13,
-                            color: p.faint,
-                            semanticLabel: s.chatMuted,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        if (chat.pinned) ...[
-                          Icon(
-                            Icons.push_pin,
-                            size: 13,
-                            color: p.faint,
-                            semanticLabel: s.chatPinned,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Text(
-                          when,
-                          style: TextStyle(color: p.faint, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          if (project != null)
-                            TextSpan(
-                              text: '$project · ',
-                              style: TextStyle(
-                                color: Color.lerp(colour, p.text, 0.35),
-                                fontWeight: FontWeight.w600,
+                        Row(
+                          children: [
+                            if (sub) ...[
+                              Icon(
+                                Icons.subdirectory_arrow_right_rounded,
+                                size: 15,
+                                color: p.muted,
+                                semanticLabel: s.subchats,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            if (chat.taskUuid != null) ...[
+                              Icon(
+                                Icons.check_box_outlined,
+                                size: 14,
+                                color: p.muted,
+                                semanticLabel: s.chatFromTask,
+                              ),
+                              const SizedBox(width: 5),
+                            ],
+                            Expanded(
+                              child: Text(
+                                chat.name.isEmpty ? _lineOf(chat) : chat.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: p.text,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          TextSpan(text: _statusLine(s, chat)),
-                        ],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: p.muted, fontSize: 12.5),
-                    ),
-                    if (chat.usage case final usage? when !usage.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: ChatUsageBrief(usage: usage),
-                      ),
-                    if (note case final note? when note.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          note,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: chat.state == ChatState.failed
-                                ? AppColors.danger
-                                : p.faint,
-                            fontSize: 12,
-                          ),
+                            const SizedBox(width: 8),
+                            if (chat.muted) ...[
+                              Icon(
+                                Icons.notifications_off_outlined,
+                                size: 13,
+                                color: p.faint,
+                                semanticLabel: s.chatMuted,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            if (chat.pinned) ...[
+                              Icon(
+                                Icons.push_pin,
+                                size: 13,
+                                color: p.faint,
+                                semanticLabel: s.chatPinned,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              when,
+                              style: TextStyle(color: p.faint, fontSize: 12),
+                            ),
+                          ],
                         ),
-                      ),
-                  ],
+                        const SizedBox(height: 3),
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              if (project != null)
+                                TextSpan(
+                                  text: '$project · ',
+                                  style: TextStyle(
+                                    color: Color.lerp(colour, p.text, 0.35),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              TextSpan(text: _statusLine(s, chat)),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: p.muted, fontSize: 12.5),
+                        ),
+                        if (chat.usage case final usage? when !usage.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: ChatUsageBrief(usage: usage),
+                          ),
+                        if (note case final note? when note.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              note,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: chat.state == ChatState.failed
+                                    ? AppColors.danger
+                                    : p.faint,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // A project's colour as a rounded bar inset from the edge: an
+            // edge-long border was bent and thinned by the card's corners.
+            if (colour != null)
+              Positioned(
+                right: 8,
+                top: 14,
+                bottom: 14,
+                width: 4,
+                child: DecoratedBox(
+                  key: const ValueKey('projectBar'),
+                  decoration: BoxDecoration(
+                    color: colour,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
