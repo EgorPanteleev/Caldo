@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:xterm/xterm.dart';
@@ -303,18 +303,25 @@ class _AgentsScreenState extends State<AgentsScreen> {
           itemBuilder: (context, i) {
             final (chat, depth) = family[i];
             // Each subchat under the chat it is part of, set in a step a
-            // generation, as far as three.
-            return Padding(
+            // generation, as far as three, and tied to it by a line.
+            final row = Padding(
               padding: EdgeInsetsDirectional.only(
-                start: 18.0 * depth.clamp(0, 3),
+                start: _FamilyLines.step * depth.clamp(0, 3),
               ),
               child: _ChatRow(
                 chat: chat,
-                sub: depth > 0,
                 picking: _picked.isNotEmpty,
                 picked: _picked.contains(chat.id),
                 onPick: () => _pick(chat),
               ),
+            );
+            if (depth == 0) return row;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                row,
+                Positioned.fill(child: _FamilyLines.of(family, i)),
+              ],
             );
           },
         ),
@@ -541,7 +548,8 @@ String _statusLine(S s, Chat chat) {
       : '${_stateName(s, chat)} · $details';
 }
 
-/// "Claude · opus · desk": what runs it, and where.
+/// "Claude · opus · desk": what runs it, and where; the computer only
+/// when there is more than one to tell apart.
 String _lineOf(Chat chat) {
   final agents = Agents.instance;
   final worker = agents.worker(chat.workerId);
@@ -550,15 +558,12 @@ String _lineOf(Chat chat) {
     kind?.label ?? chat.agent,
     ?chat.model,
     ?chat.effort,
-    ?worker?.name,
+    if (agents.workers.length > 1) ?worker?.name,
   ].join(' · ');
 }
 
 class _ChatRow extends StatelessWidget {
   final Chat chat;
-
-  /// Listed under the chat it is a subchat of.
-  final bool sub;
 
   /// Whether any chat is picked out, so a tap picks rather than opens.
   final bool picking;
@@ -567,7 +572,6 @@ class _ChatRow extends StatelessWidget {
 
   const _ChatRow({
     required this.chat,
-    this.sub = false,
     required this.picking,
     required this.picked,
     required this.onPick,
@@ -584,6 +588,11 @@ class _ChatRow extends StatelessWidget {
         : Dates.shortDay(at);
     final colour = _chatColour(chat);
     final project = _chatProjectName(chat);
+    final title = TextStyle(
+      color: p.text,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+    );
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ground = dark ? p.panel : p.panelHi;
     final pickedGround = dark ? p.panelHi : p.field;
@@ -613,18 +622,27 @@ class _ChatRow extends StatelessWidget {
             // there or not, so every card's time lines up.
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 20, 12),
+              // The mark on the title's line, not floating mid-card: a line of
+              // the title's own text holding it, set on the title's baseline.
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
-                  if (picking)
-                    Icon(
-                      picked
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      size: 20,
-                      color: picked ? p.text : p.faint,
-                    )
-                  else
-                    _StateMark(chat: chat, size: 9),
+                  Text.rich(
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: picking
+                          ? Icon(
+                              picked
+                                  ? Icons.check_circle_rounded
+                                  : Icons.radio_button_unchecked_rounded,
+                              size: 20,
+                              color: picked ? p.text : p.faint,
+                            )
+                          : _StateMark(chat: chat, size: 9),
+                    ),
+                    style: title,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -632,15 +650,6 @@ class _ChatRow extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            if (sub) ...[
-                              Icon(
-                                Icons.subdirectory_arrow_right_rounded,
-                                size: 15,
-                                color: p.muted,
-                                semanticLabel: s.subchats,
-                              ),
-                              const SizedBox(width: 4),
-                            ],
                             if (chat.taskUuid != null) ...[
                               Icon(
                                 Icons.check_box_outlined,
@@ -655,11 +664,7 @@ class _ChatRow extends StatelessWidget {
                                 chat.name.isEmpty ? _lineOf(chat) : chat.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: p.text,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: title,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -753,6 +758,137 @@ class _ChatRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The lines tying a subchat to the chat above it, in the family's
+/// colour: an elbow from above into its card's title, carried on down
+/// while a later sibling, or an ancestor's later sibling, is still to come.
+class _FamilyLines extends StatelessWidget {
+  /// How far each generation is set in.
+  static const step = 18.0;
+
+  /// The room between two cards, which the lines cross.
+  static const gap = 8.0;
+
+  /// From the card's top to the middle of its title.
+  static const elbow = 22.0;
+
+  final int depth;
+
+  /// Generations whose line runs on through this row to one below.
+  final Set<int> through;
+  final Color? colour;
+
+  const _FamilyLines({
+    required this.depth,
+    required this.through,
+    required this.colour,
+  });
+
+  /// The lines of the [i]th row of [family].
+  factory _FamilyLines.of(List<(Chat, int)> family, int i) {
+    final depth = family[i].$2;
+    // A generation runs on while a row of it is still to come before the
+    // family steps back above it.
+    final through = <int>{};
+    var shallowest = depth + 1;
+    for (final (_, d) in family.skip(i + 1)) {
+      if (d == 0) break;
+      if (d < shallowest) {
+        if (d <= depth) through.add(d);
+        shallowest = d;
+      }
+    }
+    var top = i;
+    while (family[top].$2 > 0) {
+      top--;
+    }
+    return _FamilyLines(
+      depth: depth,
+      through: through,
+      colour: _chatColour(family[top].$1),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppTheme.of(context);
+    return Semantics(
+      label: S.of(context).subchats,
+      child: CustomPaint(
+        painter: _FamilyPainter(
+          depth: depth,
+          through: through,
+          colour: (colour ?? p.muted).withValues(alpha: 0.7),
+          rtl: Directionality.of(context) == TextDirection.rtl,
+        ),
+      ),
+    );
+  }
+}
+
+class _FamilyPainter extends CustomPainter {
+  final int depth;
+  final Set<int> through;
+  final Color colour;
+  final bool rtl;
+
+  _FamilyPainter({
+    required this.depth,
+    required this.through,
+    required this.colour,
+    required this.rtl,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = colour
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    double x(double from) => rtl ? size.width - from : from;
+    // Past three generations rows are set in no further, nor are lines.
+    double lineOf(int generation) =>
+        _FamilyLines.step * (generation.clamp(1, 3) - 1) +
+        _FamilyLines.step / 2;
+    const top = -_FamilyLines.gap;
+    for (final g in through) {
+      if (g == depth) continue;
+      canvas.drawLine(
+        Offset(x(lineOf(g)), top),
+        Offset(x(lineOf(g)), size.height),
+        paint,
+      );
+    }
+    final at = lineOf(depth);
+    final card = _FamilyLines.step * depth.clamp(1, 3);
+    const r = 6.0;
+    final elbow = Path()
+      ..moveTo(x(at), top)
+      ..lineTo(x(at), _FamilyLines.elbow - r)
+      ..quadraticBezierTo(
+        x(at),
+        _FamilyLines.elbow,
+        x(at + r),
+        _FamilyLines.elbow,
+      )
+      ..lineTo(x(card), _FamilyLines.elbow);
+    canvas.drawPath(elbow, paint);
+    if (through.contains(depth)) {
+      canvas.drawLine(
+        Offset(x(at), _FamilyLines.elbow - r),
+        Offset(x(at), size.height),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FamilyPainter old) =>
+      old.depth != depth ||
+      old.colour != colour ||
+      old.rtl != rtl ||
+      !setEquals(old.through, through);
 }
 
 /// Under a chat's head: the chat it is a subchat of, and those begun from
