@@ -32,10 +32,10 @@ class TalkView extends StatefulWidget {
   final void Function(String item, String choice, Map<String, String> answers)
   onAnswer;
 
-  /// Whether the chat is to carry on by itself after the usage limit, and
-  /// the tick on the latest stop at it that asks for that or takes it
-  /// back; null where its worker can't leave messages for later.
-  final bool carrying;
+  /// When the saved retry is due, and the switch that schedules or cancels it.
+  /// The switch is offered only where the worker can leave messages for later.
+  final DateTime? carryOnAt;
+  final bool savingCarryOn;
   final ValueChanged<ChatItem>? onCarry;
 
   /// What the chat has spent, for which limit stopped it.
@@ -53,7 +53,8 @@ class TalkView extends StatefulWidget {
     required this.feed,
     required this.working,
     required this.onAnswer,
-    this.carrying = false,
+    this.carryOnAt,
+    this.savingCarryOn = false,
     this.onCarry,
     this.usage,
     this.padding = EdgeInsets.zero,
@@ -329,7 +330,8 @@ class _TalkViewState extends State<TalkView> {
             )
           : null,
       usage: widget.usage,
-      carrying: widget.carrying,
+      carryOnAt: widget.carryOnAt,
+      savingCarryOn: widget.savingCarryOn,
       onTap: widget.onCarry != null ? () => widget.onCarry!(item) : null,
     ),
     _ when CarryOn.stops(item.kind, item.body) => _Note(
@@ -1582,7 +1584,8 @@ class _Note extends StatelessWidget {
 class _Limit extends StatelessWidget {
   final DateTime? resets;
   final ChatUsage? usage;
-  final bool carrying;
+  final DateTime? carryOnAt;
+  final bool savingCarryOn;
 
   /// Null where its worker can't leave messages for later.
   final VoidCallback? onTap;
@@ -1590,7 +1593,8 @@ class _Limit extends StatelessWidget {
   const _Limit({
     required this.resets,
     required this.usage,
-    required this.carrying,
+    required this.carryOnAt,
+    required this.savingCarryOn,
     this.onTap,
   });
 
@@ -1599,6 +1603,13 @@ class _Limit extends StatelessWidget {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final brief = limitBrief(context, usage, resets: resets);
+    final at = carryOnAt;
+    final status = at == null
+        ? null
+        : at.isAfter(DateTime.now())
+        ? s.chatCarryOnScheduled(_when(context, at))
+        : s.chatCarryOnWaiting;
+    final toggle = savingCarryOn ? null : onTap;
     return SelectionContainer.disabled(
       // A Material, so the switch's row inks on it.
       child: Material(
@@ -1647,28 +1658,49 @@ class _Limit extends StatelessWidget {
                 ],
               ),
             ),
-            if (onTap case final onTap?) ...[
+            if (onTap != null || status != null) ...[
               Divider(height: 1, thickness: 1, color: p.border),
               InkWell(
-                onTap: onTap,
+                onTap: toggle,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          resets == null
-                              ? s.chatCarryOnSoon
-                              : s.chatCarryOnReset,
-                          style: TextStyle(color: p.text, fontSize: 14),
+                        child: Semantics(
+                          liveRegion: status != null,
+                          child: Text(
+                            status ??
+                                (resets == null
+                                    ? s.chatCarryOnSoon
+                                    : s.chatCarryOnReset),
+                            style: TextStyle(color: p.text, fontSize: 14),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Switch(
-                        value: carrying,
-                        onChanged: (_) => onTap(),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
+                      if (onTap != null) ...[
+                        const SizedBox(width: 8),
+                        if (savingCarryOn)
+                          const SizedBox(
+                            width: 52,
+                            height: 40,
+                            child: Center(
+                              child: SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          Switch(
+                            value: at != null,
+                            onChanged: toggle == null ? null : (_) => toggle(),
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ),
+                      ],
                     ],
                   ),
                 ),

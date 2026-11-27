@@ -4013,6 +4013,124 @@ void main() {
       expect(lit('never'), isTrue);
     });
 
+    testWidgets('shows the saved auto-resume time on re-opening the chat', (
+      tester,
+    ) async {
+      final agents = Agents.instance;
+      const id = 'auto-resume';
+      final now = DateTime.now();
+      final resets = now.add(const Duration(hours: 2));
+      final savedAt = resets.add(const Duration(minutes: 5));
+      final chat = {
+        'id': id,
+        'title': 'Auto-resume test chat',
+        'agent': 'codex',
+        'mode': 'chat',
+        'state': 'limited',
+        'worker_id': 'w',
+        'updated_at': now.toIso8601String(),
+      };
+      final allowSave = Completer<void>();
+      Map<String, dynamic>? scheduled;
+      final client = (await tester.runAsync(
+        () async => SupabaseClient(
+          'https://example.invalid',
+          'anon',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          realtimeClientOptions: RealtimeClientOptions(
+            transport: (_, _) => throw StateError('Realtime unavailable'),
+            disconnectOnEmptyChannelsAfter: Duration.zero,
+          ),
+          httpClient: MockClient((request) async {
+            http.Response response(Object? data, [int status = 200]) =>
+                http.Response(jsonEncode(data), status, request: request);
+            switch (request.url.pathSegments.last) {
+              case 'chat_later':
+                if (request.method == 'POST') {
+                  await allowSave.future;
+                  scheduled = {
+                    ...jsonDecode(request.body) as Map<String, dynamic>,
+                    'id': 1,
+                    'send_at': savedAt.toUtc().toIso8601String(),
+                  };
+                  return response(scheduled, 201);
+                }
+                if (request.method == 'DELETE') {
+                  scheduled = null;
+                  return response([
+                    {'id': 1},
+                  ]);
+                }
+                return response([?scheduled]);
+              case 'chats':
+                return response([chat]);
+              case 'workers':
+                return response([
+                  {
+                    'id': 'w',
+                    'name': 'Desk',
+                    'seen_at': now.toIso8601String(),
+                    'agents': [
+                      {'id': 'codex', 'label': 'Codex', 'later': true},
+                    ],
+                  },
+                ]);
+              case 'chat_items':
+                return response([
+                  {
+                    'id': 'limit',
+                    'seq': 1,
+                    'kind': 'note',
+                    'body': {
+                      'limit': true,
+                      'resets': resets.millisecondsSinceEpoch,
+                    },
+                  },
+                ]);
+              default:
+                return response([]);
+            }
+          }),
+        ),
+      ))!;
+      agents.clientForTest = client;
+      addTearDown(() async {
+        agents
+          ..clientForTest = null
+          ..chats = const [];
+        await client.dispose();
+      });
+
+      final s = S.forCode('en');
+      final status = find.text(
+        s.chatCarryOnScheduled(LaterList.whenOf(savedAt, h24: false)),
+      );
+      await pump(tester, 'en', const ChatScreen(chat: id));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(s.chatCarryOnReset));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(status, findsNothing);
+
+      allowSave.complete();
+      await tester.pumpAndSettle();
+      expect(scheduled?['key'], startsWith(CarryOn.key));
+      expect(status, findsOneWidget);
+      expect(find.byType(LaterList), findsNothing);
+
+      await pump(tester, 'en', const SizedBox());
+      await pump(tester, 'en', const ChatScreen(chat: id));
+      await tester.pumpAndSettle();
+      expect(status, findsOneWidget);
+
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(scheduled, isNull);
+      expect(status, findsNothing);
+      expect(find.text(s.chatCarryOnReset), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
     testWidgets('shows Codex\'s on-request chosen when none was', (
       tester,
     ) async {
@@ -5052,7 +5170,11 @@ void main() {
             ),
           ];
           final asked = <String>[];
-          Future<void> show(List<ChatItem> items) async {
+          Future<void> show(
+            List<ChatItem> items, {
+            DateTime? carryOnAt,
+            bool savingCarryOn = false,
+          }) async {
             final feed = TalkFeed.held('c', items);
             addTearDown(feed.dispose);
             await pump(
@@ -5064,6 +5186,8 @@ void main() {
                   working: false,
                   onAnswer: (_, _, _) {},
                   onCarry: (item) => asked.add(item.id),
+                  carryOnAt: carryOnAt,
+                  savingCarryOn: savingCarryOn,
                   usage: ChatUsage(
                     limits: [
                       UsageLimit(name: 'five_hour', used: 1, resets: resets),
@@ -5086,6 +5210,29 @@ void main() {
           expect(asked, isEmpty);
           await tester.tap(find.byType(Switch));
           expect(asked, ['l1']);
+
+          await show(said, savingCarryOn: true);
+          expect(find.byType(CircularProgressIndicator), findsOneWidget);
+          await tester.tap(row);
+          expect(asked, ['l1']);
+
+          final at = CarryOn.at(resets, DateTime.now());
+          final scheduled = find.text(
+            s.chatCarryOnScheduled(LaterList.whenOf(at, h24: false)),
+          );
+          await show(said, carryOnAt: at);
+          expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+          expect(scheduled, findsOneWidget);
+          await tester.tap(find.byType(Switch));
+          expect(asked, ['l1', 'l1']);
+
+          await show(said);
+          expect(scheduled, findsNothing);
+          await show(
+            said,
+            carryOnAt: DateTime.now().subtract(const Duration(minutes: 1)),
+          );
+          expect(find.text(s.chatCarryOnWaiting), findsOneWidget);
 
           // Once it carried on, or the user wrote again, it is only said;
           // the words it was told to carry on with aren't drawn as theirs.

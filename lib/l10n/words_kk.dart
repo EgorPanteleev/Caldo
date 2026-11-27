@@ -610,6 +610,10 @@ const Map<String, Object> kk = {
   'chatAtLimit': "Пайдалану лимитінде тоқтады",
   'chatCarryOnReset': "Жаңарғаннан кейін өзі жалғастырсын",
   'chatCarryOnSoon': "15 минуттан кейін өзі жалғастырсын",
+  'chatCarryOnScheduled': "Автоматты жалғастыру уақыты: {when}",
+  'chatCarryOnWaiting': "Автоматты жалғастыру күтілуде",
+  'chatCarryOnFailed':
+      "Автоматты жалғастыруды өзгерту мүмкін болмады. Қайталап көріңіз.",
   'chatLimitTitle': "Пайдалану лимиті таусылды",
   'chatLimitResets': "{limit} · {when} жаңарады",
   'chatLimitLifted': "Лимит жаңарды",

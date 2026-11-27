@@ -469,6 +469,10 @@ class S {
   String get chatAtLimit => _word('chatAtLimit');
   String get chatCarryOnReset => _word('chatCarryOnReset');
   String get chatCarryOnSoon => _word('chatCarryOnSoon');
+  String chatCarryOnScheduled(String when) =>
+      _fill('chatCarryOnScheduled', {'when': when});
+  String get chatCarryOnWaiting => _word('chatCarryOnWaiting');
+  String get chatCarryOnFailed => _word('chatCarryOnFailed');
   String get chatLimitTitle => _word('chatLimitTitle');
   String chatLimitResets(String limit, String when) =>
       _fill('chatLimitResets', {'limit': limit, 'when': when});

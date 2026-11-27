@@ -2157,17 +2157,17 @@ class _ChatScreenState extends State<ChatScreen> {
     final chat = _chat;
     if (chat?.live != true) _compactComposerHeight = null;
     final now = chat?.state;
+    final reachedLimit = now == ChatState.limited && now != _lastState;
     if (now != _lastState) {
       _lastState = now;
       _talk?.state.value = null;
     }
-    // A new note may say the worker left something for later itself: a
-    // chat stopped at the usage limit, to carry on when it is lifted.
-    final note = _chat?.note;
-    if (note != _lastNote) {
-      _lastNote = note;
-      if (note != null) unawaited(_readLater());
+    // The worker can move a saved retry when a turn hits the limit again.
+    final note = chat?.note;
+    if (reachedLimit || (note != _lastNote && note != null)) {
+      unawaited(_readLater());
     }
+    _lastNote = note;
     _follow();
     // Started again: it takes the size it is shown at.
     final view = _viewSize;
@@ -2438,6 +2438,8 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Messages left for later and not yet said, soonest first.
   List<LaterLine> _later = const [];
   Timer? _laterCheck;
+  bool _laterLoaded = false;
+  int _laterRevision = 0;
 
   /// Whether the chat's worker says messages left for later: one not
   /// reinstalled since would leave them unsaid.
@@ -2448,17 +2450,18 @@ class _ChatScreenState extends State<ChatScreen> {
   /// worker away, or the chat not running).
   Future<void> _readLater() async {
     _laterCheck?.cancel();
-    List<LaterLine> later;
+    final revision = ++_laterRevision;
     try {
-      later = await _agents.laterOf(widget.chat);
+      final later = await _agents.laterOf(widget.chat);
+      if (!mounted || revision != _laterRevision) return;
+      _laterLoaded = true;
+      setState(() => _later = later);
     } catch (_) {
       // Signed out, or offline: what is shown stays.
-      later = _later;
     }
-    if (!mounted) return;
-    setState(() => _later = later);
-    if (later.isEmpty) return;
-    final wait = later.first.at.difference(DateTime.now());
+    if (!mounted || revision != _laterRevision) return;
+    if (_later.isEmpty) return;
+    final wait = _later.first.at.difference(DateTime.now());
     _laterCheck = Timer(
       wait.isNegative
           ? const Duration(seconds: 15)
@@ -2529,46 +2532,61 @@ class _ChatScreenState extends State<ChatScreen> {
     return DateTime(day.year, day.month, day.day, time.hour, time.minute);
   }
 
-  /// Whether a tick on the stop at the limit is still being written.
-  bool _carrying = false;
+  bool _savingCarryOn = false;
 
-  /// The stop at the usage limit [item], ticked: the chat is left to carry
-  /// on by itself once the limit is lifted — or, ticked again, not. Never
-  /// asked for unless ticked.
+  /// Schedule or cancel the retry shown on the latest usage-limit card.
   Future<void> _carry(ChatItem item) async {
-    if (_carrying) return;
-    _carrying = true;
+    if (_savingCarryOn) return;
+    setState(() => _savingCarryOn = true);
     try {
+      if (!_laterLoaded) {
+        await _readLater();
+        if (!mounted) return;
+        if (!_laterLoaded) {
+          throw StateError('Could not read scheduled messages');
+        }
+      }
       final left = _later.where((line) => line.carriesOn).toList();
       if (left.isNotEmpty) {
         for (final line in left) {
-          await _takeBack(line);
+          await _agents.takeBack(line);
+          if (!mounted) return;
+          setState(
+            () => _later = _later.where((l) => l.id != line.id).toList(),
+          );
         }
-        return;
+      } else {
+        final resets = item.body['resets'];
+        final at = CarryOn.at(
+          resets is num
+              ? DateTime.fromMillisecondsSinceEpoch(resets.round())
+              : null,
+          DateTime.now(),
+        );
+        final line = await _agents.later(
+          widget.chat,
+          CarryOn.words,
+          at,
+          carryOn: true,
+        );
+        if (!mounted) return;
+        setState(
+          () =>
+              _later = [..._later.where((l) => l.id != line.id), line]
+                ..sort((a, b) => a.at.compareTo(b.at)),
+        );
       }
-      final resets = item.body['resets'];
-      final at = CarryOn.at(
-        resets is num
-            ? DateTime.fromMillisecondsSinceEpoch(resets.round())
-            : null,
-        DateTime.now(),
-      );
-      final line = await _agents.later(
-        widget.chat,
-        CarryOn.words,
-        at,
-        carryOn: true,
-      );
-      if (!mounted) return;
-      setState(
-        () => _later = [..._later, line]..sort((a, b) => a.at.compareTo(b.at)),
-      );
-      unawaited(_readLater());
     } catch (_) {
-      // Not kept: the box stays as it was.
-      unawaited(_readLater());
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(S.of(context).chatCarryOnFailed)),
+        );
+      }
     } finally {
-      _carrying = false;
+      if (mounted) {
+        setState(() => _savingCarryOn = false);
+        unawaited(_readLater());
+      }
     }
   }
 
@@ -2862,8 +2880,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           choice,
                           answers: answers,
                         ),
-                        carrying: _later.any((line) => line.carriesOn),
-                        onCarry: _canLater ? _carry : null,
+                        carryOnAt: _later
+                            .where((line) => line.carriesOn)
+                            .firstOrNull
+                            ?.at,
+                        savingCarryOn: _savingCarryOn,
+                        onCarry: chat.inChat && live && _canLater
+                            ? _carry
+                            : null,
                         // The chat's own: the account's, newer, would
                         // no longer show the limit spent once it resets.
                         usage: talk.usage.value ?? chat.usage,
