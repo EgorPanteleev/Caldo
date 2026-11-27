@@ -3597,7 +3597,9 @@ void main() {
       await tester.tap(find.text(s.attachPhoto));
       await tester.pumpAndSettle();
       final field = find.byType(TextField);
-      await tester.enterText(field, 'My draft');
+      const draft = 'My draft\nSecond line\nThird line';
+      await tester.enterText(field, draft);
+      await tester.pump();
       if (expanded) {
         await tester.tap(find.byTooltip(s.chatExpandComposer));
         await tester.pumpAndSettle();
@@ -3628,13 +3630,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(viewer, findsNothing);
       expect(find.text(photo.name), findsOneWidget);
-      expect(find.text('My draft'), findsOneWidget);
+      expect(find.text(draft), findsOneWidget);
       expect(tester.widget<TextField>(field).expands, expanded);
 
       await tester.tap(find.byTooltip(s.delete));
       await tester.pumpAndSettle();
       expect(find.text(photo.name), findsNothing);
-      expect(find.text('My draft'), findsOneWidget);
+      expect(find.text(draft), findsOneWidget);
       expect(find.byTooltip(s.chatSendNow), findsOneWidget);
       expect(viewer, findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -3812,8 +3814,27 @@ void main() {
       final send = find.byTooltip(s.chatSendNow);
       TextField input() => tester.widget<TextField>(field);
 
-      await tester.enterText(field, 'First line');
+      expect(expand, findsNothing);
+      await tester.enterText(field, List.filled(18, 'wrapped').join(' '));
+      await tester.pump();
+      expect(expand, findsOneWidget);
+      await tester.enterText(field, 'First line\nSecond line');
+      await tester.pump();
+      expect(expand, findsNothing);
+      await tester.enterText(field, 'First line\nSecond line\n');
+      await tester.pump();
+      expect(expand, findsOneWidget);
+
+      const initialDraft = 'First line\nSecond line\nThird line';
+      const editedDraft = '$initialDraft\nFourth line';
+      await tester.enterText(field, initialDraft);
       await tester.pump(const Duration(milliseconds: 600));
+      expect(expand, findsOneWidget);
+      expect(tester.getCenter(expand).dx, tester.getCenter(send).dx);
+      expect(
+        tester.getBottomLeft(expand).dy,
+        lessThanOrEqualTo(tester.getTopLeft(send).dy),
+      );
       final controller = input().controller!;
       controller.selection = const TextSelection.collapsed(offset: 5);
       final compactHeight = tester.getSize(field).height;
@@ -3834,28 +3855,28 @@ void main() {
       await tester.pump();
       expect(tester.getBottomLeft(send).dy, closeTo(sendBottom - 240, 1));
 
-      await tester.enterText(field, 'First line\nSecond line');
+      await tester.enterText(field, editedDraft);
       await tester.pump(const Duration(milliseconds: 600));
       await tester.tap(find.byTooltip(s.chatUndo));
       await tester.pump();
-      expect(controller.text, 'First line');
+      expect(controller.text, initialDraft);
       await tester.tap(find.byTooltip(s.chatRedo));
       await tester.pump();
-      expect(controller.text, 'First line\nSecond line');
+      expect(controller.text, editedDraft);
 
       await tester.tap(collapse);
       await tester.pumpAndSettle();
       expect(find.text(title), findsOneWidget);
       expect(input().expands, isFalse);
       expect(input().focusNode!.hasFocus, isTrue);
-      expect(controller.text, 'First line\nSecond line');
+      expect(controller.text, editedDraft);
 
       await tester.tap(expand);
       await tester.pumpAndSettle();
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(input().expands, isFalse);
-      expect(controller.text, 'First line\nSecond line');
+      expect(controller.text, editedDraft);
 
       await tester.tap(expand);
       await tester.pumpAndSettle();
@@ -3863,7 +3884,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(input().expands, isFalse);
       expect(controller.text, isEmpty);
-      expect(sent.single['data'], 'First line\nSecond line');
+      expect(sent.single['data'], editedDraft);
+      expect(expand, findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
