@@ -506,9 +506,9 @@ const Map<String, Object> nl = {
   'deleteRuleHint': "Chats die ermee zijn gestart, houden hem.",
   'chatTitle': "Titel",
   'chatPrompt': "Eerste bericht",
+  'chatWriteFirstMessage': "Eerste bericht schrijven",
   'chatEditFirstMessage': "Eerste bericht bewerken",
-  'chatFirstMessageClosed':
-      "Het eerste bericht van deze taak kan niet meer worden bewerkt.",
+  'chatFirstMessageClosed': "Het eerste bericht kan niet meer worden bewerkt.",
   'chatStart': "Starten",
   'sendToAgents': "Naar agents sturen",
   'chatForEach': "Eerst aan elk zeggen",

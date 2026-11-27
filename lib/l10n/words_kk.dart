@@ -494,9 +494,9 @@ const Map<String, Object> kk = {
   'deleteRuleHint': "Онымен басталған чаттар оны сақтайды.",
   'chatTitle': "Атауы",
   'chatPrompt': "Алғашқы хабар",
+  'chatWriteFirstMessage': "Алғашқы хабарды жазу",
   'chatEditFirstMessage': "Алғашқы хабарды өңдеу",
-  'chatFirstMessageClosed':
-      "Бұл тапсырманың алғашқы хабарын енді өңдеу мүмкін емес.",
+  'chatFirstMessageClosed': "Алғашқы хабарды енді өңдеу мүмкін емес.",
   'chatStart': "Бастау",
   'sendToAgents': "Агенттерге жіберу",
   'chatForEach': "Алдымен әрқайсысына айту",

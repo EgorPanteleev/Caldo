@@ -2750,7 +2750,14 @@ class _ChatScreenState extends State<ChatScreen> {
     final away = chat == null ? null : _agents.away(chat);
     final checkingWorker = chat != null && _agents.checkingWorker(chat);
     final later = _later.where((line) => !line.carriesOn).toList();
-    final canEditFirst = chat?.canEditTaskMessage ?? false;
+    final canEditFirst =
+        chat != null &&
+        chat.canEditFirstMessage &&
+        _kindOf(chat)?.prompt != 'none';
+    final firstMessage = canEditFirst ? chat.firstMessageText.trim() : '';
+    final firstMessageAction = firstMessage.isEmpty
+        ? s.chatWriteFirstMessage
+        : s.chatEditFirstMessage;
     // Let messages pass behind the glass when the composer meets the list.
     // Standalone notices and attachment previews need their own space.
     final composerOverlap =
@@ -2759,7 +2766,6 @@ class _ChatScreenState extends State<ChatScreen> {
             live &&
             later.isEmpty &&
             away == null &&
-            !canEditFirst &&
             _files.isEmpty
         ? _InputRow.glassOverlap
         : 0.0;
@@ -2844,6 +2850,25 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: chat == null && _agents.signedIn && !_agents.loaded
                   ? const Center(child: CircularProgressIndicator())
+                  : canEditFirst
+                  ? firstMessage.isEmpty
+                        ? const SizedBox.shrink()
+                        : Align(
+                            alignment: Alignment.bottomRight,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: p.panelHi,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: SelectableText(firstMessage),
+                                ),
+                              ),
+                            ),
+                          )
                   : asChat && talk != null
                   ? ValueListenableBuilder(
                       valueListenable: talk.state,
@@ -2884,16 +2909,21 @@ class _ChatScreenState extends State<ChatScreen> {
             if (later.isNotEmpty)
               LaterList(lines: later, onTap: _laterTapped, onDelete: _takeBack),
             if (away != null) _Away(worker: away),
-            if (chat != null && canEditFirst)
+            if (canEditFirst)
               TextButton.icon(
                 onPressed: () => showDialog<void>(
                   context: context,
-                  builder: (_) => _TaskMessageDialog(chat: chat),
+                  builder: (_) => _FirstMessageDialog(
+                    chat: chat,
+                    title: firstMessageAction,
+                  ),
                 ),
                 icon: const Icon(Icons.edit_outlined),
-                label: Text(s.chatEditFirstMessage),
+                label: Text(firstMessageAction),
               ),
-            if (asChat) ...[
+            if (canEditFirst)
+              ?again
+            else if (asChat) ...[
               if (!chat.inChat)
                 _MoveBar(
                   text: s.chatInTerminalNow,
@@ -3280,17 +3310,18 @@ class _Head extends StatelessWidget {
   }
 }
 
-class _TaskMessageDialog extends StatefulWidget {
+class _FirstMessageDialog extends StatefulWidget {
   final Chat chat;
+  final String title;
 
-  const _TaskMessageDialog({required this.chat});
+  const _FirstMessageDialog({required this.chat, required this.title});
 
   @override
-  State<_TaskMessageDialog> createState() => _TaskMessageDialogState();
+  State<_FirstMessageDialog> createState() => _FirstMessageDialogState();
 }
 
-class _TaskMessageDialogState extends State<_TaskMessageDialog> {
-  late String _text = widget.chat.preface ?? widget.chat.prompt;
+class _FirstMessageDialogState extends State<_FirstMessageDialog> {
+  late String _text = widget.chat.firstMessageText;
   bool _saving = false;
   bool _closed = false;
   String? _error;
@@ -3301,7 +3332,7 @@ class _TaskMessageDialogState extends State<_TaskMessageDialog> {
       _error = null;
     });
     try {
-      final saved = await Agents.instance.editTaskMessage(widget.chat, _text);
+      final saved = await Agents.instance.editFirstMessage(widget.chat, _text);
       if (!mounted) return;
       if (saved) {
         if (ModalRoute.of(context)?.isCurrent == true) Navigator.pop(context);
@@ -3325,7 +3356,7 @@ class _TaskMessageDialogState extends State<_TaskMessageDialog> {
   Widget build(BuildContext context) {
     final s = S.of(context);
     return AlertDialog(
-      title: Text(s.chatEditFirstMessage),
+      title: Text(widget.title),
       scrollable: true,
       content: TextFormField(
         initialValue: _text,
