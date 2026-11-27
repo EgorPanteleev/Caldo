@@ -3532,6 +3532,9 @@ void main() {
       const picker = MethodChannel('caldo/attachments');
       final messenger = tester.binding.defaultBinaryMessenger;
       messenger.setMockMethodCallHandler(picker, (call) async {
+        if (call.method == 'galleryPage') {
+          return {'access': 'none', 'photos': [], 'more': false};
+        }
         expect(call.method, 'pick');
         expect(call.arguments, {'from': 'photos'});
         return {
@@ -3593,7 +3596,7 @@ void main() {
       });
       await tester.tap(find.byTooltip(s.chatAttachFiles));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(s.attachPhoto));
+      await tester.tap(find.text(s.attachmentBrowsePhotos));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'My draft');
 

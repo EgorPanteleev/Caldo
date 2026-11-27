@@ -207,6 +207,15 @@ const Map<String, Object> fr = {
   'attachPhoto': "Photo",
   'attachCamera': "Appareil photo",
   'attachFile': "Fichier",
+  'attachmentGallery': "Galerie",
+  'attachmentBrowsePhotos': "Parcourir les photos",
+  'attachmentPhotoAccess': "Autoriser l’accès aux photos",
+  'attachmentMorePhotos': "Autoriser plus de photos",
+  'attachmentNoPhotos': "Aucune photo à afficher",
+  'attachmentPhotoAccessHint':
+      "Autorisez l’accès pour voir ici les photos récentes.",
+  'attachmentReadFailed':
+      "Certaines pièces jointes n’ont pas pu être ouvertes.",
   'attachmentMissing': "Absent de ce téléphone",
   'attachmentMissingDesktop': "Absent de cet ordinateur",
   'noAppOpens': "Aucune app de ce téléphone n'ouvre ce fichier",

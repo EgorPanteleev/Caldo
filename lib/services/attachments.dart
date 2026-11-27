@@ -16,11 +16,33 @@ enum AttachFrom { photos, camera, files }
 class Picked {
   final List<Attachment> attached;
   final List<String> tooBig;
+  final int unreadable;
 
-  const Picked(this.attached, [this.tooBig = const []]);
+  const Picked(this.attached, [this.tooBig = const [], this.unreadable = 0]);
 
   static const none = Picked([]);
+
+  factory Picked.fromPlatform(Map<Object?, Object?>? answer) {
+    if (answer == null) return none;
+    return Picked(
+      [
+        for (final item in answer['attached'] as List? ?? const [])
+          ?Attachment.fromJson(item),
+      ],
+      [for (final name in answer['tooBig'] as List? ?? const []) '$name'],
+      answer['unreadable'] as int? ?? 0,
+    );
+  }
 }
+
+enum GalleryAccess { unsupported, none, partial, full }
+
+typedef GalleryPhoto = ({String id, String name});
+typedef GalleryPage = ({
+  GalleryAccess access,
+  List<GalleryPhoto> photos,
+  bool more,
+});
 
 /// The files and photos attached to tasks: picked through Android's own
 /// pickers or taken with the camera, copied into Caldo's own storage, and
@@ -77,24 +99,43 @@ class Attachments {
       final copied = await Desktop.attach(paths, into: dir);
       return Picked(copied.attached, copied.tooBig);
     }
-    final Map<Object?, Object?>? answer;
-    try {
-      answer = await _channel.invokeMethod<Map<Object?, Object?>>('pick', {
-        'from': from.name,
-      });
-    } on PlatformException {
-      return Picked.none;
-    } on MissingPluginException {
-      return Picked.none;
-    }
-    if (answer == null) return Picked.none;
-    return Picked(
-      [
-        for (final item in answer['attached'] as List? ?? const [])
-          ?Attachment.fromJson(item),
-      ],
-      [for (final name in answer['tooBig'] as List? ?? const []) '$name'],
+    return Picked.fromPlatform(
+      await _ask<Map<Object?, Object?>>('pick', {'from': from.name}),
     );
+  }
+
+  Future<GalleryPage?> galleryPage(int offset) async {
+    final page = await _ask<Map<Object?, Object?>>('galleryPage', {
+      'offset': offset,
+    });
+    if (page == null) return null;
+    return (
+      access: GalleryAccess.values.byName(page['access'] as String),
+      photos: [
+        for (final photo in page['photos'] as List)
+          (id: photo['id'] as String, name: photo['name'] as String),
+      ],
+      more: page['more'] as bool,
+    );
+  }
+
+  Future<void> requestGalleryAccess() => _ask<void>('galleryAccess');
+
+  Future<Uint8List?> thumbnailOf(GalleryPhoto photo, int side) =>
+      _ask<Uint8List>('galleryThumbnail', {'id': photo.id, 'side': side});
+
+  Future<Picked> pickFromGallery(List<String> ids) async => Picked.fromPlatform(
+    await _ask<Map<Object?, Object?>>('galleryPick', {'ids': ids}),
+  );
+
+  Future<T?> _ask<T>(String method, [Object? arguments]) async {
+    try {
+      return await _channel.invokeMethod<T>(method, arguments);
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
   }
 
   /// Opens [a] in whatever app on the phone reads its type. False when

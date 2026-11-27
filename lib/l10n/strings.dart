@@ -787,6 +787,13 @@ class S {
   String get attachPhoto => _word('attachPhoto');
   String get attachCamera => _word('attachCamera');
   String get attachFile => _word('attachFile');
+  String get attachmentGallery => _word('attachmentGallery');
+  String get attachmentBrowsePhotos => _word('attachmentBrowsePhotos');
+  String get attachmentPhotoAccess => _word('attachmentPhotoAccess');
+  String get attachmentMorePhotos => _word('attachmentMorePhotos');
+  String get attachmentNoPhotos => _word('attachmentNoPhotos');
+  String get attachmentPhotoAccessHint => _word('attachmentPhotoAccessHint');
+  String get attachmentReadFailed => _word('attachmentReadFailed');
   String get attachmentMissing =>
       _word(onDesktop ? 'attachmentMissingDesktop' : 'attachmentMissing');
   String get noAppOpens =>
