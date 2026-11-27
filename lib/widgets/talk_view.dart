@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import 'chat_usage.dart' show limitBrief;
 import 'markdown_text.dart';
+import 'photo_viewer.dart';
 
 /// A chat with an agent as a chat: the user's words on the right, the
 /// agent's answers across the width in Markdown, each tool it used as one
@@ -700,21 +701,6 @@ class _ChatPhotoState extends State<_ChatPhoto> {
     }
   }
 
-  void _open(Uint8List bytes) {
-    showDialog<void>(
-      context: context,
-      useSafeArea: false,
-      builder: (context) => Dialog.fullscreen(
-        child: _PhotoViewer(
-          bytes: bytes,
-          name: widget.name,
-          caption: widget.caption,
-          at: widget.at,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
@@ -771,7 +757,13 @@ class _ChatPhotoState extends State<_ChatPhoto> {
             );
             final preview = photo != null
                 ? InkWell(
-                    onTap: () => _open(photo.bytes),
+                    onTap: () => showPhotoViewer(
+                      context,
+                      image: MemoryImage(photo.bytes),
+                      name: widget.name,
+                      caption: caption,
+                      time: at == null ? null : _when(context, at),
+                    ),
                     child: Image(
                       image: ResizeImage(
                         MemoryImage(photo.bytes),
@@ -879,109 +871,6 @@ class _ChatPhotoState extends State<_ChatPhoto> {
           },
         );
       },
-    );
-  }
-}
-
-class _PhotoViewer extends StatefulWidget {
-  final Uint8List bytes;
-  final String name;
-  final String caption;
-  final DateTime? at;
-
-  const _PhotoViewer({
-    required this.bytes,
-    required this.name,
-    required this.caption,
-    required this.at,
-  });
-
-  @override
-  State<_PhotoViewer> createState() => _PhotoViewerState();
-}
-
-class _PhotoViewerState extends State<_PhotoViewer> {
-  bool _showControls = true;
-
-  @override
-  Widget build(BuildContext context) {
-    final at = widget.at;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: ColoredBox(
-        color: Colors.black,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            GestureDetector(
-              onTap: () => setState(() => _showControls = !_showControls),
-              child: InteractiveViewer(
-                maxScale: 5,
-                child: Center(
-                  child: Image.memory(
-                    widget.bytes,
-                    semanticLabel: widget.name,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
-            if (_showControls)
-              Align(
-                alignment: Alignment.topCenter,
-                child: ColoredBox(
-                  color: Colors.black54,
-                  child: SafeArea(
-                    bottom: false,
-                    child: ListTile(
-                      leading: const BackButton(color: Colors.white),
-                      title: Text(
-                        widget.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      subtitle: at == null
-                          ? null
-                          : Text(
-                              _when(context, at),
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-            if (_showControls && widget.caption.trim().isNotEmpty)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: ColoredBox(
-                  color: Colors.black54,
-                  child: SafeArea(
-                    top: false,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.sizeOf(context).height * 0.25,
-                      ),
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Text(
-                            widget.caption,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }
