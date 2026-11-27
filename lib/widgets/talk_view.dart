@@ -29,7 +29,7 @@ class TalkView extends StatefulWidget {
 
   /// A question answered: [answers] by each question's words, for those
   /// asked of the user.
-  final void Function(String item, String choice, Map<String, String> answers)
+  final void Function(String item, String choice, Map<String, String> answers)?
   onAnswer;
 
   /// Whether the chat is to carry on by itself after the usage limit, and
@@ -315,11 +315,15 @@ class _TalkViewState extends State<TalkView> {
     ),
     'ask' when item.body['questions'] is List => _Questions(
       body: item.body,
-      onAnswer: (choice, answers) => widget.onAnswer(item.id, choice, answers),
+      onAnswer: widget.onAnswer == null
+          ? null
+          : (choice, answers) => widget.onAnswer!(item.id, choice, answers),
     ),
     'ask' => _Ask(
       body: item.body,
-      onAnswer: (choice) => widget.onAnswer(item.id, choice, const {}),
+      onAnswer: widget.onAnswer == null
+          ? null
+          : (choice) => widget.onAnswer!(item.id, choice, const {}),
     ),
     // Only the latest stop is drawn whole; those before are a line.
     _ when CarryOn.stops(item.kind, item.body) && i == live => _Limit(
@@ -1088,7 +1092,7 @@ class _Line extends StatelessWidget {
 /// to say — until it is answered, then what was said.
 class _Ask extends StatelessWidget {
   final Map<String, dynamic> body;
-  final ValueChanged<String> onAnswer;
+  final ValueChanged<String>? onAnswer;
 
   const _Ask({required this.body, required this.onAnswer});
 
@@ -1103,7 +1107,7 @@ class _Ask extends StatelessWidget {
     final detail = '${body['detail'] ?? ''}'.trim();
     void say(String choice) {
       HapticFeedback.selectionClick();
-      onAnswer(choice);
+      onAnswer?.call(choice);
     }
 
     return Container(
@@ -1172,7 +1176,7 @@ class _Ask extends StatelessWidget {
               children: [
                 if (choices.contains('deny'))
                   OutlinedButton(
-                    onPressed: () => say('deny'),
+                    onPressed: onAnswer == null ? null : () => say('deny'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: p.text,
                       side: BorderSide(color: p.border),
@@ -1181,12 +1185,12 @@ class _Ask extends StatelessWidget {
                   ),
                 if (choices.contains('always'))
                   TextButton(
-                    onPressed: () => say('always'),
+                    onPressed: onAnswer == null ? null : () => say('always'),
                     style: TextButton.styleFrom(foregroundColor: p.muted),
                     child: Text(s.chatAlways),
                   ),
                 FilledButton(
-                  onPressed: () => say('allow'),
+                  onPressed: onAnswer == null ? null : () => say('allow'),
                   style: FilledButton.styleFrom(
                     backgroundColor: p.text,
                     foregroundColor: p.bg,
@@ -1206,7 +1210,7 @@ class _Ask extends StatelessWidget {
 /// own; Answer once every question has one. Answered, what was said.
 class _Questions extends StatefulWidget {
   final Map<String, dynamic> body;
-  final void Function(String choice, Map<String, String> answers) onAnswer;
+  final void Function(String choice, Map<String, String> answers)? onAnswer;
 
   const _Questions({required this.body, required this.onAnswer});
 
@@ -1278,7 +1282,7 @@ class _QuestionsState extends State<_Questions> {
 
   void _say(String choice) {
     HapticFeedback.selectionClick();
-    widget.onAnswer(choice, {
+    widget.onAnswer?.call(choice, {
       if (choice == 'answer')
         for (var i = 0; i < _questions.length; i++)
           '${_questions[i]['question']}': _answerOf(i),
@@ -1388,7 +1392,9 @@ class _QuestionsState extends State<_Questions> {
               runSpacing: 6,
               children: [
                 OutlinedButton(
-                  onPressed: () => _say('deny'),
+                  onPressed: widget.onAnswer == null
+                      ? null
+                      : () => _say('deny'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: p.text,
                     side: BorderSide(color: p.border),
@@ -1396,7 +1402,9 @@ class _QuestionsState extends State<_Questions> {
                   child: Text(s.chatSkip),
                 ),
                 FilledButton(
-                  onPressed: ready ? () => _say('answer') : null,
+                  onPressed: ready && widget.onAnswer != null
+                      ? () => _say('answer')
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: p.text,
                     foregroundColor: p.bg,

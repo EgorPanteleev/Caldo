@@ -422,6 +422,22 @@ void main() {
     expect((desk.sent.single['sender'] as Map)['waits'], false);
   });
 
+  test('a paused chat refuses messages and reports its pause', () async {
+    desk.chat('bbbb2222-0000')
+      ..['state'] = 'running'
+      ..['paused'] = true;
+    expect(await run('chats', {}), contains('claude sonnet, paused'));
+    expect(
+      await run('read_chat', {'chat': 'bbbb'}),
+      contains('Tester — paused'),
+    );
+    await expectLater(
+      run('message_chat', {'chat': 'bbbb', 'message': 'Hi', 'wait': false}),
+      throwsA(isA<Refusal>()),
+    );
+    expect(desk.sent, isEmpty);
+  });
+
   test('refuses what cannot be answered', () async {
     Future<String> refusal(Map<String, Object?> args) => run('message_chat', {
       'message': 'Hi',

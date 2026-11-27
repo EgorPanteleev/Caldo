@@ -25,3 +25,67 @@ systemd-run --user --scope --quiet --collect --expand-environment=no \
   --description='Caldo agent and its tools' \
   --slice="$slice" --unit="$unit" --property=OOMPolicy=stop -- "$@"
 ''';
+
+/// The freezer covers the agent and tools in its scope, including jobs
+/// started in a separate process group by a terminal shell.
+class AgentScope {
+  final String unit;
+
+  const AgentScope._(this.unit);
+
+  static bool get canFreeze =>
+      Platform.isLinux &&
+      Platform.environment.containsKey('CALDO_AGENT_SLICE') &&
+      File('/sys/fs/cgroup/cgroup.controllers').existsSync();
+
+  /// A kept chat's waiting shell is inside the scope.
+  static AgentScope? ofProcess(int pid) {
+    try {
+      final group = File('/proc/$pid/cgroup').readAsStringSync().trim();
+      final unit = group.split('/').last;
+      if (RegExp(r'^caldo-agent-[0-9]+\.scope$').hasMatch(unit)) {
+        return AgentScope._(unit);
+      }
+    } on FileSystemException {
+      // The process can exit while it is being looked up.
+    }
+    return null;
+  }
+
+  /// A terminal's pane runs the wrapper outside the scope it created.
+  static AgentScope? ofTerminal(int pid, String chat) {
+    try {
+      final process = File('/proc/$pid/cmdline').readAsStringSync();
+      final environment = File('/proc/$pid/environ').readAsStringSync();
+      if (process.contains(r'unit=caldo-agent-$$.scope') &&
+          environment.split('\u0000').contains('CALDO_CHAT=$chat')) {
+        return AgentScope._('caldo-agent-$pid.scope');
+      }
+    } on FileSystemException {
+      // The pane can close meanwhile.
+    }
+    return null;
+  }
+
+  Future<bool> isFrozen() async {
+    final result = await Process.run('systemctl', [
+      '--user',
+      'show',
+      '-p',
+      'FreezerState',
+      '--value',
+      unit,
+    ]);
+    return result.exitCode == 0 &&
+        const {'freezing', 'frozen'}.contains('${result.stdout}'.trim());
+  }
+
+  Future<void> freeze(bool paused) => _control(paused ? 'freeze' : 'thaw');
+
+  Future<void> stop() => _control('stop');
+
+  Future<void> _control(String verb) async {
+    final result = await Process.run('systemctl', ['--user', verb, unit]);
+    if (result.exitCode != 0) throw StateError('${result.stderr}'.trim());
+  }
+}

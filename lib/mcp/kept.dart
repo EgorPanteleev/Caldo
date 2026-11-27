@@ -110,6 +110,8 @@ echo $? > "$b.code.next" && mv "$b.code.next" "$b.code"
   /// there is none.
   static Kept? find(String base, int offset) => _read(base, offset);
 
+  AgentScope? get scope => hasExited ? null : AgentScope.ofProcess(_shell);
+
   /// An old program may still have output to read after it has exited.
   bool get hasExited => _code != null || !_alive;
 

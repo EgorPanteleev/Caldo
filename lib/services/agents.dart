@@ -71,6 +71,9 @@ class AgentKind {
   /// is started by hand.
   final bool held;
 
+  /// Whether the worker can suspend its agent processes in place.
+  final bool pauses;
+
   /// Whether its worker begins a subchat with it, in its parent's folder,
   /// knowing what was said there.
   final bool subchats;
@@ -97,6 +100,7 @@ class AgentKind {
     this.clears = false,
     this.tasks = false,
     this.held = false,
+    this.pauses = false,
     this.subchats = false,
   });
 
@@ -130,6 +134,7 @@ class AgentKind {
     clears: json['clears'] == true,
     tasks: json['tasks'] == true,
     held: json['held'] == true,
+    pauses: json['pauses'] == true,
     subchats: json['subchats'] == true,
   );
 }
@@ -509,6 +514,8 @@ class Chat {
   /// `notify` still gets through.
   final bool muted;
 
+  final bool paused;
+
   /// The project it was begun in, while that is still there.
   final String? projectId;
 
@@ -554,6 +561,7 @@ class Chat {
     this.account,
     this.pinnedAt,
     this.muted = false,
+    this.paused = false,
     this.projectId,
     this.projectName,
     this.projectColour,
@@ -563,6 +571,10 @@ class Chat {
   });
 
   bool get pinned => pinnedAt != null;
+
+  bool get startsByHand => state == ChatState.waiting && taskUuid == null;
+
+  bool get onHold => paused || startsByHand;
 
   bool get canEditTaskMessage =>
       taskUuid != null &&
@@ -629,6 +641,7 @@ class Chat {
         account: c.account,
         pinnedAt: c.pinnedAt,
         muted: c.muted,
+        paused: c.paused,
         projectId: c.projectId,
         projectName: c.projectName,
         projectColour: c.projectColour,
@@ -665,6 +678,7 @@ class Chat {
         account: c.account,
         pinnedAt: at,
         muted: c.muted,
+        paused: c.paused,
         projectId: c.projectId,
         projectName: c.projectName,
         projectColour: c.projectColour,
@@ -701,6 +715,7 @@ class Chat {
         account: c.account,
         pinnedAt: c.pinnedAt,
         muted: muted,
+        paused: c.paused,
         projectId: c.projectId,
         projectName: c.projectName,
         projectColour: c.projectColour,
@@ -754,6 +769,7 @@ class Chat {
       _ => null,
     },
     muted: json['muted'] == true,
+    paused: json['paused'] == true,
     projectId: json['project_id'] as String?,
     projectName: switch (json['project']) {
       {'name': final String name} when name.isNotEmpty => name,
@@ -1006,10 +1022,11 @@ class Agents extends ChangeNotifier {
       _changed(table == 'chats' ? _chatRows : _workerRows, change);
 
   void _fromRows() {
-    workers = [
-      for (final r in _workerRows.values) AgentWorker.fromJson(r),
-    ]..sort((a, b) => a.name.compareTo(b.name));
-    chats = Chat.listOrder([for (final r in _chatRows.values) Chat.fromJson(r)]);
+    workers = [for (final r in _workerRows.values) AgentWorker.fromJson(r)]
+      ..sort((a, b) => a.name.compareTo(b.name));
+    chats = Chat.listOrder([
+      for (final r in _chatRows.values) Chat.fromJson(r),
+    ]);
   }
 
   Timer? _later;
@@ -1058,7 +1075,9 @@ class Agents extends ChangeNotifier {
         ..addAll({for (final r in w) r['id'] as String: r});
       _chatRows
         ..clear()
-        ..addAll({for (final r in [...recent, ...open]) r['id'] as String: r});
+        ..addAll({
+          for (final r in [...recent, ...open]) r['id'] as String: r,
+        });
       _fromRows();
       accounts = readAccounts;
       error = null;
@@ -1714,11 +1733,34 @@ class Agents extends ChangeNotifier {
   /// A chat left waiting — for its task's day, or for the user — started
   /// now: asked of its worker as a new one is.
   Future<void> startNow(String chat) async {
-    await _client!
+    final row = await _client!
         .from('chats')
         .update({'state': 'new'})
         .eq('id', chat)
-        .eq('state', 'waiting');
+        .eq('state', 'waiting')
+        .select()
+        .maybeSingle();
+    if (row != null) _keepChat(row);
+  }
+
+  Future<void> setPaused(String chat, bool paused) async {
+    final row = await _client!
+        .from('chats')
+        .update({'paused': paused})
+        .eq('id', chat)
+        .select()
+        .single();
+    _keepChat(row);
+  }
+
+  void _keepChat(Map<String, dynamic> row) {
+    final changed = Chat.fromJson(row);
+    _chatRows[changed.id] = row;
+    chats = Chat.listOrder([
+      for (final chat in chats)
+        if (chat.id == changed.id) changed else chat,
+    ]);
+    notifyListeners();
   }
 
   /// Saves the first message only while the worker can still claim the chat.
@@ -1790,13 +1832,7 @@ class Agents extends ChangeNotifier {
         .eq('id', chat)
         .select()
         .single();
-    final changed = Chat.fromJson(row);
-    _chatRows[chat] = row;
-    chats = Chat.listOrder([
-      for (final c in chats)
-        if (c.id == chat) changed else c,
-    ]);
-    notifyListeners();
+    _keepChat(row);
     if (fields.keys.every((k) => k == 'title')) return;
     try {
       await _in(chat, 'settings');

@@ -552,11 +552,12 @@ const Map<String, Object> be = {
   'chatStartsWhenDueHint':
       "Кожны чат пачнецца ў дзень задачы або ў яе час. Задача, тэрмін якой ужо настаў, пачнецца зараз.",
   'chatStartsByHand': "Калі я запушчу",
-  'chatStartsByHandHint':
-      "Чат ствараецца з усім выбраным тут і чакае ў Агентах, пакуль вы не адкрыеце яго і не націснеце «Пачаць зараз».",
+  'chatStartsByHandHint': "Можна напісаць чарнавік перад запускам чата.",
   'chatCreate': "Стварыць",
-  'chatHeld': "Не запушчаны",
   'chatWaiting': "Чакае сваю задачу",
+  'chatPause': "Прыпыніць",
+  'chatPaused': "Прыпынены",
+  'chatResume': "Працягнуць",
   'chatStartNow': "Пачаць зараз",
   'agentWaiting': "Чакае",
   'agentWorking': "Працуе",

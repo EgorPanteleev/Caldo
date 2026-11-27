@@ -535,11 +535,12 @@ const Map<String, Object> it = {
   'chatStartsWhenDueHint':
       "Ogni chat parte il giorno della sua attività, o alla sua ora. Un'attività già scaduta parte ora.",
   'chatStartsByHand': "Quando la avvio",
-  'chatStartsByHandHint':
-      "La chat viene creata con tutto ciò che è scelto qui e attende in Agenti finché non la apri e tocchi Avvia ora.",
+  'chatStartsByHandHint': "Puoi scrivere una bozza prima di avviare la chat.",
   'chatCreate': "Crea",
-  'chatHeld': "Non avviata",
   'chatWaiting': "In attesa della sua attività",
+  'chatPause': "Metti in pausa",
+  'chatPaused': "In pausa",
+  'chatResume': "Riprendi",
   'chatStartNow': "Avvia ora",
   'agentWaiting': "In attesa",
   'agentWorking': "Al lavoro",

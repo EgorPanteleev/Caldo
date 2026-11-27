@@ -523,11 +523,12 @@ const Map<String, Object> kk = {
   'chatStartsWhenDueHint':
       "Әр чат өз тапсырмасының күнінде немесе уақытында басталады. Мерзімі жеткен тапсырма қазір басталады.",
   'chatStartsByHand': "Мен іске қосқанда",
-  'chatStartsByHandHint':
-      "Чат осында таңдалғанның бәрімен жасалады және сіз оны ашып, «Қазір бастау» түймесін басқанша Агенттерде күтеді.",
+  'chatStartsByHandHint': "Чатты бастамас бұрын хабарлама нобайын жаза аласыз.",
   'chatCreate': "Жасау",
-  'chatHeld': "Іске қосылмаған",
   'chatWaiting': "Тапсырмасын күтуде",
+  'chatPause': "Кідірту",
+  'chatPaused': "Кідіртілді",
+  'chatResume': "Жалғастыру",
   'chatStartNow': "Қазір бастау",
   'agentWaiting': "Күтуде",
   'agentWorking': "Жұмыста",

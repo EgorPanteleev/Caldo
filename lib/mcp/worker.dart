@@ -8,6 +8,7 @@ import 'package:supabase/supabase.dart';
 import '../models/task.dart';
 import '../services/chat_files.dart';
 import 'accounts.dart';
+import 'agent_scope.dart';
 import 'agents.dart';
 import 'asks_back.dart';
 import 'context_files.dart';
@@ -221,9 +222,14 @@ class Worker {
   /// The chats spoken to in messages, by id: their programs, while up.
   final Map<String, _Talker> _talks = {};
 
-  /// The input rows already put in, by id, so one heard and then read
-  /// again is not typed twice.
-  int _applied = 0;
+  // Realtime can overtake a held row. A single last input ID would lose it.
+  final _taking = <int>{};
+  final _taken = <int>{};
+  final _starting = <String>{};
+
+  final _paused = <String>{};
+  final _frozen = <String, AgentScope>{};
+  bool _canPause = false;
 
   Worker({
     required this.remote,
@@ -316,6 +322,14 @@ class Worker {
   /// Says this worker is here, and what it can run.
   Future<void> _hello() async {
     final db = await _db;
+    if (!_canPause && AgentScope.canFreeze) {
+      try {
+        await db.from('chats').select('paused').limit(0);
+        _canPause = true;
+      } on PostgrestException catch (e) {
+        if (e.code != '42703') rethrow;
+      }
+    }
     final agents = book.read();
     await _modelCatalog.refresh(agents);
     final usage = await _usage.read();
@@ -326,10 +340,13 @@ class Worker {
       'home': home,
       'agents': [
         for (final a in agents)
-          a.toJson(
-            modelLabels: _modelCatalog.labelsFor(a),
-            defaultModel: _modelCatalog.defaultFor(a),
-          ),
+          {
+            ...a.toJson(
+              modelLabels: _modelCatalog.labelsFor(a),
+              defaultModel: _modelCatalog.defaultFor(a),
+            ),
+            if (_canPause) 'pauses': true,
+          },
       ],
       'dirs': book.dirs(),
       'seen_at': seenAt,
@@ -367,6 +384,7 @@ class Worker {
       // With its context, so a program started again for it is told it.
       final ask = await _withContext(ChatAsk.fromJson(row));
       final before = row['state'] as String;
+      if (row['paused'] == true) _paused.add(ask.id);
       _know(ask);
       // Answered before: its task has the answer already.
       if (_ready(before)) _answered.add(ask.id);
@@ -384,6 +402,7 @@ class Worker {
         final talker = _talks[ask.id] = await _Talker.make(this, ask, spec)
           ..state = before;
         if (talker.takeUp()) {
+          await _recoverPause(ask.id, talker.talk?.scope);
           log('[${_short(ask.id)}] taken up again (chat)');
           continue;
         }
@@ -425,6 +444,7 @@ class Worker {
           await _end(ask.id, live, pane.status, recoveredFrom: before);
           continue;
         }
+        if (_canPause) await _recoverPause(ask.id, await tmux.scope(ask.id));
         log('[${_short(ask.id)}] taken up again');
       } else {
         state.chats.remove(ask.id);
@@ -456,6 +476,11 @@ class Worker {
           callback: (change) {
             final gone = change.eventType == PostgresChangeEvent.delete;
             final id = (gone ? change.oldRecord : change.newRecord)['id'];
+            if (id is String &&
+                change.newRecord['worker_id'] == state.id &&
+                change.newRecord['paused'] == true) {
+              _paused.add(id);
+            }
             if (gone && (_live.containsKey(id) || _talks.containsKey(id))) {
               unawaited(_guard(() => _drop(id as String)));
             }
@@ -566,9 +591,77 @@ class Worker {
     unawaited(_guard(() => _take([row])));
   }
 
+  /// Reconcile the saved pause with a scope inherited after a worker
+  /// restart. A Resume written while the worker was away still thaws it.
+  Future<void> _recoverPause(String chat, AgentScope? scope) async {
+    if (scope == null) return;
+    if (await scope.isFrozen()) _frozen[chat] = scope;
+  }
+
+  Future<void> _syncPauses(SupabaseClient db) async {
+    if (!_canPause) return;
+    final rows = await db
+        .from('chats')
+        .select('id')
+        .eq('worker_id', state.id)
+        .eq('paused', true);
+    _paused
+      ..clear()
+      ..addAll(rows.map((row) => row['id'] as String));
+    for (final chat in _frozen.keys.toList()) {
+      if (_paused.contains(chat)) continue;
+      final scope = _frozen[chat];
+      if (scope == null) continue;
+      await _guard(() async {
+        if (await scope.isFrozen()) await scope.freeze(false);
+        _frozen.remove(chat);
+      });
+    }
+    for (final chat in _paused.toList()) {
+      if (_frozen.containsKey(chat)) continue;
+      final talker = _talks[chat];
+      final live = _live[chat];
+      // An idle chat may have released its process. Its input stays held.
+      if (live == null && talker?.talk == null) continue;
+      await _guard(() async {
+        final scope = live != null
+            ? await tmux.scope(chat)
+            : talker!.talk?.scope;
+        if (live != _live[chat] || talker != _talks[chat]) return;
+        try {
+          if (scope == null) throw StateError('No agent scope to pause.');
+          _frozen[chat] = scope;
+          await scope.freeze(true);
+        } catch (e) {
+          _frozen.remove(chat);
+          log('[${_short(chat)}] could not pause: $e');
+          await db
+              .from('chats')
+              .update({'paused': false, 'note': 'Could not pause: $e'})
+              .eq('id', chat)
+              .eq('paused', true);
+        }
+      });
+    }
+  }
+
+  bool _held(String chat) =>
+      _paused.contains(chat) || _frozen.containsKey(chat);
+
+  bool _holdsInput(String chat, Object? kind) =>
+      (_held(chat) || _starting.contains(chat)) &&
+      kind != 'stop' &&
+      kind != 'picture';
+
+  Future<void> _stopFrozen(String chat) async {
+    final scope = _frozen.remove(chat);
+    if (scope != null) await _guard(scope.stop);
+  }
+
   /// Starts the chats asked of this worker, and puts in what was typed.
   Future<void> _look() async {
     final db = await _db;
+    await _syncPauses(db);
     final asked = await db
         .from('chats')
         .select('id')
@@ -578,12 +671,18 @@ class Worker {
       await _takeAsked(row['id'] as String, 'new');
     }
     await _startDue();
-    final typed = await db
+    var input = db
         .from('chat_in')
-        .select('*, chats!inner(worker_id)')
+        .select('*, chats!inner(worker_id, state)')
         .eq('chats.worker_id', state.id)
-        .order('id', ascending: true)
-        .limit(500);
+        .neq('chats.state', 'waiting');
+    final held = {..._paused, ..._frozen.keys};
+    if (held.isNotEmpty) {
+      input = input.or(
+        'chat_id.not.in.(${held.join(',')}),kind.in.(stop,picture)',
+      );
+    }
+    final typed = await input.order('id', ascending: true).limit(500);
     await _take(typed);
     await _sayLater();
   }
@@ -595,26 +694,31 @@ class Worker {
   Future<void> _takeAsked(String id, String from) async {
     final db = await _db;
     // Use the claimed row so edits made while it was waiting are included.
-    final row = await db
+    var claim = db
         .from('chats')
         .update({'state': 'running'})
         .eq('id', id)
-        .eq('state', from)
-        .select()
-        .maybeSingle();
+        .eq('state', from);
+    if (_canPause) claim = claim.eq('paused', false);
+    final row = await claim.select().maybeSingle();
     if (row == null) return;
-    var ask = ChatAsk.fromJson(row);
-    _know(ask);
-    _tellTask(ask.id, AgentState.working);
-    final told = await _toldNow(row);
-    if (told != null && told != ask.prompt) {
-      await db.from('chats').update({'prompt': told}).eq('id', ask.id);
-      ask = ChatAsk.fromJson({...row, 'prompt': told});
+    _starting.add(id);
+    try {
+      var ask = ChatAsk.fromJson(row);
+      _know(ask);
+      _tellTask(ask.id, AgentState.working);
+      final told = await _toldNow(row);
+      if (told != null && told != ask.prompt) {
+        await db.from('chats').update({'prompt': told}).eq('id', ask.id);
+        ask = ChatAsk.fromJson({...row, 'prompt': told});
+      }
+      await _guard(
+        () async =>
+            ask.mode == 'chat' ? await _startTalk(ask) : await _start(ask),
+      );
+    } finally {
+      _starting.remove(id);
     }
-    await _guard(
-      () async =>
-          ask.mode == 'chat' ? await _startTalk(ask) : await _start(ask),
-    );
   }
 
   /// What a task's chat sent with a preface is told first, from its task
@@ -660,7 +764,9 @@ class Worker {
         .eq('worker_id', state.id)
         .eq('state', 'waiting');
     // One with no task waits for the user to start it, whenever.
-    final waiting = [...rows.where((r) => r['task_uuid'] != null)];
+    final waiting = rows.where(
+      (r) => r['task_uuid'] != null && r['paused'] != true,
+    );
     if (waiting.isEmpty) return;
     await caldo.refresh();
     for (final row in waiting) {
@@ -692,12 +798,12 @@ class Worker {
   /// waits for it to be started again.
   Future<void> _sayLater() async {
     final db = await _db;
-    final rows = await db
+    var later = db
         .from('chat_later')
         .select('id, chat_id, data, key, send_at, chats!inner(worker_id)')
-        .eq('chats.worker_id', state.id)
-        .order('send_at', ascending: true)
-        .limit(200);
+        .eq('chats.worker_id', state.id);
+    if (_canPause) later = later.eq('chats.paused', false);
+    final rows = await later.order('send_at', ascending: true).limit(200);
     final now = DateTime.now();
     DateTime? next;
     for (final row in rows) {
@@ -707,7 +813,10 @@ class Worker {
         next ??= at;
         continue;
       }
-      if (!_live.containsKey(chat) && !_talks.containsKey(chat)) continue;
+      if (_held(chat) ||
+          (!_live.containsKey(chat) && !_talks.containsKey(chat))) {
+        continue;
+      }
       // Deleted first: one taken back from the app meanwhile is not said.
       final taken = await db
           .from('chat_later')
@@ -716,7 +825,7 @@ class Worker {
           .select('id');
       if (taken.isEmpty) continue;
       log('[${_short(chat)}] said what was left for later');
-      await _apply(chat, {
+      await _tell(db, chat, {
         'kind': 'line',
         'data': row['data'],
         'key': row['key'],
@@ -798,7 +907,7 @@ class Worker {
       }
       var (:told, :seen) = pullEvents(sub, pulls);
       final live = _live.containsKey(chat) || _talks.containsKey(chat);
-      if (told.isNotEmpty && !live) continue;
+      if (told.isNotEmpty && (!live || _held(chat))) continue;
       final known = jsonEncode(seen) == jsonEncode(sub.seen ?? const {});
       if (!known || sub.error != null) {
         await db
@@ -810,7 +919,7 @@ class Worker {
       final by = await _openers(sub, pulls);
       if (by.isNotEmpty) told = pullEvents(sub, pulls, by: by).told;
       log('[${_short(chat)}] told of ${told.length} in ${sub.label}');
-      await _apply(chat, {
+      await _tell(db, chat, {
         'kind': 'line',
         'data': pullsMessage(sub, told),
         'key': 'e${sub.id}-${DateTime.now().microsecondsSinceEpoch}',
@@ -891,31 +1000,45 @@ class Worker {
   /// Puts in rows of input, each once, and deletes them.
   Future<void> _take(List<Map<String, dynamic>> rows) async {
     final done = <int>[];
-    for (final row in rows) {
-      final id = row['id'] as int;
-      done.add(id);
-      if (row['kind'] == 'picture') {
-        // A later input can arrive first over realtime. Pictures have
-        // their own persisted item ID so that they can be replayed safely.
-        final talker = _talks[row['chat_id']];
-        final files = row['files'];
-        if (talker != null && files is List && files.isNotEmpty) {
-          final file = files.whereType<Map>().firstOrNull;
-          final object = ChatFiles.objectId(talker.ask.id, file?['key']);
-          if (file != null && object != null) {
-            await talker.picture(object, row['data'] as String? ?? '', file);
+    try {
+      for (final row in rows) {
+        final chat = row['chat_id'] as String;
+        final id = row['id'] as int;
+        final kind = row['kind'];
+        if (_holdsInput(chat, kind) || !_taking.add(id)) continue;
+        done.add(id);
+        if (_taken.contains(id)) continue;
+        if (kind == 'picture') {
+          // Pictures have their own item ID and can be replayed safely.
+          final talker = _talks[chat];
+          final files = row['files'];
+          if (talker != null && files is List && files.isNotEmpty) {
+            final file = files.whereType<Map>().firstOrNull;
+            final object = ChatFiles.objectId(talker.ask.id, file?['key']);
+            if (file != null && object != null) {
+              await talker.picture(object, row['data'] as String? ?? '', file);
+            }
           }
+        } else {
+          await _apply(chat, row);
         }
-        continue;
+        _taken.add(id);
+        if (_taken.length > 2000) _taken.remove(_taken.first);
       }
-      if (id <= _applied) continue;
-      _applied = id;
-      await _apply(row['chat_id'] as String, row);
+      if (done.isNotEmpty) {
+        final db = await _db;
+        await db.from('chat_in').delete().inFilter('id', done);
+      }
+    } finally {
+      _taking.removeAll(done);
     }
-    if (done.isNotEmpty) {
-      final db = await _db;
-      await db.from('chat_in').delete().inFilter('id', done);
+  }
+
+  Future<void> _tell(SupabaseClient db, String chat, Map<String, Object?> row) {
+    if (_holdsInput(chat, row['kind'])) {
+      return db.from('chat_in').insert({'chat_id': chat, ...row});
     }
+    return _apply(chat, row);
   }
 
   /// The keys of input already put in, heard broadcast or read as a row:
@@ -929,6 +1052,7 @@ class Worker {
 
   /// One piece of input for [chat]: as a row of `chat_in`, or broadcast.
   Future<void> _apply(String chat, Map row) async {
+    if (_holdsInput(chat, row['kind'])) return;
     final key = row['key'];
     if (key is String) {
       if (!_keys.add(key)) return;
@@ -959,6 +1083,7 @@ class Worker {
         await talker.clear();
       case 'stop' when talker != null:
         _talks.remove(chat);
+        await _stopFrozen(chat);
         await talker.close();
         await _set(chat, 'ended', null);
       case 'mode':
@@ -970,6 +1095,7 @@ class Worker {
       case 'start' when talker != null && talker.talk == null:
         await talker.wake();
       case 'stop' when live != null:
+        await _stopFrozen(chat);
         await tmux.kill(chat);
       case 'size':
         final cols = row['cols'] as int?;
@@ -2444,7 +2570,7 @@ class Worker {
         read = true;
         talker.lastActivity = now;
       }
-      talker.retireIfIdle(now);
+      if (!_held(chat)) talker.retireIfIdle(now);
     }
     if (read && _live.isEmpty) state.save();
     if (_live.isEmpty) return;
@@ -2506,6 +2632,7 @@ class Worker {
     // Once: the check each second may find it ended while it is ended here.
     if (_live[chat] != live) return;
     _live.remove(chat);
+    await _stopFrozen(chat);
     await _putAway(chat, live);
     final failed = status != null && status != 0;
     await _set(
@@ -2627,6 +2754,8 @@ class Worker {
   /// A chat deleted in the app: its terminal goes with it.
   Future<void> _drop(String chat) async {
     final talker = _talks.remove(chat);
+    final live = _live.remove(chat);
+    await _stopFrozen(chat);
     if (talker != null) {
       talker.forgotten = true;
       await talker.close();
@@ -2634,7 +2763,6 @@ class Worker {
       talker.turn = null;
     }
     notices.forget(chat);
-    final live = _live.remove(chat);
     if (live != null) await remote.client.removeChannel(live.line);
     await tmux.kill(chat);
     tmux.forget(chat);

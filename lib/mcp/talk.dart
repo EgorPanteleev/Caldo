@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'agent_scope.dart';
 import 'agents.dart';
 import 'project_files.dart';
 import 'kept.dart';
@@ -160,6 +161,8 @@ abstract class Talk {
   /// How far into its program's output has been handed on: kept by the
   /// worker, for one started again to read on from.
   int? get offset => _kept?.offset;
+
+  AgentScope? get scope => _kept?.scope;
 
   /// The words its program is started after: the account it runs under
   /// (`AgentLogins.envOf`).

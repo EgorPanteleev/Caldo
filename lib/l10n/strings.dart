@@ -385,9 +385,11 @@ class S {
   String get chatStartsWhenDueHint => _word('chatStartsWhenDueHint');
   String get chatStartsByHand => _word('chatStartsByHand');
   String get chatStartsByHandHint => _word('chatStartsByHandHint');
-  String get chatHeld => _word('chatHeld');
   String get chatCreate => _word('chatCreate');
   String get chatWaiting => _word('chatWaiting');
+  String get chatPause => _word('chatPause');
+  String get chatPaused => _word('chatPaused');
+  String get chatResume => _word('chatResume');
   String get chatStartNow => _word('chatStartNow');
   String get agentWaiting => _word('agentWaiting');
   String get agentWorking => _word('agentWorking');

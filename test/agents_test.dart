@@ -3771,6 +3771,108 @@ void main() {
       expect(edit, findsNothing);
     });
 
+    for (final startsByHand in [true, false]) {
+      testWidgets(
+        'holds the draft through ${startsByHand ? 'Start now' : 'Pause and Resume'}',
+        (tester) async {
+          const id = 'paused-draft';
+          final now = DateTime.now();
+          final row = <String, dynamic>{
+            'id': id,
+            'agent': 'shell',
+            'worker_id': 'pause-worker',
+            'state': startsByHand ? 'waiting' : 'running',
+            'updated_at': now.toIso8601String(),
+          };
+          final writes = <Map<String, dynamic>>[];
+          final client = (await tester.runAsync(
+            () async => SupabaseClient(
+              'https://example.invalid',
+              'anon',
+              authOptions: const AuthClientOptions(autoRefreshToken: false),
+              realtimeClientOptions: RealtimeClientOptions(
+                transport: (_, _) => throw StateError('Realtime unavailable'),
+                disconnectOnEmptyChannelsAfter: Duration.zero,
+              ),
+              httpClient: MockClient((request) async {
+                if (request.method == 'GET') {
+                  return http.Response('[]', 200, request: request);
+                }
+                final body = jsonDecode(request.body) as Map<String, dynamic>;
+                if (request.url.path == '/rest/v1/chats') {
+                  writes.add(body);
+                  row.addAll(body);
+                  if (row['state'] == 'new') row['state'] = 'running';
+                  return http.Response(
+                    jsonEncode(row),
+                    200,
+                    headers: {'content-type': 'application/json'},
+                    request: request,
+                  );
+                }
+                if (body['kind'] != 'size') writes.add(body);
+                return http.Response('', 201, request: request);
+              }),
+            ),
+          ))!;
+          final agents = Agents.instance
+            ..workers = [
+              AgentWorker(
+                id: 'pause-worker',
+                name: 'Desk',
+                seenAt: now,
+                dirs: const [],
+                agents: const [
+                  AgentKind(id: 'shell', label: 'Shell', pauses: true),
+                ],
+              ),
+            ]
+            ..chats = [Chat.fromJson(row)];
+          addTearDown(() async {
+            agents
+              ..clientForTest = null
+              ..chats = const [];
+            agents.draftOf(id).value = '';
+            await client.dispose();
+          });
+
+          final s = S.forCode('en');
+          await pump(tester, 'en', const ChatScreen(chat: id));
+          agents.clientForTest = client;
+          final field = find.byType(TextField);
+          final send = find.byTooltip(s.chatSendNow);
+
+          if (!startsByHand) {
+            await tester.tap(find.byTooltip('Show menu'));
+            await tester.pumpAndSettle();
+            await tester.tap(find.text(s.chatPause));
+            await tester.pumpAndSettle();
+          }
+          expect(find.textContaining(s.chatPaused), findsOneWidget);
+          await tester.enterText(field, 'Draft while paused');
+          await tester.tap(send);
+          await tester.pumpAndSettle();
+          expect(writes.where((row) => row['kind'] == 'line'), isEmpty);
+          expect(find.text('Draft while paused'), findsOneWidget);
+
+          await tester.tap(
+            find.text(startsByHand ? s.chatStartNow : s.chatResume),
+          );
+          await tester.pumpAndSettle();
+          expect(find.textContaining(s.chatPaused), findsNothing);
+          expect(writes.where((row) => row['kind'] == 'line'), isEmpty);
+          expect(find.text('Draft while paused'), findsOneWidget);
+          await tester.tap(send);
+          await tester.pumpAndSettle();
+          expect(
+            writes.singleWhere((row) => row['kind'] == 'line')['data'],
+            'Draft while paused',
+          );
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+
     testWidgets('restores each chat draft after leaving the chat', (
       tester,
     ) async {
@@ -4604,7 +4706,7 @@ void main() {
             ..chats = const [];
         });
         await pump(tester, code, const AgentsScreen());
-        expect(find.textContaining('${s.chatHeld} · '), findsOneWidget);
+        expect(find.textContaining('${s.chatPaused} · '), findsOneWidget);
         expect(find.textContaining('${s.chatWaiting} · '), findsOneWidget);
       });
 

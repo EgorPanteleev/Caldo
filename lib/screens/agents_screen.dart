@@ -492,10 +492,15 @@ class _StateMark extends StatelessWidget {
     }
     final state = chat.state;
     final away = agents.away(chat) != null;
-    final colour = away ? p.faint : _stateColour(p, state);
+    final held = chat.onHold;
+    final colour = away || held ? p.faint : _stateColour(p, state);
     return SizedBox.square(
       dimension: size,
-      child: away || state == ChatState.finished || state == ChatState.limited
+      child:
+          away ||
+              held ||
+              state == ChatState.finished ||
+              state == ChatState.limited
           // Drawn larger than the dot, as an icon's strokes are thin; it
           // overflows its square so the row doesn't move.
           ? OverflowBox(
@@ -504,6 +509,8 @@ class _StateMark extends StatelessWidget {
               child: Icon(
                 away
                     ? Icons.cloud_off_rounded
+                    : held
+                    ? Icons.pause_rounded
                     : state == ChatState.limited
                     ? Icons.pause_circle_outline_rounded
                     : Icons.flag_rounded,
@@ -533,9 +540,11 @@ bool _ring(ChatState state) =>
 /// and one whose computer is away is offline, whatever it last said.
 String _stateName(S s, Chat chat) => Agents.instance.away(chat) != null
     ? s.chatAway
+    : chat.onHold
+    ? s.chatPaused
     : switch (chat.state) {
         ChatState.asked => s.chatAsked,
-        ChatState.waiting => chat.taskUuid == null ? s.chatHeld : s.chatWaiting,
+        ChatState.waiting => s.chatWaiting,
         ChatState.running => s.chatRunning,
         ChatState.asking => s.chatAsking,
         ChatState.idle => s.chatIdle,
@@ -1396,9 +1405,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
       // A subchat's choices are its parent's, not the next chat's.
       if (parent == null) unawaited(_remember());
       if (!mounted) return;
-      // One left for later has nothing to show yet: back to the list,
-      // where it waits.
-      if (_byHand) return Navigator.of(context).pop();
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(builder: (_) => ChatScreen(chat: chat.id)),
       );
@@ -2086,6 +2092,33 @@ class _ChatScreenState extends State<ChatScreen> {
   bool? _asChat;
 
   Chat? get _chat => _agents.chat(widget.chat);
+  bool _changingPause = false;
+
+  bool get _canSend {
+    final chat = _chat;
+    return chat != null && chat.live && !chat.onHold && !_changingPause;
+  }
+
+  Future<void> _changePause({required bool pause}) async {
+    final chat = _chat;
+    if (chat == null || _changingPause) return;
+    setState(() => _changingPause = true);
+    try {
+      if (chat.startsByHand) {
+        await _agents.startNow(chat.id);
+      } else {
+        await _agents.setPaused(chat.id, pause);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _changingPause = false);
+    }
+  }
 
   @override
   void initState() {
@@ -2155,7 +2188,11 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     // The row has caught up with what was broadcast, or gone past it.
     final chat = _chat;
-    if (chat?.live != true) _compactComposerHeight = null;
+    if (chat?.live != true &&
+        chat?.onHold != true &&
+        chat?.state != ChatState.asked) {
+      _compactComposerHeight = null;
+    }
     final now = chat?.state;
     if (now != _lastState) {
       _lastState = now;
@@ -2167,6 +2204,11 @@ class _ChatScreenState extends State<ChatScreen> {
     if (note != _lastNote) {
       _lastNote = note;
       if (note != null) unawaited(_readLater());
+      if (note != null && note.startsWith('Could not pause:')) {
+        ScaffoldMessenger.maybeOf(
+          context,
+        )?.showSnackBar(SnackBar(content: Text(note)));
+      }
     }
     _follow();
     // Started again: it takes the size it is shown at.
@@ -2238,13 +2280,15 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _flushing;
 
   void _typed(String data) {
-    if (_drawing) return;
+    if (_drawing || !_canSend) return;
     _keys.write(TermSwipe.wheelFixed(data));
     _flushing ??= Timer(const Duration(milliseconds: 30), () {
       _flushing = null;
       final keys = _keys.toString();
       _keys.clear();
-      if (keys.isNotEmpty) unawaited(_agents.keys(widget.chat, keys));
+      if (keys.isNotEmpty && _canSend) {
+        unawaited(_agents.keys(widget.chat, keys));
+      }
     });
   }
 
@@ -2270,6 +2314,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _send() {
+    if (!_canSend) return;
     if (_files.isNotEmpty) {
       unawaited(_sendWithFiles());
       return;
@@ -2400,7 +2445,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// The message and its files: the files up first, the words and files
   /// kept where they are until they have gone.
   Future<void> _sendWithFiles() async {
-    if (_sending) return;
+    if (_sending || !_canSend) return;
     final files = _files;
     final draft = _input.text;
     final chat = _chat;
@@ -2469,11 +2514,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// What is written, left to be said later: when is asked first.
   Future<void> _sendLater() async {
+    if (!_canSend) return;
     final draft = _input.text;
     final text = draft.trim();
     if (text.isEmpty) return;
     final at = await _whenLater();
-    if (at == null || !mounted) return;
+    if (at == null || !mounted || !_canSend) return;
     _input.clear();
     try {
       final line = await _agents.later(widget.chat, text, at);
@@ -2581,7 +2627,8 @@ class _ChatScreenState extends State<ChatScreen> {
       title: line.text.split('\n').first,
       selected: null,
       options: [
-        Option('now', s.chatSendNow, icon: Icons.arrow_upward_rounded),
+        if (_canSend)
+          Option('now', s.chatSendNow, icon: Icons.arrow_upward_rounded),
         Option('edit', s.chatLaterEdit, icon: Icons.edit_outlined),
         Option('delete', s.delete, icon: Icons.delete_outline_rounded),
       ],
@@ -2591,6 +2638,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _takeBack(LaterLine line, {String then = 'delete'}) async {
+    if (then == 'now' && !_canSend) return;
     setState(() => _later = [..._later]..remove(line));
     bool back;
     try {
@@ -2618,6 +2666,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _toTerminal() async {
+    if (!_canSend) return;
     final s = S.of(context);
     if (_chat?.state == ChatState.running) {
       final ok = await showDialog<bool>(
@@ -2638,11 +2687,13 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       if (ok != true || !mounted) return;
     }
+    if (!_canSend) return;
     setState(() => _asChat = false);
     await _agents.move(widget.chat, toChat: false);
   }
 
   Future<void> _toChat() async {
+    if (_chat?.onHold == true || _changingPause) return;
     setState(() => _asChat = true);
     await _agents.move(widget.chat, toChat: true);
   }
@@ -2747,6 +2798,23 @@ class _ChatScreenState extends State<ChatScreen> {
     final asChat = talks && (_asChat ?? chat.inChat);
     final talk = _talk;
     final waits = chat?.state == ChatState.waiting;
+    final held = chat?.onHold ?? false;
+    final canSend = _canSend;
+    final canPause =
+        chat != null &&
+        !held &&
+        (live || waits || chat.state == ChatState.asked) &&
+        (_kindOf(chat)?.pauses ?? false);
+    final pauseAction = _changingPause
+        ? null
+        : held || canPause
+        ? () => _changePause(pause: !held)
+        : null;
+    final pauseLabel = !held
+        ? s.chatPause
+        : chat!.startsByHand
+        ? s.chatStartNow
+        : s.chatResume;
     final away = chat == null ? null : _agents.away(chat);
     final checkingWorker = chat != null && _agents.checkingWorker(chat);
     final later = _later.where((line) => !line.carriesOn).toList();
@@ -2756,14 +2824,15 @@ class _ChatScreenState extends State<ChatScreen> {
     final composerOverlap =
         asChat &&
             chat.inChat &&
-            live &&
+            canSend &&
             later.isEmpty &&
             away == null &&
             !canEditFirst &&
             _files.isEmpty
         ? _InputRow.glassOverlap
         : 0.0;
-    final again = chat != null && !live && chat.state != ChatState.asked
+    final again =
+        chat != null && !held && !live && chat.state != ChatState.asked
         ? Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: SizedBox(
@@ -2779,7 +2848,8 @@ class _ChatScreenState extends State<ChatScreen> {
           )
         : null;
     final canCompose =
-        live &&
+        (live || held || chat?.state == ChatState.asked) &&
+        chat != null &&
         (asChat ? chat.inChat && talk != null : !(talks && chat.inChat));
     final expanded = canCompose && _compactComposerHeight != null;
     Widget composer() {
@@ -2791,10 +2861,19 @@ class _ChatScreenState extends State<ChatScreen> {
         undo: _undoInput,
         onExpand: _expandComposer,
         onCollapse: expanded ? _collapseComposer : null,
-        onSend: _send,
+        onSend: canSend ? _send : null,
+        editorPause: pauseAction == null
+            ? null
+            : IconButton(
+                onPressed: pauseAction,
+                tooltip: pauseLabel,
+                icon: Icon(
+                  held ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                ),
+              ),
         // Its files could not be put back to edit it.
-        onLater: _canLater && _files.isEmpty ? _sendLater : null,
-        onStop: state == 'running' || state == 'asking'
+        onLater: canSend && _canLater && _files.isEmpty ? _sendLater : null,
+        onStop: canSend && (state == 'running' || state == 'asking')
             ? () => _agents.interrupt(widget.chat)
             : null,
         onAttach: _canAttach ? _attach : null,
@@ -2827,7 +2906,8 @@ class _ChatScreenState extends State<ChatScreen> {
               onFont: _setFont,
               onStop: () => _agents.stop(widget.chat),
               onAgain: () => _agents.again(widget.chat),
-              onClear: chat != null && chat.inChat && chat.live && _canClear
+              onPause: canPause ? pauseAction : null,
+              onClear: chat != null && chat.inChat && canSend && _canClear
                   ? () => _agents.clear(widget.chat)
                   : null,
               onDelete: _delete,
@@ -2852,18 +2932,21 @@ class _ChatScreenState extends State<ChatScreen> {
                         bottomOverlap: composerOverlap,
                         // Nobody is working on a computer that is away.
                         working:
+                            canSend &&
                             away == null &&
                             !checkingWorker &&
                             chat.inChat &&
                             (heard ?? chat.state.name) == 'running',
-                        onAnswer: (item, choice, answers) => _agents.answer(
-                          widget.chat,
-                          item,
-                          choice,
-                          answers: answers,
-                        ),
+                        onAnswer: canSend
+                            ? (item, choice, answers) => _agents.answer(
+                                widget.chat,
+                                item,
+                                choice,
+                                answers: answers,
+                              )
+                            : null,
                         carrying: _later.any((line) => line.carriesOn),
-                        onCarry: _canLater ? _carry : null,
+                        onCarry: canSend && _canLater ? _carry : null,
                         // The chat's own: the account's, newer, would
                         // no longer show the limit spent once it resets.
                         usage: talk.usage.value ?? chat.usage,
@@ -2872,7 +2955,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   : talks && chat.inChat
                   ? _Elsewhere(
                       text: s.chatInChatNow(_agentName(chat)),
-                      action: live ? s.chatToTerminal : null,
+                      action: canSend ? s.chatToTerminal : null,
                       onTap: _toTerminal,
                     )
                   : asChat
@@ -2893,8 +2976,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 icon: const Icon(Icons.edit_outlined),
                 label: Text(s.chatEditFirstMessage),
               ),
+            if (held)
+              TextButton.icon(
+                onPressed: pauseAction,
+                icon: const Icon(Icons.play_arrow_rounded),
+                label: Text(pauseLabel),
+              ),
             if (asChat) ...[
-              if (!chat.inChat)
+              if (!chat.inChat && !held)
                 _MoveBar(
                   text: s.chatInTerminalNow,
                   action: s.chatToChat,
@@ -2906,7 +2995,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ?again,
             ] else if (!(talks && chat.inChat)) ...[
               if (canCompose) ...[
-                _KeyRow(onKey: _key),
+                if (canSend) _KeyRow(onKey: _key),
                 compactComposer(),
               ] else
                 ?again,
@@ -2976,7 +3065,7 @@ class _ChatScreenState extends State<ChatScreen> {
       lineHeight: _font * 1.2,
       cellWidth: _font * 0.6,
       padding: const Offset(_TermFont.side, 4),
-      enabled: live,
+      enabled: _canSend,
       child: TerminalView(
         _terminal,
         controller: _controller,
@@ -2997,7 +3086,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         // A key a time over the network is no way to type on a phone; the
         // field below is. A desktop's keys go straight in.
-        readOnly: !onDesktop || !live,
+        readOnly: !onDesktop || !_canSend,
         hardwareKeyboardOnly: onDesktop,
         autofocus: onDesktop,
         keyboardAppearance: Brightness.dark,
@@ -3120,6 +3209,7 @@ class _Head extends StatelessWidget {
   final ValueChanged<double> onFont;
   final VoidCallback onStop;
   final VoidCallback onAgain;
+  final VoidCallback? onPause;
 
   /// Its context cleared; null where it can't be (a terminal, a worker
   /// from before).
@@ -3141,6 +3231,7 @@ class _Head extends StatelessWidget {
     required this.onFont,
     required this.onStop,
     required this.onAgain,
+    required this.onPause,
     required this.onClear,
     required this.onDelete,
     required this.onSettings,
@@ -3213,6 +3304,8 @@ class _Head extends StatelessWidget {
                   onStop();
                 case 'again':
                   onAgain();
+                case 'pause':
+                  onPause?.call();
                 case 'clear':
                   onClear?.call();
                 case 'settings':
@@ -3249,6 +3342,8 @@ class _Head extends StatelessWidget {
               ],
               if (onSubchat != null)
                 PopupMenuItem(value: 'subchat', child: Text(s.newSubchat)),
+              if (onPause != null)
+                PopupMenuItem(value: 'pause', child: Text(s.chatPause)),
               if (onClear != null)
                 PopupMenuItem(value: 'clear', child: Text(s.chatClear)),
               if (chat != null && chat.live)
@@ -3552,7 +3647,8 @@ class _InputRow extends StatelessWidget {
   final UndoHistoryController undo;
   final VoidCallback onExpand;
   final VoidCallback? onCollapse;
-  final VoidCallback onSend;
+  final VoidCallback? onSend;
+  final Widget? editorPause;
 
   /// While a turn is under way: the button, with nothing written, stops it.
   final VoidCallback? onStop;
@@ -3578,6 +3674,7 @@ class _InputRow extends StatelessWidget {
     required this.onExpand,
     required this.onCollapse,
     required this.onSend,
+    this.editorPause,
     this.onStop,
     this.onLater,
     this.onAttach,
@@ -3628,7 +3725,8 @@ class _InputRow extends StatelessWidget {
     final field = CallbackShortcuts(
       // Enter sends on a desktop; Shift+Enter is a new line.
       bindings: {
-        if (onDesktop) const SingleActivator(LogicalKeyboardKey.enter): onSend,
+        if (onDesktop && onSend != null)
+          const SingleActivator(LogicalKeyboardKey.enter): onSend!,
       },
       child: TextField(
         key: inputKey,
@@ -3676,7 +3774,7 @@ class _InputRow extends StatelessWidget {
         final written = controller.text.trim().isNotEmpty;
         final ready = written || files.isNotEmpty;
         final stop = onStop != null && !ready;
-        final emphasized = ready && !sending;
+        final emphasized = ready && !sending && onSend != null;
         final later = onLater != null && written && !sending
             ? () {
                 HapticFeedback.mediumImpact();
@@ -3688,11 +3786,11 @@ class _InputRow extends StatelessWidget {
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),
-            onTap: sending
+            onTap: sending || (onStop == null && onSend == null)
                 ? null
                 : () {
                     HapticFeedback.selectionClick();
-                    stop ? onStop!() : onSend();
+                    stop ? onStop!() : onSend?.call();
                   },
             onLongPress: later,
             onSecondaryTap: later,
@@ -3764,6 +3862,7 @@ class _InputRow extends StatelessWidget {
                     tooltip: s.chatCollapseComposer,
                     icon: const BackButtonIcon(),
                   ),
+                  ?editorPause,
                   ValueListenableBuilder(
                     valueListenable: undo,
                     builder: (context, history, _) => Row(

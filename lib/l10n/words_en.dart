@@ -518,11 +518,12 @@ const Map<String, Object> en = {
   'chatStartsWhenDueHint':
       "Each chat starts on its task's day, or at its time. A task due already starts now.",
   'chatStartsByHand': "When I start it",
-  'chatStartsByHandHint':
-      "The chat is made with all chosen here and waits under Agents until you open it and tap Start now.",
+  'chatStartsByHandHint': "You can write a draft before starting the chat.",
   'chatCreate': "Create",
-  'chatHeld': "Not started",
   'chatWaiting': "Waiting for its task",
+  'chatPause': "Pause",
+  'chatPaused': "Paused",
+  'chatResume': "Resume",
   'chatStartNow': "Start now",
   'agentWaiting': "Waiting",
   'agentWorking': "Working",

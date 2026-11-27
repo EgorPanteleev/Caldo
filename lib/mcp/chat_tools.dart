@@ -94,14 +94,23 @@ class SupabaseChatDesk implements ChatDesk {
   Future<SupabaseClient> get _db => remote.signedIn();
 
   @override
-  Future<List<Map<String, dynamic>>> chats() async => (await _db)
-      .from('chats')
-      .select(
+  Future<List<Map<String, dynamic>>> chats() async {
+    final db = await _db;
+    const fields =
         'id, title, prompt, agent, model, state, mode, dir, worker_id, '
-        'project_id, updated_at',
-      )
-      .order('updated_at', ascending: false)
-      .limit(200);
+        'project_id, updated_at, task_uuid';
+    Future<List<Map<String, dynamic>>> read(String columns) => db
+        .from('chats')
+        .select(columns)
+        .order('updated_at', ascending: false)
+        .limit(200);
+    try {
+      return await read('$fields, paused');
+    } on PostgrestException catch (e) {
+      if (e.code != '42703' || !e.message.contains('paused')) rethrow;
+      return read(fields);
+    }
+  }
 
   @override
   Future<List<Map<String, dynamic>>> workers() async =>
@@ -375,7 +384,7 @@ class ChatTools {
     final workers = await _workers();
     final lines = <String>[];
     for (final c in await desk.chats()) {
-      final state = '${c['state']}';
+      final state = _stateOf(c);
       if (!all && _gone.contains(state) && c['id'] != self) continue;
       final worker = workers['${c['worker_id']}'];
       final where = worker == null
@@ -437,11 +446,19 @@ class ChatTools {
           if (text.isNotEmpty) said.add('  (note: $text)');
       }
     }
-    final head = '[${_short(chat['id'])}] ${_titleOf(chat)} — ${chat['state']}';
+    final head =
+        '[${_short(chat['id'])}] ${_titleOf(chat)} — ${_stateOf(chat)}';
     return said.isEmpty
         ? '$head\nNothing said yet.'
         : '$head\n\n${said.join('\n\n')}';
   }
+
+  static bool _held(Map chat) =>
+      chat['paused'] == true ||
+      (chat['state'] == 'waiting' && chat['task_uuid'] == null);
+
+  static String _stateOf(Map chat) =>
+      _held(chat) ? 'paused' : '${chat['state']}';
 
   Future<String> messageChat(Map<String, Object?> args) async {
     final message = (args['message'] as String? ?? '').trim();
@@ -461,6 +478,9 @@ class ChatTools {
         '$name has ${chat['state']}; the user can start it again in '
         "Caldo's Agents tab.",
       );
+    }
+    if (_held(chat)) {
+      throw Refusal('$name is paused. The user can resume it in Caldo.');
     }
     final workers = await _workers();
     final worker = workers['${chat['worker_id']}'];
@@ -505,7 +525,7 @@ class ChatTools {
 
     // At work on something else: what it says now is not the answer.
     if (wait && _busy.contains(chat['state'])) {
-      while (_busy.contains(chat['state'])) {
+      while (!_held(chat) && _busy.contains(chat['state'])) {
         if (!_now().isBefore(until)) {
           return '$name is still busy (${chat['state']}) after $minutes '
               'minutes; nothing was sent. Try again later, or send with '
@@ -513,6 +533,9 @@ class ChatTools {
         }
         await Future<void>.delayed(poll);
         chat = await _chat(id);
+      }
+      if (_held(chat)) {
+        throw Refusal('$name was paused while waiting; nothing sent.');
       }
       if (_gone.contains(chat['state'])) {
         throw Refusal('$name ${chat['state']} while waiting; nothing sent.');

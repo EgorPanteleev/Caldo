@@ -519,11 +519,12 @@ const Map<String, Object> tr = {
   'chatStartsWhenDueHint':
       "Her sohbet görevinin gününde ya da saatinde başlar. Vakti gelmiş bir görev şimdi başlar.",
   'chatStartsByHand': "Ben başlattığımda",
-  'chatStartsByHandHint':
-      "Sohbet burada seçilen her şeyle oluşturulur ve siz açıp Şimdi başlat'a dokunana kadar Ajanlar'da bekler.",
+  'chatStartsByHandHint': "Sohbeti başlatmadan önce bir taslak yazabilirsiniz.",
   'chatCreate': "Oluştur",
-  'chatHeld': "Başlatılmadı",
   'chatWaiting': "Görevini bekliyor",
+  'chatPause': "Duraklat",
+  'chatPaused': "Duraklatıldı",
+  'chatResume': "Sürdür",
   'chatStartNow': "Şimdi başlat",
   'agentWaiting': "Bekliyor",
   'agentWorking': "Çalışıyor",

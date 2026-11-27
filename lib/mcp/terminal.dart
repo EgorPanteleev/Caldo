@@ -157,6 +157,20 @@ class Tmux {
     '$rows',
   ]);
 
+  Future<AgentScope?> scope(String chat) async {
+    final pane = await _tmux([
+      'display',
+      '-p',
+      '-t',
+      nameOf(chat),
+      '#{pane_pid}',
+    ]);
+    final pid = pane.exitCode == 0
+        ? int.tryParse('${pane.stdout}'.trim())
+        : null;
+    return pid == null ? null : AgentScope.ofTerminal(pid, chat);
+  }
+
   Future<void> kill(String chat) => _tmux(['kill-session', '-t', nameOf(chat)]);
 
   /// The screen as it stands, scrollback and all, as bytes that draw it on
