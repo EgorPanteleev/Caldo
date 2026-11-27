@@ -3589,13 +3589,41 @@ class _InputRow extends StatelessWidget {
   static const _buttonSize = 48.0;
   static const _inset = 3.0;
   static const _top = 2.0;
+  static const _compactTextPadding = EdgeInsets.fromLTRB(16, 14, 6, 14);
   static const glassOverlap = _buttonSize + 2 * _inset + _top;
+
+  bool _canExpand(BuildContext context, TextStyle style, double fieldWidth) {
+    if (controller.text.isEmpty) return false;
+    final painter = TextPainter(
+      text: TextSpan(text: controller.text, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      locale: Localizations.maybeLocaleOf(context),
+      maxLines: 3,
+    );
+    // The editable keeps a 2pt cursor and a 1pt gap at the end of a line.
+    painter.layout(
+      maxWidth: (fieldWidth - _compactTextPadding.horizontal - 3).clamp(
+        0.0,
+        double.infinity,
+      ),
+    );
+    final threeLines = painter.computeLineMetrics().length == 3;
+    painter.dispose();
+    return threeLines;
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
     final p = AppTheme.of(context);
-    final colors = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final style =
+        (theme.useMaterial3
+                ? theme.textTheme.bodyLarge!
+                : theme.textTheme.titleMedium!)
+            .copyWith(color: p.text, fontSize: 15);
     final expanded = onCollapse != null;
     final field = CallbackShortcuts(
       // Enter sends on a desktop; Shift+Enter is a new line.
@@ -3613,14 +3641,16 @@ class _InputRow extends StatelessWidget {
         textAlignVertical: TextAlignVertical.top,
         textInputAction: TextInputAction.newline,
         keyboardAppearance: Brightness.dark,
-        style: TextStyle(color: p.text, fontSize: 15),
+        style: style,
         decoration: InputDecoration(
           hintText: s.chatMessage,
           hintStyle: TextStyle(color: p.muted),
           isDense: true,
           filled: false,
           constraints: const BoxConstraints(minHeight: _buttonSize),
-          contentPadding: EdgeInsets.fromLTRB(16, 14, expanded ? 16 : 6, 14),
+          contentPadding: expanded
+              ? const EdgeInsets.symmetric(horizontal: 16, vertical: 14)
+              : _compactTextPadding,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
@@ -3765,6 +3795,46 @@ class _InputRow extends StatelessWidget {
       );
     }
 
+    final compact = LayoutBuilder(
+      builder: (context, box) => Stack(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(child: field),
+              if (attach != null)
+                SizedBox.square(dimension: _buttonSize, child: attach),
+              send,
+            ],
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: _buttonSize,
+            width: _buttonSize,
+            child: ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) {
+                final fieldWidth =
+                    box.maxWidth - (attach == null ? 1 : 2) * _buttonSize;
+                if (!_canExpand(context, style, fieldWidth)) {
+                  return const SizedBox.shrink();
+                }
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: IconButton(
+                    icon: const Icon(Icons.open_in_full_rounded, size: 18),
+                    color: p.muted,
+                    tooltip: s.chatExpandComposer,
+                    onPressed: onExpand,
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
     final radius = BorderRadius.circular(28);
     return TextFieldTapRegion(
       child: Column(
@@ -3792,23 +3862,7 @@ class _InputRow extends StatelessWidget {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(_inset),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(child: field),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.open_in_full_rounded,
-                            size: 18,
-                          ),
-                          color: p.muted,
-                          tooltip: s.chatExpandComposer,
-                          onPressed: onExpand,
-                        ),
-                        ?attach,
-                        send,
-                      ],
-                    ),
+                    child: compact,
                   ),
                 ),
               ),
