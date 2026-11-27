@@ -1,6 +1,6 @@
 -- supabase test db
 begin;
-select plan(10);
+select plan(11);
 
 insert into auth.users (id, email) values
   ('11111111-1111-4111-8111-111111111111', 'one@caldo.invalid'),
@@ -28,6 +28,11 @@ select results_eq(
   $$select version, changed_by from public.agent_projects$$,
   $$values (2, 'computer:desk')$$,
   'a rename is no new version');
+update public.agent_projects set instructions = 'Mine alone.';
+select results_eq(
+  $$select version, instructions from public.agent_projects$$,
+  $$values (2, 'Mine alone.')$$,
+  'the user''s instructions are no new version of the info');
 
 -- A worker's save holds only on the version it saw.
 update public.agent_projects set context = 'Stale.' where version = 1;

@@ -215,46 +215,60 @@ class Place {
   };
 }
 
-/// What a chat is told it knows, as the user wrote it in Caldo, in place
-/// of the CLAUDE.md and memory files Claude would read on its own (kept
-/// from it by `quietEnv`; Codex reads no CLAUDE.md): its [project]'s info
-/// (`{name, context: [{name, body}]}`, as the worker read it at the start),
-/// the context of the chats it is part of ([parents], `[{id, title,
-/// context}]`, outermost first: a subchat has all its parent has), then
-/// its [own]. Null if there is none of it.
-String? contextText(Object? project, Object? parents, Object? own) {
+/// What a chat is told it knows, as kept in Caldo, in place of the
+/// CLAUDE.md and memory files Claude would read on its own (kept from it by
+/// `quietEnv`; Codex reads no CLAUDE.md). Two of each (asked 2026-11-27:
+/// "one where agents writing, second where im writing my own
+/// instructions"): its [project]'s (`{name, instructions, context: [{name,
+/// body}]}`, as the worker read it at the start) instructions, the user's,
+/// and info, kept by its chats; the instructions and notes of the chats it
+/// is part of ([parents], `[{id, title, context, notes}]`, outermost first:
+/// a subchat has all its parent has); then its [own] instructions and its
+/// [notes], which its agent keeps. Null if there is none of it.
+String? contextText(
+  Object? project,
+  Object? parents,
+  Object? own, [
+  Object? notes,
+]) {
   String attr(String s) => s.replaceAll('"', "'");
+  String tag(String name, String attrs, String words) =>
+      '<$name$attrs>\n$words\n</$name>';
   final parts = <String>[];
   if (project is Map) {
     final name = '${project['name'] ?? ''}'.trim();
+    final named = name.isEmpty ? '' : ' project="${attr(name)}"';
+    final told = '${project['instructions'] ?? ''}'.trim();
+    if (told.isNotEmpty) parts.add(tag('project-instructions', named, told));
     final words = [
       for (final c in project['context'] as List? ?? const [])
         if (c case {'body': final String body} when body.trim().isNotEmpty)
           body.trim(),
     ].join('\n\n');
     if (name.isNotEmpty || words.isNotEmpty) {
-      final named = name.isEmpty ? '' : ' project="${attr(name)}"';
       parts.add(
         words.isEmpty
             ? '<project-info$named/>'
-            : '<project-info$named>\n$words\n</project-info>',
+            : tag('project-info', named, words),
       );
     }
   }
   for (final p in parents is List ? parents : const []) {
     if (p is! Map) continue;
-    final words = '${p['context'] ?? ''}'.trim();
-    if (words.isEmpty) continue;
     final id = '${p['id'] ?? ''}';
     final short = id.length < 8 ? id : id.substring(0, 8);
     final title = '${p['title'] ?? ''}'.trim();
-    final titled = title.isEmpty ? '' : ' title="${attr(title)}"';
-    parts.add(
-      '<parent-context chat="$short"$titled>\n$words\n</parent-context>',
-    );
+    final at =
+        ' chat="$short"${title.isEmpty ? '' : ' title="${attr(title)}"'}';
+    final words = '${p['context'] ?? ''}'.trim();
+    if (words.isNotEmpty) parts.add(tag('parent-instructions', at, words));
+    final kept = '${p['notes'] ?? ''}'.trim();
+    if (kept.isNotEmpty) parts.add(tag('parent-notes', at, kept));
   }
   final mine = own is String ? own.trim() : '';
-  if (mine.isNotEmpty) parts.add('<own-context>\n$mine\n</own-context>');
+  if (mine.isNotEmpty) parts.add(tag('own-instructions', '', mine));
+  final kept = notes is String ? notes.trim() : '';
+  if (kept.isNotEmpty) parts.add(tag('own-notes', '', kept));
   if (parts.isEmpty) return null;
   final file = project is Map && project['file'] is String
       ? project['file'] as String
@@ -267,14 +281,20 @@ String? contextText(Object? project, Object? parents, Object? own) {
             'read the file first, as it may have changed since this session '
             'began';
   return [
-    'This session\'s context, as the user wrote it in Caldo. It stands in '
-        'for CLAUDE.md files and memory, which are not read here: what to '
-        'know of the project, how to work, and what this chat is for. '
-        'project-info is the project\'s, shared by every chat in it: when '
-        'your work changes something it says, or it lacks something every '
-        'chat there should know, $change. Never write a CLAUDE.md or '
-        'AGENTS.md for it. parent-context is that of the chats this one is '
-        "part of, outermost first; own-context is this chat's alone.",
+    "This session's context, as kept in Caldo. It stands in for CLAUDE.md "
+        'files and memory, which are not read here. The instructions are '
+        "the user's own words: follow them, and never change them (you "
+        'have no way to). The info and notes are kept by agents. '
+        "project-instructions and project-info are the project's, shared "
+        'by every chat in it: when your work changes something project-info '
+        'says, or it lacks something every chat there should know, $change. '
+        'Never write a CLAUDE.md or AGENTS.md for it. parent-instructions '
+        'and parent-notes are those of the chats this one is part of, '
+        "outermost first. own-instructions are this chat's alone; "
+        "own-notes are this chat's notes to itself, which it reads again "
+        'after a restart or a cleared context: keep in them what it must '
+        "not forget of its work, with Caldo's update_chat_notes tool "
+        '(chat_notes reads them).',
     ...parts,
   ].join('\n\n');
 }

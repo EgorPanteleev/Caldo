@@ -748,6 +748,16 @@ const Map<String, Object> es = {
   'contextOwn': "Contexto propio del chat",
   'contextOwnHint':
       "Para este chat y sus subchats: cómo trabajar y para qué es.",
+  'contextInstructions': "Tus instrucciones",
+  'contextInstructionsHint':
+      "Tuyas, para cada chat de {name}: los agentes las siguen y nunca las cambian.",
+  'contextInfoHint':
+      "Las mantienen los agentes de cada chat de {name} mientras trabajan, y tú. Cada uno conoce un cambio en su próximo inicio.",
+  'contextNotes': "Notas del agente",
+  'contextNotesHint':
+      "Las lleva el agente de este chat para sí mismo y las vuelve a leer tras un reinicio o /clear. Sus subchats también las leen.",
+  'projectInstructionsHint':
+      "Tus propias palabras para cada chat del proyecto. Los agentes las siguen y nunca las cambian.",
   'contextImport': "Tomar de CLAUDE.md",
   'contextImportNone': "No hay CLAUDE.md en las carpetas del proyecto.",
   'contextHistory': "Historial",

@@ -662,11 +662,7 @@ class AppDatabase {
   }
 
   Future<Task> _complete(Transaction txn, Task task, int now) async {
-    final rows = await txn.query(
-      _tasks,
-      where: 'id = ?',
-      whereArgs: [task.id],
-    );
+    final rows = await txn.query(_tasks, where: 'id = ?', whereArgs: [task.id]);
     final written = (rows.isEmpty ? task : Task.fromMap(rows.first)).completed(
       now,
     );

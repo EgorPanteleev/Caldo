@@ -770,6 +770,16 @@ const Map<String, Object> be = {
   'contextOwn': "Уласны кантэкст чата",
   'contextOwnHint':
       "Для гэтага чата і яго падчатаў: як працаваць і для чаго ён.",
+  'contextInstructions': "Вашы інструкцыі",
+  'contextInstructionsHint':
+      "Вашы, для ўсіх чатаў у «{name}»: агенты выконваюць іх і ніколі не змяняюць.",
+  'contextInfoHint':
+      "Вядуць агенты ўсіх чатаў у «{name}» падчас працы, і вы. Кожны даведаецца пра змену пры наступным запуску.",
+  'contextNotes': "Нататкі агента",
+  'contextNotesHint':
+      "Агент гэтага чата вядзе іх для сябе і перачытвае пасля перазапуску або /clear. Падчаты таксама іх чытаюць.",
+  'projectInstructionsHint':
+      "Вашы словы для кожнага чата ў ім. Агенты выконваюць іх і ніколі не змяняюць.",
   'contextImport': "Узяць з CLAUDE.md",
   'contextImportNone': "У папках праекта няма CLAUDE.md.",
   'contextHistory': "Гісторыя",

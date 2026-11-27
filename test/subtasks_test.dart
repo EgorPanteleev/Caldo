@@ -123,13 +123,7 @@ void main() {
       Task(listId: 1, title: 'Notes', createdAt: 1, parentId: top.id),
     );
     await db.insert(
-      Task(
-        listId: 1,
-        title: 'Tag',
-        createdAt: 2,
-        parentId: top.id,
-        done: true,
-      ),
+      Task(listId: 1, title: 'Tag', createdAt: 2, parentId: top.id, done: true),
     );
     await db.complete(top, 10);
 
