@@ -18,6 +18,7 @@ import 'package:caldo/models/task_list.dart';
 import 'package:caldo/providers/task_provider.dart';
 import 'package:caldo/screens/agents_screen.dart';
 import 'package:caldo/services/agents.dart';
+import 'package:caldo/services/attachments.dart';
 import 'package:caldo/theme/app_theme.dart';
 import 'package:caldo/widgets/chat_usage.dart';
 import 'package:caldo/widgets/selection.dart';
@@ -26,6 +27,7 @@ import 'package:caldo/utils/dates.dart';
 import 'package:caldo/widgets/talk_view.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -3501,6 +3503,130 @@ void main() {
       await tester.pump();
       expect(find.text('Working · Shell'), findsOneWidget);
       expect(find.textContaining('has been offline'), findsNothing);
+    });
+
+    testWidgets('opens a draft attachment without sending or removing it', (
+      tester,
+    ) async {
+      const photo = Attachment(
+        file: 'picked/photo.png',
+        name: 'photo.png',
+        mime: 'image/png',
+      );
+      final dir = Directory.systemTemp.createTempSync('caldo_chat_photo');
+      final attachments = Attachments.instance;
+      final previousDir = attachments.dir;
+      attachments.dir = dir.path;
+      addTearDown(() {
+        attachments.dir = previousDir;
+        dir.deleteSync(recursive: true);
+      });
+      final copy = attachments.fileOf(photo)!
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(
+          base64Decode(
+            'iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAIAAABwJOjsAAAAJElEQVR4nGMICW8YEMQwavGo'
+            'xaMWj1o8avGoxaMWj1o8ciwGAOR0po4n7NN/AAAAAElFTkSuQmCC',
+          ),
+        );
+      const picker = MethodChannel('caldo/attachments');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(picker, (call) async {
+        expect(call.method, 'pick');
+        expect(call.arguments, {'from': 'photos'});
+        return {
+          'attached': [photo.toJson()],
+        };
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(picker, null));
+
+      const id = 'draft-photo-chat';
+      final now = DateTime.now();
+      final agents = Agents.instance
+        ..signedInForTest = true
+        ..workers = [
+          AgentWorker(
+            id: 'worker',
+            name: 'Desk',
+            seenAt: now,
+            dirs: const [],
+            agents: const [AgentKind(id: 'shell', label: 'Shell', files: true)],
+          ),
+        ]
+        ..chats = [
+          Chat(
+            id: id,
+            workerId: 'worker',
+            agent: 'shell',
+            title: 'Draft photo',
+            state: ChatState.running,
+            updatedAt: now,
+          ),
+        ];
+      addTearDown(() {
+        agents
+          ..signedInForTest = null
+          ..chats = const [];
+        agents.draftOf(id).value = '';
+      });
+
+      final s = S.forCode('en');
+      await pump(tester, 'en', const ChatScreen(chat: id));
+      // A terminal resize can follow the chip appearing. It is the only
+      // network call allowed while previewing an attachment.
+      final client = (await tester.runAsync(
+        () async => SupabaseClient(
+          'https://example.invalid',
+          'anon',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          httpClient: MockClient((request) async {
+            expect(request.url.path, '/rest/v1/chat_in');
+            expect(jsonDecode(request.body)['kind'], 'size');
+            return http.Response('', 201, request: request);
+          }),
+        ),
+      ))!;
+      agents.clientForTest = client;
+      addTearDown(() async {
+        agents.clientForTest = null;
+        await client.dispose();
+      });
+      await tester.tap(find.byTooltip(s.chatAttachFiles));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(s.attachPhoto));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'My draft');
+
+      await tester.tap(find.text(photo.name));
+      await tester.pumpAndSettle();
+
+      final viewer = find.byType(InteractiveViewer);
+      final image = find.descendant(of: viewer, matching: find.byType(Image));
+      expect(tester.widget<Image>(image).image, FileImage(copy));
+      expect(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.text(photo.name),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(BackButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(viewer, findsNothing);
+      expect(find.text(photo.name), findsOneWidget);
+      expect(find.text('My draft'), findsOneWidget);
+
+      await tester.tap(find.byTooltip(s.delete));
+      await tester.pumpAndSettle();
+      expect(find.text(photo.name), findsNothing);
+      expect(viewer, findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
     });
 
     testWidgets('offers the first-message editor until a task chat starts', (

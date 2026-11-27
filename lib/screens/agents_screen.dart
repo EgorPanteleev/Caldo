@@ -36,6 +36,7 @@ import '../widgets/date_time_pickers.dart';
 import '../widgets/desk.dart';
 import '../widgets/form_actions.dart';
 import '../widgets/glass.dart';
+import '../widgets/photo_viewer.dart';
 import '../widgets/quick_add_bar.dart'
     show BarRoom, GroundFade, KeyboardGap, KeyboardLift, KeyboardRoom;
 import '../widgets/screen_header.dart';
@@ -3655,7 +3656,7 @@ class _InputRow extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: 48,
+          height: _FileChip.stripHeight(context),
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
@@ -3680,63 +3681,98 @@ class _InputRow extends StatelessWidget {
 }
 
 /// A photo or file waiting to go with the message: a photo's own picture,
-/// else an icon; its name and size; × to leave it out.
+/// else an icon; tap the photo to open it or × to leave the file out.
 class _FileChip extends StatelessWidget {
   final Attachment file;
   final VoidCallback? onRemove;
 
   const _FileChip({required this.file, this.onRemove});
 
+  static const _nameSize = 13.0;
+  static const _detailSize = 11.0;
+  static const _lineHeight = 1.2;
+
+  static double stripHeight(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context);
+    final name = (scale.scale(_nameSize) * _lineHeight).ceilToDouble();
+    final size = (scale.scale(_detailSize) * _lineHeight).ceilToDouble();
+    // Padding inside and around the chip, plus its thumbnail or two lines.
+    return 16 + (name + size).clamp(32.0, double.infinity);
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = AppTheme.of(context);
-    final copy = Attachments.instance.fileOf(file);
+    final copy = file.isImage ? Attachments.instance.fileOf(file) : null;
+    final image = copy == null ? null : FileImage(copy);
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(4, 4, 2, 4),
-      decoration: BoxDecoration(
-        color: p.field,
+    return Material(
+      color: p.field,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: BarRoom.rim(p), width: BarRoom.rimWidth),
+        side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox.square(
-              dimension: 32,
-              child: file.isImage && copy != null
-                  ? Image.file(
-                      copy,
-                      fit: BoxFit.cover,
-                      // A photo of several megabytes is drawn the size of
-                      // the chip, not decoded whole.
-                      cacheWidth: (32 * dpr).round(),
-                      errorBuilder: (_, _, _) => _icon(p),
-                    )
-                  : _icon(p),
-            ),
-          ),
-          const SizedBox(width: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 140),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  file.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: p.text, fontSize: 13),
-                ),
-                Text(
-                  sizeWord(file.size),
-                  maxLines: 1,
-                  style: TextStyle(color: p.muted, fontSize: 11),
-                ),
-              ],
+          InkWell(
+            onTap: image == null
+                ? null
+                : () => showPhotoViewer(context, image: image, name: file.name),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 0, 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox.square(
+                      dimension: 32,
+                      child: image == null
+                          ? _icon(p)
+                          : Image(
+                              // Decode only the thumbnail until it is opened.
+                              image: ResizeImage(
+                                image,
+                                width: (32 * dpr).round(),
+                              ),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => _icon(p),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          file.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: p.text,
+                            fontSize: _nameSize,
+                            height: _lineHeight,
+                          ),
+                        ),
+                        Text(
+                          sizeWord(file.size),
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: p.muted,
+                            fontSize: _detailSize,
+                            height: _lineHeight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           SizedBox.square(
@@ -3751,6 +3787,7 @@ class _FileChip extends StatelessWidget {
                     icon: Icon(Icons.close_rounded, color: p.muted),
                   ),
           ),
+          const SizedBox(width: 2),
         ],
       ),
     );
