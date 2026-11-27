@@ -39,6 +39,7 @@ class Attachments(private val activity: Activity) {
     /** The pick waiting on a picker, and where the camera is writing. */
     private var answer: MethodChannel.Result? = null
     private var shot: File? = null
+    val gallery = AttachmentGallery(activity, ::copyPicked)
 
     val dir: File
         get() = File(activity.filesDir, DIR).apply { mkdirs() }
@@ -50,7 +51,7 @@ class Attachments(private val activity: Activity) {
             "open" -> result.success(
                 open(call.argument<String>("file")!!, call.argument<String>("mime")!!),
             )
-            else -> result.notImplemented()
+            else -> gallery.call(call, result)
         }
     }
 
@@ -109,30 +110,44 @@ class Attachments(private val activity: Activity) {
             result.success(null)
             return true
         }
+        if (requestCode == PICK) {
+            copyPicked(urisOf(data), result)
+            return true
+        }
         // Off the main thread: a picked file may be on Drive, or a film.
+        Thread {
+            val attached = if (taken != null && taken.length() in 1..LIMIT) {
+                listOf(entry(taken, taken.name, "image/jpeg"))
+            } else {
+                emptyList()
+            }
+            val tooBig = if (taken != null && taken.length() > LIMIT) {
+                listOf(taken.name)
+            } else {
+                emptyList()
+            }
+            if (attached.isEmpty()) taken?.parentFile?.deleteRecursively()
+            activity.runOnUiThread { result.success(mapOf("attached" to attached, "tooBig" to tooBig)) }
+        }.start()
+        return true
+    }
+
+    private fun copyPicked(uris: List<Uri>, result: MethodChannel.Result) {
         Thread {
             val attached = mutableListOf<Map<String, Any>>()
             val tooBig = mutableListOf<String>()
-            if (requestCode == TAKE) {
-                if (taken != null && taken.length() > 0) {
-                    attached.add(entry(taken, taken.name, "image/jpeg"))
-                } else {
-                    taken?.parentFile?.deleteRecursively()
-                }
-            } else {
-                for (uri in urisOf(data)) {
-                    try {
-                        copy(uri, attached, tooBig)
-                    } catch (_: Exception) {
-                        // One that cannot be read is left out; the rest go in.
-                    }
+            var unreadable = 0
+            for (uri in uris) {
+                try {
+                    copy(uri, attached, tooBig)
+                } catch (_: Exception) {
+                    unreadable++
                 }
             }
             activity.runOnUiThread {
-                result.success(mapOf("attached" to attached, "tooBig" to tooBig))
+                result.success(mapOf("attached" to attached, "tooBig" to tooBig, "unreadable" to unreadable))
             }
         }.start()
-        return true
     }
 
     private fun urisOf(data: Intent?): List<Uri> {
@@ -175,18 +190,23 @@ class Attachments(private val activity: Activity) {
             ?: "application/octet-stream"
         val target = place(shown)
         var written = 0L
-        resolver.openInputStream(uri)!!.use { input ->
-            target.outputStream().use { out ->
-                val buffer = ByteArray(64 * 1024)
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    written += n
-                    // A size the provider did not report is found out here.
-                    if (written > LIMIT) break
-                    out.write(buffer, 0, n)
+        try {
+            requireNotNull(resolver.openInputStream(uri)).use { input ->
+                target.outputStream().use { out ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        written += n
+                        // A size the provider did not report is found out here.
+                        if (written > LIMIT) break
+                        out.write(buffer, 0, n)
+                    }
                 }
             }
+        } catch (error: Exception) {
+            target.parentFile?.deleteRecursively()
+            throw error
         }
         if (written > LIMIT) {
             target.parentFile?.deleteRecursively()

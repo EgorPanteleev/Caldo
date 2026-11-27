@@ -22,13 +22,14 @@ import '../models/task_list.dart';
 import '../providers/task_provider.dart';
 import '../services/account.dart';
 import '../services/agents.dart';
-import '../services/push.dart';
 import '../services/attachments.dart';
+import '../services/push.dart';
 import '../theme/app_theme.dart';
 import '../theme/look.dart';
 import '../utils/dates.dart';
 import '../utils/platform.dart';
 import '../widgets/background_surface.dart';
+import '../widgets/chat_attachment_picker.dart';
 import '../widgets/chat_usage.dart';
 import '../widgets/choice_sheet.dart';
 import '../widgets/colour_selector.dart';
@@ -2343,25 +2344,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _attach() async {
     final s = S.of(context);
-    final from = await choose<AttachFrom>(
-      context,
-      title: s.chatAttachFiles,
-      selected: null,
-      options: [
-        Option(AttachFrom.photos, s.attachPhoto, icon: Icons.photo_outlined),
-        // A desktop has no camera app to hand a file to.
-        if (!onDesktop)
-          Option(
-            AttachFrom.camera,
-            s.attachCamera,
-            icon: Icons.photo_camera_outlined,
-          ),
-        Option(AttachFrom.files, s.attachFile, icon: Icons.attach_file),
-      ],
-    );
-    if (from == null || !mounted) return;
-    final picked = await Attachments.instance.pick(from);
-    if (!mounted) return;
+    final picked = await (onDesktop
+        ? _pickDesktopAttachments(s)
+        : showChatAttachmentPicker(context));
+    if (!mounted || picked == null) return;
     final fits = [
       for (final a in picked.attached)
         if (a.size <= Agents.largestFile) a,
@@ -2375,11 +2361,29 @@ class _ChatScreenState extends State<ChatScreen> {
       if (a.size > Agents.largestFile) _letGo(a);
     }
     setState(() => _files = [..._files, ...fits]);
-    if (tooBig.isNotEmpty) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text(s.chatFileTooBig(tooBig.join(', ')))),
-      );
+    final notices = [
+      if (tooBig.isNotEmpty) s.chatFileTooBig(tooBig.join(', ')),
+      if (picked.unreadable > 0) s.attachmentReadFailed,
+    ];
+    if (notices.isNotEmpty) {
+      ScaffoldMessenger.maybeOf(
+        context,
+      )?.showSnackBar(SnackBar(content: Text(notices.join('\n'))));
     }
+  }
+
+  Future<Picked?> _pickDesktopAttachments(S s) async {
+    final from = await choose<AttachFrom>(
+      context,
+      title: s.chatAttachFiles,
+      selected: null,
+      options: [
+        Option(AttachFrom.photos, s.attachPhoto, icon: Icons.photo_outlined),
+        Option(AttachFrom.files, s.attachFile, icon: Icons.attach_file),
+      ],
+    );
+    if (!mounted || from == null) return null;
+    return Attachments.instance.pick(from);
   }
 
   void _unattach(Attachment a) {
