@@ -365,6 +365,10 @@ class S {
       _fill('chatAwayHint', {'name': name, 'when': when});
   String get chatOther => _word('chatOther');
   String get chatMessage => _word('chatMessage');
+  String get chatExpandComposer => _word('chatExpandComposer');
+  String get chatCollapseComposer => _word('chatCollapseComposer');
+  String get chatUndo => _word('chatUndo');
+  String get chatRedo => _word('chatRedo');
   String get chatStop => _word('chatStop');
   String get chatAgain => _word('chatAgain');
   String get chatStarts => _word('chatStarts');
