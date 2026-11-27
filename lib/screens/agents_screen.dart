@@ -2811,117 +2811,114 @@ class _ChatScreenState extends State<ChatScreen> {
     Widget compactComposer() =>
         expanded ? SizedBox(height: _compactComposerHeight) : composer();
 
+    final body = SafeArea(
+      // The gesture bar's strip stays reserved under the keys, as it
+      // does in the shell; `KeyboardGap` takes the lift from there.
+      maintainBottomViewPadding: true,
+      child: _ComposerLayout(
+        expanded: expanded ? composer() : null,
+        onCollapse: _collapseComposer,
+        child: Column(
+          children: [
+            _Head(
+              chat: chat,
+              font: _font,
+              onFont: _setFont,
+              onStop: () => _agents.stop(widget.chat),
+              onAgain: () => _agents.again(widget.chat),
+              onClear: chat != null && chat.inChat && chat.live && _canClear
+                  ? () => _agents.clear(widget.chat)
+                  : null,
+              onDelete: _delete,
+              onSettings: _settings,
+              onMute: _mute,
+              onSubchat: _canSubchat ? _subchat : null,
+              asChat: talks ? asChat : null,
+              onView: (chat) => setState(() => _asChat = chat),
+            ),
+            // On either side, and once it has stopped: what a chat spent
+            // is still worth reading in its terminal, or after it ended.
+            if (chat != null) _usage(chat, talk),
+            if (chat != null) _Family(chat: chat),
+            Expanded(
+              child: chat == null && _agents.signedIn && !_agents.loaded
+                  ? const Center(child: CircularProgressIndicator())
+                  : asChat && talk != null
+                  ? ValueListenableBuilder(
+                      valueListenable: talk.state,
+                      builder: (context, heard, _) => TalkView(
+                        feed: talk,
+                        bottomOverlap: composerOverlap,
+                        // Nobody is working on a computer that is away.
+                        working:
+                            away == null &&
+                            !checkingWorker &&
+                            chat.inChat &&
+                            (heard ?? chat.state.name) == 'running',
+                        onAnswer: (item, choice, answers) => _agents.answer(
+                          widget.chat,
+                          item,
+                          choice,
+                          answers: answers,
+                        ),
+                        carrying: _later.any((line) => line.carriesOn),
+                        onCarry: _canLater ? _carry : null,
+                        // The chat's own: the account's, newer, would
+                        // no longer show the limit spent once it resets.
+                        usage: talk.usage.value ?? chat.usage,
+                      ),
+                    )
+                  : talks && chat.inChat
+                  ? _Elsewhere(
+                      text: s.chatInChatNow(_agentName(chat)),
+                      action: live ? s.chatToTerminal : null,
+                      onTap: _toTerminal,
+                    )
+                  : asChat
+                  ? const SizedBox.shrink()
+                  : _terminalView(chat, live, p),
+            ),
+            // Carrying on after the limit is the switch on its card, not
+            // a message of the user's left for later.
+            if (later.isNotEmpty)
+              LaterList(lines: later, onTap: _laterTapped, onDelete: _takeBack),
+            if (away != null) _Away(worker: away),
+            if (chat != null && canEditFirst)
+              TextButton.icon(
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => _TaskMessageDialog(chat: chat),
+                ),
+                icon: const Icon(Icons.edit_outlined),
+                label: Text(s.chatEditFirstMessage),
+              ),
+            if (asChat) ...[
+              if (!chat.inChat)
+                _MoveBar(
+                  text: s.chatInTerminalNow,
+                  action: s.chatToChat,
+                  onTap: _toChat,
+                )
+              else if (canCompose)
+                compactComposer()
+              else
+                ?again,
+            ] else if (!(talks && chat.inChat)) ...[
+              if (canCompose) ...[
+                _KeyRow(onKey: _key),
+                compactComposer(),
+              ] else
+                ?again,
+            ],
+            const KeyboardRoom(),
+          ],
+        ),
+      ),
+    );
     return AppScaffold(
       backgroundColor: p.bg,
       resizeToAvoidBottomInset: false,
-      body: SafeArea(
-        // The gesture bar's strip stays reserved under the keys, as it
-        // does in the shell; `KeyboardGap` takes the lift from there.
-        maintainBottomViewPadding: true,
-        child: _ComposerLayout(
-          expanded: expanded ? composer() : null,
-          onCollapse: _collapseComposer,
-          child: Column(
-            children: [
-              _Head(
-                chat: chat,
-                font: _font,
-                onFont: _setFont,
-                onStop: () => _agents.stop(widget.chat),
-                onAgain: () => _agents.again(widget.chat),
-                onClear: chat != null && chat.inChat && chat.live && _canClear
-                    ? () => _agents.clear(widget.chat)
-                    : null,
-                onDelete: _delete,
-                onSettings: _settings,
-                onMute: _mute,
-                onSubchat: _canSubchat ? _subchat : null,
-                asChat: talks ? asChat : null,
-                onView: (chat) => setState(() => _asChat = chat),
-              ),
-              // On either side, and once it has stopped: what a chat spent
-              // is still worth reading in its terminal, or after it ended.
-              if (chat != null) _usage(chat, talk),
-              if (chat != null) _Family(chat: chat),
-              Expanded(
-                child: chat == null && _agents.signedIn && !_agents.loaded
-                    ? const Center(child: CircularProgressIndicator())
-                    : asChat && talk != null
-                    ? ValueListenableBuilder(
-                        valueListenable: talk.state,
-                        builder: (context, heard, _) => TalkView(
-                          feed: talk,
-                          bottomOverlap: composerOverlap,
-                          // Nobody is working on a computer that is away.
-                          working:
-                              away == null &&
-                              !checkingWorker &&
-                              chat.inChat &&
-                              (heard ?? chat.state.name) == 'running',
-                          onAnswer: (item, choice, answers) => _agents.answer(
-                            widget.chat,
-                            item,
-                            choice,
-                            answers: answers,
-                          ),
-                          carrying: _later.any((line) => line.carriesOn),
-                          onCarry: _canLater ? _carry : null,
-                          // The chat's own: the account's, newer, would
-                          // no longer show the limit spent once it resets.
-                          usage: talk.usage.value ?? chat.usage,
-                        ),
-                      )
-                    : talks && chat.inChat
-                    ? _Elsewhere(
-                        text: s.chatInChatNow(_agentName(chat)),
-                        action: live ? s.chatToTerminal : null,
-                        onTap: _toTerminal,
-                      )
-                    : asChat
-                    ? const SizedBox.shrink()
-                    : _terminalView(chat, live, p),
-              ),
-              // Carrying on after the limit is the switch on its card, not
-              // a message of the user's left for later.
-              if (later.isNotEmpty)
-                LaterList(
-                  lines: later,
-                  onTap: _laterTapped,
-                  onDelete: _takeBack,
-                ),
-              if (away != null) _Away(worker: away),
-              if (chat != null && canEditFirst)
-                TextButton.icon(
-                  onPressed: () => showDialog<void>(
-                    context: context,
-                    builder: (_) => _TaskMessageDialog(chat: chat),
-                  ),
-                  icon: const Icon(Icons.edit_outlined),
-                  label: Text(s.chatEditFirstMessage),
-                ),
-              if (asChat) ...[
-                if (!chat.inChat)
-                  _MoveBar(
-                    text: s.chatInTerminalNow,
-                    action: s.chatToChat,
-                    onTap: _toChat,
-                  )
-                else if (canCompose)
-                  compactComposer()
-                else
-                  ?again,
-              ] else if (!(talks && chat.inChat)) ...[
-                if (canCompose) ...[
-                  _KeyRow(onKey: _key),
-                  compactComposer(),
-                ] else
-                  ?again,
-              ],
-              const KeyboardRoom(),
-            ],
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 
