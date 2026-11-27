@@ -86,7 +86,9 @@ void main() {
     );
     await provider.loadTasks();
     expect(provider.upcoming.map((t) => t.title), isNot(contains('Passport')));
-    expect((await provider.remindedAhead()).map((t) => t.title), ['Passport']);
+    expect((await provider.remindedAhead()).map((t) => t.title), [
+      'Passport',
+    ]);
   });
 
   test('tasks sent to agents are marked and put in progress', () async {

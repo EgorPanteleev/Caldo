@@ -211,10 +211,9 @@ void main() {
     await tick();
     await b.db.update((await b.named('Ship'))!.copyWith(title: 'Ship it'));
     await b.sync.run();
-    final edited = (await server.pull(
-      0,
-      500,
-    )).singleWhere((r) => r.table == 'tasks');
+    final edited = (await server.pull(0, 500)).singleWhere(
+      (r) => r.table == 'tasks',
+    );
     expect(await a.sync.store.holds(edited), isFalse);
   });
 
