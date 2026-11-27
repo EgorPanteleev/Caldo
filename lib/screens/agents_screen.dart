@@ -2073,6 +2073,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final _controller = TerminalController();
   final _input = TextEditingController();
   final _inputFocus = FocusNode();
+  final _inputKey = GlobalKey();
+  final _undoInput = UndoHistoryController();
+  final _composerKey = GlobalKey();
+  double? _compactComposerHeight;
   late final ValueNotifier<String> _draft;
   ChatFeed? _feed;
   TalkFeed? _talk;
@@ -2139,6 +2143,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _draft.removeListener(_restoreDraft);
     _input.dispose();
     _inputFocus.dispose();
+    _undoInput.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -2149,7 +2154,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void _changed() {
     if (!mounted) return;
     // The row has caught up with what was broadcast, or gone past it.
-    final now = _chat?.state;
+    final chat = _chat;
+    if (chat?.live != true) _compactComposerHeight = null;
+    final now = chat?.state;
     if (now != _lastState) {
       _lastState = now;
       _talk?.state.value = null;
@@ -2270,6 +2277,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _input.text;
     if (text.trim().isEmpty && (_chat?.inChat ?? false)) return;
     _input.clear();
+    _closeComposerAfterSend();
     final chat = _chat;
     // As in Claude's own: in its terminal the program reads it itself.
     if (text.trim() == '/clear' && chat != null && chat.inChat && _canClear) {
@@ -2283,6 +2291,25 @@ class _ChatScreenState extends State<ChatScreen> {
         over: chat != null && chat.inChat ? _talk : null,
       ),
     );
+  }
+
+  void _expandComposer() {
+    setState(
+      () => _compactComposerHeight = _composerKey.currentContext!.size!.height,
+    );
+    _inputFocus.requestFocus();
+  }
+
+  void _collapseComposer() => setState(() => _compactComposerHeight = null);
+
+  void _closeComposerAfterSend() {
+    if (_compactComposerHeight == null ||
+        _input.text.isNotEmpty ||
+        _files.isNotEmpty) {
+      return;
+    }
+    _inputFocus.unfocus();
+    _collapseComposer();
   }
 
   /// Photos and files to go with the next message, copies on this device.
@@ -2405,6 +2432,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (!files.contains(a)) a,
       ];
     });
+    _closeComposerAfterSend();
   }
 
   /// Messages left for later and not yet said, soonest first.
@@ -2453,6 +2481,7 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(
         () => _later = [..._later, line]..sort((a, b) => a.at.compareTo(b.at)),
       );
+      _closeComposerAfterSend();
       unawaited(_readLater());
     } catch (_) {
       // Not kept: the words go back where they were written.
@@ -2749,13 +2778,47 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           )
         : null;
-    return AppScaffold(
-      backgroundColor: p.bg,
-      resizeToAvoidBottomInset: false,
-      body: SafeArea(
-        // The gesture bar's strip stays reserved under the keys, as it
-        // does in the shell; `KeyboardGap` takes the lift from there.
-        maintainBottomViewPadding: true,
+    final canCompose =
+        live &&
+        (asChat ? chat.inChat && talk != null : !(talks && chat.inChat));
+    final expanded = canCompose && _compactComposerHeight != null;
+    Widget composer() {
+      Widget input(String? state) => _InputRow(
+        key: _composerKey,
+        inputKey: _inputKey,
+        controller: _input,
+        focus: _inputFocus,
+        undo: _undoInput,
+        onExpand: _expandComposer,
+        onCollapse: expanded ? _collapseComposer : null,
+        onSend: _send,
+        // Its files could not be put back to edit it.
+        onLater: _canLater && _files.isEmpty ? _sendLater : null,
+        onStop: state == 'running' || state == 'asking'
+            ? () => _agents.interrupt(widget.chat)
+            : null,
+        onAttach: _canAttach ? _attach : null,
+        files: _files,
+        sending: _sending,
+        onUnattach: _unattach,
+      );
+      if (!asChat || talk == null) return input(null);
+      return ValueListenableBuilder(
+        valueListenable: talk.state,
+        builder: (context, heard, _) => input(heard ?? chat.state.name),
+      );
+    }
+
+    Widget compactComposer() =>
+        expanded ? SizedBox(height: _compactComposerHeight) : composer();
+
+    final body = SafeArea(
+      // The gesture bar's strip stays reserved under the keys, as it
+      // does in the shell; `KeyboardGap` takes the lift from there.
+      maintainBottomViewPadding: true,
+      child: _ComposerLayout(
+        expanded: expanded ? composer() : null,
+        onCollapse: _collapseComposer,
         child: Column(
           children: [
             _Head(
@@ -2837,44 +2900,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   action: s.chatToChat,
                   onTap: _toChat,
                 )
-              else if (live && talk != null)
-                ValueListenableBuilder(
-                  valueListenable: talk.state,
-                  builder: (context, heard, _) {
-                    final at = heard ?? chat.state.name;
-                    return _InputRow(
-                      controller: _input,
-                      focus: _inputFocus,
-                      hint: s.chatMessage,
-                      onSend: _send,
-                      // Its files could not be put back to edit it.
-                      onLater: _canLater && _files.isEmpty ? _sendLater : null,
-                      onStop: at == 'running' || at == 'asking'
-                          ? () => _agents.interrupt(widget.chat)
-                          : null,
-                      onAttach: _canAttach ? _attach : null,
-                      files: _files,
-                      sending: _sending,
-                      onUnattach: _unattach,
-                    );
-                  },
-                )
+              else if (canCompose)
+                compactComposer()
               else
                 ?again,
             ] else if (!(talks && chat.inChat)) ...[
-              if (live) ...[
+              if (canCompose) ...[
                 _KeyRow(onKey: _key),
-                _InputRow(
-                  controller: _input,
-                  focus: _inputFocus,
-                  hint: s.chatMessage,
-                  onSend: _send,
-                  onLater: _canLater && _files.isEmpty ? _sendLater : null,
-                  onAttach: _canAttach ? _attach : null,
-                  files: _files,
-                  sending: _sending,
-                  onUnattach: _unattach,
-                ),
+                compactComposer(),
               ] else
                 ?again,
             ],
@@ -2882,6 +2915,11 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
+    );
+    return AppScaffold(
+      backgroundColor: p.bg,
+      resizeToAvoidBottomInset: false,
+      body: body,
     );
   }
 
@@ -3467,10 +3505,53 @@ class _TermKey extends StatelessWidget {
   }
 }
 
+class _ComposerLayout extends StatelessWidget {
+  final Widget? expanded;
+  final VoidCallback onCollapse;
+  final Widget child;
+
+  const _ComposerLayout({
+    required this.expanded,
+    required this.onCollapse,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) => PopScope<void>(
+    canPop: expanded == null,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && expanded != null) onCollapse();
+    },
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        // Keep the transcript mounted and laid out at its usual size.
+        Offstage(
+          offstage: expanded != null,
+          child: FocusTraversalGroup(
+            descendantsAreTraversable: expanded == null,
+            child: child,
+          ),
+        ),
+        if (expanded != null)
+          Column(
+            children: [
+              Expanded(child: expanded!),
+              const KeyboardRoom(),
+            ],
+          ),
+      ],
+    ),
+  );
+}
+
 class _InputRow extends StatelessWidget {
+  final Key inputKey;
   final TextEditingController controller;
   final FocusNode focus;
-  final String hint;
+  final UndoHistoryController undo;
+  final VoidCallback onExpand;
+  final VoidCallback? onCollapse;
   final VoidCallback onSend;
 
   /// While a turn is under way: the button, with nothing written, stops it.
@@ -3480,8 +3561,6 @@ class _InputRow extends StatelessWidget {
   /// left to be said later.
   final VoidCallback? onLater;
 
-  /// A plus before the field, offering a photo, the camera or a file;
-  /// none where the worker would not take them.
   final VoidCallback? onAttach;
 
   /// What goes with the next message, over the field; [sending] while it
@@ -3491,9 +3570,13 @@ class _InputRow extends StatelessWidget {
   final ValueChanged<Attachment>? onUnattach;
 
   const _InputRow({
+    super.key,
+    required this.inputKey,
     required this.controller,
     required this.focus,
-    required this.hint,
+    required this.undo,
+    required this.onExpand,
+    required this.onCollapse,
     required this.onSend,
     this.onStop,
     this.onLater,
@@ -3513,169 +3596,226 @@ class _InputRow extends StatelessWidget {
     final s = S.of(context);
     final p = AppTheme.of(context);
     final colors = Theme.of(context).colorScheme;
-    final radius = BorderRadius.circular(28);
-    final row = Padding(
-      padding: const EdgeInsets.fromLTRB(10, _top, 10, 8),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: BackdropFilter(
-          enabled: Look.current.blur > 0,
-          filter: ImageFilter.blur(
-            sigmaX: Look.current.blurOf(12),
-            sigmaY: Look.current.blurOf(12),
-          ),
-          child: Material(
-            color: p.field.withValues(alpha: Look.current.fillOf(0.72)),
-            shape: RoundedRectangleBorder(
-              borderRadius: radius,
-              side: BorderSide(color: BarRoom.rim(p), width: BarRoom.rimWidth),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(_inset),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: CallbackShortcuts(
-                      // Enter sends on a desktop; Shift+Enter is a new line.
-                      bindings: {
-                        if (onDesktop)
-                          const SingleActivator(LogicalKeyboardKey.enter):
-                              onSend,
-                      },
-                      child: TextField(
-                        controller: controller,
-                        focusNode: focus,
-                        minLines: 1,
-                        maxLines: 5,
-                        textInputAction: TextInputAction.newline,
-                        keyboardAppearance: Brightness.dark,
-                        style: TextStyle(color: p.text, fontSize: 15),
-                        decoration: InputDecoration(
-                          hintText: hint,
-                          hintStyle: TextStyle(color: p.muted),
-                          isDense: true,
-                          filled: false,
-                          constraints: const BoxConstraints(
-                            minHeight: _buttonSize,
+    final expanded = onCollapse != null;
+    final field = CallbackShortcuts(
+      // Enter sends on a desktop; Shift+Enter is a new line.
+      bindings: {
+        if (onDesktop) const SingleActivator(LogicalKeyboardKey.enter): onSend,
+      },
+      child: TextField(
+        key: inputKey,
+        controller: controller,
+        focusNode: focus,
+        undoController: undo,
+        expands: expanded,
+        minLines: expanded ? null : 1,
+        maxLines: expanded ? null : 5,
+        textAlignVertical: TextAlignVertical.top,
+        textInputAction: TextInputAction.newline,
+        keyboardAppearance: Brightness.dark,
+        style: TextStyle(color: p.text, fontSize: 15),
+        decoration: InputDecoration(
+          hintText: s.chatMessage,
+          hintStyle: TextStyle(color: p.muted),
+          isDense: true,
+          filled: false,
+          constraints: const BoxConstraints(minHeight: _buttonSize),
+          contentPadding: EdgeInsets.fromLTRB(16, 14, expanded ? 16 : 6, 14),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+        ),
+      ),
+    );
+    final attach = onAttach == null
+        ? null
+        : IconButton(
+            icon: const Icon(Icons.attach_file_rounded),
+            color: p.muted,
+            tooltip: s.chatAttachFiles,
+            onPressed: sending
+                ? null
+                : () {
+                    HapticFeedback.selectionClick();
+                    onAttach!();
+                  },
+          );
+    final send = ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final written = controller.text.trim().isNotEmpty;
+        final ready = written || files.isNotEmpty;
+        final stop = onStop != null && !ready;
+        final emphasized = ready && !sending;
+        final later = onLater != null && written && !sending
+            ? () {
+                HapticFeedback.mediumImpact();
+                onLater!();
+              }
+            : null;
+        return Material(
+          color: emphasized ? colors.primary : p.panelHi,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: sending
+                ? null
+                : () {
+                    HapticFeedback.selectionClick();
+                    stop ? onStop!() : onSend();
+                  },
+            onLongPress: later,
+            onSecondaryTap: later,
+            child: Tooltip(
+              message: stop ? s.chatInterrupt : s.chatSendNow,
+              // Leave the long press to the scheduling action.
+              triggerMode: later == null
+                  ? TooltipTriggerMode.longPress
+                  : TooltipTriggerMode.manual,
+              child: SizedBox.square(
+                dimension: _buttonSize,
+                child: sending
+                    ? Center(
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: p.muted,
                           ),
-                          contentPadding: const EdgeInsets.fromLTRB(
-                            16,
-                            14,
-                            6,
-                            14,
-                          ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
                         ),
+                      )
+                    : Icon(
+                        stop ? Icons.stop_rounded : Icons.arrow_upward_rounded,
+                        color: emphasized
+                            ? colors.onPrimary
+                            : stop
+                            ? p.text
+                            : p.muted,
                       ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    final previews = files.isEmpty
+        ? null
+        : SizedBox(
+            height: _FileChip.stripHeight(context),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+              children: [
+                for (final a in files)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: _FileChip(
+                      file: a,
+                      onRemove: sending || onUnattach == null
+                          ? null
+                          : () => onUnattach!(a),
                     ),
                   ),
-                  if (onAttach != null)
-                    IconButton(
-                      icon: const Icon(Icons.attach_file_rounded),
-                      color: p.muted,
-                      tooltip: s.chatAttachFiles,
-                      onPressed: sending
-                          ? null
-                          : () {
-                              HapticFeedback.selectionClick();
-                              onAttach!();
-                            },
-                    ),
-                  ListenableBuilder(
-                    listenable: controller,
-                    builder: (context, _) {
-                      final written = controller.text.trim().isNotEmpty;
-                      final ready = written || files.isNotEmpty;
-                      final stop = onStop != null && !ready;
-                      final emphasized = ready && !sending;
-                      final later = onLater != null && written && !sending
-                          ? () {
-                              HapticFeedback.mediumImpact();
-                              onLater!();
-                            }
-                          : null;
-                      return Material(
-                        color: emphasized ? colors.primary : p.panelHi,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: sending
-                              ? null
-                              : () {
-                                  HapticFeedback.selectionClick();
-                                  stop ? onStop!() : onSend();
-                                },
-                          onLongPress: later,
-                          onSecondaryTap: later,
-                          child: Tooltip(
-                            message: stop ? s.chatInterrupt : s.chatSendNow,
-                            // Leave the long press to the scheduling action.
-                            triggerMode: later == null
-                                ? TooltipTriggerMode.longPress
-                                : TooltipTriggerMode.manual,
-                            child: SizedBox.square(
-                              dimension: _buttonSize,
-                              child: sending
-                                  ? Center(
-                                      child: SizedBox.square(
-                                        dimension: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: p.muted,
-                                        ),
-                                      ),
-                                    )
-                                  : Icon(
-                                      stop
-                                          ? Icons.stop_rounded
-                                          : Icons.arrow_upward_rounded,
-                                      color: emphasized
-                                          ? colors.onPrimary
-                                          : stop
-                                          ? p.text
-                                          : p.muted,
-                                    ),
-                            ),
-                          ),
+              ],
+            ),
+          );
+
+    if (expanded) {
+      return TextFieldTapRegion(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton.filledTonal(
+                    onPressed: onCollapse,
+                    tooltip: s.chatCollapseComposer,
+                    icon: const BackButtonIcon(),
+                  ),
+                  ValueListenableBuilder(
+                    valueListenable: undo,
+                    builder: (context, history, _) => Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.undo_rounded),
+                          tooltip: s.chatUndo,
+                          onPressed: history.canUndo ? undo.undo : null,
                         ),
-                      );
-                    },
+                        IconButton(
+                          icon: const Icon(Icons.redo_rounded),
+                          tooltip: s.chatRedo,
+                          onPressed: history.canRedo ? undo.redo : null,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
+            Expanded(child: field),
+            ?previews,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+              child: Row(children: [?attach, const Spacer(), send]),
+            ),
+          ],
         ),
-      ),
-    );
-    if (files.isEmpty) return row;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          height: _FileChip.stripHeight(context),
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
-            children: [
-              for (final a in files)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: _FileChip(
-                    file: a,
-                    onRemove: sending || onUnattach == null
-                        ? null
-                        : () => onUnattach!(a),
+      );
+    }
+
+    final radius = BorderRadius.circular(28);
+    return TextFieldTapRegion(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ?previews,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, _top, 10, 8),
+            child: ClipRRect(
+              borderRadius: radius,
+              child: BackdropFilter(
+                enabled: Look.current.blur > 0,
+                filter: ImageFilter.blur(
+                  sigmaX: Look.current.blurOf(12),
+                  sigmaY: Look.current.blurOf(12),
+                ),
+                child: Material(
+                  color: p.field.withValues(alpha: Look.current.fillOf(0.72)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: radius,
+                    side: BorderSide(
+                      color: BarRoom.rim(p),
+                      width: BarRoom.rimWidth,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(_inset),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: field),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.open_in_full_rounded,
+                            size: 18,
+                          ),
+                          color: p.muted,
+                          tooltip: s.chatExpandComposer,
+                          onPressed: onExpand,
+                        ),
+                        ?attach,
+                        send,
+                      ],
+                    ),
                   ),
                 ),
-            ],
+              ),
+            ),
           ),
-        ),
-        row,
-      ],
+        ],
+      ),
     );
   }
 }

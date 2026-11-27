@@ -3505,9 +3505,10 @@ void main() {
       expect(find.textContaining('has been offline'), findsNothing);
     });
 
-    testWidgets('opens a draft attachment without sending or removing it', (
-      tester,
-    ) async {
+    Future<void> checkDraftPhoto(
+      WidgetTester tester, {
+      required bool expanded,
+    }) async {
       const photo = Attachment(
         file: 'picked/photo.png',
         name: 'photo.png',
@@ -3595,7 +3596,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(s.attachPhoto));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'My draft');
+      final field = find.byType(TextField);
+      await tester.enterText(field, 'My draft');
+      if (expanded) {
+        await tester.tap(find.byTooltip(s.chatExpandComposer));
+        await tester.pumpAndSettle();
+      }
+      expect(tester.widget<TextField>(field).expands, expanded);
+      expect(find.byTooltip(s.chatSendNow), findsOneWidget);
 
       await tester.tap(find.text(photo.name));
       await tester.pumpAndSettle();
@@ -3621,13 +3629,23 @@ void main() {
       expect(viewer, findsNothing);
       expect(find.text(photo.name), findsOneWidget);
       expect(find.text('My draft'), findsOneWidget);
+      expect(tester.widget<TextField>(field).expands, expanded);
 
       await tester.tap(find.byTooltip(s.delete));
       await tester.pumpAndSettle();
       expect(find.text(photo.name), findsNothing);
+      expect(find.text('My draft'), findsOneWidget);
+      expect(find.byTooltip(s.chatSendNow), findsOneWidget);
       expect(viewer, findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
-    });
+    }
+
+    for (final expanded in [false, true]) {
+      testWidgets(
+        'previews and removes a draft photo in the ${expanded ? 'expanded' : 'compact'} composer',
+        (tester) => checkDraftPhoto(tester, expanded: expanded),
+      );
+    }
 
     testWidgets('offers the first-message editor until a task chat starts', (
       tester,
@@ -3734,6 +3752,120 @@ void main() {
       await open(ids.last);
       expect(input(), 'another chat');
       await leave();
+    });
+
+    testWidgets('expands the message editor and keeps the same draft', (
+      tester,
+    ) async {
+      final agents = Agents.instance;
+      const id = 'expanded-composer';
+      const title = 'Composer test chat';
+      final previous = agents.chats;
+      final row = {
+        'id': id,
+        'title': title,
+        'agent': 'codex',
+        'mode': 'chat',
+        'state': 'idle',
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      final sent = <Map<String, dynamic>>[];
+      final client = (await tester.runAsync(
+        () async => SupabaseClient(
+          'https://example.invalid',
+          'anon',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          realtimeClientOptions: RealtimeClientOptions(
+            transport: (_, _) => throw StateError('Realtime unavailable'),
+            disconnectOnEmptyChannelsAfter: Duration.zero,
+          ),
+          httpClient: MockClient((request) async {
+            final table = request.url.pathSegments.last;
+            if (table == 'chat_in' && request.method == 'POST') {
+              sent.add(jsonDecode(request.body) as Map<String, dynamic>);
+            }
+            return http.Response(
+              jsonEncode(table == 'chats' ? [row] : []),
+              200,
+              request: request,
+            );
+          }),
+        ),
+      ))!;
+      agents
+        ..clientForTest = client
+        ..chats = [Chat.fromJson(row)];
+      addTearDown(() async {
+        agents
+          ..clientForTest = null
+          ..chats = previous;
+        agents.draftOf(id).value = '';
+        tester.view.resetViewInsets();
+        await client.dispose();
+      });
+
+      await pump(tester, 'en', const ChatScreen(chat: id));
+      final s = S.forCode('en');
+      final field = find.byType(TextField);
+      final expand = find.byTooltip(s.chatExpandComposer);
+      final collapse = find.byTooltip(s.chatCollapseComposer);
+      final send = find.byTooltip(s.chatSendNow);
+      TextField input() => tester.widget<TextField>(field);
+
+      await tester.enterText(field, 'First line');
+      await tester.pump(const Duration(milliseconds: 600));
+      final controller = input().controller!;
+      controller.selection = const TextSelection.collapsed(offset: 5);
+      final compactHeight = tester.getSize(field).height;
+      await tester.tap(expand);
+      await tester.pumpAndSettle();
+
+      expect(find.text(title), findsNothing);
+      expect(input().expands, isTrue);
+      expect(input().focusNode!.hasFocus, isTrue);
+      expect(input().controller, same(controller));
+      expect(controller.selection.baseOffset, 5);
+      expect(tester.getSize(field).height, greaterThan(compactHeight));
+
+      final sendBottom = tester.getBottomLeft(send).dy;
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: 240 * tester.view.devicePixelRatio,
+      );
+      await tester.pump();
+      expect(tester.getBottomLeft(send).dy, closeTo(sendBottom - 240, 1));
+
+      await tester.enterText(field, 'First line\nSecond line');
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.byTooltip(s.chatUndo));
+      await tester.pump();
+      expect(controller.text, 'First line');
+      await tester.tap(find.byTooltip(s.chatRedo));
+      await tester.pump();
+      expect(controller.text, 'First line\nSecond line');
+
+      await tester.tap(collapse);
+      await tester.pumpAndSettle();
+      expect(find.text(title), findsOneWidget);
+      expect(input().expands, isFalse);
+      expect(input().focusNode!.hasFocus, isTrue);
+      expect(controller.text, 'First line\nSecond line');
+
+      await tester.tap(expand);
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(input().expands, isFalse);
+      expect(controller.text, 'First line\nSecond line');
+
+      await tester.tap(expand);
+      await tester.pumpAndSettle();
+      await tester.tap(send);
+      await tester.pumpAndSettle();
+      expect(input().expands, isFalse);
+      expect(controller.text, isEmpty);
+      expect(sent.single['data'], 'First line\nSecond line');
+
+      await tester.pumpWidget(const SizedBox.shrink());
     });
 
     testWidgets('searches Codex models by ID and allows a custom model', (
