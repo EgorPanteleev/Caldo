@@ -524,9 +524,9 @@ const Map<String, Object> be = {
   'deleteRuleHint': "Чаты, пачатыя з ім, захаваюць яго.",
   'chatTitle': "Назва",
   'chatPrompt': "Першае паведамленне",
+  'chatWriteFirstMessage': "Напісаць першае паведамленне",
   'chatEditFirstMessage': "Змяніць першае паведамленне",
-  'chatFirstMessageClosed':
-      "Першае паведамленне гэтай задачы ўжо нельга змяніць.",
+  'chatFirstMessageClosed': "Першае паведамленне ўжо нельга змяніць.",
   'chatStart': "Пачаць",
   'sendToAgents': "Адправіць агентам",
   'chatForEach': "Спачатку сказаць кожнаму",

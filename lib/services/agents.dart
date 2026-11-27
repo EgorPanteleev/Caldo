@@ -564,13 +564,15 @@ class Chat {
 
   bool get pinned => pinnedAt != null;
 
-  bool get canEditTaskMessage =>
-      taskUuid != null &&
+  bool get canEditFirstMessage =>
+      agent != 'shell' &&
       (state == ChatState.waiting || state == ChatState.asked);
 
-  /// The saved first message with new instructions and the same task
-  /// details. Older chats without a separate preface edit the whole message.
-  String taskPromptWith(String text) {
+  /// The user can change a task's instructions without editing its details.
+  String get firstMessageText => preface ?? prompt;
+
+  /// Replaces the opening while keeping task details, if stored separately.
+  String promptWith(String text) {
     final opening = text.trim();
     final before = preface?.trim();
     if (before == null) return opening;
@@ -1722,21 +1724,22 @@ class Agents extends ChangeNotifier {
   }
 
   /// Saves the first message only while the worker can still claim the chat.
-  Future<bool> editTaskMessage(Chat chat, String text) async {
-    if (!chat.canEditTaskMessage) return false;
-    final row = await _client!
+  Future<bool> editFirstMessage(Chat chat, String text) async {
+    if (!chat.canEditFirstMessage) return false;
+    final rows = await _client!
         .from('chats')
         .update({
-          'prompt': chat.taskPromptWith(text),
+          'prompt': chat.promptWith(text),
           if (chat.preface != null) 'preface': text.trim(),
         })
         .eq('id', chat.id)
-        .eq('task_uuid', chat.taskUuid!)
         .inFilter('state', ['waiting', 'new'])
-        .select()
-        .maybeSingle();
+        .select();
+    final row = rows.firstOrNull;
     if (row == null) return false;
     final changed = Chat.fromJson(row);
+    // Realtime may have already shown the worker claiming the chat.
+    if (this.chat(chat.id)?.state != changed.state) return true;
     _chatRows[changed.id] = row;
     chats = Chat.listOrder([
       for (final c in chats)

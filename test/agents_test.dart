@@ -3182,12 +3182,12 @@ void main() {
     });
 
     expect(
-      chat('Old\nmessage').taskPromptWith('  New\nmessage  '),
+      chat('Old\nmessage').promptWith('  New\nmessage  '),
       taskMessage(task, 'New\nmessage'),
     );
-    expect(chat('Old').taskPromptWith('  '), taskMessage(task, ''));
-    expect(chat('').taskPromptWith('New'), taskMessage(task, 'New'));
-    expect(chat(null).taskPromptWith('Replacement'), 'Replacement');
+    expect(chat('Old').promptWith('  '), taskMessage(task, ''));
+    expect(chat('').promptWith('New'), taskMessage(task, 'New'));
+    expect(chat(null).promptWith('Replacement'), 'Replacement');
   });
 
   group('the tab', () {
@@ -3725,11 +3725,12 @@ void main() {
     ) async {
       final agents = Agents.instance;
       const id = 'task-chat';
-      Chat chat(ChatState state, {String? task = 'task'}) => Chat(
+      Chat chat(ChatState state) => Chat(
         id: id,
-        agent: 'shell',
+        agent: 'claude',
+        inChat: true,
         title: 'Queued task',
-        taskUuid: task,
+        taskUuid: 'task',
         state: state,
         preface: 'Original instructions',
         prompt: 'Original instructions\n\nTask from Caldo: Queued task',
@@ -3764,12 +3765,112 @@ void main() {
       await agents.load();
       await tester.pump();
       expect(edit, findsNothing);
-
-      agents.chats = [chat(ChatState.waiting, task: null)];
-      await agents.load();
-      await tester.pump();
-      expect(edit, findsNothing);
     });
+
+    testWidgets(
+      'writes and edits a held chat’s first message before starting',
+      (tester) async {
+        final agents = Agents.instance;
+        const id = 'held-chat';
+        final row = {
+          'id': id,
+          'title': 'Held chat',
+          'agent': 'codex',
+          'mode': 'chat',
+          'state': 'waiting',
+          'prompt': '',
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+        final client = (await tester.runAsync(
+          () async => SupabaseClient(
+            'https://example.invalid',
+            'anon',
+            authOptions: const AuthClientOptions(autoRefreshToken: false),
+            realtimeClientOptions: RealtimeClientOptions(
+              transport: (_, _) => throw StateError('Realtime unavailable'),
+              disconnectOnEmptyChannelsAfter: Duration.zero,
+            ),
+            httpClient: MockClient((request) async {
+              final table = request.url.pathSegments.last;
+              if (request.method == 'PATCH') {
+                expect(table, 'chats');
+                expect(request.url.queryParameters['id'], 'eq.$id');
+                expect(
+                  request.url.queryParameters['state'],
+                  'in.("waiting","new")',
+                );
+                final fields = jsonDecode(request.body) as Map<String, dynamic>;
+                expect(fields.keys, ['prompt']);
+                if (row['state'] == 'running') {
+                  return http.Response('[]', 200, request: request);
+                }
+                row.addAll(fields.cast<String, String>());
+              }
+              return http.Response(
+                jsonEncode(table == 'chats' ? [row] : []),
+                200,
+                request: request,
+              );
+            }),
+          ),
+        ))!;
+        agents
+          ..clientForTest = client
+          ..chats = [Chat.fromJson(row)];
+        addTearDown(() async {
+          agents
+            ..clientForTest = null
+            ..chats = const [];
+          await client.dispose();
+        });
+
+        await pump(tester, 'en', const ChatScreen(chat: id));
+        final s = S.forCode('en');
+        final field = find.byType(TextField);
+        final edit = find.text(s.chatEditFirstMessage);
+        final save = find.text(s.save);
+        await tester.tap(find.text(s.chatWriteFirstMessage));
+        await tester.pumpAndSettle();
+        await tester.enterText(field, '  Original message  ');
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+
+        expect(row['state'], 'waiting');
+        expect(row['prompt'], 'Original message');
+        expect(find.text(s.chatStartNow), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          tester.widget<SelectableText>(find.byType(SelectableText)).data,
+          'Original message',
+        );
+        await tester.tap(edit);
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(field).controller!.text,
+          'Original message',
+        );
+        await tester.enterText(field, 'Edited message');
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(row['prompt'], 'Edited message');
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(
+          tester.widget<SelectableText>(find.byType(SelectableText)).data,
+          'Edited message',
+        );
+
+        await tester.tap(edit);
+        await tester.pumpAndSettle();
+        await tester.enterText(field, 'Too late');
+        row['state'] = 'running';
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(row['prompt'], 'Edited message');
+        expect(find.text(s.chatFirstMessageClosed), findsOneWidget);
+        expect(tester.widget<TextField>(field).controller!.text, 'Too late');
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
 
     testWidgets('restores each chat draft after leaving the chat', (
       tester,

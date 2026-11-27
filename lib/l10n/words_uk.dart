@@ -528,9 +528,9 @@ const Map<String, Object> uk = {
   'deleteRuleHint': "Чати, розпочаті з ним, збережуть його.",
   'chatTitle': "Назва",
   'chatPrompt': "Перше повідомлення",
+  'chatWriteFirstMessage': "Написати перше повідомлення",
   'chatEditFirstMessage': "Змінити перше повідомлення",
-  'chatFirstMessageClosed':
-      "Перше повідомлення цього завдання вже не можна змінити.",
+  'chatFirstMessageClosed': "Перше повідомлення вже не можна змінити.",
   'chatStart': "Почати",
   'sendToAgents': "Надіслати агентам",
   'chatForEach': "Спершу сказати кожному",
