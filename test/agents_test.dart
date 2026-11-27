@@ -1989,39 +1989,68 @@ void main() {
       final told = contextText(
         {
           'name': 'Caldo',
+          'instructions': 'Ask before releasing.',
           'context': [
             {'name': 'Caldo', 'body': 'A calendar app.'},
           ],
         },
         [
-          {'id': '11111111-aaaa', 'title': 'Release', 'context': 'Ship it.'},
+          {
+            'id': '11111111-aaaa',
+            'title': 'Release',
+            'context': 'Ship it.',
+            'notes': 'Built 2.31.',
+          },
           {'id': '22222222-bbbb', 'title': '', 'context': '  '},
           {'id': '33333333-cccc', 'title': 'Notes "fix"', 'context': 'Fix.'},
         ],
         'Only the sync.',
+        'Half done.',
       )!;
       expect(told, contains('stands in for CLAUDE.md'));
       expect(told, contains('update_project_info'));
+      expect(told, contains('update_chat_notes'));
+      expect(
+        told,
+        contains(
+          '<project-instructions project="Caldo">\nAsk before releasing.\n',
+        ),
+      );
       expect(
         told,
         contains('<project-info project="Caldo">\nA calendar app.\n'),
       );
       expect(
         told,
-        contains('<parent-context chat="11111111" title="Release">'),
+        contains('<parent-instructions chat="11111111" title="Release">'),
+      );
+      expect(
+        told,
+        contains(
+          '<parent-notes chat="11111111" title="Release">\nBuilt 2.31.\n',
+        ),
       );
       // One with nothing written is left out; quotes can't end the title.
       expect(told, isNot(contains('22222222')));
       expect(told, contains('title="Notes \'fix\'"'));
-      expect(told, contains('<own-context>\nOnly the sync.\n</own-context>'));
+      expect(
+        told,
+        contains('<own-instructions>\nOnly the sync.\n</own-instructions>'),
+      );
+      expect(told, contains('<own-notes>\nHalf done.\n</own-notes>'));
       final order = [
+        'Ask before releasing.',
         'A calendar app.',
         'Ship it.',
+        'Built 2.31.',
         'Fix.',
         'Only the sync.',
+        'Half done.',
       ].map(told.indexOf).toList();
       expect(order, orderedEquals([...order]..sort()));
       expect(order.first, greaterThan(0));
+      // Notes alone are told too.
+      expect(contextText(null, null, '', 'Mine.'), contains('Mine.'));
       expect(contextText(null, null, ''), isNull);
       expect(contextText({'name': ''}, const [], null), isNull);
       // A project with nothing written is still named.
@@ -2046,6 +2075,8 @@ void main() {
       );
       final changed = ChatAsk.fromJson({...ask.row!, 'context': 'All of it.'});
       expect(settingsChanged(ask, changed), 'Settings changed: context.');
+      final noted = ChatAsk.fromJson({...ask.row!, 'notes': 'Kept.'});
+      expect(noted.context, contains('<own-notes>\nKept.\n</own-notes>'));
       final ruled = ChatAsk.fromJson({...ask.row!, 'rules': <Object>[]});
       expect(settingsChanged(ask, ruled), 'Settings changed: no rules.');
     });
@@ -2167,6 +2198,46 @@ void main() {
           ('File one.\n\nLine two.\n\nLine three.', 2, 'computer:desk'),
         ]);
         expect(body(fileText()), startsWith('Phone one.'));
+      });
+
+      test("the user's instructions are in it, read only", () async {
+        store.rows.single['instructions'] = 'Never push to master.';
+        await sync.run();
+        expect(fileText(), contains('Never push to master.'));
+        expect(
+          fileText().indexOf('Never push to master.'),
+          lessThan(fileText().indexOf('Line one.')),
+        );
+        // The info after them is edited and saved, without them.
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final path = '${repo.path}/CLAUDE.local.md';
+        File(path).writeAsStringSync(
+          File(path)
+              .readAsStringSync()
+              .replaceFirst('Line three.', 'Line 3.')
+              .replaceFirst('Never push', 'Always push'),
+        );
+        expect(await sync.run(), {id});
+        expect(store.saved, [
+          ('Line one.\n\nLine two.\n\nLine 3.', 1, 'computer:desk'),
+        ]);
+        // Their edit is not taken: the file has them as Caldo does.
+        expect(fileText(), contains('Never push to master.'));
+        expect(fileText(), isNot(contains('Always push')));
+        // Changed in Caldo, they are written in, nothing saved.
+        store.rows.single['instructions'] = 'Ask first.';
+        await sync.run();
+        expect(fileText(), contains('Ask first.'));
+        expect(store.saved, hasLength(1));
+        // With the end of them taken away, nothing of the file is saved.
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final text = fileText();
+        File(sync.fileOf(id)).writeAsStringSync(
+          '${text.replaceFirst(RegExp(r'<!-- End of[^>]*-->'), '')}\nMore.',
+        );
+        await sync.run();
+        expect(store.saved, hasLength(1));
+        expect(fileText(), text);
       });
 
       test('a save refused by a change just made waits for it', () async {
@@ -4131,9 +4202,20 @@ void main() {
         await pump(tester, code, const ProjectsScreen());
         expect(find.text(sync.name), findsOneWidget);
         await pump(tester, code, const ProjectScreen(project: sync));
-        expect(find.text(sync.context), findsOneWidget);
-        expect(find.text('~/notes/sync'), findsWidgets);
+        expect(find.text(s.contextInstructions.toUpperCase()), findsOneWidget);
+        final form = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(
+          find.text(sync.context),
+          200,
+          scrollable: form,
+        );
         expect(find.text(s.contextProject.toUpperCase()), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('~/notes/sync'),
+          200,
+          scrollable: form,
+        );
+        expect(find.text('~/notes/sync'), findsWidgets);
         await pump(tester, code, const ProjectScreen());
         expect(find.text(s.newProject), findsWidgets);
         Agents.instance.projects = const [];
@@ -4223,6 +4305,7 @@ void main() {
           name: 'Caldo',
           colour: 'teal',
           context: 'A calendar app in Flutter.',
+          instructions: 'Ask before a release.',
           sources: ['~/dev/src/Caldo'],
         );
         final at = DateTime(2026, 11, 26);
@@ -4244,6 +4327,7 @@ void main() {
           projectId: 'p',
           parentId: 'a',
           context: 'Only the widget.',
+          notes: 'The tick is half done.',
         );
         Agents.instance
           ..projects = const [caldo]
@@ -4257,17 +4341,29 @@ void main() {
         expect(find.text(s.chatContext), findsOneWidget);
         expect(find.text(s.contextParents.toUpperCase()), findsOneWidget);
         expect(find.text(top.context), findsOneWidget);
-        expect(find.text(caldo.context), findsOneWidget);
-        expect(find.text(s.contextProjectHint('Caldo')), findsOneWidget);
+        expect(find.text(caldo.instructions), findsOneWidget);
+        expect(find.text(s.contextInstructionsHint('Caldo')), findsOneWidget);
+        final list = find.byType(Scrollable).first;
+        await tester.scrollUntilVisible(
+          find.text(caldo.context),
+          200,
+          scrollable: list,
+        );
+        expect(find.text(s.contextInfoHint('Caldo')), findsOneWidget);
         // No computer on: nothing to take a CLAUDE.md from.
         expect(find.text(s.contextImport), findsNothing);
-        final list = find.byType(Scrollable).first;
         await tester.scrollUntilVisible(
           find.text(sub.context),
           200,
           scrollable: list,
         );
         expect(find.text(sub.context), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text(sub.notes),
+          200,
+          scrollable: list,
+        );
+        expect(find.text(s.contextNotesHint), findsOneWidget);
         // The parent's is changed in the parent: a tap goes there.
         await tester.scrollUntilVisible(
           find.text(top.context),

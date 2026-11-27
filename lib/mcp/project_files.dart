@@ -6,7 +6,7 @@ import 'dart:io';
 /// stand-in in tests.
 abstract class ProjectStore {
   /// Every project, by name: `id`, `name`, `context`, `version`,
-  /// `sources`.
+  /// `sources`, `instructions`.
   Future<List<Map<String, dynamic>>> projects();
 
   /// Project [id]'s info saved as [text] by [by], only if it is still at
@@ -190,6 +190,7 @@ class ProjectSync {
     final id = '${row['id']}';
     final name = '${row['name'] ?? ''}'.trim();
     final server = '${row['context'] ?? ''}'.trim();
+    final told = '${row['instructions'] ?? ''}'.trim();
     final version = (row['version'] as num?)?.toInt() ?? 1;
     final file = File(fileOf(id));
     final baseFile = File(_baseOf(id));
@@ -200,7 +201,9 @@ class ProjectSync {
     // editor wrote a file of its own in place of the link.
     final copies = <(String, String, DateTime)>[];
     if (_isFile(file.path)) {
-      copies.add((file.path, _body(file.readAsStringSync()), _mtime(file)));
+      if (_body(file.readAsStringSync()) case final body?) {
+        copies.add((file.path, body, _mtime(file)));
+      }
     }
     for (final folder in folders) {
       for (final n in names) {
@@ -213,7 +216,9 @@ class ProjectSync {
           }
           continue;
         }
-        copies.add((at, _body(text), _mtime(File(at))));
+        if (_body(text) case final body?) {
+          copies.add((at, body, _mtime(File(at))));
+        }
       }
     }
 
@@ -259,7 +264,7 @@ class ProjectSync {
       }
     }
 
-    final text = _withMark(name, now);
+    final text = _withMark(name, now, told);
     if (!_isFile(file.path) || file.readAsStringSync() != text) {
       _write(file, text);
     }
@@ -321,18 +326,37 @@ class ProjectSync {
     next.renameSync(file.path);
   }
 
-  String _withMark(String name, String body) {
+  /// Where the user's instructions begin and end in a project's file: read
+  /// there, never saved from it, as only the user changes them, in Caldo.
+  static const _toldFrom =
+      "<!-- The user's instructions, read only: they are changed in Caldo, "
+      'not here. -->';
+  static const _toldTo =
+      '<!-- End of the user\'s instructions. The project info below is kept '
+      'by its agents: change it as your work changes what it says. -->';
+
+  String _withMark(String name, String body, [String told = '']) {
     final named = name.replaceAll('"', "'").replaceAll('-->', '');
-    return '$mark for "$named": edit it here, or with Caldo\'s '
+    final head =
+        '$mark for "$named": edit it here, or with Caldo\'s '
         'update_project_info tool. It is saved to Caldo within seconds and '
-        'reaches every chat in the project. -->\n\n$body\n';
+        'reaches every chat in the project. -->';
+    if (told.isEmpty) return '$head\n\n$body\n';
+    return '$head\n\n$_toldFrom\n\n$told\n\n$_toldTo\n\n$body\n';
   }
 
-  /// [text] without the line that heads a project's file.
-  static String _body(String text) {
+  /// [text] without the line that heads a project's file, nor the user's
+  /// instructions after it; null if it can't be told where they end — an
+  /// editor took the end's mark away — so nothing of it is saved.
+  static String? _body(String text) {
     if (!written(text)) return text.trim();
     final end = text.indexOf('-->');
-    return end < 0 ? '' : text.substring(end + 3).trim();
+    if (end < 0) return '';
+    final rest = text.substring(end + 3);
+    final to = rest.indexOf(_toldTo);
+    if (to >= 0) return rest.substring(to + _toldTo.length).trim();
+    if (rest.contains(_toldFrom)) return null;
+    return rest.trim();
   }
 
   /// [mine] and [theirs], both changed from [base], as one; null if they

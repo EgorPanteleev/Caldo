@@ -144,9 +144,12 @@ class _ProjectRow extends StatelessWidget {
     final p = AppTheme.of(context);
     final s = S.of(context);
     final colour = _projectColour(project);
-    final about = project.context.trim().isNotEmpty
-        ? project.context.trim()
-        : project.sources.join('  ');
+    final about = [project.instructions, project.context]
+        .map((w) => w.trim())
+        .firstWhere(
+          (w) => w.isNotEmpty,
+          orElse: () => project.sources.join('  '),
+        );
     return Material(
       color: Color.alphaBlend(colour.withValues(alpha: 0.16), p.panel),
       borderRadius: BorderRadius.circular(14),
@@ -212,6 +215,9 @@ class _ProjectScreenState extends State<ProjectScreen> {
   final _agents = Agents.instance;
   late final _name = TextEditingController(text: widget.project?.name);
   late final _context = TextEditingController(text: widget.project?.context);
+  late final _instructions = TextEditingController(
+    text: widget.project?.instructions,
+  );
   late final _sources = TextEditingController(
     text: widget.project?.sources.join('\n'),
   );
@@ -234,6 +240,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
     _agents.removeListener(_changed);
     _name.dispose();
     _context.dispose();
+    _instructions.dispose();
     _sources.dispose();
     super.dispose();
   }
@@ -303,12 +310,19 @@ class _ProjectScreenState extends State<ProjectScreen> {
         name: _name.text.trim(),
         colour: _colour,
         context: _context.text.trim(),
+        // Sent only if written, or a server from before refuses the save.
+        instructions:
+            _instructions.text.trim() ==
+                (widget.project?.instructions.trim() ?? '')
+            ? null
+            : _instructions.text.trim(),
         sources: _sourceLines,
       );
-      // Its chats read its info as it is at each start: those running
-      // are started again with it.
+      // Its chats read its info and instructions as they are at each
+      // start: those running are started again with them.
       if (widget.project case final was?
-          when was.context.trim() != saved.context) {
+          when was.context.trim() != saved.context ||
+              was.instructions.trim() != saved.instructions) {
         await _agents.retuneProject(saved.id);
       }
       if (mounted) Navigator.of(context).pop();
@@ -391,6 +405,12 @@ class _ProjectScreenState extends State<ProjectScreen> {
                           ? s.newProject
                           : _name.text.trim(),
                       onChanged: (id) => setState(() => _colour = id),
+                    ),
+                    _Section(s.contextInstructions),
+                    _Field(
+                      controller: _instructions,
+                      hint: s.projectInstructionsHint,
+                      lines: 8,
                     ),
                     _Section(s.contextProject),
                     _Field(

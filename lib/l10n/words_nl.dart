@@ -749,6 +749,16 @@ const Map<String, Object> nl = {
   'contextOwn': "Eigen context van de chat",
   'contextOwnHint':
       "Voor deze chat en zijn subchats: hoe te werken, waar hij voor is.",
+  'contextInstructions': "Jouw instructies",
+  'contextInstructionsHint':
+      "Van jou, voor elke chat in {name}: agents volgen ze en veranderen ze nooit.",
+  'contextInfoHint':
+      "Bijgehouden door de agents van elke chat in {name} terwijl ze werken, en door jou. Elke chat hoort een wijziging bij de volgende start.",
+  'contextNotes': "Notities van de agent",
+  'contextNotesHint':
+      "Door de agent van deze chat voor zichzelf bijgehouden, opnieuw gelezen na een herstart of /clear. Zijn subchats lezen ze ook.",
+  'projectInstructionsHint':
+      "Je eigen woorden voor elke chat erin. Agents volgen ze en veranderen ze nooit.",
   'contextImport': "Overnemen uit CLAUDE.md",
   'contextImportNone': "Er staat geen CLAUDE.md in de mappen van het project.",
   'contextHistory': "Geschiedenis",

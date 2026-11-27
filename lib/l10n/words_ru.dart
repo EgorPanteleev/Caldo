@@ -766,6 +766,16 @@ const Map<String, Object> ru = {
   'contextNoProject': "Этот чат не входит в проект.",
   'contextOwn': "Свой контекст чата",
   'contextOwnHint': "Для этого чата и его подчатов: как работать и зачем он.",
+  'contextInstructions': "Ваши инструкции",
+  'contextInstructionsHint':
+      "Ваши, для всех чатов в «{name}»: агенты следуют им и никогда их не меняют.",
+  'contextInfoHint':
+      "Ведут агенты всех чатов в «{name}» по ходу работы, и вы. Каждый узнаёт об изменении при следующем запуске.",
+  'contextNotes': "Заметки агента",
+  'contextNotesHint':
+      "Агент этого чата ведёт их для себя и перечитывает после перезапуска или /clear. Подчаты тоже их читают.",
+  'projectInstructionsHint':
+      "Ваши слова для каждого чата в нём. Агенты следуют им и никогда их не меняют.",
   'contextImport': "Взять из CLAUDE.md",
   'contextImportNone': "В папках проекта нет CLAUDE.md.",
   'contextHistory': "История",

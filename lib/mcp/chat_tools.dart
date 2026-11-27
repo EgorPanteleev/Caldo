@@ -75,6 +75,14 @@ abstract class ChatDesk {
     required int version,
     required String by,
   });
+
+  /// [chat]'s notes, kept by its agent (`chats.notes`); null if the server
+  /// keeps none yet.
+  Future<String?> notes(String chat);
+
+  /// [chat]'s notes written as [notes], only if they are still [was];
+  /// whether they were.
+  Future<bool> setNotes(String chat, String notes, {required String was});
 }
 
 /// [ChatDesk] on Supabase, signed in as the MCP server is.
@@ -213,6 +221,37 @@ class SupabaseChatDesk implements ChatDesk {
   @override
   Future<List<Map<String, dynamic>>> projects() async =>
       (await _db).from('agent_projects').select('id, name, context, version');
+
+  @override
+  Future<String?> notes(String chat) async {
+    try {
+      final row = await (await _db)
+          .from('chats')
+          .select('notes')
+          .eq('id', chat)
+          .maybeSingle();
+      return row == null ? null : '${row['notes'] ?? ''}';
+    } on PostgrestException catch (e) {
+      // A server from before notes were kept.
+      if (e.code == '42703') return null;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<bool> setNotes(
+    String chat,
+    String notes, {
+    required String was,
+  }) async =>
+      await (await _db)
+          .from('chats')
+          .update({'notes': notes})
+          .eq('id', chat)
+          .eq('notes', was)
+          .select('id')
+          .maybeSingle() !=
+      null;
 
   @override
   Future<bool> setProjectInfo(
@@ -679,26 +718,7 @@ class ChatTools {
   Future<String> updateProjectInfo(Map<String, Object?> args) async {
     final project = await _project(args['project']);
     final was = '${project['context'] ?? ''}';
-    final String now;
-    if (args['text'] case final String text) {
-      now = text.trim();
-    } else if (args['old'] case final String old when old.isNotEmpty) {
-      final at = was.indexOf(old);
-      if (at < 0) {
-        throw const Refusal(
-          'old is not in the project info as it is now (read it again '
-          'with project_info).',
-        );
-      }
-      if (was.indexOf(old, at + 1) >= 0) {
-        throw const Refusal(
-          'old is in the project info more than once: give more of it.',
-        );
-      }
-      now = was.replaceRange(at, at + old.length, '${args['new'] ?? ''}');
-    } else {
-      throw const Refusal('Give text (the whole info) or old and new.');
-    }
+    final now = _edited(was, args, 'the project info', 'project_info');
     if (now == was) return 'Nothing changed.';
     final saved = await desk.setProjectInfo(
       '${project['id']}',
@@ -715,6 +735,71 @@ class ChatTools {
     return 'Project "${project['name']}" info changed (${now.length} '
         'characters). Each chat in it is told it when its program next '
         'starts.';
+  }
+
+  /// [was] changed as [args] say: `text` for the whole, else `old` found
+  /// once and replaced by `new`; [what] and the tool that [reads] it, for
+  /// the refusals.
+  static String _edited(
+    String was,
+    Map<String, Object?> args,
+    String what,
+    String reads,
+  ) {
+    if (args['text'] case final String text) return text.trim();
+    if (args['old'] case final String old when old.isNotEmpty) {
+      final at = was.indexOf(old);
+      if (at < 0) {
+        throw Refusal(
+          'old is not in $what as it is now (read it again with $reads).',
+        );
+      }
+      if (was.indexOf(old, at + 1) >= 0) {
+        throw Refusal('old is in $what more than once: give more of it.');
+      }
+      return was.replaceRange(at, at + old.length, '${args['new'] ?? ''}');
+    }
+    throw const Refusal('Give text (the whole of it) or old and new.');
+  }
+
+  // ---- Notes ------------------------------------------------------------
+
+  /// [chat]'s notes as the server keeps them, and what to call the chat.
+  Future<(Map<String, dynamic>, String, String)> _notesOf(Object? id) async {
+    final chat = await _namedOrMine(id);
+    final chatId = chat['id'] as String;
+    final name = chatId == self
+        ? 'This chat'
+        : '"${_titleOf(chat)}" [${_short(chatId)}]';
+    final notes = await desk.notes(chatId);
+    if (notes == null) {
+      throw const Refusal(
+        "Caldo's server keeps no chat notes yet: its migrations are to be "
+        'pushed first.',
+      );
+    }
+    return (chat, name, notes);
+  }
+
+  Future<String> chatNotes(Map<String, Object?> args) async {
+    final (_, name, notes) = await _notesOf(args['chat']);
+    return notes.trim().isEmpty
+        ? '$name has no notes yet.'
+        : "$name's notes:\n\n$notes";
+  }
+
+  Future<String> updateChatNotes(Map<String, Object?> args) async {
+    final (chat, name, was) = await _notesOf(args['chat']);
+    final now = _edited(was, args, 'the notes', 'chat_notes');
+    if (now == was) return 'Nothing changed.';
+    if (!await desk.setNotes(chat['id'] as String, now, was: was)) {
+      throw const Refusal(
+        'The notes were changed meanwhile: read them again with '
+        'chat_notes, then make your change.',
+      );
+    }
+    return "$name's notes changed (${now.length} characters). They are "
+        'told to its program each time it starts.';
   }
 
   Future<Map<String, dynamic>> _namedOrMine(Object? id) async {
@@ -1160,10 +1245,42 @@ class ChatTools {
       reads: true,
     ),
     Tool(
+      'chat_notes',
+      "A chat's notes (by default this one's): what its agent keeps for "
+          'itself in Caldo, told to its program each time it starts — after '
+          'a restart or a cleared context too.',
+      _shape({'chat': _notesChat}),
+      chatNotes,
+      reads: true,
+    ),
+    Tool(
+      'update_chat_notes',
+      "Changes a chat's notes (by default this one's), told to its program "
+          'each time it starts: keep in them what you must not forget of '
+          'your work here — where it stands, what was decided, what is '
+          "left — as the user's instructions are theirs and not yours to "
+          'change. Give old and new to change one part (old must be found '
+          'once, as chat_notes shows them), or text for the whole.',
+      _shape({
+        'chat': _notesChat,
+        'old': {
+          'type': 'string',
+          'description': 'The words to replace, exactly as they are.',
+        },
+        'new': {'type': 'string', 'description': 'What replaces old.'},
+        'text': {
+          'type': 'string',
+          'description': 'The whole notes, in place of all of them.',
+        },
+      }),
+      updateChatNotes,
+    ),
+    Tool(
       'project_info',
-      "A project's info, as the user and its chats keep it in Caldo: what "
-          'every chat in the project is told (in place of CLAUDE.md), as it '
-          'is now.',
+      "A project's info, as its chats keep it in Caldo: what every chat in "
+          'the project is told (in place of CLAUDE.md), as it is now. The '
+          "user's own instructions for the project are told apart, and are "
+          'not changed by agents.',
       _shape({'project': _projectName}),
       projectInfo,
       reads: true,
@@ -1191,6 +1308,11 @@ class ChatTools {
     ),
   ];
 
+  static const _notesChat = {
+    'type': 'string',
+    'description': 'The chat ([abcd1234]); default this one.',
+  };
+
   static const _projectName = {
     'type': 'string',
     'description': "The project's name or id; default this chat's.",
@@ -1205,6 +1327,7 @@ class ChatTools {
       'says which chat opened one. clear_context clears a chat\'s context, '
       'as /clear does. project_info and update_project_info read and keep '
       "current a project's info, which its chats read in place of "
-      'CLAUDE.md. notify sends the user a notification on their phone. '
+      'CLAUDE.md; chat_notes and update_chat_notes a chat\'s notes, kept by '
+      'its agent for itself across restarts and cleared contexts. notify sends the user a notification on their phone. '
       'Use send_image to show a local picture to the user in this chat.';
 }

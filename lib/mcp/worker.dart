@@ -1684,7 +1684,8 @@ class Worker {
       try {
         final project = await db
             .from('agent_projects')
-            .select('name, context')
+            // All of it: a server from before has no `instructions`.
+            .select()
             .eq('id', id)
             .maybeSingle();
         if (project != null) {
@@ -1693,6 +1694,7 @@ class Worker {
           fields['project'] = {
             ...?(row['project'] as Map?),
             'name': name,
+            'instructions': '${project['instructions'] ?? ''}'.trim(),
             // Where it is kept on this computer, for the agent to edit.
             'file': projects.fileOf(id),
             'context': [
@@ -1712,7 +1714,8 @@ class Worker {
       try {
         up = await db
             .from('chats')
-            .select('id, title, context, parent_id')
+            // All of it: a server from before has no `notes`.
+            .select()
             .eq('id', parent)
             .maybeSingle();
       } catch (e) {
@@ -1725,11 +1728,32 @@ class Worker {
         'id': up['id'],
         'title': up['title'],
         'context': up['context'],
+        'notes': up['notes'],
       });
       parent = up['parent_id'] as String?;
     }
     if (parents.isNotEmpty) fields['parents'] = parents;
     return fields.isEmpty ? ask : ask.withRow(fields);
+  }
+
+  /// [ask] with its context read again ([_withContext]) — its own
+  /// instructions and notes from its row too — for a program started
+  /// again in a chat already under way; as it was if that can't be read.
+  Future<ChatAsk> _afresh(ChatAsk ask) async {
+    try {
+      final row = await (await _db)
+          .from('chats')
+          .select()
+          .eq('id', ask.id)
+          .maybeSingle();
+      if (row == null) return ask;
+      return await _withContext(
+        ask.withRow({'context': row['context'], 'notes': row['notes']}),
+      );
+    } catch (e) {
+      log('[${_short(ask.id)}] its context not read again: $e');
+      return ask;
+    }
   }
 
   /// Subchat [ask] placed in the folder of the chat it is part of, the
@@ -2900,6 +2924,10 @@ class _Talker implements TalkSink {
     if (_closing || forgotten) throw StateError('The chat is closed.');
     if (talk != null) return;
     lastActivity = DateTime.now();
+    // Its context as it is now: its notes above all, kept by its agent for
+    // the program that comes after a cleared context or a quiet spell.
+    ask = await worker._afresh(ask);
+    if (_closing || forgotten || talk != null) return;
     final made = Talk.of(
       spec,
       ask,
@@ -3501,7 +3529,8 @@ class _SupabaseProjects implements ProjectStore {
   @override
   Future<List<Map<String, dynamic>>> projects() async => (await worker._db)
       .from('agent_projects')
-      .select('id, name, context, version, sources')
+      // All of it: a server from before has no `instructions`.
+      .select()
       .order('name');
 
   @override

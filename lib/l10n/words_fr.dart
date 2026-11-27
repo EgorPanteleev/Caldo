@@ -750,6 +750,16 @@ const Map<String, Object> fr = {
   'contextOwn': "Contexte propre du chat",
   'contextOwnHint':
       "Pour ce chat et ses sous-chats : comment travailler, à quoi il sert.",
+  'contextInstructions': "Vos instructions",
+  'contextInstructionsHint':
+      "Les vôtres, pour chaque chat de {name} : les agents les suivent et ne les modifient jamais.",
+  'contextInfoHint':
+      "Tenues par les agents de chaque chat de {name} au fil du travail, et par vous. Chacun apprend un changement à son prochain démarrage.",
+  'contextNotes': "Notes de l'agent",
+  'contextNotesHint':
+      "Tenues par l'agent de ce chat pour lui-même, relues après un redémarrage ou /clear. Ses sous-chats les lisent aussi.",
+  'projectInstructionsHint':
+      "Vos propres mots pour chaque chat du projet. Les agents les suivent et ne les modifient jamais.",
   'contextImport': "Reprendre de CLAUDE.md",
   'contextImportNone': "Il n'y a pas de CLAUDE.md dans les dossiers du projet.",
   'contextHistory': "Historique",

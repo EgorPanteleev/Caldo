@@ -249,15 +249,11 @@ class _DateSheetState extends State<_DateSheet> {
               ),
               QuickChip(
                 label: S.of(context).tomorrow,
-                onTap: () => Navigator.of(
-                  context,
-                ).pop(addDays(today, 1)),
+                onTap: () => Navigator.of(context).pop(addDays(today, 1)),
               ),
               QuickChip(
                 label: S.of(context).nextWeek,
-                onTap: () => Navigator.of(
-                  context,
-                ).pop(addDays(today, 7)),
+                onTap: () => Navigator.of(context).pop(addDays(today, 7)),
               ),
             ],
           ),

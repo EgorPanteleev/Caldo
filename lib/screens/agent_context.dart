@@ -7,9 +7,11 @@ Future<void> openChatContext(BuildContext context, Chat chat) => Navigator.of(
 /// What a chat is told it knows, from the chat itself (asked for
 /// 2026-11-26: "make ability to watch content from chats, not projects
 /// tab"): the context of the chats it is part of, read only — changed in
-/// that chat, a tap away — then its project's info and its own, each to
-/// change in place. Nothing else: its agent reads no CLAUDE.md or memory
-/// files (`quietEnv`), so no files are shown.
+/// that chat, a tap away — then its project's and its own, each to change
+/// in place. Two of each (asked 2026-11-27): the user's instructions, and
+/// what agents keep — the project's info, the chat's notes. Nothing else:
+/// its agent reads no CLAUDE.md or memory files (`quietEnv`), so no files
+/// are shown.
 class ChatContextScreen extends StatefulWidget {
   final Chat chat;
 
@@ -162,18 +164,40 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
                               : parent.name,
                           icon: Icons.subdirectory_arrow_right,
                           trailing: Icons.chevron_right,
-                          body: parent.context,
+                          body: [
+                            for (final words in [parent.context, parent.notes])
+                              if (words.trim().isNotEmpty) words.trim(),
+                          ].join('\n\n'),
                           empty: s.contextNothing,
                           onTap: () => openChatContext(context, parent),
                         ),
                     ],
-                    _Section(s.contextProject),
+                    _Section(s.chatProject),
                     if (project == null)
                       hint(s.contextNoProject)
                     else ...[
-                      hint(s.contextProjectHint(_projectName(s, project))),
+                      hint(s.contextInstructionsHint(_projectName(s, project))),
                       _ContextTile(
-                        title: _projectName(s, project),
+                        title: s.contextInstructions,
+                        icon: Icons.person_outline,
+                        body: project.instructions,
+                        empty: s.contextNothing,
+                        onTap: () => _edit(
+                          title: s.contextInstructions,
+                          where: s.contextInstructionsHint(
+                            _projectName(s, project),
+                          ),
+                          text: project.instructions,
+                          save: (text) =>
+                              _agents.setProjectInstructions(project, text),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      hint(s.contextInfoHint(_projectName(s, project))),
+                      _ContextTile(
+                        title:
+                            '${s.contextProject} · '
+                            '${_projectName(s, project)}',
                         dot: _projectColour(project),
                         body: project.context,
                         empty: s.contextNothing,
@@ -215,15 +239,29 @@ class _ChatContextScreenState extends State<ChatContextScreen> {
                     _Section(s.contextOwn),
                     hint(s.contextOwnHint),
                     _ContextTile(
-                      title: chat.name.isEmpty ? _lineOf(chat) : chat.name,
-                      icon: Icons.chat_bubble_outline,
+                      title: s.contextInstructions,
+                      icon: Icons.person_outline,
                       body: chat.context,
                       empty: s.contextNothing,
                       onTap: () => _edit(
-                        title: s.contextOwn,
+                        title: s.contextInstructions,
                         where: s.contextOwnHint,
                         text: chat.context,
                         save: (text) => _agents.setContext(chat, text),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    hint(s.contextNotesHint),
+                    _ContextTile(
+                      title: s.contextNotes,
+                      icon: Icons.edit_note,
+                      body: chat.notes,
+                      empty: s.contextNothing,
+                      onTap: () => _edit(
+                        title: s.contextNotes,
+                        where: s.contextNotesHint,
+                        text: chat.notes,
+                        save: (text) => _agents.setNotes(chat, text),
                       ),
                     ),
                   ],

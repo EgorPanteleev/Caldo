@@ -781,6 +781,16 @@ const Map<String, Object> pl = {
   'contextOwn': "Własny kontekst czatu",
   'contextOwnHint':
       "Dla tego czatu i jego podczatów: jak pracować, do czego służy.",
+  'contextInstructions': "Twoje instrukcje",
+  'contextInstructionsHint':
+      "Twoje, dla każdego czatu w {name}: agenci ich przestrzegają i nigdy ich nie zmieniają.",
+  'contextInfoHint':
+      "Prowadzone przez agentów każdego czatu w {name} w trakcie pracy, i przez ciebie. Każdy dowiaduje się o zmianie przy następnym uruchomieniu.",
+  'contextNotes': "Notatki agenta",
+  'contextNotesHint':
+      "Agent tego czatu prowadzi je dla siebie i czyta ponownie po restarcie lub /clear. Jego podczaty też je czytają.",
+  'projectInstructionsHint':
+      "Twoje własne słowa dla każdego czatu w nim. Agenci ich przestrzegają i nigdy ich nie zmieniają.",
   'contextImport': "Weź z CLAUDE.md",
   'contextImportNone': "W folderach projektu nie ma CLAUDE.md.",
   'contextHistory': "Historia",

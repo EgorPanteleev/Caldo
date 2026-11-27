@@ -142,6 +142,27 @@ class _Desk implements ChatDesk {
     savedBy.add(by);
     return true;
   }
+
+  /// Chats' notes, by id; a chat not here has none yet.
+  final notes_ = <String, String>{};
+
+  /// Whether the server keeps notes at all.
+  bool keepsNotes = true;
+
+  @override
+  Future<String?> notes(String chat) async =>
+      keepsNotes ? notes_[chat] ?? '' : null;
+
+  @override
+  Future<bool> setNotes(
+    String chat,
+    String notes, {
+    required String was,
+  }) async {
+    if ((notes_[chat] ?? '') != was) return false;
+    notes_[chat] = notes;
+    return true;
+  }
 }
 
 /// [_Desk] whose project changes between the tool's read and its save.
@@ -496,6 +517,46 @@ void main() {
       await expectLater(run('unsubscribe', {'id': 9}), throwsA(isA<Refusal>()));
       tools = ChatTools(desk, poll: const Duration(milliseconds: 1));
       await refused({'repo': 'a/b'}, 'not in one of Caldo');
+    });
+  });
+
+  group('chat notes', () {
+    setUp(() => tools = ChatTools(desk, self: 'aaaa1111-0000'));
+
+    test("reads and changes this chat's, or one named", () async {
+      expect(await run('chat_notes', {}), 'This chat has no notes yet.');
+      await run('update_chat_notes', {'text': ' Step 1 done.\nNext: 2. '});
+      expect(desk.notes_['aaaa1111-0000'], 'Step 1 done.\nNext: 2.');
+      await run('update_chat_notes', {'old': 'Next: 2.', 'new': 'Next: 3.'});
+      expect(
+        await run('chat_notes', {}),
+        "This chat's notes:\n\nStep 1 done.\nNext: 3.",
+      );
+      final other = desk.chats_[1]['id'] as String;
+      await run('update_chat_notes', {'chat': other, 'text': 'Theirs.'});
+      expect(desk.notes_[other], 'Theirs.');
+      expect(desk.notes_['aaaa1111-0000'], 'Step 1 done.\nNext: 3.');
+    });
+
+    test('refuses an ambiguous change, or a server without notes', () async {
+      desk.notes_['aaaa1111-0000'] = 'a a';
+      await expectLater(
+        () => run('update_chat_notes', {'old': 'a', 'new': 'b'}),
+        throwsA(
+          isA<Refusal>().having((r) => r.message, 'message', contains('once')),
+        ),
+      );
+      desk.keepsNotes = false;
+      await expectLater(
+        () => run('chat_notes', {}),
+        throwsA(
+          isA<Refusal>().having(
+            (r) => r.message,
+            'message',
+            contains('migrations'),
+          ),
+        ),
+      );
     });
   });
 

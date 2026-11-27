@@ -346,8 +346,9 @@ class ChatAsk {
   /// none.
   final String? rules;
 
-  /// Of [rules], what the user wrote for it in Caldo ([contextText]): its
-  /// project's info, its parent chats' context and its own; null for none.
+  /// Of [rules], what is kept for it in Caldo ([contextText]): its
+  /// project's instructions and info, its parent chats' instructions and
+  /// notes, and its own; null for none.
   final String? context;
   final String? session;
   final String? taskUuid;
@@ -473,6 +474,7 @@ class ChatAsk {
       json['project'],
       json['parents'],
       json['context'],
+      json['notes'],
     );
     return ChatAsk._read(
       json,

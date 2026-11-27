@@ -730,6 +730,16 @@ const Map<String, Object> tr = {
   'contextOwn': "Sohbetin kendi bağlamı",
   'contextOwnHint':
       "Bu sohbet ve alt sohbetleri için: nasıl çalışılacağı, ne için olduğu.",
+  'contextInstructions': "Talimatların",
+  'contextInstructionsHint':
+      "Senin, {name} içindeki her sohbet için: ajanlar onlara uyar ve asla değiştirmez.",
+  'contextInfoHint':
+      "{name} içindeki her sohbetin ajanları çalışırken tutar, sen de. Her biri bir değişikliği bir sonraki başlangıçta öğrenir.",
+  'contextNotes': "Ajanın notları",
+  'contextNotesHint':
+      "Bu sohbetin ajanı kendisi için tutar, yeniden başlatma veya /clear sonrası yeniden okur. Alt sohbetleri de okur.",
+  'projectInstructionsHint':
+      "İçindeki her sohbet için kendi sözlerin. Ajanlar onlara uyar ve asla değiştirmez.",
   'contextImport': "CLAUDE.md'den al",
   'contextImportNone': "Projenin klasörlerinde CLAUDE.md yok.",
   'contextHistory': "Geçmiş",

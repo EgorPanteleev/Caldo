@@ -246,7 +246,8 @@ String firstMessage(String written, Iterable<AgentRule> rules) {
 }
 
 /// What chats are about, written here once: a name, a colour the list
-/// wears its chats in, the words its agents are told ([context]) and the
+/// wears its chats in, the words its agents are told — the user's
+/// [instructions], and the info its agents keep ([context]) — and the
 /// folders on a worker they work on ([sources], from `~`). Projects sit side
 /// by side, none under another: what a piece of the work needs to be told of
 /// the whole is the task's to say (a subtask is told its parents'). A chat
@@ -259,7 +260,14 @@ class AgentProject {
   /// A palette id or `#RRGGBB`, as a task's (`ListStyle.byId`); null for
   /// none.
   final String? colour;
+
+  /// Its info, kept by its chats' agents as much as by the user: synced
+  /// with its file on each computer, with a history.
   final String context;
+
+  /// The user's own words for every chat in it, which agents are told and
+  /// never change.
+  final String instructions;
   final List<String> sources;
 
   /// Which change of [context] this is, counted by the server: a worker
@@ -271,6 +279,7 @@ class AgentProject {
     required this.name,
     this.colour,
     this.context = '',
+    this.instructions = '',
     this.sources = const [],
     this.version = 1,
   });
@@ -280,6 +289,7 @@ class AgentProject {
     name: json['name'] as String? ?? '',
     colour: json['colour'] as String?,
     context: json['context'] as String? ?? '',
+    instructions: json['instructions'] as String? ?? '',
     sources: _strings(json['sources']),
     version: (json['version'] as num?)?.toInt() ?? 1,
   );
@@ -510,9 +520,13 @@ class Chat {
   /// its folder, on its computer. Null for a chat of its own.
   final String? parentId;
 
-  /// What the user wrote for it alone: told after its project's info and
-  /// its parents' context ([ChatContextScreen]).
+  /// What the user wrote for it alone, its instructions: told after its
+  /// project's and its parents' ([ChatContextScreen]).
   final String context;
+
+  /// What its agent keeps for itself (`update_chat_notes`), told after
+  /// [context] each time its program starts.
+  final String notes;
 
   const Chat({
     required this.id,
@@ -545,6 +559,7 @@ class Chat {
     this.projectColour,
     this.parentId,
     this.context = '',
+    this.notes = '',
   });
 
   bool get pinned => pinnedAt != null;
@@ -619,6 +634,7 @@ class Chat {
         projectColour: c.projectColour,
         parentId: c.parentId,
         context: c.context,
+        notes: c.notes,
       );
 
   /// [c] pinned [at], or unpinned for null: said here at once, as a move.
@@ -654,6 +670,7 @@ class Chat {
         projectColour: c.projectColour,
         parentId: c.parentId,
         context: c.context,
+        notes: c.notes,
       );
 
   /// [c] muted or not: said here at once, as a pin.
@@ -689,6 +706,7 @@ class Chat {
         projectColour: c.projectColour,
         parentId: c.parentId,
         context: c.context,
+        notes: c.notes,
       );
 
   static ChatState _stateOf(String? s) => switch (s) {
@@ -747,6 +765,7 @@ class Chat {
     },
     parentId: json['parent_id'] as String?,
     context: json['context'] as String? ?? '',
+    notes: json['notes'] as String? ?? '',
   );
 
   int get _listPriority => pinned
@@ -987,10 +1006,11 @@ class Agents extends ChangeNotifier {
       _changed(table == 'chats' ? _chatRows : _workerRows, change);
 
   void _fromRows() {
-    workers = [
-      for (final r in _workerRows.values) AgentWorker.fromJson(r),
-    ]..sort((a, b) => a.name.compareTo(b.name));
-    chats = Chat.listOrder([for (final r in _chatRows.values) Chat.fromJson(r)]);
+    workers = [for (final r in _workerRows.values) AgentWorker.fromJson(r)]
+      ..sort((a, b) => a.name.compareTo(b.name));
+    chats = Chat.listOrder([
+      for (final r in _chatRows.values) Chat.fromJson(r),
+    ]);
   }
 
   Timer? _later;
@@ -1039,7 +1059,9 @@ class Agents extends ChangeNotifier {
         ..addAll({for (final r in w) r['id'] as String: r});
       _chatRows
         ..clear()
-        ..addAll({for (final r in [...recent, ...open]) r['id'] as String: r});
+        ..addAll({
+          for (final r in [...recent, ...open]) r['id'] as String: r,
+        });
       _fromRows();
       accounts = readAccounts;
       error = null;
@@ -1218,6 +1240,8 @@ class Agents extends ChangeNotifier {
   Map<String, Object?> snapshotOf(AgentProject project) => {
     'name': project.name.trim(),
     'colour': project.colour,
+    if (project.instructions.trim().isNotEmpty)
+      'instructions': project.instructions.trim(),
     'context': [
       if (project.context.trim().isNotEmpty)
         {'name': project.name.trim(), 'body': project.context.trim()},
@@ -1239,6 +1263,7 @@ class Agents extends ChangeNotifier {
     required String name,
     String? colour,
     String context = '',
+    String? instructions,
     List<String> sources = const [],
     String by = 'app',
   }) async {
@@ -1246,6 +1271,8 @@ class Agents extends ChangeNotifier {
       'name': name,
       'colour': colour,
       'context': context,
+      // Left out unless given: a server from before has no such column.
+      'instructions': ?instructions,
       'sources': sources,
       // Kept with the version if [context] changed; else the server keeps
       // who changed it last.
@@ -1283,6 +1310,26 @@ class Agents extends ChangeNotifier {
     await retuneProject(project.id);
   }
 
+  /// Project [project]'s instructions, the user's own, written as [text]:
+  /// told to its chats as its info is.
+  Future<void> setProjectInstructions(AgentProject project, String text) async {
+    // Only them: its info may have been changed by an agent since read.
+    final row = await _client!
+        .from('agent_projects')
+        .update({'instructions': text.trim()})
+        .eq('id', project.id)
+        .select()
+        .single();
+    final saved = AgentProject.fromJson(row);
+    projects = _byName([
+      for (final p in projects)
+        if (p.id != saved.id) p,
+      saved,
+    ]);
+    notifyListeners();
+    await retuneProject(project.id);
+  }
+
   /// Project [id]'s last versions, the latest first.
   Future<List<ProjectVersion>> projectVersions(String id) async {
     final rows = await _client!
@@ -1308,6 +1355,16 @@ class Agents extends ChangeNotifier {
   /// its subchats, which have all it has, started again with it.
   Future<void> setContext(Chat chat, String text) async {
     await change(chat.id, {'context': text.trim()});
+    await _retuneAll([
+      for (final c in subchatsOf(chat.id))
+        if (c.live) c.id,
+    ]);
+  }
+
+  /// [chat]'s notes, its agent's own, written as [text]: told to it, and
+  /// to its subchats, from their next start.
+  Future<void> setNotes(Chat chat, String text) async {
+    await change(chat.id, {'notes': text.trim()});
     await _retuneAll([
       for (final c in subchatsOf(chat.id))
         if (c.live) c.id,

@@ -311,6 +311,14 @@ class S {
   String get contextNoProject => _word('contextNoProject');
   String get contextOwn => _word('contextOwn');
   String get contextOwnHint => _word('contextOwnHint');
+  String get contextInstructions => _word('contextInstructions');
+  String contextInstructionsHint(String name) =>
+      _fill('contextInstructionsHint', {'name': name});
+  String contextInfoHint(String name) =>
+      _fill('contextInfoHint', {'name': name});
+  String get contextNotes => _word('contextNotes');
+  String get contextNotesHint => _word('contextNotesHint');
+  String get projectInstructionsHint => _word('projectInstructionsHint');
   String get contextImport => _word('contextImport');
   String get contextImportNone => _word('contextImportNone');
   String get contextHistory => _word('contextHistory');
