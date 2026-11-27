@@ -647,6 +647,10 @@ const Map<String, Object> uk = {
   'chatAtLimit': "Зупинено: вичерпано ліміт",
   'chatCarryOnReset': "Продовжити після скидання",
   'chatCarryOnSoon': "Продовжити через 15 хвилин",
+  'chatCarryOnScheduled': "Автоматичне продовження заплановано на {when}",
+  'chatCarryOnWaiting': "Очікування автоматичного продовження",
+  'chatCarryOnFailed':
+      "Не вдалося змінити автоматичне продовження. Спробуйте ще раз.",
   'chatLimitTitle': "Ліміт використання вичерпано",
   'chatLimitResets': "{limit} · скинеться {when}",
   'chatLimitLifted': "Ліміт скинувся",

@@ -621,6 +621,10 @@ const Map<String, Object> fr = {
   'chatAtLimit': "Arrêté à la limite d'utilisation",
   'chatCarryOnReset': "Reprendre seul après la réinitialisation",
   'chatCarryOnSoon': "Reprendre seul dans 15 minutes",
+  'chatCarryOnScheduled': "Reprise automatique prévue à {when}",
+  'chatCarryOnWaiting': "En attente de reprise automatique",
+  'chatCarryOnFailed':
+      "Impossible de modifier la reprise automatique. Réessayez.",
   'chatLimitTitle': "Limite d'utilisation atteinte",
   'chatLimitResets': "{limit} · réinitialisée {when}",
   'chatLimitLifted': "La limite est réinitialisée",

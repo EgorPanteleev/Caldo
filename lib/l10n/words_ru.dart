@@ -639,6 +639,10 @@ const Map<String, Object> ru = {
   'chatAtLimit': "Остановлено: исчерпан лимит",
   'chatCarryOnReset': "Продолжить после сброса",
   'chatCarryOnSoon': "Продолжить через 15 минут",
+  'chatCarryOnScheduled': "Автопродолжение запланировано на {when}",
+  'chatCarryOnWaiting': "Ожидание автопродолжения",
+  'chatCarryOnFailed':
+      "Не удалось изменить автопродолжение. Попробуйте ещё раз.",
   'chatLimitTitle': "Лимит использования исчерпан",
   'chatLimitResets': "{limit} · сбросится {when}",
   'chatLimitLifted': "Лимит сбросился",

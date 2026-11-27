@@ -642,6 +642,10 @@ const Map<String, Object> be = {
   'chatAtLimit': "Спынена: ліміт вычарпаны",
   'chatCarryOnReset': "Працягнуць пасля скіду",
   'chatCarryOnSoon': "Працягнуць праз 15 хвілін",
+  'chatCarryOnScheduled': "Аўтаматычны працяг запланаваны на {when}",
+  'chatCarryOnWaiting': "Чаканне аўтаматычнага працягу",
+  'chatCarryOnFailed':
+      "Не ўдалося змяніць аўтаматычны працяг. Паспрабуйце яшчэ раз.",
   'chatLimitTitle': "Ліміт выкарыстання вычарпаны",
   'chatLimitResets': "{limit} · скінецца {when}",
   'chatLimitLifted': "Ліміт скінуўся",

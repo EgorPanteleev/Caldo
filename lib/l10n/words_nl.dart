@@ -621,6 +621,10 @@ const Map<String, Object> nl = {
   'chatAtLimit': "Gestopt bij de gebruikslimiet",
   'chatCarryOnReset': "Na de reset vanzelf doorgaan",
   'chatCarryOnSoon': "Over 15 minuten vanzelf doorgaan",
+  'chatCarryOnScheduled': "Automatisch hervatten gepland voor {when}",
+  'chatCarryOnWaiting': "Wacht op automatisch hervatten",
+  'chatCarryOnFailed':
+      "Automatisch hervatten kon niet worden gewijzigd. Probeer het opnieuw.",
   'chatLimitTitle': "Gebruikslimiet bereikt",
   'chatLimitResets': "{limit} · reset {when}",
   'chatLimitLifted': "De limiet is gereset",
